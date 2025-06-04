@@ -1,4 +1,4 @@
-module Lwsd.BuiltIn.Core
+module Staged.BuiltIn.Core
   ( BuiltIn (..),
     BuiltInArity1 (..),
     BuiltInArity2 (..),

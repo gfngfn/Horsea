@@ -1,4 +1,4 @@
-module Lwsd.Entrypoint
+module Staged.Entrypoint
   ( Argument (..),
     showVar,
     typecheckStub,
@@ -16,18 +16,18 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text.IO qualified as TextIO
 import Data.Tuple.Extra (first)
-import Lwsd.Evaluator qualified as Evaluator
-import Lwsd.Formatter (Disp)
-import Lwsd.Formatter qualified as Formatter
-import Lwsd.Parser qualified as Parser
-import Lwsd.Scope.SigRecord (SigRecord)
-import Lwsd.Scope.TypeEnv (TypeEnv)
-import Lwsd.Scope.TypeEnv qualified as TypeEnv
-import Lwsd.SrcSyntax
-import Lwsd.Syntax
-import Lwsd.TypeError (TypeError)
-import Lwsd.Typechecker (TypecheckConfig (..), TypecheckState (..))
-import Lwsd.Typechecker qualified as Typechecker
+import Staged.Evaluator qualified as Evaluator
+import Staged.Formatter (Disp)
+import Staged.Formatter qualified as Formatter
+import Staged.Parser qualified as Parser
+import Staged.Scope.SigRecord (SigRecord)
+import Staged.Scope.TypeEnv (TypeEnv)
+import Staged.Scope.TypeEnv qualified as TypeEnv
+import Staged.SrcSyntax
+import Staged.Syntax
+import Staged.TypeError (TypeError)
+import Staged.Typechecker (TypecheckConfig (..), TypecheckState (..))
+import Staged.Typechecker qualified as Typechecker
 import Util.LocationInFile (SourceSpec (SourceSpec))
 import Util.LocationInFile qualified as LocationInFile
 import Prelude

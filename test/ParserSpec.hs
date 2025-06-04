@@ -2,8 +2,8 @@ module ParserSpec (spec) where
 
 import Data.Functor
 import Data.Text (Text)
-import Lwsd.Parser qualified as Parser
-import Lwsd.SrcSyntax
+import Staged.Parser qualified as Parser
+import Staged.SrcSyntax
 import SyntaxUtil
 import Test.Hspec
 import Util.FrontError (FrontError)

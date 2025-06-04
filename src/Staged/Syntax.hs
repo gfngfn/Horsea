@@ -1,4 +1,4 @@
-module Lwsd.Syntax
+module Staged.Syntax
   ( StaticVar (..),
     AssVarF (..),
     Symbol (..),
@@ -63,7 +63,7 @@ where
 
 import Data.Map (Map)
 import Data.Text (Text)
-import Lwsd.BuiltIn.Core
+import Staged.BuiltIn.Core
 import Util.Matrix (Matrix)
 import Util.TokenUtil (Span)
 import Util.Vector (Vector)

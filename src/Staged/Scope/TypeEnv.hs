@@ -1,4 +1,4 @@
-module Lwsd.Scope.TypeEnv
+module Staged.Scope.TypeEnv
   ( TypeEnv,
     TypeVarEntry (..),
     empty,
@@ -13,10 +13,10 @@ module Lwsd.Scope.TypeEnv
 where
 
 import Data.List.Extra qualified as List
-import Lwsd.Scope.SigRecord (ModuleEntry, SigRecord, ValEntry)
-import Lwsd.Scope.SigRecord qualified as SigRecord
-import Lwsd.SrcSyntax (TypeVar, Var)
-import Lwsd.Syntax (AssTypeVar)
+import Staged.Scope.SigRecord (ModuleEntry, SigRecord, ValEntry)
+import Staged.Scope.SigRecord qualified as SigRecord
+import Staged.SrcSyntax (TypeVar, Var)
+import Staged.Syntax (AssTypeVar)
 import Prelude
 
 -- TODO (enhance): optimize internal representation

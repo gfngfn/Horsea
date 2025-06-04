@@ -1,4 +1,4 @@
-module Lwsd.Evaluator
+module Staged.Evaluator
   ( evalExpr0,
     evalExpr1,
     initialState,
@@ -15,9 +15,9 @@ import Data.Function ((&))
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
-import Lwsd.BuiltIn.Core
-import Lwsd.EvalError
-import Lwsd.Syntax
+import Staged.BuiltIn.Core
+import Staged.EvalError
+import Staged.Syntax
 import Util.LocationInFile (SourceSpec, getSpanInFile)
 import Util.Matrix (Matrix)
 import Util.Matrix qualified as Matrix

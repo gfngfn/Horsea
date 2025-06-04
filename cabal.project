@@ -1,10 +1,10 @@
 with-compiler: ghc-9.4.8
 
-packages: lw-staged-deptype.cabal
+packages: horsea.cabal
 
 -- https://downloads.haskell.org/ghc/latest/docs/html/users_guide/flags.html
 -- https://downloads.haskell.org/ghc/latest/docs/html/users_guide/runtime_control.html
-package lw-staged-deptype
+package horsea
   tests: True
   test-show-details: direct
 

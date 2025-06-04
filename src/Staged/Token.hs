@@ -1,4 +1,4 @@
-module Lwsd.Token
+module Staged.Token
   ( Token (..),
     lex,
   )
