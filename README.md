@@ -18,7 +18,7 @@ This work attempts to remedy the issue above by using *staging*. Based on the ob
 - [x] Prove Progress
 - [x] A surface language
 - [x] Infer some obvious stage-0 annotations
-- [ ] Prove the validity of the binding-time analysis in some sense
+- [ ] Prove the validity of the surface language in some sense
 
 
 ## TODO (implementation)
@@ -32,15 +32,16 @@ This work attempts to remedy the issue above by using *staging*. Based on the ob
   * This is beneficial for handling *broadcasting* of tensors in PyTorch, for example
 - [x] Represent broadcasting of tensor shapes by refinement types
 - [x] `let`- and `let rec`-expressions as syntax sugar
-- [ ] Type-checking in a bi-directional manner as to return types
+- [x] Type-checking in a bi-directional manner as to return types
 - [x] Generalize the `external` syntax for various backends
 - [x] Handle variable names correctly
+- [x] Polymorphic types
 - [ ] Transpilation to Python or OCaml
 - [ ] ADTs and pattern matching
-- [ ] Add the `run`-primitive
+- [ ] The `run`-primitive
 - [ ] Binding of type names like `type Nat = ( n : Int | n >= 0 )`
-- [ ] Polymorphic types
 - [ ] `let`-expressions for persistent values
+- [ ] Some evaluation during type-checking
 
 
 ## Memo
