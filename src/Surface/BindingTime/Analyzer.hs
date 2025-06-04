@@ -11,8 +11,8 @@ import Control.Monad.Trans.State
 import Data.Foldable (foldrM)
 import Data.Function ((&))
 import Data.Map qualified as Map
-import Staged.Syntax qualified as Staged
 import Safe.Exact (zipExactMay)
+import Staged.Syntax qualified as Staged
 import Surface.BindingTime.AnalysisError
 import Surface.BindingTime.Constraint
 import Surface.BindingTime.Core

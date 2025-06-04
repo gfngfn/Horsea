@@ -1,7 +1,7 @@
 module Main where
 
-import Staged.Entrypoint qualified
 import Options.Applicative
+import Staged.Entrypoint qualified
 import Surface.Entrypoint qualified
 import System.Exit
 

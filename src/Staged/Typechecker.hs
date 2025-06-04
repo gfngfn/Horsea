@@ -29,6 +29,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Tuple.Extra
+import Safe.Exact
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
 import Staged.Scope.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
@@ -40,7 +41,6 @@ import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
 import Staged.TypeSubst
-import Safe.Exact
 import Util.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
 import Util.Matrix qualified as Matrix
 import Util.Maybe1
