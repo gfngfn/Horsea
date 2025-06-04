@@ -6,21 +6,21 @@ ERRORS=()
 
 for FILE in integration_tests/success/*.lwsd; do
     echo "======== $FILE (should pass) ========"
-    cabal run horsea -- lwsd --optimize --distribute-if "$FILE"
+    cabal run horsea -- staged --optimize --distribute-if "$FILE"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass)")
     fi
 done
 for FILE in integration_tests/success_compile/*.lwsd; do
     echo "======== $FILE (should pass, compile-time only) ========"
-    cabal run horsea -- lwsd --optimize --distribute-if --compile-time-only "$FILE"
+    cabal run horsea -- staged --optimize --distribute-if --compile-time-only "$FILE"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass, compile-time only)")
     fi
 done
 for FILE in integration_tests/failure/*.lwsd; do
     echo "======== $FILE (should be rejected) ========"
-    cabal run horsea -- lwsd --optimize --distribute-if "$FILE"
+    cabal run horsea -- staged --optimize --distribute-if "$FILE"
     if [ $? -eq 0 ]; then
         ERRORS+=("$FILE (should be rejected)")
     fi
