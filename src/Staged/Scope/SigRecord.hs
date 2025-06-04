@@ -1,4 +1,4 @@
-module Lwsd.Scope.SigRecord
+module Staged.Scope.SigRecord
   ( Ass0Metadata (..),
     Ass1Metadata (..),
     AssPersMetadata (..),
@@ -18,9 +18,9 @@ where
 
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Lwsd.BuiltIn.Core
-import Lwsd.SrcSyntax (Var)
-import Lwsd.Syntax
+import Staged.BuiltIn.Core
+import Staged.SrcSyntax (Var)
+import Staged.Syntax
 import Surface.Syntax qualified as SurfaceSyntax
 import Prelude
 

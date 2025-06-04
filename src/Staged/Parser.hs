@@ -1,4 +1,4 @@
-module Lwsd.Parser
+module Staged.Parser
   ( parseExpr,
     parseTypeExpr, -- Made public for tests
     parseBinds,
@@ -13,9 +13,9 @@ import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text (Text)
-import Lwsd.SrcSyntax
-import Lwsd.Token (Token (..))
-import Lwsd.Token qualified as Token
+import Staged.SrcSyntax
+import Staged.Token (Token (..))
+import Staged.Token qualified as Token
 import Util.FrontError (FrontError (..))
 import Util.LocationInFile (SourceSpec)
 import Util.ParserUtil

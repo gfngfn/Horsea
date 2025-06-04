@@ -8,13 +8,13 @@ import Control.Monad.Trans.Reader
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text.IO qualified as TextIO
-import Lwsd.Entrypoint qualified
-import Lwsd.Formatter (Disp)
-import Lwsd.Formatter qualified as Formatter
-import Lwsd.Parser qualified as LwsdParser
-import Lwsd.Scope.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
-import Lwsd.Scope.SigRecord qualified as SigRecord
-import Lwsd.Typechecker (TypecheckState (..))
+import Staged.Entrypoint qualified
+import Staged.Formatter (Disp)
+import Staged.Formatter qualified as Formatter
+import Staged.Parser qualified as StagedParser
+import Staged.Scope.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
+import Staged.Scope.SigRecord qualified as SigRecord
+import Staged.Typechecker (TypecheckState (..))
 import Surface.BindingTime qualified as BindingTime
 import Surface.BindingTime.Core
 import Surface.Parser qualified as Parser
@@ -79,13 +79,13 @@ handle :: Argument -> IO Bool
 handle Argument {inputFilePath, stubFilePath, optimize, distributeIf, displayWidth, compileTimeOnly, fallBackToBindingTime0} = do
   putStrLn "Lightweight Dependent Types via Staging (Surface Language)"
   let lwArg =
-        Lwsd.Entrypoint.Argument
-          { Lwsd.Entrypoint.inputFilePath = inputFilePath,
-            Lwsd.Entrypoint.stubFilePath = stubFilePath,
-            Lwsd.Entrypoint.optimize = optimize,
-            Lwsd.Entrypoint.distributeIf = distributeIf,
-            Lwsd.Entrypoint.displayWidth = displayWidth,
-            Lwsd.Entrypoint.compileTimeOnly = compileTimeOnly
+        Staged.Entrypoint.Argument
+          { Staged.Entrypoint.inputFilePath = inputFilePath,
+            Staged.Entrypoint.stubFilePath = stubFilePath,
+            Staged.Entrypoint.optimize = optimize,
+            Staged.Entrypoint.distributeIf = distributeIf,
+            Staged.Entrypoint.displayWidth = displayWidth,
+            Staged.Entrypoint.compileTimeOnly = compileTimeOnly
           }
   stub <- TextIO.readFile stubFilePath
   let sourceSpecOfStub =
@@ -93,18 +93,18 @@ handle Argument {inputFilePath, stubFilePath, optimize, distributeIf, displayWid
           { LocationInFile.source = stub,
             LocationInFile.inputFilePath = stubFilePath
           }
-  case LwsdParser.parseBinds sourceSpecOfStub stub of
+  case StagedParser.parseBinds sourceSpecOfStub stub of
     Left err -> do
       putSectionLine "parse error of stub:"
       putRenderedLines err
       failure
     Right declsInStub -> do
       (r, stateAfterTraversingStub@TypecheckState {assVarDisplay}) <-
-        runReaderT (Lwsd.Entrypoint.typecheckStub sourceSpecOfStub declsInStub) lwArg
+        runReaderT (Staged.Entrypoint.typecheckStub sourceSpecOfStub declsInStub) lwArg
       case r of
         Left tyErr -> do
           putSectionLine "type error of stub:"
-          putRenderedLines (fmap (Lwsd.Entrypoint.showVar assVarDisplay) tyErr)
+          putRenderedLines (fmap (Staged.Entrypoint.showVar assVarDisplay) tyErr)
           failure
         Right (tyEnvStub, sigr, abinds) -> do
           let initialBindingTimeEnv = makeBindingTimeEnvFromStub sigr
@@ -132,7 +132,7 @@ handle Argument {inputFilePath, stubFilePath, optimize, distributeIf, displayWid
                   putRenderedLines bce
                   putSectionLine "result of staging:"
                   putRenderedLinesAtStage0 lwe
-                  runReaderT (Lwsd.Entrypoint.typecheckAndEvalInput stateAfterTraversingStub sourceSpecOfInput tyEnvStub abinds lwe) lwArg
+                  runReaderT (Staged.Entrypoint.typecheckAndEvalInput stateAfterTraversingStub sourceSpecOfInput tyEnvStub abinds lwe) lwArg
   where
     putSectionLine :: String -> IO ()
     putSectionLine s = putStrLn ("-------- " ++ s ++ " --------")

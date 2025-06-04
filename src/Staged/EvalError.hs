@@ -1,4 +1,4 @@
-module Lwsd.EvalError
+module Staged.EvalError
   ( BugF (..),
     EvalErrorF (..),
     Bug,
@@ -6,8 +6,8 @@ module Lwsd.EvalError
   )
 where
 
-import Lwsd.BuiltIn.Core
-import Lwsd.Syntax
+import Staged.BuiltIn.Core
+import Staged.Syntax
 import Util.LocationInFile (SpanInFile)
 import Prelude
 

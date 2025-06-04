@@ -19,7 +19,7 @@ where
 
 import Data.Map (Map)
 import GHC.Generics
-import Lwsd.Syntax qualified as Lwsd
+import Staged.Syntax qualified as Staged
 import Surface.Syntax
 import Util.TokenUtil
 import Prelude
@@ -66,62 +66,62 @@ type BArgForType = ArgForTypeF (BindingTime, Span)
 -- For built-in values.
 type BITypeVoid = BITypeF BindingTimeConst
 
-fromStaged0 :: Lwsd.Ass0TypeExpr -> BITypeVoid
+fromStaged0 :: Staged.Ass0TypeExpr -> BITypeVoid
 fromStaged0 = \case
-  Lwsd.A0TyPrim _a0tyPrim _maybePred ->
+  Staged.A0TyPrim _a0tyPrim _maybePred ->
     wrap0 $ BITyBase []
-  Lwsd.A0TyVar _atyvar ->
+  Staged.A0TyVar _atyvar ->
     -- Handles order-0 type variables only:
     wrap0 $ BITyBase []
-  Lwsd.A0TyList a0tye' _maybePred ->
+  Staged.A0TyList a0tye' _maybePred ->
     wrap0 $ BITyBase [fromStaged0 a0tye']
-  Lwsd.A0TyProduct a0tye1 a0tye2 ->
+  Staged.A0TyProduct a0tye1 a0tye2 ->
     wrap0 $ BITyProduct (fromStaged0 a0tye1) (fromStaged0 a0tye2)
-  Lwsd.A0TyArrow (_, a0tye1) a0tye2 ->
+  Staged.A0TyArrow (_, a0tye1) a0tye2 ->
     wrap0 $ BITyArrow (fromStaged0 a0tye1) (fromStaged0 a0tye2)
-  Lwsd.A0TyOptArrow (_, a0tye1) a0tye2 ->
+  Staged.A0TyOptArrow (_, a0tye1) a0tye2 ->
     wrap0 $ BITyOptArrow (fromStaged0 a0tye1) (fromStaged0 a0tye2)
-  Lwsd.A0TyCode a1tye ->
+  Staged.A0TyCode a1tye ->
     fromStaged1 a1tye
-  Lwsd.A0TyImplicitForAll _atyvar a0tye ->
+  Staged.A0TyImplicitForAll _atyvar a0tye ->
     -- TODO: support type application
     fromStaged0 a0tye
   where
     wrap0 = BIType BT0
 
-fromStaged1 :: Lwsd.Ass1TypeExpr -> BITypeVoid
+fromStaged1 :: Staged.Ass1TypeExpr -> BITypeVoid
 fromStaged1 = \case
-  Lwsd.A1TyPrim _a1tyPrim ->
+  Staged.A1TyPrim _a1tyPrim ->
     wrap1 $ BITyBase []
-  Lwsd.A1TyList a1tye' ->
+  Staged.A1TyList a1tye' ->
     wrap1 $ BITyBase [fromStaged1 a1tye']
-  Lwsd.A1TyVar _atyvar ->
+  Staged.A1TyVar _atyvar ->
     -- Handles order-0 type variables only:
     wrap1 $ BITyBase []
-  Lwsd.A1TyProduct a1tye1 a1tye2 ->
+  Staged.A1TyProduct a1tye1 a1tye2 ->
     wrap1 $ BITyProduct (fromStaged1 a1tye1) (fromStaged1 a1tye2)
-  Lwsd.A1TyArrow a1tye1 a1tye2 ->
+  Staged.A1TyArrow a1tye1 a1tye2 ->
     wrap1 $ BITyArrow (fromStaged1 a1tye1) (fromStaged1 a1tye2)
-  Lwsd.A1TyImplicitForAll _atyvar a1tye2 ->
+  Staged.A1TyImplicitForAll _atyvar a1tye2 ->
     -- TODO: support type application
     fromStaged1 a1tye2
   where
     wrap1 = BIType BT1
 
-fromStagedPers :: Lwsd.AssPersTypeExpr -> BITypeF ()
+fromStagedPers :: Staged.AssPersTypeExpr -> BITypeF ()
 fromStagedPers = \case
-  Lwsd.APersTyPrim _a0tyPrim ->
+  Staged.APersTyPrim _a0tyPrim ->
     wrapP $ BITyBase []
-  Lwsd.APersTyVar _atyvar ->
+  Staged.APersTyVar _atyvar ->
     -- Handles order-0 type variables only:
     wrapP $ BITyBase []
-  Lwsd.APersTyList aPtye' ->
+  Staged.APersTyList aPtye' ->
     wrapP $ BITyBase [fromStagedPers aPtye']
-  Lwsd.APersTyProduct aPtye1 aPtye2 ->
+  Staged.APersTyProduct aPtye1 aPtye2 ->
     wrapP $ BITyProduct (fromStagedPers aPtye1) (fromStagedPers aPtye2)
-  Lwsd.APersTyArrow aPtye1 aPtye2 ->
+  Staged.APersTyArrow aPtye1 aPtye2 ->
     wrapP $ BITyArrow (fromStagedPers aPtye1) (fromStagedPers aPtye2)
-  Lwsd.APersTyImplicitForAll _atyvar aPtye2 ->
+  Staged.APersTyImplicitForAll _atyvar aPtye2 ->
     -- TODO: support type application
     fromStagedPers aPtye2
   where

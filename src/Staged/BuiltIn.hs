@@ -1,10 +1,10 @@
-module Lwsd.BuiltIn
+module Staged.BuiltIn
   ( tyNat,
   )
 where
 
-import Lwsd.BuiltIn.Core
-import Lwsd.Syntax
+import Staged.BuiltIn.Core
+import Staged.Syntax
 import Prelude
 
 ass0exprIsNonnegative :: Ass0Expr

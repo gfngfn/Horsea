@@ -3,8 +3,8 @@ module SubstSpec (spec) where
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
-import Lwsd.Subst
-import Lwsd.Syntax
+import Staged.Subst
+import Staged.Syntax
 import SyntaxUtil
 import Test.Hspec
 

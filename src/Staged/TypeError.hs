@@ -1,4 +1,4 @@
-module Lwsd.TypeError
+module Staged.TypeError
   ( TypeErrorF (..),
     ConditionalMergeErrorF (..),
     TypeError,
@@ -7,8 +7,8 @@ module Lwsd.TypeError
 where
 
 import Data.Text (Text)
-import Lwsd.SrcSyntax
-import Lwsd.Syntax
+import Staged.SrcSyntax
+import Staged.Syntax
 import Util.LocationInFile (SpanInFile)
 import Util.Matrix qualified as Matrix
 import Prelude

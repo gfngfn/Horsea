@@ -1,4 +1,4 @@
-module Lwsd.Typechecker
+module Staged.Typechecker
   ( typecheckExpr0,
     typecheckExpr1,
     typecheckTypeExpr0,
@@ -29,17 +29,17 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Tuple.Extra
-import Lwsd.BuiltIn qualified as BuiltIn
-import Lwsd.BuiltIn.Core
-import Lwsd.Scope.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
-import Lwsd.Scope.SigRecord qualified as SigRecord
-import Lwsd.Scope.TypeEnv (TypeEnv, TypeVarEntry (..))
-import Lwsd.Scope.TypeEnv qualified as TypeEnv
-import Lwsd.SrcSyntax
-import Lwsd.Subst
-import Lwsd.Syntax
-import Lwsd.TypeError
-import Lwsd.TypeSubst
+import Staged.BuiltIn qualified as BuiltIn
+import Staged.BuiltIn.Core
+import Staged.Scope.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
+import Staged.Scope.SigRecord qualified as SigRecord
+import Staged.Scope.TypeEnv (TypeEnv, TypeVarEntry (..))
+import Staged.Scope.TypeEnv qualified as TypeEnv
+import Staged.SrcSyntax
+import Staged.Subst
+import Staged.Syntax
+import Staged.TypeError
+import Staged.TypeSubst
 import Safe.Exact
 import Util.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
 import Util.Matrix qualified as Matrix

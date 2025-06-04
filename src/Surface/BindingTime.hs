@@ -7,7 +7,7 @@ where
 import Control.Lens
 import Data.Generics.Labels ()
 import Data.Map qualified as Map
-import Lwsd.SrcSyntax qualified as Lwsd
+import Staged.SrcSyntax qualified as Staged
 import Surface.BindingTime.AnalysisError
 import Surface.BindingTime.Analyzer qualified as Analyzer
 import Surface.BindingTime.Constraint
@@ -23,7 +23,7 @@ type M a = Either AnalysisError a
 err :: AnalysisError -> M a
 err = Left
 
-analyze :: SourceSpec -> Bool -> BindingTimeEnv -> Expr -> M (BCExprF Span, Lwsd.Expr)
+analyze :: SourceSpec -> Bool -> BindingTimeEnv -> Expr -> M (BCExprF Span, Staged.Expr)
 analyze sourceSpec fallBackToBindingTime0 btenv e = do
   (be', constraints) <- Analyzer.run sourceSpec btenv e
   (rawSolutionMap, _unsolvedConstraints) <-

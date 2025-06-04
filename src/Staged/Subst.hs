@@ -1,4 +1,4 @@
-module Lwsd.Subst
+module Staged.Subst
   ( HasVar (..),
     frees0,
     frees1,
@@ -12,7 +12,7 @@ where
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Tuple.Extra
-import Lwsd.Syntax
+import Staged.Syntax
 import Safe.Exact
 import Util.Maybe1
 import Prelude

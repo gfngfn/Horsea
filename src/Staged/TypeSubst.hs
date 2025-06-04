@@ -1,11 +1,11 @@
-module Lwsd.TypeSubst
+module Staged.TypeSubst
   ( HasTypeVar (..),
     tySubst0,
     tySubst1,
   )
 where
 
-import Lwsd.Syntax
+import Staged.Syntax
 import Util.Maybe1
 import Prelude
 

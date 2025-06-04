@@ -1,4 +1,4 @@
-module Lwsd.Formatter
+module Staged.Formatter
   ( Disp (..),
     render,
     putRenderedLines,
@@ -11,11 +11,11 @@ where
 import Data.List qualified as List
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Lwsd.BuiltIn.Core
-import Lwsd.EvalError
-import Lwsd.SrcSyntax
-import Lwsd.Syntax
-import Lwsd.TypeError
+import Staged.BuiltIn.Core
+import Staged.EvalError
+import Staged.SrcSyntax
+import Staged.Syntax
+import Staged.TypeError
 import Prettyprinter
 import Prettyprinter.Render.Terminal
 import Surface.BindingTime.Analyzer qualified as Bta

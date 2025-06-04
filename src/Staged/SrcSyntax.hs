@@ -1,4 +1,4 @@
-module Lwsd.SrcSyntax
+module Staged.SrcSyntax
   ( Var,
     Literal (..),
     ExprF (..),

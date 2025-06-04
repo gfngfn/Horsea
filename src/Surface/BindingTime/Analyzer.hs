@@ -11,7 +11,7 @@ import Control.Monad.Trans.State
 import Data.Foldable (foldrM)
 import Data.Function ((&))
 import Data.Map qualified as Map
-import Lwsd.Syntax qualified as LwsdSyntax
+import Staged.Syntax qualified as Staged
 import Safe.Exact (zipExactMay)
 import Surface.BindingTime.AnalysisError
 import Surface.BindingTime.Constraint
@@ -480,7 +480,7 @@ extractConstraintsFromTypeExpr btenv (TypeExpr (bt, ann) typeExprMain) = do
           ("Nat", []) ->
             pure ([], [], [CEqual ann bt (BTConst BT0)])
           (_, []) ->
-            case LwsdSyntax.validatePrimBaseType tyName of
+            case Staged.validatePrimBaseType tyName of
               Just _tyPrimBase -> pure ([], [], [])
               Nothing -> analysisError $ UnknownTypeOrInvalidArgs spanInFile tyName args
           ("List", [TypeArg tye]) -> do

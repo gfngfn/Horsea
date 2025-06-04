@@ -1,8 +1,8 @@
 module SyntaxUtil where
 
 import Data.Text (Text)
-import Lwsd.SrcSyntax
-import Lwsd.Syntax
+import Staged.SrcSyntax
+import Staged.Syntax
 
 type TypeExprVoid = TypeExprF ()
 
