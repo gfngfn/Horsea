@@ -73,11 +73,13 @@ newtype StaticVar = StaticVar Int
   deriving newtype (Eq, Ord, Show)
 
 data AssVarF sv
-  = AssVarStatic sv
-  | AssVarDynamic Int
+  = -- | Statically assigned variables.
+    AssVarStatic sv
+  | -- | Dynamically generated variables.
+    AssVarDynamic Int
   deriving stock (Eq, Ord, Show, Functor)
 
--- The type for symbols generated dynamically for hygienicity.
+-- | The type of symbols generated dynamically for hygienicity.
 newtype Symbol = Symbol Int
   deriving newtype (Eq, Show)
 
@@ -98,9 +100,11 @@ data AssLiteralF af sv
   | ALitMat Matrix
   deriving stock (Eq, Show, Functor)
 
+-- | The type of stage-0 expressions obtained by elaboration through typechecking.
 data Ass0ExprF sv
   = A0Literal (AssLiteralF Ass0ExprF sv)
-  | A0BuiltInName BuiltIn
+  | -- | Uses of built-in functions.
+    A0BuiltInName BuiltIn
   | A0Var (AssVarF sv)
   | A0Lam (Maybe (AssVarF sv, StrictAss0TypeExprF sv)) (AssVarF sv, StrictAss0TypeExprF sv) (Ass0ExprF sv)
   | A0App (Ass0ExprF sv) (Ass0ExprF sv)
@@ -111,10 +115,13 @@ data Ass0ExprF sv
   | A0IfThenElse (Ass0ExprF sv) (Ass0ExprF sv) (Ass0ExprF sv)
   | A0Bracket (Ass1ExprF sv)
   | A0TyEqAssert Span (Type1EquationF sv)
-  | A0RefinementAssert Span (Ass0ExprF sv) (Ass0ExprF sv) -- A predicate and a target.
+  | -- | Assertions for refinement predicates, where the first expression is a predicate,
+    -- and the second is a target expression of the assertion.
+    A0RefinementAssert Span (Ass0ExprF sv) (Ass0ExprF sv)
   | A0AppType (Ass0ExprF sv) (StrictAss0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
+-- | The type of stage-1 expressions obtained by elaboration through typechecking.
 data Ass1ExprF sv
   = A1Literal (AssLiteralF Ass1ExprF sv)
   | A1Var (AssVarF sv)
@@ -133,6 +140,7 @@ a1LetIn :: (AssVarF sv, Ass1TypeExprF sv) -> Ass1ExprF sv -> Ass1ExprF sv -> Ass
 a1LetIn (x, a1tye) a1e1 a1e2 =
   A1App (A1Lam Nothing (x, a1tye) a1e2) a1e1
 
+-- | The type of bindings obtained by elaboration through typechecking.
 data AssBindF sv
   = ABind0 (AssVarF sv, StrictAss0TypeExprF sv) (Ass0ExprF sv)
   | ABind1 (AssVarF sv, Ass1TypeExprF sv) (Ass1ExprF sv)
@@ -153,27 +161,37 @@ makeExprFromBinds abinds' a0eFinal = go0 abinds'
       ABind1 xty a1e : abinds -> a1LetIn xty a1e (go1 abinds)
       ABind0 xsty a0e : abinds -> A1Escape (A0LetIn xsty a0e (go0 abinds))
 
--- For type-checking.
+-- | The type of internal stage-0 type expressions for typechecking.
 data Ass0TypeExprF sv
-  = A0TyPrim Ass0PrimType (Maybe (Ass0ExprF sv)) -- Possibly equipped with a refinement predicate.
+  = -- | Primitive types possibly equipped with a refinement predicate.
+    A0TyPrim Ass0PrimType (Maybe (Ass0ExprF sv))
+  | -- | List types possibly equipped with a refinement predicate.
+    A0TyList (Ass0TypeExprF sv) (Maybe (Ass0ExprF sv))
   | A0TyVar AssTypeVar
-  | A0TyList (Ass0TypeExprF sv) (Maybe (Ass0ExprF sv)) -- Possibly equipped with a refinement predicate.
   | A0TyProduct (Ass0TypeExprF sv) (Ass0TypeExprF sv) -- TODO: generalize product types
-  | A0TyArrow (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
-  | A0TyOptArrow (AssVarF sv, Ass0TypeExprF sv) (Ass0TypeExprF sv)
+  | -- | (Possibly dependent) function types.
+    A0TyArrow (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
+  | -- | Function types with an implicit parameter.
+    A0TyOptArrow (AssVarF sv, Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | A0TyCode (Ass1TypeExprF sv)
-  | A0TyImplicitForAll AssTypeVar (Ass0TypeExprF sv)
+  | -- | Polymorphic types.
+    A0TyImplicitForAll AssTypeVar (Ass0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
--- For type annotations in target terms.
+-- | The type of type annotations in target terms.
+-- Unlike @Ass0TypeExprF@, this does not contain function types with implicit parameters.
 data StrictAss0TypeExprF sv
-  = SA0TyPrim Ass0PrimType (Maybe (Ass0ExprF sv)) -- Possibly equipped with a refinement predicate.
+  = -- | Primitive types possibly equipped with a refinement predicate.
+    SA0TyPrim Ass0PrimType (Maybe (Ass0ExprF sv))
+  | -- | List types possibly equipped with a refinement predicate.
+    SA0TyList (StrictAss0TypeExprF sv) (Maybe (Ass0ExprF sv))
   | SA0TyVar AssTypeVar
-  | SA0TyList (StrictAss0TypeExprF sv) (Maybe (Ass0ExprF sv)) -- Possibly equipped with a refinement predicate.
   | SA0TyProduct (StrictAss0TypeExprF sv) (StrictAss0TypeExprF sv) -- TODO: generalize product types
-  | SA0TyArrow (Maybe (AssVarF sv), StrictAss0TypeExprF sv) (StrictAss0TypeExprF sv)
+  | -- | (Possibly dependent) function types.
+    SA0TyArrow (Maybe (AssVarF sv), StrictAss0TypeExprF sv) (StrictAss0TypeExprF sv)
   | SA0TyCode (Ass1TypeExprF sv)
-  | SA0TyExplicitForAll AssTypeVar (StrictAss0TypeExprF sv)
+  | -- | Polymorphic types.
+    SA0TyExplicitForAll AssTypeVar (StrictAss0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data AssPrimBaseType
@@ -206,6 +224,7 @@ data Ass0PrimType
   | A0TyTensor [Int]
   deriving stock (Eq, Show)
 
+-- | The type of stage-1 type expressions.
 data Ass1TypeExprF sv
   = A1TyPrim (Ass1PrimTypeF sv)
   | A1TyList (Ass1TypeExprF sv)
@@ -220,7 +239,7 @@ data Ass1PrimTypeF sv
   | A1TyTensor (Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
--- Types for persistent value items.
+-- | The type of types for persistent value items.
 data AssPersTypeExpr
   = APersTyPrim Ass0PrimType
   | APersTyVar AssTypeVar
@@ -253,14 +272,19 @@ liftPrimType = \case
   A0TyPrimBase tyPrimBase -> A1TyPrimBase tyPrimBase
   A0TyTensor ns -> A1TyTensor (A0Literal (ALitList (map (A0Literal . ALitInt) ns)))
 
+-- | The type of stage-0 term values.
 data Ass0ValF sv
   = A0ValLiteral (AssLiteralF Ass0ValF sv)
   | A0ValTuple (Ass0ValF sv) (Ass0ValF sv)
-  | A0ValLam (Maybe (AssVarF sv, Ass0TypeValF sv)) (AssVarF sv, Ass0TypeValF sv) (Ass0ExprF sv) EvalEnv
-  | A0ValBracket (Ass1ValF sv)
-  | A0ValPartialBuiltInApp (Ass0PartialBuiltInApp (Ass0ValF sv))
+  | -- | Function closures.
+    A0ValLam (Maybe (AssVarF sv, Ass0TypeValF sv)) (AssVarF sv, Ass0TypeValF sv) (Ass0ExprF sv) EvalEnv
+  | -- | code fragments.
+    A0ValBracket (Ass1ValF sv)
+  | -- | Possibly partially applied built-in functions.
+    A0ValPartialBuiltInApp (Ass0PartialBuiltInApp (Ass0ValF sv))
   deriving stock (Eq, Show, Functor)
 
+-- | The type of stage-1 term values.
 data Ass1ValF sv
   = A1ValLiteral (AssLiteralF Ass1ValF sv)
   | A1ValConst Ass1BuiltIn
@@ -273,10 +297,13 @@ data Ass1ValF sv
   | A1ValIfThenElse (Ass1ValF sv) (Ass1ValF sv) (Ass1ValF sv)
   deriving stock (Eq, Show, Functor)
 
+-- | The type of stage-0 type values.
 data Ass0TypeValF sv
-  = A0TyValPrim Ass0PrimTypeVal (Maybe (Ass0ValF sv)) -- Possibly equipped with a refinement predicate.
+  = -- | Primitive types possibly equipped with a refinement predicate.
+    A0TyValPrim Ass0PrimTypeVal (Maybe (Ass0ValF sv))
+  | -- | List types possibly equipped with a refinement predicate.
+    A0TyValList (Ass0TypeValF sv) (Maybe (Ass0ValF sv))
   | A0TyValVar AssTypeVar
-  | A0TyValList (Ass0TypeValF sv) (Maybe (Ass0ValF sv)) -- Possibly equipped with a refinement predicate.
   | A0TyValProduct (Ass0TypeValF sv) (Ass0TypeValF sv)
   | A0TyValArrow (Maybe (AssVarF sv), Ass0TypeValF sv) (StrictAss0TypeExprF sv)
   | A0TyValCode (Ass1TypeValF sv)
@@ -288,6 +315,7 @@ data Ass0PrimTypeVal
   | A0TyValTensor [Int]
   deriving stock (Eq, Show)
 
+-- | The type of stage-1 type values.
 data Ass1TypeValF sv
   = A1TyValPrim Ass1PrimTypeVal
   | A1TyValList (Ass1TypeValF sv)
@@ -302,6 +330,7 @@ data Ass1PrimTypeVal
   | A1TyValTensor [Int]
   deriving stock (Eq, Show)
 
+-- | The type of well-formed type equations for assertion.
 data Type1EquationF sv
   = TyEq1Prim (Type1PrimEquationF sv)
   | TyEq1List (Type1EquationF sv)
@@ -311,7 +340,8 @@ data Type1EquationF sv
 data Type1PrimEquationF sv
   = TyEq1PrimBase AssPrimBaseType
   | TyEq1TensorByLiteral [(Ass0ExprF sv, Ass0ExprF sv)]
-  | TyEq1TensorByWhole (Ass0ExprF sv) (Ass0ExprF sv) -- A Pair of ASTs of type `List Nat`
+  | -- | Pairs of expressions of type `List Nat`.
+    TyEq1TensorByWhole (Ass0ExprF sv) (Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 type EvalEnv = Map AssVar EvalEnvEntry
@@ -388,6 +418,8 @@ decomposeType1Equation = \case
   where
     prims p = (A1TyPrim p, A1TyPrim p)
 
+-- | The type of application contexts, which play a key role of
+-- the "Let arguments go first" [Xie & Oliveira 2018] formalization.
 type AppContextF sv = [AppContextEntryF sv]
 
 data AppContextEntryF sv
@@ -397,6 +429,7 @@ data AppContextEntryF sv
   | AppArgOptOmitted0
   deriving (Eq, Show, Functor)
 
+-- | The type of the results of the "Let arguments go first" traversal.
 data ResultF af sv
   = Pure (af sv)
   | Cast0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprF sv) (ResultF af sv)
