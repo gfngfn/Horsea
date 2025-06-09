@@ -1,6 +1,6 @@
 # Syntax of the Staged Language
 
-The concrete syntax considerably overlaps that of OCaml except for some incompatible points like the following:
+The concrete syntax considerably overlaps that of OCaml except for some incompatible points as follows:
 
 - Type names are capitalized (like `Int` or `Bool`).
 - Arguments follow type constructors (like `List Int`).
@@ -10,37 +10,102 @@ The concrete syntax considerably overlaps that of OCaml except for some incompat
 - Type coercions are written by using `as` (like `v as Vec %n`).
 - Top-level bindings are described by `val`, not by `let`.
 
+Also, compared to OCaml, the following constructs are added:
+
+- Staging constructs, i.e., _brackets_ `&` and _escapes_ `~`, which are used like `&(x + 1)` and `~(gen_power n)`, respectively
+- Expression arguments of type constructors like `n * 2` and `m + 1` of `Tensor %[n * 2, m + 1]`
+- Abstractions and applications for _implicit parameters/arguments_
 
 ## By example
 
-### Let-expressions
+### `let`/`let rec`-expressions and conditionals
+
+`let`-expressions and conditionals (i.e., `if`-expressions) are basically the same as OCaml:
 
 ```
 let succ (x : Int) = x + 1 in
-succ 42
 
-(* ==> 43 *)
+succ 42  (* ==> 43 *)
+```
+
+However, for the moment, `let rec`-expressions have the following two constraints:
+
+- Return types must be annotated.
+  * This is due to the bi-directional type inference algorithm.
+- Mutual recursion is not supported.
+
+```
+let rec fact (n : Int) : Int =
+  if n <= 0 then
+    1
+  else
+    n * fact (n - 1)
+in
+
+fact 5  (* ==> 120 *)
 ```
 
 
-### Staging
+### Staging constructs and their typing
 
-The symbol `&` works as a _bracket_; it constructs a quoted expression. For example, the following stands for a code fragment `3 + 5` (not the immediate computation of the addition of `3` and `5`):
+The symbol `&` works as a _bracket_; it constructs a quoted expression (i.e., `&e` corresponds to `〈e〉` in the standard notation of MetaML). For example, the following stands for a _code fragment_ `3 + 5` (not the immediate computation of the addition of `3` and `5`):
 
 ```
 &(3 + 5)
 ```
 
-Inside a bracket, the symbol `~` can be used for an _escape_; it splices a code fragment like the following:
+Inside brackets, the symbol `~` can be used as an _escape_; it splices a code fragment like the following:
 
 ```
 let c = &(4 + 5) in
-&(3 + ~c)
 
-(* ==> &(3 + (4 + 5)) *)
+&(3 + ~c)  (* ==> &(3 + (4 + 5)) *)
 ```
 
-Brackets `&` and escapes `~` form the notion of _stages_; they assign a stage (0 or 1) to every subexpression. A subexpression `e` prefixed by `&` is at stage 1, and the subexpression `&e` itself is at stage 0.
+Brackets `&` and escapes `~` form the notion of _stages_; they assign a stage (0 or 1) to every subexpression. A subexpression `e` prefixed by `&` is at stage 1, and the surrounding stuff outside the bracket is at stage 0. Conversely, a subexpression `e` prefixed by `~` is at stage 0, and the surrounding stuff is at stage 1. Subexpressions at stage 0 are to be evaluated at compile-time computation, while those at stage 1 are left for runtime computation.
+
+We also have _code types_ of the form `&τ` to assign types to code fragments. A bracketed expression `&e` is assigned type `&τ` at stage 0 if `e` is of type `τ` at stage 1. Conversely, `~e` is assigned type `τ` if `e` is of type `&τ`.
+
+For example, suppose the following function `gen_power`, which takes a natural number `n` and returns a code fragment of the `n`-th power function:
+
+```
+let gen_power (n : Int) =
+  let rec aux (n : Int) (c : &Int) : &Int =
+    if n <= 0 then
+      &1
+    else
+      &(~c * ~(aux (n - 1) c))
+  in
+  &(fun(x : Int) -> ~(aux n &x))
+```
+
+This function is assigned type `Int -> &(Int -> Int)`.
+
+
+### Value arguments of types and dependent function types
+
+For stage-1 vectors, we have type `Vec %e`, where `e` is a stage-0 expression (dubbed as _value arguments_) that stands for the length of the vectors assigned that type. Similarly, for stage-1 matrices, we have type `Mat %e_1 %e_2`, where `e_1` and `e_2` correspond to the number of rows and columns, respectively. Also, these two type constructors are generalized to tensors of arbitrary shapes by `Tensor`; is takes a list of natural numbers. That is, `Vec %e` and `Mat %e_1 %e_2` are syntax sugar of `Tensor %[e]` and `Tensor %[e_1, e_2]`, respectively.
+
+Consider the type of the vector addition operation, for example: Since it is defined for two vectors of the same length, the stage-1 vector addition operation specialized for length `n` must have type `Vec %n -> Vec %n -> Vec %n` (Note: `n` is a metavariable so far). To this end, we can provide a stage-0 built-in function `gen_vadd` for generating such specialized operations with type `(n : Int) -> &(Vec %n -> Vec %n -> Vec %n)` (Note: `n` is now an object-level variable). Here, function types of the form `(x : τ_1) -> τ_2` are called _dependent function types_, meaning that the codomain type `τ_2` can depend on the value-level variable `x` standing for the parameter.
+
+
+### Implicit parameters/arguments
+
+(WRITE MORE)
+
+
+### Refinement types for stage-0 computation
+
+(WRITE MORE)
+
+
+### Top-level bindings
+
+The _stub file_ (i.e., the source file that defines built-in functions) consists of a sequence of _top-level bindings_ (or simply _bindings_).
+
+There are three kinds of bindings: _stage-0 bindings_, _stage-1 bindings_, and _persistent bindings_.
+
+(WRITE MORE)
 
 
 ## Precise definitions
@@ -66,6 +131,7 @@ Brackets `&` and escapes `~` form the notion of _stages_; they assign a stage (0
   | <expr> 'as' <Ty>                                    (coercions)
 
   | <expr> <binOp> <expr>                               (binary operations)
+  | <expr> '|>' <expr>                                  (flipped applications)
 
   | 'fun' <param> '->' <expr>                           (abstractions)
   | 'rec' <ordParam> '->' 'fun' <ordParam> '->' <expr>  (fixpoints, i.e., recursive abstractions)
@@ -94,6 +160,20 @@ Brackets `&` and escapes `~` form the notion of _stages_; they assign a stage (0
 <ordParam> ::= '(' <x> ':' <Ty> ')'  (ordinary parameters)
 <impParam> ::= '{' <x> ':' <Ty> '}'  (implicit parameters)
 ```
+
+```
+<binOp> ::=
+  | <multBinOp>
+  | <addBinOp>
+  | <compBinOp>
+```
+
+- Multiplicative binary operators `<multBinOp>`:
+  * A non-empty finite sequence of _operator symbols_ that starts with `*` or `/`, where the operator symbols are `+`, `-`, `*`, `/`, `=`, `<`, and `>`.
+- Additive binary operators `<addBinOp>`:
+  * A non-empty finite sequence of operator symbols that starts with `+` or `-`.
+- Comparative binary operators `<compBinOp>`:
+  * A non-empty finite sequence of operator symbols that starts with `=`, `<`, or `>`.
 
 
 ### Constants
@@ -193,6 +273,19 @@ The following base types are pre-defined:
 
 ```
 <bind> ::=
-  | 'val' <valBind>
+  | 'val' <valBinder> <bindVal>
   | 'module' <X> '=' 'struct' [<bind>]* 'end'
+
+<valBinder> ::=
+  | '~' <x>  (binders of stage-0 values)
+  | <x>      (binders of stage-1 values)
+  | '%' <x>  (binders of persistent values)
+
+<bindVal> ::=
+  | '=' <expr>                             (ordinary definitions)
+  | ':' <Ty> 'external' '(' <extSpec> ')'  (bindings for built-in values)
+
+<extSpec> ::=
+  | (empty)
+  | <x> '=' <str> [',' <x> '=' <str>]*
 ```
