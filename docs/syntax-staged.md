@@ -88,24 +88,78 @@ For stage-1 vectors, we have type `Vec %e`, where `e` is a stage-0 expression (d
 
 Consider the type of the vector addition operation, for example: Since it is defined for two vectors of the same length, the stage-1 vector addition operation specialized for length `n` must have type `Vec %n -> Vec %n -> Vec %n` (Note: `n` is a metavariable so far). To this end, we can provide a stage-0 built-in function `gen_vadd` for generating such specialized operations with type `(n : Int) -> &(Vec %n -> Vec %n -> Vec %n)` (Note: `n` is now an object-level variable). Here, function types of the form `(x : τ_1) -> τ_2` are called _dependent function types_, meaning that the codomain type `τ_2` can depend on the value-level variable `x` standing for the parameter.
 
+We can describe vector addition at stage 1 like `~(gen_vadd 5) [|3; 1; 4; 1; 5|] [|9; 2; 6; 5; 3|]`.
+
 
 ### Implicit parameters/arguments
 
-(WRITE MORE)
+The actual type of `gen_vadd` provided by the stub file is `{n : Nat} -> &(Vec %n -> Vec %n -> Vec %n)`. The type `Nat` for natural numbers will be introduced in the next section, and we will here focus on function types of the form `{x : τ_1} -> τ_2`; they are for functions whose parameter can be _implicit_ (i.e., omissible because the typechecker can infer an expression for it based on the contexts). Owing to this, we can just write `~gen_vadd [|3; 1; 4; 1; 5|] [|9; 2; 6; 5; 3|]`, and the typechecker will infer that the parameter `n` should be instantiated with the expression `5` here. We can nonetheless explicitly pass an argument for the omissible parameter like `gen_vadd {5}`. Or, we can also write `gen_vadd _` for the _explicit omission_ of an implicit argument.
 
 
 ### Refinement types for stage-0 computation
 
-(WRITE MORE)
+We provide _refinement types_ `(x : τ | e)` for stage-0 types; unlike popular notations that use brackets, we currently use parentheses. Intuitively, this is a “subset” of the type `τ` consisting of all the `τ`-typed values that satisfy the predicate `e`; `e` is an arbitrary stage-0 expression of type `τ -> Bool`. The type `Nat` for natural numbers is syntax sugar for `(n : Int | 0 <= n)`.
 
 
-### Top-level bindings
+### Basic syntax of top-level bindings
 
 The _stub file_ (i.e., the source file that defines built-in functions) consists of a sequence of _top-level bindings_ (or simply _bindings_).
 
-There are three kinds of bindings: _stage-0 bindings_, _stage-1 bindings_, and _persistent bindings_.
+There are three kinds of bindings: _stage-1 bindings_, _stage-0 bindings_, and _persistent bindings_. First, stage-1 bindings are quite ordinary; they are just function defintions used at runtime:
 
-(WRITE MORE)
+```
+val succ (n : Int) = n + 1
+```
+
+The parameters and the right-hand side of stage-1 bindings are treated as stage-1 stuff, and the bound name will be available as a stage-1 value. Stage-0 bindings are for compile-time computation:
+
+```
+val ~succ (n : Int) = n + 1
+```
+
+The parameters and the right-hand side live in stage 0, and the bound name will be available as a stage-0 value. Using these bindings we can do the following, for example:
+
+```
+val ~c_offset = &(42 + 57)
+val shift (n : Int) = n + ~c_offset
+```
+
+At runtime, `shift` is bound to a function `fun(n : Int) -> n + 99`.
+
+Values that do not depend on neither the staging constructs nor stage-specific values can be _persistent_ (i.e., available at both stages); we can use persistent bindings for this:
+
+```
+val %succ (n : Int) = n + 1
+```
+
+
+### Top-level delcarations of built-in functions
+
+The type of a built-in function can be declared through bindings using `external`:
+
+```
+val %( + ) : Int -> Int -> Int
+  external (builtin = "int_add", surface = "+")
+
+val ~gen_vadd : {a : Nat} -> &(Vec %a -> Vec %a -> Vec %a)
+  external (builtin = "gen_vadd", surface = "vadd")
+```
+
+The comma-separated key–val entries specify some metadata. The field `builtin` associates a internal name (e.g., `int_add`) with the identifier (e.g., `( + )`), and `surface` binds a name for the non-staged surface language.
+
+
+### Modules
+
+A number of bindings can be bundled as a _module_ by the `module` syntax:
+
+```
+module Foo = struct
+  val ~offset = &(42 + 57)
+  val shift (n : Int) = n + ~offset
+end
+```
+
+In this case, members can be used as `Foo.c_offset` at stage 0 and `Foo.shift` at stage 1, respectively.
 
 
 ## Precise definitions
