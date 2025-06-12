@@ -47,6 +47,7 @@ data Literal e
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
   deriving (Eq1, Show1) via (Generically1 Literal)
 
+-- | The type of ASTs for expressions obtained by parsing source programs.
 data ExprF ann = Expr ann (ExprMainF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
   deriving (Eq1, Show1) via (Generically1 ExprF)
@@ -78,7 +79,6 @@ data LamBinderF ann
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
   deriving (Eq1, Show1) via (Generically1 LamBinderF)
 
--- The type for ASTs for expressions obtained by parsing source programs.
 type Expr = ExprF Span
 
 type ExprMain = ExprMainF Span
@@ -90,6 +90,7 @@ type TypeName = Text
 newtype TypeVar = TypeVar Text
   deriving stock (Eq, Show)
 
+-- | The type of ASTs for type expressions obtained by parsing source programs.
 data TypeExprF ann = TypeExpr ann (TypeExprMainF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
   deriving (Eq1, Show1) via (Generically1 TypeExprF)
@@ -106,7 +107,6 @@ data TypeExprMainF ann
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
   deriving (Eq1, Show1) via (Generically1 TypeExprMainF)
 
--- The type for ASTs for type expressions obtained by parsing source programs.
 type TypeExpr = TypeExprF Span
 
 type TypeExprMain = TypeExprMainF Span

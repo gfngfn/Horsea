@@ -11,10 +11,10 @@ $ cabal build
 
 ### How to run
 
-#### The staged language (`lwsd`)
+#### The staged language (`staged`)
 
 ```console
-$ cabal run horsea -- lwsd -w 80 --optimize examples/mat.lwsd
+$ cabal run horsea -- staged -w 80 --optimize examples/mat.lwsd
 ```
 
 Options:
@@ -33,9 +33,9 @@ $ cabal run horsea -- surface examples/mat.surf
 Options:
 
 * `-d`, `--default-to-stage-0`: Makes ambiguous binding times default to 0, which promotes inlining
-* `-O`, `--optmize`: Same as `lwsd`
-* `-c`, `--compile-time-only`: Same as `lwsd`
-* `-w`, `--display-width`: Same as `lwsd`
+* `-O`, `--optmize`: Same as `staged`
+* `-c`, `--compile-time-only`: Same as `staged`
+* `-w`, `--display-width`: Same as `staged`
 
 
 ## Memos for Development

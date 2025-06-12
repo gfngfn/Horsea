@@ -22,12 +22,12 @@ data Argument
 argumentParser :: Parser Argument
 argumentParser =
   subparser
-    ( command "lwsd" (info (StagedArgument <$> lwsdArgumentParser <**> helper) (progDesc "Handles staged programs"))
+    ( command "staged" (info (StagedArgument <$> stagedArgumentParser <**> helper) (progDesc "Handles staged programs"))
         <> command "surface" (info (SurfaceArgument <$> surfaceArgumentParser <**> helper) (progDesc "Handles non-staged programs"))
     )
 
-lwsdArgumentParser :: Parser Staged.Entrypoint.Argument
-lwsdArgumentParser =
+stagedArgumentParser :: Parser Staged.Entrypoint.Argument
+stagedArgumentParser =
   Staged.Entrypoint.Argument
     <$> strArgument (metavar "INPUT-FILE-PATH")
     <*> option auto (short 's' <> long "stub" <> value "stub.lwsdi" <> help helpStub)
