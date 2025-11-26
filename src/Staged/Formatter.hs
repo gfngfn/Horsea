@@ -671,17 +671,17 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
     CannotUseBracketAtStage1 spanInFile ->
       "Cannot use Bracket (&) at stage 1" <+> disp spanInFile
     CannotUseLamOptAtStage1 spanInFile ->
-      "Cannot use optional function (fun{...} ->) at stage 1" <+> disp spanInFile
+      "Cannot use function with implicit parameters (fun{...} ->) at stage 1" <+> disp spanInFile
     CannotUseAppOptGivenAtStage1 spanInFile ->
-      "Cannot use optional application (... {...}) at stage 1" <+> disp spanInFile
+      "Cannot use application for implicit parameters (... {...}) at stage 1" <+> disp spanInFile
     CannotUseAppOptOmittedAtStage1 spanInFile ->
-      "Cannot use optional application (... _) at stage 1" <+> disp spanInFile
+      "Cannot use application for implicit parameters (... _) at stage 1" <+> disp spanInFile
     FunctionTypeCannotBeDependentAtStage1 spanInFile x ->
       "Function types cannot be dependent at stage 1:" <+> disp x <+> disp spanInFile
     CannotUseCodeTypeAtStage1 spanInFile ->
       "Cannot use code types at stage 1" <+> disp spanInFile
     CannotUseOptArrowTypeAtStage1 spanInFile ->
-      "Cannot use optional function types at stage 1" <+> disp spanInFile
+      "Cannot use implicit function types at stage 1" <+> disp spanInFile
     CannotUseRefinementTypeAtStage1 spanInFile ->
       "Cannot use refinement types at stage 1" <+> disp spanInFile
     CannotUsePersistentArgAtStage0 spanInFile ->
@@ -748,7 +748,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <+> "type:"
         <> nest 2 (hardline <> stage1Style (disp a1tye))
     CannotInferOptional spanInFile x a0tye appCtx ->
-      "Cannot infer an optional argument for"
+      "Cannot infer an implicit argument for"
         <+> disp x
         <+> disp spanInFile
         <> hardline
@@ -786,7 +786,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> hardline
         <+> stage1Style (disp a1tye)
     LetRecParamsCannotStartWithOptional spanInFile ->
-      "Recursive function definitions cannot have an optional parameter as the first one" <+> disp spanInFile
+      "Recursive function definitions cannot have an implicit parameter as the first one" <+> disp spanInFile
     LetRecRequiresNonEmptyParams spanInFile ->
       "Recursive function definitions require at least one parameter" <+> disp spanInFile
     CannotSynthesizeTypeFromExpr spanInFile ->
@@ -1082,7 +1082,7 @@ instance Disp Bta.AnalysisError where
     Bta.NotAFunction spanInFile bity ->
       "Not a function;" <+> disp bity <+> disp spanInFile
     Bta.NotAnOptFunction spanInFile bity ->
-      "Not a function with optional parameter;" <+> disp bity <+> disp spanInFile
+      "Not a function with implicit parameter;" <+> disp bity <+> disp spanInFile
     Bta.NotABase spanInFile bity ->
       "Not of base type;" <+> disp bity <+> disp spanInFile
     Bta.NotATuple spanInFile bity ->
