@@ -76,6 +76,7 @@ data TypeExprMainF ann
   = TyName TypeName [ArgForTypeF ann]
   | TyArrow (Maybe Var, TypeExprF ann) (TypeExprF ann)
   | TyOptArrow (Var, TypeExprF ann) (TypeExprF ann)
+  | TyProduct (TypeExprF ann) (TypeExprF ann)
   deriving stock (Show, Functor)
 
 data ArgForTypeF ann

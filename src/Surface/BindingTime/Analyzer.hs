@@ -171,6 +171,10 @@ assignBindingTimeVarToTypeExpr (TypeExpr ann typeExprMain) = do
         bty1 <- assignBindingTimeVarToTypeExpr ty1
         bty2 <- assignBindingTimeVarToTypeExpr ty2
         pure $ TyOptArrow (x, bty1) bty2
+      TyProduct ty1 ty2 -> do
+        bty1 <- assignBindingTimeVarToTypeExpr ty1
+        bty2 <- assignBindingTimeVarToTypeExpr ty2
+        pure $ TyProduct bty1 bty2
 
 assignBindingTimeVarToArgForType :: ArgForType -> Assigner BArgForType
 assignBindingTimeVarToArgForType = \case
@@ -520,6 +524,12 @@ extractConstraintsFromTypeExpr btenv (TypeExpr (bt, ann) typeExprMain) = do
       let constraints = [CEqual ann bt (BTConst BT0)]
       let tye' = TypeExpr (bt, ann) (TyOptArrow (x1, tye1') tye2')
       pure (tye', BIType bt (BITyOptArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
+    TyProduct tye1 tye2 -> do
+      (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr btenv tye1
+      (tye2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromTypeExpr btenv tye2
+      let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
+      let tye' = TypeExpr (bt, ann) (TyProduct tye1' tye2')
+      pure (tye', BIType bt (BITyProduct bity1 bity2), constraints1 ++ constraints2 ++ constraints)
   where
     bityNat :: BIType
     bityNat = BIType (BTConst BT0) (BITyBase [])
