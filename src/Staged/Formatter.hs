@@ -989,17 +989,24 @@ instance Disp LocationInFile where
 
 instance Disp SpanInFile where
   dispGen _ (SpanInFile {startLocation, endLocation, contents}) =
-    "(from" <+> disp startLocation <+> "to" <+> disp endLocation <> ")" <> maybe mempty makeLineText contents
+    regionText <> maybe mempty makeLineText contents
     where
+      regionText =
+        if startLine == endLine
+          then
+            "(from line" <+> disp startLine <> ", columns" <+> disp startColumn <> "-" <> disp endColumn <> ")"
+          else
+            "(from" <+> disp startLocation <+> "to" <+> disp endLocation <> ")"
+
       makeLineText s =
         if startLine == endLine
           then hardline <> disp s <> hardline <> indentation <> hats
           else mempty
-        where
-          LocationInFile startLine startColumn = startLocation
-          LocationInFile endLine endColumn = endLocation
-          indentation = disp (replicate (startColumn - 1) ' ')
-          hats = disp (replicate (endColumn - startColumn) '^')
+
+      LocationInFile startLine startColumn = startLocation
+      LocationInFile endLine endColumn = endLocation
+      indentation = disp (replicate (startColumn - 1) ' ')
+      hats = disp (replicate (endColumn - startColumn) '^')
 
 instance (Disp sv) => Disp (BugF sv) where
   dispGen _ = \case
