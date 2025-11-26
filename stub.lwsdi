@@ -57,11 +57,11 @@ module Tensor = struct
   val ~gen_zeros : (shape : List Nat) -> &(Tensor %shape)
     external (builtin = "tensor__gen_zeros", surface = "zeros")
   val ~gen_add :
-    {shape1 : List Nat} -> {shape2 : (s : List Nat | broadcastable shape1 s)} ->
+    {shape1 : List Nat} -> {shape2 : {s : List Nat | broadcastable shape1 s}} ->
     &(Tensor %shape1 -> Tensor %shape2 -> Tensor %(broadcast shape1 shape2))
     external (builtin = "tensor__gen_add", surface = "+")
   val ~gen_mult :
-    {shape1 : List Nat} -> {shape2 : (s : List Nat | broadcastable shape1 s)} ->
+    {shape1 : List Nat} -> {shape2 : {s : List Nat | broadcastable shape1 s}} ->
     &(Tensor %shape1 -> Tensor %shape2 -> Tensor %(broadcast shape1 shape2))
     external (builtin = "tensor__gen_mult", surface = "*")
   val ~gen_grad : {shape : List Nat} -> &(Tensor %shape -> Tensor %shape)
@@ -99,7 +99,7 @@ module Tensor = struct
   (* TODO: make `gen_reshape` support `-1` *)
   val ~gen_reshape :
     {shape1 : List Nat} ->
-    (shape2 : ( sh : List Nat | reshapeable shape1 sh )) ->
+    (shape2 : {sh : List Nat | reshapeable shape1 sh}) ->
     &(Tensor %shape1 ->
       Tensor %shape2
     )

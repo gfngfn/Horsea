@@ -240,7 +240,7 @@ typeExpr = fun
     atom =
       (makeNamed <$> upper)
         <|> (makeTypeVar <$> typeVar)
-        <|> try (makeRefinement <$> paren ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (fun <* token TokBar) <*> expr))
+        <|> try (makeRefinement <$> brace ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (fun <* token TokBar) <*> expr))
         <|> (makeEnclosed <$> paren fun)
       where
         makeNamed (Located loc t) = TypeExpr loc (TyName t [])
