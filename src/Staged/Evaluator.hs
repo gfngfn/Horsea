@@ -15,6 +15,7 @@ import Data.Function ((&))
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
+import Data.Text qualified as Text
 import Staged.BuiltIn.Core
 import Staged.EvalError
 import Staged.Syntax
@@ -464,6 +465,7 @@ evalExpr0 env = \case
         BuiltInArity5 bi5 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity5 (PartialBuiltInAppArity5Nil bi5))
         BuiltInArity8 bi8 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity8 (PartialBuiltInAppArity8Nil bi8))
         BuiltInArity10 bi10 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity10 (PartialBuiltInAppArity10Nil bi10))
+        BuiltInOther s -> error $ "BuiltInOther: " ++ Text.unpack s
   A0Lam Nothing (x, a0tye1) a0e2 -> do
     a0tyv1 <- evalTypeExpr0 env a0tye1
     pure $ A0ValLam Nothing (x, a0tyv1) a0e2 env

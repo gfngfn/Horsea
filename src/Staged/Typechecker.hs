@@ -270,6 +270,8 @@ makeAssertiveCast trav loc =
                     A0Lam Nothing (ax, strictify a0tye1) $
                       A0App (A0App ass0exprAnd (A0App a0eCast1 (A0Var ax))) (A0App a0eCast2 (A0Var ax))
           pure (castForList, varSolution, tyvar0Solution)
+        (A0TyProduct _a0tye11 _a0tye12, A0TyProduct _a0tye21 _a0tye22) -> do
+          error "TODO: makeAssertiveCast, A0TyProduct"
         (A0TyArrow (x1opt, a0tye11) a0tye12, A0TyArrow (x2opt, a0tye21) a0tye22withX2opt) -> do
           (castDom, varSolutionDom, tyvar0SolutionDom) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
           (x, a0tye22) <-
@@ -439,6 +441,17 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
         (A1TyList a1tye1elem, A1TyList a1tye2elem) -> do
           (trivial, ty1eqElem, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1elem a1tye2elem
           pure (trivial, TyEq1List ty1eqElem, varSolution, tyvar1Solution)
+        (A1TyProduct a1tye11 a1tye12, A1TyProduct a1tye21 a1tye22) -> do
+          (trivial1, ty1eq1, varSolution1, tyvar1Solution1) <- go varsToInfer tyvars1ToInfer a1tye11 a1tye21
+          (trivial2, ty1eq2, varSolution2, tyvar1Solution2) <-
+            go
+              (varsToInfer \\ Map.keysSet varSolution1)
+              (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
+              a1tye12
+              (applyVarSolution varSolution1 a1tye22)
+          let varSolution = Map.union varSolution1 varSolution2
+          let tyvar1Solution = Map.union tyvar1Solution1 tyvar1Solution2
+          pure (trivial1 && trivial2, TyEq1Product ty1eq1 ty1eq2, varSolution, tyvar1Solution)
         (A1TyArrow a1tye11 a1tye12, A1TyArrow a1tye21 a1tye22) -> do
           (trivial1, ty1eqDom, varSolution1, tyvar1Solution1) <- go varsToInfer tyvars1ToInfer a1tye11 a1tye21
           (trivial2, ty1eqCod, varSolution2, tyvar1Solution2) <-

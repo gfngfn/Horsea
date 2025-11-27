@@ -38,6 +38,8 @@ val %float : Int -> Float
   external (builtin = "float", surface = "float")
 val print_float : Float -> Unit
   external (builtin = "print_float", surface = "print_float")
+val print_string : String -> Unit
+  external (builtin = "print_string", surface = "print_string")
 val %range : Int -> Int -> List Int
   external (builtin = "range", surface = "range")
 
@@ -119,6 +121,11 @@ module Tensor = struct
       Tensor %[k, l, (m + 2 * padding1 - ksize1) // stride1 + 1, (n + 2 * padding2 - ksize2) // stride2 + 1]
     )
     external (builtin = "tensor__gen_max_pool2d", surface = "max_pool2d")
+  val ~gen_softmax :
+    {ns : List Nat} ->
+    Int -> (* dim *)
+    &(Tensor %ns -> Tensor %ns)
+    external (builtin = "tensor__gen_softmax", surface = "softmax")
 end
 
 module VarStore = struct
@@ -215,4 +222,44 @@ module MnistHelper = struct
     external (builtin = "mnist_helper__test_images", surface = "test_images")
   val test_labels : Tensor %[10000]
     external (builtin = "mnist_helper__test_labels", surface = "test_labels")
+end
+
+module Module = struct
+  val ~load : {ns : List Nat} -> String -> &(List (Tensor %ns) -> Tensor %ns)
+    external (builtin = "module__load", surface = "load")
+  val ~gen_forward : {ns : List Nat} -> &((List (Tensor %ns) -> Tensor %ns) -> List (Tensor %ns) -> Tensor %ns)
+    external (builtin = "module__forward", surface = "forward")
+end
+
+module TorchVision = struct
+  module Imagenet = struct
+    val ~load_dataset :
+      {ntrain : Nat} ->
+      {ntest : Nat} ->
+      {imgdim : Nat} ->
+      String -> (* dir *)
+      List String -> (* classes *)
+      (* String -> *) (* with_cache *)
+      Unit ->
+      &((Tensor %[ntrain, imgdim] * Tensor %[ntrain])
+          * (Tensor %[ntest, imgdim] * Tensor %[ntest])
+      )
+      external (builtin = "torch_vision__imagenet__load_dataset", surface = "load_dataset")
+    val ~load_image :
+      {ns : List Nat} ->
+      (* Int * Int -> *) (* resize *)
+      String ->
+      &(Tensor %ns)
+      external (builtin = "torch_vision__imagenet__load_image", surface = "load_image")
+    module Classes = struct
+      val ~count : Nat
+        external (builtin = "torch_vision__imagenet__classes__count", surface = "count")
+      val ~names : List String
+        external (builtin = "torch_vision__imagenet__classes__names", surface = "names")
+      val ~gen_top :
+        Int -> (* k *)
+        &(Tensor %[1000] -> List (String * Float))
+        external (builtin = "torch_vision__imagenet__classes__gen_top", surface = "top")
+    end
+  end
 end

@@ -34,6 +34,7 @@ data BuiltIn
   | BuiltInArity5 BuiltInArity5
   | BuiltInArity8 BuiltInArity8
   | BuiltInArity10 BuiltInArity10
+  | BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
 data BuiltInArity1
@@ -183,6 +184,7 @@ data Ass1BuiltIn
   | A1BIEqual
   | A1BIFloat
   | A1BIPrintFloat
+  | A1BIPrintString
   | A1BIRange
   | A1BIListAppend
   | A1BIListIter
@@ -270,7 +272,8 @@ validateExternalName0 = \case
   "tensor__gen_max_pool2d" -> arity10 BITensorGenMaxPool2d
   "dataset_helper__gen_train_batch" -> arity3 BIDatasetHelperGenTrainBatch
   "dataset_helper__gen_batch_accuracy" -> arity5 BIDatasetHelperGenBatchAccuracy
-  _ -> Nothing
+  s -> pure $ BuiltInOther s
+--  _ -> Nothing
   where
     arity1 = pure . BuiltInArity1
     arity2 = pure . BuiltInArity2
@@ -291,6 +294,7 @@ validateExternalName1 = \case
   "int_equal" -> pure A1BIEqual
   "float" -> pure A1BIFloat
   "print_float" -> pure A1BIPrintFloat
+  "print_string" -> pure A1BIPrintString
   "range" -> pure A1BIRange
   "list__append" -> pure A1BIListAppend
   "list__iter" -> pure A1BIListIter
