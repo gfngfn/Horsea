@@ -273,7 +273,7 @@ validateExternalName0 = \case
   "dataset_helper__gen_train_batch" -> arity3 BIDatasetHelperGenTrainBatch
   "dataset_helper__gen_batch_accuracy" -> arity5 BIDatasetHelperGenBatchAccuracy
   s -> pure $ BuiltInOther s
---  _ -> Nothing
+  --  _ -> Nothing
   where
     arity1 = pure . BuiltInArity1
     arity2 = pure . BuiltInArity2
