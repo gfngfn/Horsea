@@ -99,10 +99,13 @@ digit = Mp.satisfy Char.isDigit
 
 integerLiteralString :: Tokenizer String
 integerLiteralString =
-  ((:) <$> nonzeroDigit <*> Mp.many digit) <|> ((: []) <$> Mp.single '0')
+  ((:) <$> nonzeroDigit <*> Mp.many digit)
+    <|> ((: []) <$> Mp.single '0')
 
 integerLiteral :: Tokenizer Int
-integerLiteral = read <$> (integerLiteralString <* Mp.notFollowedBy digit)
+integerLiteral =
+  (read <$> (integerLiteralString <* Mp.notFollowedBy digit))
+    <|> (negate . read <$> (Mp.single '-' *> integerLiteralString <* Mp.notFollowedBy digit))
 
 floatLiteral :: Tokenizer Double
 floatLiteral =
