@@ -470,6 +470,7 @@ instance Disp Surface.TypeExprMain where
     Surface.TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
     Surface.TyArrow (xOpt, tye1) tye2 -> dispArrowType req xOpt tye1 tye2
     Surface.TyOptArrow (x, tye1) tye2 -> dispOptArrowType req x tye1 tye2
+    Surface.TyProduct tye1 tye2 -> dispProductType req tye1 tye2
 
 instance Disp Surface.ArgForType where
   dispGen req = \case
@@ -1172,6 +1173,7 @@ instance Disp (Bta.BCTypeExprMainF ann) where
     Surface.TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
     Surface.TyArrow (xOpt, tye1) tye2 -> dispArrowType req xOpt tye1 tye2
     Surface.TyOptArrow (x, tye1) tye2 -> dispOptArrowType req x tye1 tye2
+    Surface.TyProduct tye1 tye2 -> dispProductType req tye1 tye2
 
 instance Disp (Bta.BCArgForTypeF ann) where
   dispGen req = \case

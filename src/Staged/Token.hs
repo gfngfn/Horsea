@@ -183,7 +183,6 @@ token =
       TokRightSquare <$ Mp.single ']',
       TokBar <$ Mp.single '|',
       TokOpAdd <$> operator '+',
-      TokOpAdd <$> operator '-',
       Mp.try (TokOpMult <$> operatorLong '*'),
       TokProd <$ Mp.single '*',
       TokOpMult <$> operator '/',
@@ -194,7 +193,8 @@ token =
       Mp.try (TokLongLower <$> longLowerIdent),
       TokUpper <$> upperIdent,
       Mp.try (TokFloat <$> floatLiteral),
-      TokInt <$> integerLiteral,
+      Mp.try (TokInt <$> integerLiteral),
+      TokOpAdd <$> operator '-',
       TokString <$> stringLiteral
     ]
 
