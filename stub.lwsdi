@@ -51,6 +51,8 @@ module List = struct
 end
 
 module Device = struct
+  val cpu : Device
+    external (builtin = "device__cpu", surface = "cpu")
   val ~gen_cuda_if_available : Unit -> &Device
     external (builtin = "device__gen_cuda_if_available", surface = "cuda_if_available")
 end
@@ -130,6 +132,7 @@ end
 
 module VarStore = struct
   val create :
+    Bool -> (* frozen *)
     String -> (* name *)
     Device -> (* device *)
     Unit -> VarStore
@@ -217,6 +220,21 @@ module DatasetHelper = struct
     ) ->
     &(Device -> Tensor %[ntest, imgdim] -> Tensor %[ntest] -> Float)
     external (builtin = "dataset_helper__gen_batch_accuracy", surface = "batch_accuracy")
+  val ~gen_map :
+    {ntrain : Nat} ->
+    {ntest : Nat} ->
+    {imgdim : Nat} ->
+    (batch_size : Nat) ->
+    ((actual_batch_size : Nat) ->
+      &(Tensor %[actual_batch_size, imgdim] -> Tensor %[actual_batch_size] ->
+          Tensor %[actual_batch_size, imgdim] * Tensor %[actual_batch_size]
+      )
+    ) ->
+    &(Device ->
+      ((Tensor %[ntrain, imgdim] * Tensor %[ntrain]) * (Tensor %[ntest, imgdim] * Tensor %[ntest])) -> (* = DataSet *)
+      ((Tensor %[ntrain, imgdim] * Tensor %[ntrain]) * (Tensor %[ntest, imgdim] * Tensor %[ntest])) (* = DataSet *)
+    )
+    external (builtin = "dataset_helper__gen_map", surface = "map")
 end
 
 module MnistHelper = struct
@@ -241,6 +259,19 @@ module Module = struct
 end
 
 module TorchVision = struct
+  module Resnet = struct
+    val ~gen_resnet18 :
+      {dim0 : Nat} ->
+      {dim2 : Nat} ->
+      {dim3 : Nat} ->
+      (num_classes : Nat) -> (* num_classes; default: 512 *)
+      &(VarStore ->
+        Tensor %[dim0, 3, dim2, dim3] ->
+        Bool -> (* is_training *)
+        Tensor %[dim0, num_classes]
+      )
+      external (builtin = "torch_vision__resnet__gen_resnet18", surface = "resnet18")
+  end
   module Imagenet = struct
     val ~load_dataset :
       {ntrain : Nat} ->

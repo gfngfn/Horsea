@@ -5,6 +5,8 @@
 STAGED_INPUTS=(
     "mnist/linear"
     "mnist/linear_as"
+    "jit/load_and_run"
+    "pretrained/finetuning"
 )
 SURFACE_INPUTS=(
     "mnist/conv"

@@ -2,36 +2,44 @@ let batch_size = 8 in
 let classes = ["ants", "bees"] in
 
 (* Precompute the last layer of the pre-trained model on the whole dataset. *)
-let precompute_activations (dataset0 : DataSet) (model_path : String) =
-  let dataset1 =
-    let frozen_vs =
-      VarStore.create
-        true (* frozen *)
-        "rn" (* name *)
-        ()
-    in
-    let pretrained_model = Resnet.resnet18 frozen_vs in
-    print_string "Loading weights from";
-    print_string model_path;
-    Serialize.load_multi_
-      (VarStore.all_vars frozen_vs) (* named_tensors *)
-      model_path (* filename *);
-    print_string "Precomputing activations, this can take a minute...";
-    DatasetHelper.map
-      dataset0
-      4 (* batch_size *)
-      (fun(u : U) -> fun(batch_images : Y) -> fun(batch_labels : Z) ->
-        let activations =
-          Layer.forward_
-            pretrained_model
-            batch_images
-            false (* is_training *)
+let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} =
+  &(fun(dataset0 : (Tensor %[ntrain, imgdim] * Tensor %[ntrain]) * (Tensor %[ntest, imgdim] * Tensor %[ntest])) ->
+    fun(model_path : String) ->
+      let dataset1 =
+        let frozen_vs =
+          VarStore.create
+            true (* frozen *)
+            "rn" (* name *)
+            Device.cpu (* device *)
+            ()
         in
-        (Tensor.copy activations, batch_labels)
-      )
-  in
-  DatasetHelper.print_summary dataset1;
-  dataset1
+        let pretrained_model = ~(TorchVision.Resnet.gen_resnet18 {2} {3} {4} 512) frozen_vs in
+        print_string "Loading weights from";
+        print_string model_path;
+        let named_tensors = ~(VarStore.gen_all_vars {[4]}) frozen_vs in
+        Serialize.load_multi_
+          named_tensors (* named_tensors *)
+          model_path (* filename *);
+        print_string "Precomputing activations, this can take a minute...";
+        ~(DatasetHelper.gen_map
+            4 (* batch_size *)
+            (fun(actual_batch_size : Nat) ->
+              &(fun(batch_images : Tensor %[actual_batch_size, imgdim]) -> fun(batch_labels : Tensor %[actual_batch_size]) ->
+                  let activations =
+                    Layer.forward_
+                      pretrained_model
+                      batch_images
+                      false (* is_training *)
+                  in
+                  (Tensor.copy activations, batch_labels)
+              )
+            )
+          )
+          dataset0
+      in
+      DatasetHelper.print_summary dataset1;
+      dataset1
+  )
 in
 
 let dataset_dir = "path/to/dataset/" in
@@ -44,7 +52,7 @@ let model_path = "path/to/model" in
       ()
   in
   DatasetHelper.print_summary dataset;
-  let dataset = precompute_activations dataset model_path in
+  let dataset = ~gen_precompute_activations dataset model_path in
   let train_vs =
     VarStore.create
       "rn-vs" (* name *)
