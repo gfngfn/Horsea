@@ -313,4 +313,5 @@ validateExternalName1 = \case
   "mnist_helper__test_images" -> pure A1BIMnistHelperTestImages
   "mnist_helper__test_labels" -> pure A1BIMnistHelperTestLabels
   s -> pure $ A1BuiltInOther s
-  -- _ -> Nothing
+
+-- _ -> Nothing
