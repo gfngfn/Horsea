@@ -41,12 +41,21 @@ spec = do
       parseExpr "-42"
         `shouldBe` pure (litInt (-42))
     it "parses float literals (1)" $
+      parseExpr "0.0"
+        `shouldBe` pure (litFloat 0.0)
+    it "parses float literals (2)" $
+      parseExpr "0.9"
+        `shouldBe` pure (litFloat 0.9)
+    it "parses float literals (3)" $
       parseExpr "0.57"
         `shouldBe` pure (litFloat 0.57)
-    it "parses float literals (2)" $
+    it "parses float literals (4)" $
+      parseExpr "0.001"
+        `shouldBe` pure (litFloat 0.001)
+    it "parses float literals (5)" $
       parseExpr "44.23"
         `shouldBe` pure (litFloat 44.23)
-    it "parses float literals (3)" $
+    it "parses float literals (6)" $
       parseExpr "42.0"
         `shouldBe` pure (litFloat 42)
     it "parses list literals (1)" $
