@@ -42,6 +42,8 @@ val print_string : String -> Unit
   external (builtin = "print_string", surface = "print_string")
 val %range : Int -> Int -> List Int
   external (builtin = "range", surface = "range")
+val ~lift_string : String -> &String
+  external (builtin = "lift_string", surface = "lift_string")
 
 module List = struct
   val %append : forall 'a -> List 'a -> List 'a -> List 'a
@@ -159,6 +161,13 @@ module Layer = struct
       Tensor %shape1 -> Tensor %shape2
     )
     external (builtin = "layer__gen_forward", surface = "forward")
+  val ~gen_forward_ :
+    {shape1 : List Nat} ->
+    {shape2 : List Nat} ->
+    &((Tensor %shape1 -> Bool -> Tensor %shape2) ->
+      Tensor %shape1 -> Bool -> Tensor %shape2
+    )
+    external (builtin = "layer__gen_forward_", surface = "forward_")
   val ~gen_conv2d_ :
     {l : Nat} ->
     {m : Nat} ->
@@ -264,7 +273,7 @@ module TorchVision = struct
       {dim0 : Nat} ->
       {dim2 : Nat} ->
       {dim3 : Nat} ->
-      (num_classes : Nat) -> (* num_classes; default: 512 *)
+      (num_classes : Nat) -> (* default: 512 *)
       &(VarStore ->
         Tensor %[dim0, 3, dim2, dim3] ->
         Bool -> (* is_training *)
@@ -302,4 +311,14 @@ module TorchVision = struct
         external (builtin = "torch_vision__imagenet__classes__gen_top", surface = "top")
     end
   end
+end
+
+module Serialize = struct
+  val ~load_multi_ :
+    {ns : List Nat} ->
+    String -> (* filename *)
+    &(List (String * Tensor %ns) -> (* named_tensors *)
+      Unit
+    )
+    external (builtin = "serialize__load_multi_", surface = "load_multi_")
 end

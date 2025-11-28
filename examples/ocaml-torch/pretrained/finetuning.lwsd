@@ -2,9 +2,8 @@ let batch_size = 8 in
 let classes = ["ants", "bees"] in
 
 (* Precompute the last layer of the pre-trained model on the whole dataset. *)
-let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} =
+let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (model_path : String) =
   &(fun(dataset0 : (Tensor %[ntrain, imgdim] * Tensor %[ntrain]) * (Tensor %[ntest, imgdim] * Tensor %[ntest])) ->
-    fun(model_path : String) ->
       let dataset1 =
         let frozen_vs =
           VarStore.create
@@ -13,20 +12,22 @@ let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} =
             Device.cpu (* device *)
             ()
         in
-        let pretrained_model = ~(TorchVision.Resnet.gen_resnet18 {2} {3} {4} 512) frozen_vs in
+        let pretrained_model = ~(TorchVision.Resnet.gen_resnet18 {2} {imgdim} {4} 512) frozen_vs in
         print_string "Loading weights from";
-        print_string model_path;
-        let named_tensors = ~(VarStore.gen_all_vars {[4]}) frozen_vs in
-        Serialize.load_multi_
-          named_tensors (* named_tensors *)
-          model_path (* filename *);
+        print_string ~(lift_string model_path);
+        let named_tensors = ~(VarStore.gen_all_vars {[13]}) frozen_vs in
+        ~(Serialize.load_multi_
+            model_path (* filename *)
+          )
+          named_tensors (* named_tensors *);
         print_string "Precomputing activations, this can take a minute...";
         ~(DatasetHelper.gen_map
             4 (* batch_size *)
             (fun(actual_batch_size : Nat) ->
-              &(fun(batch_images : Tensor %[actual_batch_size, imgdim]) -> fun(batch_labels : Tensor %[actual_batch_size]) ->
+              &(fun(batch_images : Tensor %[actual_batch_size, imgdim]) ->
+                fun(batch_labels : Tensor %[actual_batch_size]) ->
                   let activations =
-                    Layer.forward_
+                    ~Layer.gen_forward_
                       pretrained_model
                       batch_images
                       false (* is_training *)
