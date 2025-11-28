@@ -423,6 +423,7 @@ instance Disp BuiltIn where
     BuiltInArity5 bi5 -> dispGen req bi5
     BuiltInArity8 bi8 -> dispGen req bi8
     BuiltInArity10 bi10 -> dispGen req bi10
+    BuiltInOther s -> "OTHER '" <> disp s <> "'"
 
 instance (Disp e) => Disp (Surface.Literal e) where
   dispGen _ = \case
@@ -904,6 +905,7 @@ instance Disp Ass1BuiltIn where
     A1BIEqual -> "=="
     A1BIFloat -> "float"
     A1BIPrintFloat -> "print_float"
+    A1BIPrintString -> "print_string"
     A1BIListAppend -> "List.append"
     A1BIListIter -> "List.iter"
     A1BIRange -> "range"
@@ -926,6 +928,7 @@ instance Disp Ass1BuiltIn where
     A1BIMnistHelperTrainLabels -> "Mnist_helper.train_labels"
     A1BIMnistHelperTestImages -> "Mnist_helper.test_images"
     A1BIMnistHelperTestLabels -> "Mnist_helper.test_labels"
+    A1BuiltInOther s -> "OTHER '" <> disp s <> "'"
     where
       param doc = stagingOperatorStyle ("@{" <> doc <> "}")
 

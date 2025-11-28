@@ -1,0 +1,20 @@
+let module_shape = [3, 1, 4] in
+let model_filename = "path/to/model" in
+let image_shape = [1, 5] in
+let image_filename = "path/to/image" in
+
+&(let model = ~(Module.load {module_shape} model_filename) in
+  let image = ~(TorchVision.Imagenet.load_image {image_shape} image_filename) in
+  let pairs =
+    ~Module.gen_forward model [image]
+    |> ~(Tensor.gen_softmax
+        -1 (* dim *))
+    |> ~(TorchVision.Imagenet.Classes.gen_top
+        5 (* k *))
+  in
+  pairs |> List.iter (fun (pair : String * Float) ->
+    let (class_name, p) = pair in
+    print_string class_name;
+    print_float p
+  )
+)

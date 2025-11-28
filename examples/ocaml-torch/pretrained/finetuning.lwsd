@@ -1,0 +1,107 @@
+let batch_size = 8 in
+let classes = ["ants", "bees"] in
+
+(* Precompute the last layer of the pre-trained model on the whole dataset. *)
+let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (model_path : String) =
+  &(fun(dataset0 : (Tensor %[ntrain, imgdim] * Tensor %[ntrain]) * (Tensor %[ntest, imgdim] * Tensor %[ntest])) ->
+      let dataset1 =
+        let frozen_vs =
+          VarStore.create
+            true (* frozen *)
+            "rn" (* name *)
+            Device.cpu (* device *)
+            ()
+        in
+        let pretrained_model = ~(TorchVision.Resnet.gen_resnet18 {2} {imgdim} {4} 512) frozen_vs in
+        print_string "Loading weights from";
+        print_string ~(lift_string model_path);
+        let named_tensors = ~(VarStore.gen_all_vars {[13]}) frozen_vs in
+        ~(Serialize.load_multi_
+            model_path (* filename *)
+          )
+          named_tensors (* named_tensors *);
+        print_string "Precomputing activations, this can take a minute...";
+        ~(DatasetHelper.gen_map
+            4 (* batch_size *)
+            (fun(actual_batch_size : Nat) ->
+              &(fun(batch_images : Tensor %[actual_batch_size, imgdim]) ->
+                fun(batch_labels : Tensor %[actual_batch_size]) ->
+                  let activations =
+                    ~Layer.gen_forward_
+                      pretrained_model
+                      batch_images
+                      false (* is_training *)
+                  in
+                  (Tensor.copy activations, batch_labels)
+              )
+            )
+          )
+          dataset0
+      in
+      DatasetHelper.print_summary dataset1;
+      dataset1
+  )
+in
+
+let dataset_dir = "path/to/dataset/" in
+let model_path = "path/to/model" in
+
+&(let dataset =
+    Imagenet.load_dataset
+      dataset_dir (* dir *)
+      classes (* classes *)
+      ()
+  in
+  DatasetHelper.print_summary dataset;
+  let dataset = ~gen_precompute_activations dataset model_path in
+  let train_vs =
+    VarStore.create
+      "rn-vs" (* name *)
+      ()
+  in
+  let fc1 =
+    Layer.linear
+      train_vs
+      512 (* input_dim *)
+      (List.length classes)
+  in
+  let model (xs : X) = Layer.forward fc1 xs in
+  let sgd =
+    Optimizer.sgd
+      train_vs
+      0.001 (* learning_rate *)
+      0.9 (* momentum *)
+  in
+  List.iter (fun(epoch_idx : Nat) ->
+    let sum_loss = Tensor.f 0.0 in
+    DatasetHelper.iter
+      dataset
+      batch_size (* batch_size *)
+      (fun(u : X) -> fun(batch_images : Y) -> fun(batch_labels : Z) ->
+        let predicted = model batch_images in
+        (* Compute the cross-entropy loss. *)
+        let loss =
+          Tensor.cross_entropy_for_logits
+            predicted
+            batch_labels (* targets *)
+        in
+        (let open Tensor in sum_loss += loss);
+        Optimizer.backward_step
+          sgd
+          loss (* loss *)
+      );
+    (* Compute the validation error. *)
+    let test_accuracy =
+      ~(DatasetHelper.gen_batch_accuracy
+          batch_size (* batch_size *)
+          (* `test *)
+          dataset
+          model (* predict *)
+      )
+    in
+    print_string "train loss:";
+    print_float (Tensor.float_value sum_loss / Float.of_int (DatasetHelper.batches_per_epoch dataset batch_size));
+    print_string "test accuracy:";
+    print_float test_accuracy
+  ) (range 1 20)
+)

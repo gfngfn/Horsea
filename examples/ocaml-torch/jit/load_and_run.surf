@@ -1,0 +1,17 @@
+let model_filename = "path/to/model" in
+let image_filename = "path/to/image" in
+
+let model = Module.load model_filename in
+let image = TorchVision.Imagenet.load_image image_filename in
+let pairs =
+  Module.forward model [image]
+  |> Tensor.softmax
+      -1 (* dim *)
+  |> TorchVision.Imagenet.Classes.top
+      5 (* k *)
+in
+pairs |> List.iter (fun (pair : String * Float) -> (* TODO: fix BTA *)
+  let (class_name, p) = pair in
+  print_string class_name;
+  print_float p
+)

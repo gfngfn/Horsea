@@ -335,6 +335,7 @@ data Type1EquationF sv
   = TyEq1Prim (Type1PrimEquationF sv)
   | TyEq1List (Type1EquationF sv)
   | TyEq1Arrow (Type1EquationF sv) (Type1EquationF sv)
+  | TyEq1Product (Type1EquationF sv) (Type1EquationF sv)
   deriving stock (Eq, Show, Functor)
 
 data Type1PrimEquationF sv
@@ -415,6 +416,10 @@ decomposeType1Equation = \case
     let (a1tye11, a1tye21) = decomposeType1Equation ty1eqDom
         (a1tye12, a1tye22) = decomposeType1Equation ty1eqCod
      in (A1TyArrow a1tye11 a1tye12, A1TyArrow a1tye21 a1tye22)
+  TyEq1Product ty1eq1 ty1eq2 ->
+    let (a1tye11, a1tye21) = decomposeType1Equation ty1eq1
+        (a1tye12, a1tye22) = decomposeType1Equation ty1eq2
+     in (A1TyProduct a1tye11 a1tye12, A1TyProduct a1tye21 a1tye22)
   where
     prims p = (A1TyPrim p, A1TyPrim p)
 

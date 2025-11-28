@@ -556,6 +556,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       frees ty1eqElem
     TyEq1Arrow ty1eqDom ty1eqCod ->
       unionPairs [frees ty1eqDom, frees ty1eqCod]
+    TyEq1Product ty1eq1 ty1eq2 ->
+      unionPairs [frees ty1eq1, frees ty1eq2]
 
   subst s = \case
     TyEq1Prim ty1eqPrim ->
@@ -568,6 +570,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       TyEq1List (go ty1eqElem)
     TyEq1Arrow ty1eqDom ty1eqCod ->
       TyEq1Arrow (go ty1eqDom) (go ty1eqCod)
+    TyEq1Product ty1eq1 ty1eq2 ->
+      TyEq1Product (go ty1eq1) (go ty1eq2)
     where
       go :: forall af. (HasVar sv af) => af sv -> af sv
       go = subst s

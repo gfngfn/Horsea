@@ -38,8 +38,12 @@ val %float : Int -> Float
   external (builtin = "float", surface = "float")
 val print_float : Float -> Unit
   external (builtin = "print_float", surface = "print_float")
+val print_string : String -> Unit
+  external (builtin = "print_string", surface = "print_string")
 val %range : Int -> Int -> List Int
   external (builtin = "range", surface = "range")
+val ~lift_string : String -> &String
+  external (builtin = "lift_string", surface = "lift_string")
 
 module List = struct
   val %append : forall 'a -> List 'a -> List 'a -> List 'a
@@ -49,6 +53,8 @@ module List = struct
 end
 
 module Device = struct
+  val cpu : Device
+    external (builtin = "device__cpu", surface = "cpu")
   val ~gen_cuda_if_available : Unit -> &Device
     external (builtin = "device__gen_cuda_if_available", surface = "cuda_if_available")
 end
@@ -119,11 +125,26 @@ module Tensor = struct
       Tensor %[k, l, (m + 2 * padding1 - ksize1) // stride1 + 1, (n + 2 * padding2 - ksize2) // stride2 + 1]
     )
     external (builtin = "tensor__gen_max_pool2d", surface = "max_pool2d")
+  val ~gen_softmax :
+    {ns : List Nat} ->
+    Int -> (* dim *)
+    &(Tensor %ns -> Tensor %ns)
+    external (builtin = "tensor__gen_softmax", surface = "softmax")
 end
 
 module VarStore = struct
-  val create : String -> Device -> Unit -> VarStore
+  val create :
+    Bool -> (* frozen *)
+    String -> (* name *)
+    Device -> (* device *)
+    Unit -> VarStore
     external (builtin = "var_store__create", surface = "create")
+  val freeze : VarStore -> Unit
+    external (builtin = "var_store__freeze", surface = "freeze")
+  val unfreeze : VarStore -> Unit
+    external (builtin = "var_store__unfreeze", surface = "unfreeze")
+  val ~gen_all_vars : {ns : List Nat} -> &(VarStore -> List (String * Tensor %ns))
+    external (builtin = "var_store__gen_all_vars", surface = "all_vars")
 end
 
 module Layer = struct
@@ -140,6 +161,13 @@ module Layer = struct
       Tensor %shape1 -> Tensor %shape2
     )
     external (builtin = "layer__gen_forward", surface = "forward")
+  val ~gen_forward_ :
+    {shape1 : List Nat} ->
+    {shape2 : List Nat} ->
+    &((Tensor %shape1 -> Bool -> Tensor %shape2) ->
+      Tensor %shape1 -> Bool -> Tensor %shape2
+    )
+    external (builtin = "layer__gen_forward_", surface = "forward_")
   val ~gen_conv2d_ :
     {l : Nat} ->
     {m : Nat} ->
@@ -201,6 +229,21 @@ module DatasetHelper = struct
     ) ->
     &(Device -> Tensor %[ntest, imgdim] -> Tensor %[ntest] -> Float)
     external (builtin = "dataset_helper__gen_batch_accuracy", surface = "batch_accuracy")
+  val ~gen_map :
+    {ntrain : Nat} ->
+    {ntest : Nat} ->
+    {imgdim : Nat} ->
+    (batch_size : Nat) ->
+    ((actual_batch_size : Nat) ->
+      &(Tensor %[actual_batch_size, imgdim] -> Tensor %[actual_batch_size] ->
+          Tensor %[actual_batch_size, imgdim] * Tensor %[actual_batch_size]
+      )
+    ) ->
+    &(Device ->
+      ((Tensor %[ntrain, imgdim] * Tensor %[ntrain]) * (Tensor %[ntest, imgdim] * Tensor %[ntest])) -> (* = DataSet *)
+      ((Tensor %[ntrain, imgdim] * Tensor %[ntrain]) * (Tensor %[ntest, imgdim] * Tensor %[ntest])) (* = DataSet *)
+    )
+    external (builtin = "dataset_helper__gen_map", surface = "map")
 end
 
 module MnistHelper = struct
@@ -215,4 +258,67 @@ module MnistHelper = struct
     external (builtin = "mnist_helper__test_images", surface = "test_images")
   val test_labels : Tensor %[10000]
     external (builtin = "mnist_helper__test_labels", surface = "test_labels")
+end
+
+module Module = struct
+  val ~load : {ns : List Nat} -> String -> &(List (Tensor %ns) -> Tensor %ns)
+    external (builtin = "module__load", surface = "load")
+  val ~gen_forward : {ns : List Nat} -> &((List (Tensor %ns) -> Tensor %ns) -> List (Tensor %ns) -> Tensor %ns)
+    external (builtin = "module__forward", surface = "forward")
+end
+
+module TorchVision = struct
+  module Resnet = struct
+    val ~gen_resnet18 :
+      {dim0 : Nat} ->
+      {dim2 : Nat} ->
+      {dim3 : Nat} ->
+      (num_classes : Nat) -> (* default: 512 *)
+      &(VarStore ->
+        Tensor %[dim0, 3, dim2, dim3] ->
+        Bool -> (* is_training *)
+        Tensor %[dim0, num_classes]
+      )
+      external (builtin = "torch_vision__resnet__gen_resnet18", surface = "resnet18")
+  end
+  module Imagenet = struct
+    val ~load_dataset :
+      {ntrain : Nat} ->
+      {ntest : Nat} ->
+      {imgdim : Nat} ->
+      String -> (* dir *)
+      List String -> (* classes *)
+      (* String -> *) (* with_cache *)
+      Unit ->
+      &((Tensor %[ntrain, imgdim] * Tensor %[ntrain])
+          * (Tensor %[ntest, imgdim] * Tensor %[ntest])
+      )
+      external (builtin = "torch_vision__imagenet__load_dataset", surface = "load_dataset")
+    val ~load_image :
+      {ns : List Nat} ->
+      (* Int * Int -> *) (* resize *)
+      String ->
+      &(Tensor %ns)
+      external (builtin = "torch_vision__imagenet__load_image", surface = "load_image")
+    module Classes = struct
+      val ~count : Nat
+        external (builtin = "torch_vision__imagenet__classes__count", surface = "count")
+      val ~names : List String
+        external (builtin = "torch_vision__imagenet__classes__names", surface = "names")
+      val ~gen_top :
+        Int -> (* k *)
+        &(Tensor %[1000] -> List (String * Float))
+        external (builtin = "torch_vision__imagenet__classes__gen_top", surface = "top")
+    end
+  end
+end
+
+module Serialize = struct
+  val ~load_multi_ :
+    {ns : List Nat} ->
+    String -> (* filename *)
+    &(List (String * Tensor %ns) -> (* named_tensors *)
+      Unit
+    )
+    external (builtin = "serialize__load_multi_", surface = "load_multi_")
 end
