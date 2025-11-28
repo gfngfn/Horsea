@@ -928,6 +928,7 @@ instance Disp Ass1BuiltIn where
     A1BIMnistHelperTrainLabels -> "Mnist_helper.train_labels"
     A1BIMnistHelperTestImages -> "Mnist_helper.test_images"
     A1BIMnistHelperTestLabels -> "Mnist_helper.test_labels"
+    A1BuiltInOther s -> "OTHER '" <> disp s <> "'"
     where
       param doc = stagingOperatorStyle ("@{" <> doc <> "}")
 

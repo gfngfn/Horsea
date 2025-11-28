@@ -207,6 +207,7 @@ data Ass1BuiltIn
   | A1BIMnistHelperTrainLabels
   | A1BIMnistHelperTestImages
   | A1BIMnistHelperTestLabels
+  | A1BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
 unliftBuiltInName :: Ass1BuiltIn -> BuiltIn
@@ -311,4 +312,5 @@ validateExternalName1 = \case
   "mnist_helper__train_labels" -> pure A1BIMnistHelperTrainLabels
   "mnist_helper__test_images" -> pure A1BIMnistHelperTestImages
   "mnist_helper__test_labels" -> pure A1BIMnistHelperTestLabels
-  _ -> Nothing
+  s -> pure $ A1BuiltInOther s
+  -- _ -> Nothing

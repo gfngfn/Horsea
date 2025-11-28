@@ -129,8 +129,17 @@ module Tensor = struct
 end
 
 module VarStore = struct
-  val create : String -> Device -> Unit -> VarStore
+  val create :
+    String -> (* name *)
+    Device -> (* device *)
+    Unit -> VarStore
     external (builtin = "var_store__create", surface = "create")
+  val freeze : VarStore -> Unit
+    external (builtin = "var_store__freeze", surface = "freeze")
+  val unfreeze : VarStore -> Unit
+    external (builtin = "var_store__unfreeze", surface = "unfreeze")
+  val ~gen_all_vars : {ns : List Nat} -> &(VarStore -> List (String * Tensor %ns))
+    external (builtin = "var_store__gen_all_vars", surface = "all_vars")
 end
 
 module Layer = struct
