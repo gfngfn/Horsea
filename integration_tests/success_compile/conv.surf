@@ -3,7 +3,7 @@ let epochs = 5000 in
 let learning_rate = 0.001 in
 
 let device = Device.cuda_if_available () in
-let vs = VarStore.create "cnn" device () in
+let vs = VarStore.create false "cnn" device () in
 let conv2d1 {size : Nat} (t : Tensor [size, 1, 28, 28]) =
   Layer.conv2d_
     5 (* ksize *)
