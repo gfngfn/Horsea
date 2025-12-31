@@ -219,9 +219,18 @@ validatePrimBaseType = \case
   "Optimizer" -> Just ATyPrimOptimizer
   _ -> Nothing
 
+data DatasetParam = DatasetParam
+  { numTrain :: Int,
+    numTest :: Int,
+    image :: [Int],
+    label :: [Int]
+  }
+  deriving stock (Eq, Show)
+
 data Ass0PrimType
   = A0TyPrimBase AssPrimBaseType
   | A0TyTensor [Int]
+  | A0TyDataset DatasetParam
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type expressions.
@@ -271,6 +280,7 @@ liftPrimType :: Ass0PrimType -> Ass1PrimTypeF sv
 liftPrimType = \case
   A0TyPrimBase tyPrimBase -> A1TyPrimBase tyPrimBase
   A0TyTensor ns -> A1TyTensor (A0Literal (ALitList (map (A0Literal . ALitInt) ns)))
+  A0TyDataset _ -> error "TODO: liftPrimType, A0TyDataset"
 
 -- | The type of stage-0 term values.
 data Ass0ValF sv
