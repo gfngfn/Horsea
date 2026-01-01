@@ -356,6 +356,7 @@ data Type1PrimEquationF sv
   | TyEq1TensorByLiteral [(Ass0ExprF sv, Ass0ExprF sv)]
   | -- | Pairs of expressions of type `List Nat`.
     TyEq1TensorByWhole (Ass0ExprF sv) (Ass0ExprF sv)
+  | TyEq1Dataset (DatasetParam (Ass0ExprF sv)) (DatasetParam (Ass0ExprF sv))
   deriving stock (Eq, Show, Functor)
 
 type EvalEnv = Map AssVar EvalEnvEntry
@@ -422,6 +423,8 @@ decomposeType1Equation = \case
          in (A1TyPrim (A1TyTensor a0eList1), A1TyPrim (A1TyTensor a0eList2))
       TyEq1TensorByWhole a0eList1 a0eList2 ->
         (A1TyPrim (A1TyTensor a0eList1), A1TyPrim (A1TyTensor a0eList2))
+      TyEq1Dataset datasetParam1 datasetParam2 ->
+        (A1TyPrim (A1TyDataset datasetParam1), A1TyPrim (A1TyDataset datasetParam2))
   TyEq1List ty1eqElem ->
     let (a1tye1elem, a1tye2elem) = decomposeType1Equation ty1eqElem
      in (A1TyList a1tye1elem, A1TyList a1tye2elem)

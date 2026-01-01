@@ -240,6 +240,8 @@ makeAssertiveCast trav loc =
                     if all (uncurry (==)) zipped
                       then castOrIdentityLam maybePred2 (A0TyPrim (A0TyTensor ns1) maybePred1)
                       else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
+              (A0TyDataset _datasetParam1, A0TyDataset _datasetParam2) ->
+                error "TODO: makeAssertiveCast, A0TyDataset"
               _ -> typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
           pure (cast, Map.empty, Map.empty)
         (A0TyList a0tye1' maybePred1, A0TyList a0tye2' maybePred2') -> do
@@ -436,6 +438,8 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
                   let trivial = alphaEquivalent a0eList1 a0eList2
                   let ty1eq = TyEq1Prim (TyEq1TensorByWhole a0eList1 a0eList2)
                   pure (trivial, ty1eq, Map.empty, Map.empty)
+            (A1TyDataset _datasetParam1, A1TyDataset _datasetParam2) ->
+              error "TODO: makeEquation1, A1TyDataset; use TyEq1Dataset"
             (_, _) ->
               Left ()
         (A1TyList a1tye1elem, A1TyList a1tye2elem) -> do
@@ -542,6 +546,8 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                   -- General rule:
                   (_, _) ->
                     pure $ A1TyTensor (a0branch a0eList1 a0eList2)
+              (A1TyDataset _datasetParam1, A1TyDataset _datasetParam2) ->
+                error "TODO: mergeTypesByContraditional1, A1TyDataset"
               _ ->
                 typeError trav $ CannotMerge1 a1tye1 a1tye2
         (A1TyArrow a1tye11 a1tye12, A1TyArrow a1tye21 a1tye22) ->
@@ -1468,7 +1474,11 @@ typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
           a0e <- validateExprArg0 trav arg
           ns <- validateIntListLiteral trav loc' a0e
           pure $ A0TyPrim (A0TyTensor ns) Nothing
-        _ -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName (List.length results)
+        ("Dataset", _args) -> do
+          let datasetParam = error "TODO: typecheckTypeExpr0, Dataset"
+          pure $ A0TyPrim (A0TyDataset datasetParam) Nothing
+        _ ->
+          typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName (List.length results)
     TyVar tyvar -> do
       TypeVarEntry atyvar <- findTypeVar trav loc tyvar tyEnv
       pure $ A0TyVar atyvar
@@ -1598,7 +1608,11 @@ typecheckTypeExpr1 trav tyEnv (TypeExpr loc tyeMain) = do
           e <- validatePersistentExprArg1 trav arg
           a0eList <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) e
           pure $ A1TyPrim (A1TyTensor a0eList)
-        _ -> typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (List.length args)
+        ("Dataset", _args) -> do
+          let datasetParam = error "TODO: typecheckExpr1, Dataset"
+          pure $ A1TyPrim (A1TyDataset datasetParam)
+        _ ->
+          typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (List.length args)
     TyVar _tyvar ->
       typeError trav $ CannotUseTypeVarAtStage1 spanInFile
     TyArrow (xOpt, tye1) tye2 -> do

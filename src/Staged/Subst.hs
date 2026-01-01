@@ -559,9 +559,26 @@ instance (Ord sv) => HasVar sv Type1EquationF where
   frees = \case
     TyEq1Prim ty1eqPrim ->
       case ty1eqPrim of
-        TyEq1PrimBase _ -> (Set.empty, Set.empty)
-        TyEq1TensorByLiteral zipped -> unionPairs (concatMap (\(a0e1, a0e2) -> [frees a0e1, frees a0e2]) zipped)
-        TyEq1TensorByWhole a0eList1 a0eList2 -> unionPairs [frees a0eList1, frees a0eList2]
+        TyEq1PrimBase _ ->
+          (Set.empty, Set.empty)
+        TyEq1TensorByLiteral zipped ->
+          unionPairs $
+            concatMap (\(a0e1, a0e2) -> [frees a0e1, frees a0e2]) zipped
+        TyEq1TensorByWhole a0eList1 a0eList2 ->
+          unionPairs [frees a0eList1, frees a0eList2]
+        TyEq1Dataset dp1 dp2 ->
+          unionPairs $
+            concat
+              [ [ frees dp1.numTrain,
+                  frees dp1.numTest,
+                  frees dp2.numTrain,
+                  frees dp2.numTest
+                ],
+                fmap frees dp1.image,
+                fmap frees dp1.label,
+                fmap frees dp2.image,
+                fmap frees dp2.label
+              ]
     TyEq1List ty1eqElem ->
       frees ty1eqElem
     TyEq1Arrow ty1eqDom ty1eqCod ->
@@ -576,6 +593,7 @@ instance (Ord sv) => HasVar sv Type1EquationF where
           TyEq1PrimBase tyPrimBase -> TyEq1PrimBase tyPrimBase
           TyEq1TensorByLiteral zipped -> TyEq1TensorByLiteral (map (both go) zipped)
           TyEq1TensorByWhole a0eList1 a0eList2 -> TyEq1TensorByWhole (go a0eList1) (go a0eList2)
+          TyEq1Dataset dp1 dp2 -> TyEq1Dataset (fmap go dp1) (fmap go dp2)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
     TyEq1Arrow ty1eqDom ty1eqCod ->
