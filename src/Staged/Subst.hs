@@ -416,8 +416,17 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
   frees = \case
     A1TyPrim a1tyPrim ->
       case a1tyPrim of
-        A1TyPrimBase _ -> (Set.empty, Set.empty)
-        A1TyTensor a0eList -> frees a0eList
+        A1TyPrimBase _ ->
+          (Set.empty, Set.empty)
+        A1TyTensor a0eList ->
+          frees a0eList
+        A1TyDataset DatasetParam {numTrain, numTest, image, label} ->
+          unionPairs $
+            concat
+              [ [frees numTrain, frees numTest],
+                map frees image,
+                map frees label
+              ]
     A1TyList a1tye1 ->
       frees a1tye1
     A1TyVar _atyvar ->
@@ -434,6 +443,7 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       A1TyPrim $ case a1tyPrim of
         A1TyPrimBase tyPrimBase -> A1TyPrimBase tyPrimBase
         A1TyTensor a0eList -> A1TyTensor (go a0eList)
+        A1TyDataset datasetParam -> A1TyDataset (fmap go datasetParam)
     A1TyList a1tye1 ->
       A1TyList (go a1tye1)
     A1TyVar atyvar ->

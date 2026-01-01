@@ -16,6 +16,7 @@ module Staged.Syntax
     StrictAss0TypeExprF (..),
     AssPrimBaseType (..),
     validatePrimBaseType,
+    DatasetParam (..),
     Ass0PrimType (..),
     Ass1TypeExprF (..),
     Ass1PrimTypeF (..),
@@ -219,18 +220,18 @@ validatePrimBaseType = \case
   "Optimizer" -> Just ATyPrimOptimizer
   _ -> Nothing
 
-data DatasetParam = DatasetParam
-  { numTrain :: Int,
-    numTest :: Int,
-    image :: [Int],
-    label :: [Int]
+data DatasetParam a = DatasetParam
+  { numTrain :: a,
+    numTest :: a,
+    image :: [a],
+    label :: [a]
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Functor)
 
 data Ass0PrimType
   = A0TyPrimBase AssPrimBaseType
   | A0TyTensor [Int]
-  | A0TyDataset DatasetParam
+  | A0TyDataset (DatasetParam Int)
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type expressions.
@@ -246,6 +247,7 @@ data Ass1TypeExprF sv
 data Ass1PrimTypeF sv
   = A1TyPrimBase AssPrimBaseType
   | A1TyTensor (Ass0ExprF sv)
+  | A1TyDataset (DatasetParam (Ass0ExprF sv))
   deriving stock (Eq, Show, Functor)
 
 -- | The type of types for persistent value items.
@@ -323,6 +325,7 @@ data Ass0TypeValF sv
 data Ass0PrimTypeVal
   = A0TyValPrimBase AssPrimBaseType
   | A0TyValTensor [Int]
+  | A0TyValDataset (DatasetParam Int)
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type values.
