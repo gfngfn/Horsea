@@ -281,9 +281,21 @@ persistentTypeTo1 = \case
 
 liftPrimType :: Ass0PrimType -> Ass1PrimTypeF sv
 liftPrimType = \case
-  A0TyPrimBase tyPrimBase -> A1TyPrimBase tyPrimBase
-  A0TyTensor ns -> A1TyTensor (A0Literal (ALitList (map (A0Literal . ALitInt) ns)))
-  A0TyDataset _ -> error "TODO: liftPrimType, A0TyDataset"
+  A0TyPrimBase tyPrimBase ->
+    A1TyPrimBase tyPrimBase
+  A0TyTensor ns ->
+    A1TyTensor (liftIntList ns)
+  A0TyDataset DatasetParam {numTrain, numTest, image, label} ->
+    A1TyDataset
+      DatasetParam
+        { numTrain = liftInt numTrain,
+          numTest = liftInt numTest,
+          image = Identity (liftIntList image),
+          label = Identity (liftIntList label)
+        }
+  where
+    liftInt = A0Literal . ALitInt
+    liftIntList = A0Literal . ALitList . map liftInt
 
 -- | The type of stage-0 term values.
 data Ass0ValF sv
