@@ -629,8 +629,14 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                   -- General rule:
                   (_, _) ->
                     pure $ A1TyTensor (a0branch a0eList1 a0eList2)
-              (A1TyDataset _datasetParam1, A1TyDataset _datasetParam2) ->
-                error "TODO: mergeTypesByContraditional1, A1TyDataset"
+              (A1TyDataset dp1, A1TyDataset dp2) ->
+                pure . A1TyDataset $
+                  DatasetParam
+                    { numTrain = a0branch dp1.numTrain dp2.numTrain,
+                      numTest = a0branch dp1.numTest dp2.numTest,
+                      image = Identity (a0branch (runIdentity dp1.image) (runIdentity dp2.image)),
+                      label = Identity (a0branch (runIdentity dp1.label) (runIdentity dp2.label))
+                    }
               _ ->
                 typeError trav $ CannotMerge1 a1tye1 a1tye2
         (A1TyArrow a1tye11 a1tye12, A1TyArrow a1tye21 a1tye22) ->
