@@ -227,28 +227,31 @@ module DatasetHelper = struct
     )
     external (builtin = "dataset_helper__gen_train_batch", surface = "train_batch")
   val ~gen_batch_accuracy :
+    {ntrain : Nat} ->
     {ntest : Nat} ->
-    {imgdim : Nat} ->
+    {imgdim : List Nat} ->
+    {labeldim : List Nat} ->
     {n : Nat} ->
     (batch_size : Nat) ->
-    ((actual_batch_size : Nat) ->
-      &(Tensor %[actual_batch_size, imgdim] -> Tensor %[actual_batch_size, n])
-    ) ->
-    &(Device -> Tensor %[ntest, imgdim] -> Tensor %[ntest] -> Float)
+    (predict :
+      ((actual_batch_size : Nat) ->
+        &(Tensor %(actual_batch_size :: imgdim) -> Tensor %[actual_batch_size, n])
+      )) ->
+    &(Device -> Dataset %ntrain %ntest %imgdim %labeldim -> Float)
     external (builtin = "dataset_helper__gen_batch_accuracy", surface = "batch_accuracy")
   val ~gen_map :
     {ntrain : Nat} ->
     {ntest : Nat} ->
-    {imgdim : Nat} ->
+    {imgdim : List Nat} ->
+    {labeldim : List Nat} ->
     (batch_size : Nat) ->
     ((actual_batch_size : Nat) ->
-      &(Tensor %[actual_batch_size, imgdim] -> Tensor %[actual_batch_size] ->
-          Tensor %[actual_batch_size, imgdim] * Tensor %[actual_batch_size]
+      &(Tensor %(actual_batch_size :: imgdim) -> Tensor %(actual_batch_size :: labeldim) ->
+          Tensor %(actual_batch_size :: imgdim) * Tensor %(actual_batch_size :: labeldim)
       )
     ) ->
-    &(Device ->
-      ((Tensor %[ntrain, imgdim] * Tensor %[ntrain]) * (Tensor %[ntest, imgdim] * Tensor %[ntest])) -> (* = DataSet *)
-      ((Tensor %[ntrain, imgdim] * Tensor %[ntrain]) * (Tensor %[ntest, imgdim] * Tensor %[ntest])) (* = DataSet *)
+    &(Device -> Dataset %ntrain %ntest %imgdim %labeldim ->
+        Dataset %ntrain %ntest %imgdim %labeldim
     )
     external (builtin = "dataset_helper__gen_map", surface = "map")
 end
@@ -256,6 +259,8 @@ end
 module MnistHelper = struct
   val ~image_dim = (28 * 28) as Nat
   val ~label_count = 10
+  val dataset : Dataset %60000 %10000 %[image_dim] %[]
+    external (builtin = "mnist_helper__dataset", surface = "dataset")
   val train_images : Tensor %[60000, image_dim]
     external (builtin = "mnist_helper__train_images", surface = "train_images")
   val train_labels : Tensor %[60000]
