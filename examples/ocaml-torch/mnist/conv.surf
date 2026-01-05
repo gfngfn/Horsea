@@ -65,25 +65,23 @@ let test_model (size : Nat) = model size false in
     DatasetHelper.train_batch
       batch_size
       device
-      MnistHelper.train_images
-      MnistHelper.train_labels
+      MnistHelper.dataset
       batch_idx
   in
   let loss =
     Tensor.cross_entropy_for_logits
-      _ {MnistHelper.label_count}
+      {batch_size} {MnistHelper.label_count}
       (train_model batch_size batch_images) batch_labels
   in
   Optimizer.backward_step adam loss;
   if mod batch_idx 50 == 0 then
     let test_accuracy =
       DatasetHelper.batch_accuracy
-        _ _ {MnistHelper.label_count}
+        _ _ _ _ {MnistHelper.label_count}
         batch_size
         test_model
         device
-        MnistHelper.test_images
-        MnistHelper.test_labels
+        MnistHelper.dataset
     in
     (* print_int batch_idx *)
     print_float (Tensor.float_value loss);
