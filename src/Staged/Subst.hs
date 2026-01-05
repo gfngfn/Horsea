@@ -9,6 +9,7 @@ module Staged.Subst
   )
 where
 
+import Data.Functor.Identity
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Tuple.Extra
@@ -416,8 +417,17 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
   frees = \case
     A1TyPrim a1tyPrim ->
       case a1tyPrim of
-        A1TyPrimBase _ -> (Set.empty, Set.empty)
-        A1TyTensor a0eList -> frees a0eList
+        A1TyPrimBase _ ->
+          (Set.empty, Set.empty)
+        A1TyTensor a0eList ->
+          frees a0eList
+        A1TyDataset DatasetParam {numTrain, numTest, image, label} ->
+          unionPairs
+            [ frees numTrain,
+              frees numTest,
+              frees (runIdentity image),
+              frees (runIdentity label)
+            ]
     A1TyList a1tye1 ->
       frees a1tye1
     A1TyVar _atyvar ->
@@ -434,6 +444,7 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       A1TyPrim $ case a1tyPrim of
         A1TyPrimBase tyPrimBase -> A1TyPrimBase tyPrimBase
         A1TyTensor a0eList -> A1TyTensor (go a0eList)
+        A1TyDataset datasetParam -> A1TyDataset (fmap go datasetParam)
     A1TyList a1tye1 ->
       A1TyList (go a1tye1)
     A1TyVar atyvar ->
@@ -550,8 +561,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
     TyEq1Prim ty1eqPrim ->
       case ty1eqPrim of
         TyEq1PrimBase _ -> (Set.empty, Set.empty)
-        TyEq1TensorByLiteral zipped -> unionPairs (concatMap (\(a0e1, a0e2) -> [frees a0e1, frees a0e2]) zipped)
-        TyEq1TensorByWhole a0eList1 a0eList2 -> unionPairs [frees a0eList1, frees a0eList2]
+        TyEq1Tensor listEq -> frees listEq
+        TyEq1Dataset datasetParamEq -> frees datasetParamEq
     TyEq1List ty1eqElem ->
       frees ty1eqElem
     TyEq1Arrow ty1eqDom ty1eqCod ->
@@ -564,8 +575,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       TyEq1Prim $
         case ty1eqPrim of
           TyEq1PrimBase tyPrimBase -> TyEq1PrimBase tyPrimBase
-          TyEq1TensorByLiteral zipped -> TyEq1TensorByLiteral (map (both go) zipped)
-          TyEq1TensorByWhole a0eList1 a0eList2 -> TyEq1TensorByWhole (go a0eList1) (go a0eList2)
+          TyEq1Tensor listEq -> TyEq1Tensor (go listEq)
+          TyEq1Dataset dpEq -> TyEq1Dataset (go dpEq)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
     TyEq1Arrow ty1eqDom ty1eqCod ->
@@ -580,30 +591,95 @@ instance (Ord sv) => HasVar sv Type1EquationF where
     case (ty1eq1, ty1eq2) of
       (TyEq1Prim ty1eqPrim1, TyEq1Prim ty1eqPrim2) ->
         case (ty1eqPrim1, ty1eqPrim2) of
-          (TyEq1PrimBase tyPrimBase1, TyEq1PrimBase tyPrimBase2) ->
-            tyPrimBase1 == tyPrimBase2
-          (TyEq1TensorByLiteral zipped1, TyEq1TensorByLiteral zipped2) ->
-            case zipExactMay zipped1 zipped2 of
-              Nothing ->
-                False
-              Just zippedZipped ->
-                all
-                  ( \((a0e11, a0e12), (a0e21, a0e22)) ->
-                      go a0e11 a0e21 && go a0e12 a0e22
-                  )
-                  zippedZipped
-          (TyEq1TensorByWhole a0eList11 a0eList12, TyEq1TensorByWhole a0eList21 a0eList22) ->
-            go a0eList11 a0eList21 && go a0eList12 a0eList22
-          (_, _) ->
-            False
+          (TyEq1PrimBase tyPrimBase1, TyEq1PrimBase tyPrimBase2) -> tyPrimBase1 == tyPrimBase2
+          (TyEq1Tensor listEq1, TyEq1Tensor listEq2) -> go listEq1 listEq2
+          (TyEq1Dataset dpEq1, TyEq1Dataset dpEq2) -> go dpEq1 dpEq2
+          (_, _) -> False
       (TyEq1List ty1eqElem1, TyEq1List ty1eqElem2) ->
         go ty1eqElem1 ty1eqElem2
       (TyEq1Arrow ty1eqDom1 ty1eqCod1, TyEq1Arrow ty1eqDom2 ty1eqCod2) ->
-        go ty1eqDom1 ty1eqDom2
-          && go ty1eqCod1 ty1eqCod2
+        go ty1eqDom1 ty1eqDom2 && go ty1eqCod1 ty1eqCod2
       (_, _) ->
         False
     where
+      go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
+      go = alphaEquivalent
+
+instance (Ord sv) => HasVar sv ListEquationF where
+  frees = \case
+    ListEqByElements zipped ->
+      unionPairs $
+        concatMap (\(a0e1, a0e2) -> [frees a0e1, frees a0e2]) zipped
+    ListEqByWhole a0eList1 a0eList2 ->
+      unionPairs [frees a0eList1, frees a0eList2]
+
+  subst s = \case
+    ListEqByElements zipped ->
+      ListEqByElements (map (both go) zipped)
+    ListEqByWhole a0eList1 a0eList2 ->
+      ListEqByWhole (go a0eList1) (go a0eList2)
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent listEq1 listEq2 =
+    case (listEq1, listEq2) of
+      (ListEqByElements zipped1, ListEqByElements zipped2) ->
+        case zipExactMay zipped1 zipped2 of
+          Nothing ->
+            False
+          Just zippedZipped ->
+            all
+              ( \((a0e11, a0e12), (a0e21, a0e22)) ->
+                  go a0e11 a0e21 && go a0e12 a0e22
+              )
+              zippedZipped
+      (ListEqByWhole a0eList11 a0eList12, ListEqByWhole a0eList21 a0eList22) ->
+        go a0eList11 a0eList21 && go a0eList12 a0eList22
+      (_, _) ->
+        False
+    where
+      go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
+      go = alphaEquivalent
+
+instance (Ord sv) => HasVar sv DatasetParamEquationF where
+  frees DatasetParamEquation {numTrainEq, numTestEq, imageEq, labelEq} =
+    unionPairs
+      [ frees numTrain1,
+        frees numTrain2,
+        frees numTest1,
+        frees numTest2,
+        frees imageEq,
+        frees labelEq
+      ]
+    where
+      (numTrain1, numTrain2) = numTrainEq
+      (numTest1, numTest2) = numTestEq
+
+  subst s DatasetParamEquation {numTrainEq, numTestEq, imageEq, labelEq} =
+    DatasetParamEquation
+      { numTrainEq = both go numTrainEq,
+        numTestEq = both go numTestEq,
+        imageEq = go imageEq,
+        labelEq = go labelEq
+      }
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent dpEq1 dpEq2 =
+    go numTrain11 numTrain21
+      && go numTrain12 numTrain22
+      && go numTest11 numTest21
+      && go numTest12 numTest22
+      && go dpEq1.imageEq dpEq2.imageEq
+      && go dpEq1.labelEq dpEq2.labelEq
+    where
+      (numTrain11, numTrain12) = dpEq1.numTrainEq
+      (numTrain21, numTrain22) = dpEq2.numTrainEq
+      (numTest11, numTest12) = dpEq1.numTestEq
+      (numTest21, numTest22) = dpEq2.numTestEq
+
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
 

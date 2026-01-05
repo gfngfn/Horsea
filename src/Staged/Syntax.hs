@@ -1,5 +1,6 @@
 module Staged.Syntax
-  ( StaticVar (..),
+  ( DatasetParam (..),
+    StaticVar (..),
     AssVarF (..),
     Symbol (..),
     symbolToVar,
@@ -12,6 +13,8 @@ module Staged.Syntax
     makeExprFromBinds,
     Type1EquationF (..),
     Type1PrimEquationF (..),
+    ListEquationF (..),
+    DatasetParamEquationF (..),
     Ass0TypeExprF (..),
     StrictAss0TypeExprF (..),
     AssPrimBaseType (..),
@@ -39,6 +42,7 @@ module Staged.Syntax
     mapMAssLiteral,
     strictify,
     decomposeType1Equation,
+    decomposeListEquation,
     AppContextF,
     AppContextEntryF (..),
     ResultF (..),
@@ -47,6 +51,7 @@ module Staged.Syntax
     Ass1Expr,
     AssBind,
     Type1Equation,
+    ListEquation,
     Ass0TypeExpr,
     StrictAss0TypeExpr,
     Ass1TypeExpr,
@@ -61,6 +66,7 @@ module Staged.Syntax
   )
 where
 
+import Data.Functor.Identity
 import Data.Map (Map)
 import Data.Text (Text)
 import Staged.BuiltIn.Core
@@ -68,6 +74,14 @@ import Util.Matrix (Matrix)
 import Util.TokenUtil (Span)
 import Util.Vector (Vector)
 import Prelude
+
+data DatasetParam f a = DatasetParam
+  { numTrain :: a,
+    numTest :: a,
+    image :: f a,
+    label :: f a
+  }
+  deriving stock (Eq, Show, Functor)
 
 newtype StaticVar = StaticVar Int
   deriving newtype (Eq, Ord, Show)
@@ -222,6 +236,7 @@ validatePrimBaseType = \case
 data Ass0PrimType
   = A0TyPrimBase AssPrimBaseType
   | A0TyTensor [Int]
+  | A0TyDataset (DatasetParam [] Int)
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type expressions.
@@ -237,6 +252,7 @@ data Ass1TypeExprF sv
 data Ass1PrimTypeF sv
   = A1TyPrimBase AssPrimBaseType
   | A1TyTensor (Ass0ExprF sv)
+  | A1TyDataset (DatasetParam Identity (Ass0ExprF sv))
   deriving stock (Eq, Show, Functor)
 
 -- | The type of types for persistent value items.
@@ -269,8 +285,21 @@ persistentTypeTo1 = \case
 
 liftPrimType :: Ass0PrimType -> Ass1PrimTypeF sv
 liftPrimType = \case
-  A0TyPrimBase tyPrimBase -> A1TyPrimBase tyPrimBase
-  A0TyTensor ns -> A1TyTensor (A0Literal (ALitList (map (A0Literal . ALitInt) ns)))
+  A0TyPrimBase tyPrimBase ->
+    A1TyPrimBase tyPrimBase
+  A0TyTensor ns ->
+    A1TyTensor (liftIntList ns)
+  A0TyDataset DatasetParam {numTrain, numTest, image, label} ->
+    A1TyDataset
+      DatasetParam
+        { numTrain = liftInt numTrain,
+          numTest = liftInt numTest,
+          image = Identity (liftIntList image),
+          label = Identity (liftIntList label)
+        }
+  where
+    liftInt = A0Literal . ALitInt
+    liftIntList = A0Literal . ALitList . map liftInt
 
 -- | The type of stage-0 term values.
 data Ass0ValF sv
@@ -313,6 +342,7 @@ data Ass0TypeValF sv
 data Ass0PrimTypeVal
   = A0TyValPrimBase AssPrimBaseType
   | A0TyValTensor [Int]
+  | A0TyValDataset (DatasetParam [] Int)
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type values.
@@ -328,6 +358,7 @@ data Ass1TypeValF sv
 data Ass1PrimTypeVal
   = A1TyValPrimBase AssPrimBaseType
   | A1TyValTensor [Int]
+  | A1TyValDataset (DatasetParam [] Int)
   deriving stock (Eq, Show)
 
 -- | The type of well-formed type equations for assertion.
@@ -340,9 +371,22 @@ data Type1EquationF sv
 
 data Type1PrimEquationF sv
   = TyEq1PrimBase AssPrimBaseType
-  | TyEq1TensorByLiteral [(Ass0ExprF sv, Ass0ExprF sv)]
+  | TyEq1Tensor (ListEquationF sv)
+  | TyEq1Dataset (DatasetParamEquationF sv)
+  deriving stock (Eq, Show, Functor)
+
+data ListEquationF sv
+  = ListEqByElements [(Ass0ExprF sv, Ass0ExprF sv)]
   | -- | Pairs of expressions of type `List Nat`.
-    TyEq1TensorByWhole (Ass0ExprF sv) (Ass0ExprF sv)
+    ListEqByWhole (Ass0ExprF sv) (Ass0ExprF sv)
+  deriving stock (Eq, Show, Functor)
+
+data DatasetParamEquationF sv = DatasetParamEquation
+  { numTrainEq :: (Ass0ExprF sv, Ass0ExprF sv),
+    numTestEq :: (Ass0ExprF sv, Ass0ExprF sv),
+    imageEq :: ListEquationF sv,
+    labelEq :: ListEquationF sv
+  }
   deriving stock (Eq, Show, Functor)
 
 type EvalEnv = Map AssVar EvalEnvEntry
@@ -403,12 +447,29 @@ decomposeType1Equation = \case
     case ty1eqPrim of
       TyEq1PrimBase tyPrimBase ->
         prims $ A1TyPrimBase tyPrimBase
-      TyEq1TensorByLiteral zipped ->
-        let a0eList1 = A0Literal (ALitList (map fst zipped))
-            a0eList2 = A0Literal (ALitList (map snd zipped))
+      TyEq1Tensor listEq ->
+        let (a0eList1, a0eList2) = decomposeListEquation listEq
          in (A1TyPrim (A1TyTensor a0eList1), A1TyPrim (A1TyTensor a0eList2))
-      TyEq1TensorByWhole a0eList1 a0eList2 ->
-        (A1TyPrim (A1TyTensor a0eList1), A1TyPrim (A1TyTensor a0eList2))
+      TyEq1Dataset datasetParamEq ->
+        let (numTrain1, numTrain2) = datasetParamEq.numTrainEq
+            (numTest1, numTest2) = datasetParamEq.numTestEq
+            (image1, image2) = decomposeListEquation datasetParamEq.imageEq
+            (label1, label2) = decomposeListEquation datasetParamEq.labelEq
+            datasetParam1 =
+              DatasetParam
+                { numTrain = numTrain1,
+                  numTest = numTest1,
+                  image = Identity image1,
+                  label = Identity label1
+                }
+            datasetParam2 =
+              DatasetParam
+                { numTrain = numTrain2,
+                  numTest = numTest2,
+                  image = Identity image2,
+                  label = Identity label2
+                }
+         in (A1TyPrim (A1TyDataset datasetParam1), A1TyPrim (A1TyDataset datasetParam2))
   TyEq1List ty1eqElem ->
     let (a1tye1elem, a1tye2elem) = decomposeType1Equation ty1eqElem
      in (A1TyList a1tye1elem, A1TyList a1tye2elem)
@@ -422,6 +483,13 @@ decomposeType1Equation = \case
      in (A1TyProduct a1tye11 a1tye12, A1TyProduct a1tye21 a1tye22)
   where
     prims p = (A1TyPrim p, A1TyPrim p)
+
+decomposeListEquation :: ListEquationF sv -> (Ass0ExprF sv, Ass0ExprF sv)
+decomposeListEquation = \case
+  ListEqByElements zipped -> (makeList (map fst zipped), makeList (map snd zipped))
+  ListEqByWhole a0eList1 a0eList2 -> (a0eList1, a0eList2)
+  where
+    makeList = A0Literal . ALitList
 
 -- | The type of application contexts, which play a key role of
 -- the "Let arguments go first" [Xie & Oliveira 2018] formalization.
@@ -455,6 +523,8 @@ type Ass1Expr = Ass1ExprF StaticVar
 type AssBind = AssBindF StaticVar
 
 type Type1Equation = Type1EquationF StaticVar
+
+type ListEquation = ListEquationF StaticVar
 
 type Ass0TypeExpr = Ass0TypeExprF StaticVar
 

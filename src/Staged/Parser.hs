@@ -75,7 +75,10 @@ mat :: P (Located [[Int]])
 mat = genMat TokMatLeft TokMatRight TokSemicolon TokComma (noLoc int)
 
 operator :: P (Located Var)
-operator = compOp <|> addOp <|> multOp
+operator = compOp <|> addOp <|> multOp <|> consOp
+
+consOp :: P (Located Var)
+consOp = fmap (const "::") <$> expectToken (^? #_TokColonColon)
 
 multOp :: P (Located Var)
 multOp =
@@ -164,8 +167,11 @@ exprAtom, expr :: P Expr
           Nothing -> e1
           Just tye2@(TypeExpr loc2 _) -> Expr (mergeSpan loc1 loc2) (As e1 tye2)
 
+    con :: P Expr
+    con = binSep makeBinOpApp consOp as
+
     mult :: P Expr
-    mult = binSep makeBinOpApp multOp as
+    mult = binSep makeBinOpApp multOp con
 
     add :: P Expr
     add = binSep makeBinOpApp addOp mult

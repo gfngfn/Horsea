@@ -4,6 +4,7 @@ module Staged.BuiltIn.Core
     BuiltInArity2 (..),
     BuiltInArity3 (..),
     BuiltInArity5 (..),
+    BuiltInArity7 (..),
     BuiltInArity8 (..),
     BuiltInArity10 (..),
     Ass0PartialBuiltInApp (..),
@@ -32,6 +33,7 @@ data BuiltIn
   | BuiltInArity2 BuiltInArity2
   | BuiltInArity3 BuiltInArity3
   | BuiltInArity5 BuiltInArity5
+  | BuiltInArity7 BuiltInArity7
   | BuiltInArity8 BuiltInArity8
   | BuiltInArity10 BuiltInArity10
   | BuiltInOther Text -- TODO: remove this
@@ -47,6 +49,8 @@ data BuiltInArity1
   | BITensorGenSubUpdate
   | BITensorGenCountEqual
   | BITensorGenDropout
+  | BITupleFirst
+  | BITupleSecond
   deriving stock (Eq, Show)
 
 data BuiltInArity2
@@ -68,6 +72,7 @@ data BuiltInArity2
   | BIBroadcastable
   | BIBroadcast
   | BIReshapeable
+  | BIListCons
   | BIListAppend
   | BIListIter
   | BITensorGenAdd
@@ -84,10 +89,13 @@ data BuiltInArity3
   = BIGenMconcatVert
   | BITensorGenMm
   | BILayerGenLinear
-  | BIDatasetHelperGenTrainBatch
   deriving stock (Eq, Show)
 
 data BuiltInArity5
+  = BIDatasetHelperGenTrainBatch
+  deriving stock (Eq, Show)
+
+data BuiltInArity7
   = BIDatasetHelperGenBatchAccuracy
   deriving stock (Eq, Show)
 
@@ -141,7 +149,8 @@ data Ass0PartialBuiltInAppArity6 val
   deriving stock (Eq, Show, Functor)
 
 data Ass0PartialBuiltInAppArity7 val
-  = PartialBuiltInAppArity7Cons (Ass0PartialBuiltInAppArity8 val) val
+  = PartialBuiltInAppArity7Nil BuiltInArity7
+  | PartialBuiltInAppArity7Cons (Ass0PartialBuiltInAppArity8 val) val
   deriving stock (Eq, Show, Functor)
 
 data Ass0PartialBuiltInAppArity8 val
@@ -201,8 +210,8 @@ data Ass1BuiltIn
   | A1BIVarStoreCreate
   | A1BIOptimizerAdam
   | A1BIOptimizerBackwardStep
-  | A1BIDatasetHelperTrainBatch Int Int Int
-  | A1BIDatasetHelperBatchAccuracy Int Int Int Int
+  | A1BIDatasetHelperTrainBatch Int Int [Int] [Int] Int
+  | A1BIDatasetHelperBatchAccuracy Int Int [Int] [Int] Int Int
   | A1BIMnistHelperTrainImages
   | A1BIMnistHelperTrainLabels
   | A1BIMnistHelperTestImages
@@ -252,8 +261,11 @@ validateExternalName0 = \case
   "broadcastable" -> arity2 BIBroadcastable
   "broadcast" -> arity2 BIBroadcast
   "reshapeable" -> arity2 BIReshapeable
+  "list__cons" -> arity2 BIListCons
   "list__append" -> arity2 BIListAppend
   "list__iter" -> arity2 BIListIter
+  "tuple__first" -> arity1 BITupleFirst
+  "tuple__second" -> arity1 BITupleSecond
   "device__gen_cuda_if_available" -> arity1 BIDeviceGenCudaIfAvailable
   "layer__gen_forward" -> arity2 BILayerGenForward
   "layer__gen_conv2d_" -> arity8 BILayerGenConv2d
@@ -271,8 +283,8 @@ validateExternalName0 = \case
   "tensor__gen_dropout" -> arity1 BITensorGenDropout
   "tensor__gen_reshape" -> arity2 BITensorGenReshape
   "tensor__gen_max_pool2d" -> arity10 BITensorGenMaxPool2d
-  "dataset_helper__gen_train_batch" -> arity3 BIDatasetHelperGenTrainBatch
-  "dataset_helper__gen_batch_accuracy" -> arity5 BIDatasetHelperGenBatchAccuracy
+  "dataset_helper__gen_train_batch" -> arity5 BIDatasetHelperGenTrainBatch
+  "dataset_helper__gen_batch_accuracy" -> arity7 BIDatasetHelperGenBatchAccuracy
   s -> pure $ BuiltInOther s
   --  _ -> Nothing
   where
@@ -280,6 +292,7 @@ validateExternalName0 = \case
     arity2 = pure . BuiltInArity2
     arity3 = pure . BuiltInArity3
     arity5 = pure . BuiltInArity5
+    arity7 = pure . BuiltInArity7
     arity8 = pure . BuiltInArity8
     arity10 = pure . BuiltInArity10
 

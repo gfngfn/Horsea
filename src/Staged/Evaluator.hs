@@ -12,6 +12,7 @@ import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Function ((&))
+import Data.Functor.Identity
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
@@ -96,6 +97,11 @@ validateStringLiteral = \case
   a0v -> bug $ NotAString a0v
 -}
 
+validateTupleValue :: Ass0Val -> M (Ass0Val, Ass0Val)
+validateTupleValue = \case
+  A0ValTuple a0v1 a0v2 -> pure (a0v1, a0v2)
+  a0v -> bug $ NotATuple a0v
+
 validateListValue :: Ass0Val -> M [Ass0Val]
 validateListValue = \case
   A0ValLiteral (ALitList a0vs) -> pure a0vs
@@ -165,6 +171,12 @@ reduceDeltaArity1 bi1 a0v1 =
     BITensorGenDropout -> do
       shape <- validateIntListLiteral a0v1
       pure $ A0ValBracket (A1ValConst (A1BITensorDropout shape))
+    BITupleFirst -> do
+      (a0v11, _) <- validateTupleValue a0v1
+      pure a0v11
+    BITupleSecond -> do
+      (_, a0v12) <- validateTupleValue a0v1
+      pure a0v12
 
 reduceDeltaArity2 :: BuiltInArity2 -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity2 bi2 a0v1 a0v2 =
@@ -237,6 +249,9 @@ reduceDeltaArity2 bi2 a0v1 a0v2 =
       ns2 <- validateIntListLiteral a0v2
       let b = List.foldl' (*) 1 ns1 == List.foldl' (*) 1 ns2
       pure $ A0ValLiteral (ALitBool b)
+    BIListCons -> do
+      a0vs2 <- validateListValue a0v2
+      pure $ A0ValLiteral (ALitList (a0v1 : a0vs2))
     BIListAppend -> do
       a0vs1 <- validateListValue a0v1
       a0vs2 <- validateListValue a0v2
@@ -318,22 +333,30 @@ reduceDeltaArity3 bi3 a0v1 a0v2 a0v3 =
       input_dim <- validateIntLiteral a0v2
       output_dim <- validateIntLiteral a0v3
       pure $ A0ValBracket (A1ValConst (A1BILayerLinear ns input_dim output_dim))
-    BIDatasetHelperGenTrainBatch -> do
-      ntrain <- validateIntLiteral a0v1
-      imgdim <- validateIntLiteral a0v2
-      batchSize <- validateIntLiteral a0v3
-      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperTrainBatch ntrain imgdim batchSize))
 
 reduceDeltaArity5 :: BuiltInArity5 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity5 bi5 a0v1 a0v2 a0v3 a0v4 a0v5 =
   case bi5 of
+    BIDatasetHelperGenTrainBatch -> do
+      ntrain <- validateIntLiteral a0v1
+      ntest <- validateIntLiteral a0v2
+      imgdim <- validateIntListLiteral a0v3
+      labeldim <- validateIntListLiteral a0v4
+      batchSize <- validateIntLiteral a0v5
+      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperTrainBatch ntrain ntest imgdim labeldim batchSize))
+
+reduceDeltaArity7 :: BuiltInArity7 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
+reduceDeltaArity7 bi7 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 =
+  case bi7 of
     BIDatasetHelperGenBatchAccuracy -> do
-      ntest <- validateIntLiteral a0v1
-      imgdim <- validateIntLiteral a0v2
-      n <- validateIntLiteral a0v3
-      batchSize <- validateIntLiteral a0v4
-      let _f = a0v5
-      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperBatchAccuracy ntest imgdim n batchSize))
+      ntrain <- validateIntLiteral a0v1
+      ntest <- validateIntLiteral a0v2
+      imgdim <- validateIntListLiteral a0v3
+      labeldim <- validateIntListLiteral a0v4
+      n <- validateIntLiteral a0v5
+      batchSize <- validateIntLiteral a0v6
+      let _f = a0v7
+      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperBatchAccuracy ntrain ntest imgdim labeldim n batchSize))
 
 reduceDeltaArity8 :: BuiltInArity8 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity8 bi8 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 a0v8 =
@@ -413,6 +436,8 @@ reduceDelta pba a0vArg =
                           case pba6 of
                             PartialBuiltInAppArity6Cons pba7 v7 ->
                               case pba7 of
+                                PartialBuiltInAppArity7Nil bi7 ->
+                                  reduceDeltaArity7 bi7 v7 v6 v5 v4 v3 v2 v1
                                 PartialBuiltInAppArity7Cons pba8 v8 ->
                                   case pba8 of
                                     PartialBuiltInAppArity8Nil bi8 ->
@@ -463,6 +488,7 @@ evalExpr0 env = \case
         BuiltInArity2 bi2 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity2 (PartialBuiltInAppArity2Nil bi2))
         BuiltInArity3 bi3 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity3 (PartialBuiltInAppArity3Nil bi3))
         BuiltInArity5 bi5 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity5 (PartialBuiltInAppArity5Nil bi5))
+        BuiltInArity7 bi7 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity7 (PartialBuiltInAppArity7Nil bi7))
         BuiltInArity8 bi8 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity8 (PartialBuiltInAppArity8Nil bi8))
         BuiltInArity10 bi10 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity10 (PartialBuiltInAppArity10Nil bi10))
         BuiltInOther s -> error $ "BuiltInOther: " ++ Text.unpack s
@@ -593,6 +619,7 @@ evalTypeExpr0 env = \case
           case a0tyPrim of
             A0TyPrimBase tyPrimBase -> A0TyValPrimBase tyPrimBase
             A0TyTensor n -> A0TyValTensor n
+            A0TyDataset dsParam -> A0TyValDataset dsParam
     maybeVPred <- mapM (evalExpr0 env) maybePred
     pure $ A0TyValPrim a0tyValPrim maybeVPred
   SA0TyVar atyvar ->
@@ -626,6 +653,12 @@ evalTypeExpr1 env = \case
           a0vs <- validateListValue a0v
           ns <- mapM validateIntLiteral a0vs
           pure $ A1TyValTensor ns
+        A1TyDataset datasetParam -> do
+          numTrain <- validateIntLiteral =<< evalExpr0 env datasetParam.numTrain
+          numTest <- validateIntLiteral =<< evalExpr0 env datasetParam.numTest
+          image <- validateIntListLiteral =<< evalExpr0 env (runIdentity datasetParam.image)
+          label <- validateIntListLiteral =<< evalExpr0 env (runIdentity datasetParam.label)
+          pure $ A1TyValDataset DatasetParam {numTrain, numTest, image, label}
   A1TyList a1tye -> do
     a1tyv <- evalTypeExpr1 env a1tye
     pure $ A1TyValList a1tyv
@@ -675,6 +708,7 @@ unliftTypeVal = \case
           case a1tyvPrim of
             A1TyValPrimBase tyPrimBase -> A0TyPrimBase tyPrimBase
             A1TyValTensor ns -> A0TyTensor ns
+            A1TyValDataset datasetParam -> A0TyDataset datasetParam
      in SA0TyPrim a0tyPrim Nothing
   A1TyValList a1tyv ->
     SA0TyList (unliftTypeVal a1tyv) Nothing

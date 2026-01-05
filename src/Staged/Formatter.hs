@@ -8,6 +8,7 @@ module Staged.Formatter
   )
 where
 
+import Data.Functor.Identity
 import Data.List qualified as List
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -273,6 +274,10 @@ dispNameWithArgs req name dispArg args =
     [] -> name
     _ : _ -> deepenParenWhen (req <= Atomic) (List.foldl' (<+>) name (map dispArg args))
 
+dispDatasetParam :: (a -> Doc Ann) -> (f a -> Doc Ann) -> DatasetParam f a -> Doc Ann
+dispDatasetParam dispElem dispList DatasetParam {numTrain, numTest, image, label} =
+  dispElem numTrain <> " " <> dispElem numTest <> " " <> dispList image <> " " <> dispList label
+
 dispLongName :: (Disp var) => [var] -> var -> Doc Ann
 dispLongName ms x =
   foldr (\m doc -> disp m <> "." <> doc) (disp x) ms
@@ -364,6 +369,8 @@ instance Disp BuiltInArity1 where
     BITensorGenSubUpdate -> "TENSOR.GEN_SUB_UPDATE"
     BITensorGenCountEqual -> "TENSOR.GEN_COUNT_EQUAL"
     BITensorGenDropout -> "TENSOR.GEN_DROPOUT"
+    BITupleFirst -> "FST"
+    BITupleSecond -> "SND"
 
 instance Disp BuiltInArity2 where
   dispGen _ = \case
@@ -385,6 +392,7 @@ instance Disp BuiltInArity2 where
     BIBroadcastable -> "BROADCASTABLE"
     BIBroadcast -> "BROADCAST"
     BIReshapeable -> "RESHAPEABLE"
+    BIListCons -> "::"
     BIListAppend -> "LIST.APPEND"
     BIListIter -> "LIST.ITER"
     BITensorGenAdd -> "TENSOR.GEN_ADD"
@@ -401,9 +409,12 @@ instance Disp BuiltInArity3 where
     BIGenMconcatVert -> "GEN_MCONCAT_VERT"
     BITensorGenMm -> "TENSOR.GEN_MM"
     BILayerGenLinear -> "LAYER.GEN_LINEAR"
-    BIDatasetHelperGenTrainBatch -> "DATASET_HELPER.GEN_TRAIN_BATCH"
 
 instance Disp BuiltInArity5 where
+  dispGen _ = \case
+    BIDatasetHelperGenTrainBatch -> "DATASET_HELPER.GEN_TRAIN_BATCH"
+
+instance Disp BuiltInArity7 where
   dispGen _ = \case
     BIDatasetHelperGenBatchAccuracy -> "DATASET_HELPER.GEN_BATCH_ACCURACY"
 
@@ -421,6 +432,7 @@ instance Disp BuiltIn where
     BuiltInArity2 bi2 -> dispGen req bi2
     BuiltInArity3 bi3 -> dispGen req bi3
     BuiltInArity5 bi5 -> dispGen req bi5
+    BuiltInArity7 bi7 -> dispGen req bi7
     BuiltInArity8 bi8 -> dispGen req bi8
     BuiltInArity10 bi10 -> dispGen req bi10
     BuiltInOther s -> "OTHER '" <> disp s <> "'"
@@ -546,6 +558,7 @@ instance Disp Ass0PrimType where
     A0TyTensor [n] -> dispNameWithArgs req "Vec" disp [n]
     A0TyTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
+    A0TyDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
 
 instance (Disp sv) => Disp (Ass0TypeExprF sv) where
   dispGen req = \case
@@ -581,6 +594,8 @@ instance (Disp sv) => Disp (Ass1PrimTypeF sv) where
         A0Literal (ALitList [a0e]) -> dispNameWithArgs req "Vec" dispPersistent [a0e]
         A0Literal (ALitList [a0e1, a0e2]) -> dispNameWithArgs req "Mat" dispPersistent [a0e1, a0e2]
         _ -> dispNameWithArgs req "Tensor" dispPersistent [a0eList]
+    A1TyDataset datasetParam ->
+      dispNameWithArgs req "Dataset" (dispDatasetParam disp (disp . runIdentity)) [datasetParam]
 
 instance (Disp sv) => Disp (Ass1TypeExprF sv) where
   dispGen req = \case
@@ -922,8 +937,8 @@ instance Disp Ass1BuiltIn where
     A1BIVarStoreCreate -> "Var_store.create"
     A1BIOptimizerAdam -> "Optimizer.adam"
     A1BIOptimizerBackwardStep -> "Optimizer.backward_step"
-    A1BIDatasetHelperTrainBatch ntrain imgdim batchSize -> "Dataset_helper.train_batch" <> param (disps [ntrain, imgdim, batchSize])
-    A1BIDatasetHelperBatchAccuracy ntest imgdim n batchSize -> "Dataset_helper.batch_accuracy" <> param (disps [ntest, imgdim, n, batchSize])
+    A1BIDatasetHelperTrainBatch ntrain ntest imgdim labeldim batchSize -> "Dataset_helper.train_batch" <> param (disp ntrain <> "," <+> disp ntest <> "," <+> dispListLiteral imgdim <> "," <+> dispListLiteral labeldim <> "," <+> disp batchSize)
+    A1BIDatasetHelperBatchAccuracy ntrain ntest imgdim labeldim n batchSize -> "Dataset_helper.batch_accuracy" <> param (disp ntrain <> "," <+> disp ntest <> "," <+> dispListLiteral imgdim <> "," <+> dispListLiteral labeldim <> "," <+> disp n <> "," <+> disp batchSize)
     A1BIMnistHelperTrainImages -> "Mnist_helper.train_images"
     A1BIMnistHelperTrainLabels -> "Mnist_helper.train_labels"
     A1BIMnistHelperTestImages -> "Mnist_helper.test_images"
@@ -970,6 +985,7 @@ instance Disp Ass0PrimTypeVal where
     A0TyValTensor [n] -> dispNameWithArgs req "Vec" disp [n]
     A0TyValTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyValTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
+    A0TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
 
 instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case
@@ -986,6 +1002,7 @@ instance Disp Ass1PrimTypeVal where
     A1TyValTensor [n] -> dispNameWithArgs req "Vec" dispPersistent [n]
     A1TyValTensor [m, n] -> dispNameWithArgs req "Mat" dispPersistent [m, n]
     A1TyValTensor ns -> dispNameWithArgs req "Tensor" dispPersistentListLiteral [ns]
+    A1TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
 
 instance Disp LocationInFile where
   dispGen _ (LocationInFile l c) =

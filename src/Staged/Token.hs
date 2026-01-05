@@ -27,6 +27,7 @@ data Token
   | TokArrow
   | TokEqual
   | TokColon
+  | TokColonColon
   | TokComma
   | TokBracket
   | TokEscape
@@ -84,6 +85,7 @@ showToken = \case
   TokArrow -> "->"
   TokEqual -> "="
   TokColon -> ":"
+  TokColonColon -> "::"
   TokComma -> ","
   TokBracket -> "&"
   TokEscape -> "~"
@@ -165,6 +167,7 @@ token =
       TokLeftBrace <$ Mp.single '{',
       TokRightBrace <$ Mp.single '}',
       TokArrow <$ Mp.chunk "->",
+      TokColonColon <$ Mp.chunk "::",
       TokColon <$ Mp.single ':',
       TokComma <$ Mp.single ',',
       Mp.try (TokOpComp <$> operatorLong '='),
