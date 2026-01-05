@@ -3,7 +3,7 @@ let classes = ["ants", "bees"] in
 
 (* Precompute the last layer of the pre-trained model on the whole dataset. *)
 let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (model_path : String) =
-  &(fun(dataset0 : (Tensor %[ntrain, imgdim] * Tensor %[ntrain]) * (Tensor %[ntest, imgdim] * Tensor %[ntest])) ->
+  &(fun(dataset0 : Dataset %ntrain %ntest %[imgdim] %[]) ->
       let dataset1 =
         let frozen_vs =
           VarStore.create
@@ -12,10 +12,12 @@ let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (mode
             Device.cpu (* device *)
             ()
         in
-        let pretrained_model = ~(TorchVision.Resnet.gen_resnet18 {2} {imgdim} {4} 512) frozen_vs in
+        let pretrained_model =
+          ~(TorchVision.Resnet.gen_resnet18 {2} {imgdim} {4} 512) frozen_vs (* TODO *)
+        in
         print_string "Loading weights from";
         print_string ~(lift_string model_path);
-        let named_tensors = ~(VarStore.gen_all_vars {[13]}) frozen_vs in
+        let named_tensors = ~(VarStore.gen_all_vars {[13]}) frozen_vs in (* TODO *)
         ~(Serialize.load_multi_
             model_path (* filename *)
           )
@@ -24,7 +26,7 @@ let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (mode
         ~(DatasetHelper.gen_map
             4 (* batch_size *)
             (fun(actual_batch_size : Nat) ->
-              &(fun(batch_images : Tensor %[actual_batch_size, imgdim]) ->
+              &(fun(batch_images : Tensor %[actual_batch_size, imgdim, 107, 203]) -> (* TODO *)
                 fun(batch_labels : Tensor %[actual_batch_size]) ->
                   let activations =
                     ~Layer.gen_forward_
@@ -32,13 +34,14 @@ let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (mode
                       batch_images
                       false (* is_training *)
                   in
-                  (Tensor.copy activations, batch_labels)
+                  (~Tensor.gen_copy activations, batch_labels)
               )
             )
           )
+          Device.cpu
           dataset0
       in
-      DatasetHelper.print_summary dataset1;
+      ~DatasetHelper.gen_print_summary dataset1;
       dataset1
   )
 in
@@ -47,23 +50,28 @@ let dataset_dir = "path/to/dataset/" in
 let model_path = "path/to/model" in
 
 &(let dataset =
-    Imagenet.load_dataset
-      dataset_dir (* dir *)
-      classes (* classes *)
+    ~(TorchVision.Imagenet.gen_load_dataset
+        {306} {407} {508} (* TODO *)
+        dataset_dir (* dir *)
+        classes (* classes *)
+      )
       ()
   in
-  DatasetHelper.print_summary dataset;
-  let dataset = ~gen_precompute_activations dataset model_path in
+  ~DatasetHelper.gen_print_summary dataset;
+  let dataset = ~(gen_precompute_activations model_path) dataset in
   let train_vs =
     VarStore.create
+      false (* frozen *)
       "rn-vs" (* name *)
+      Device.cpu (* device *)
       ()
   in
   let fc1 =
-    Layer.linear
+    ~(Layer.gen_linear
+        512 (* input_dim *)
+        (List.length classes)
+      )
       train_vs
-      512 (* input_dim *)
-      (List.length classes)
   in
   let model (xs : X) = Layer.forward fc1 xs in
   let sgd =

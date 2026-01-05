@@ -53,9 +53,11 @@ val ~snd : forall 'a -> forall 'b -> 'a * 'b -> 'b
 
 module List = struct
   val %append : forall 'a -> List 'a -> List 'a -> List 'a
-    external (builtin = "list__append", surface = "append") (* TODO: generalize the type *)
+    external (builtin = "list__append", surface = "append")
   val %iter : forall 'a -> ('a -> Unit) -> List 'a -> Unit
-    external (builtin = "list__iter", surface = "iter") (* TODO: generalize the type *)
+    external (builtin = "list__iter", surface = "iter")
+  val ~length : forall 'a -> List 'a -> Nat
+    external (builtin = "list__length", surface = "length")
 end
 
 module Device = struct
@@ -68,6 +70,8 @@ end
 module Tensor = struct
   val ~gen_zeros : (shape : List Nat) -> &(Tensor %shape)
     external (builtin = "tensor__gen_zeros", surface = "zeros")
+  val ~gen_copy : {shape : List Nat} -> &(Tensor %shape -> Tensor %shape)
+    external (builtin = "tensor__gen_copy", surface = "copy")
   val ~gen_add :
     {shape1 : List Nat} -> {shape2 : {s : List Nat | broadcastable shape1 s}} ->
     &(Tensor %shape1 -> Tensor %shape2 -> Tensor %(broadcast shape1 shape2))
@@ -254,6 +258,13 @@ module DatasetHelper = struct
         Dataset %ntrain %ntest %imgdim %labeldim
     )
     external (builtin = "dataset_helper__gen_map", surface = "map")
+  val ~gen_print_summary :
+    {ntrain : Nat} ->
+    {ntest : Nat} ->
+    {imgdim : List Nat} ->
+    {labeldim : List Nat} ->
+    &(Dataset %ntrain %ntest %imgdim %labeldim -> Unit)
+    external (builtin = "dataset_helper__gen_print_summary", surface = "print_summary")
 end
 
 module MnistHelper = struct
@@ -294,18 +305,15 @@ module TorchVision = struct
       external (builtin = "torch_vision__resnet__gen_resnet18", surface = "resnet18")
   end
   module Imagenet = struct
-    val ~load_dataset :
+    val ~gen_load_dataset :
       {ntrain : Nat} ->
       {ntest : Nat} ->
       {imgdim : Nat} ->
       String -> (* dir *)
       List String -> (* classes *)
       (* String -> *) (* with_cache *)
-      Unit ->
-      &((Tensor %[ntrain, imgdim] * Tensor %[ntrain])
-          * (Tensor %[ntest, imgdim] * Tensor %[ntest])
-      )
-      external (builtin = "torch_vision__imagenet__load_dataset", surface = "load_dataset")
+      &(Unit -> Dataset %ntrain %ntest %[imgdim] %[])
+      external (builtin = "torch_vision__imagenet__gen_load_dataset", surface = "load_dataset")
     val ~load_image :
       {ns : List Nat} ->
       (* Int * Int -> *) (* resize *)
