@@ -12,6 +12,7 @@ import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Function ((&))
+import Data.Functor.Identity
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
@@ -627,6 +628,12 @@ evalTypeExpr1 env = \case
           a0vs <- validateListValue a0v
           ns <- mapM validateIntLiteral a0vs
           pure $ A1TyValTensor ns
+        A1TyDataset datasetParam -> do
+          numTrain <- validateIntLiteral =<< evalExpr0 env datasetParam.numTrain
+          numTest <- validateIntLiteral =<< evalExpr0 env datasetParam.numTest
+          image <- validateIntListLiteral =<< evalExpr0 env (runIdentity datasetParam.image)
+          label <- validateIntListLiteral =<< evalExpr0 env (runIdentity datasetParam.label)
+          pure $ A1TyValDataset DatasetParam {numTrain, numTest, image, label}
   A1TyList a1tye -> do
     a1tyv <- evalTypeExpr1 env a1tye
     pure $ A1TyValList a1tyv
@@ -676,6 +683,7 @@ unliftTypeVal = \case
           case a1tyvPrim of
             A1TyValPrimBase tyPrimBase -> A0TyPrimBase tyPrimBase
             A1TyValTensor ns -> A0TyTensor ns
+            A1TyValDataset datasetParam -> A0TyDataset datasetParam
      in SA0TyPrim a0tyPrim Nothing
   A1TyValList a1tyv ->
     SA0TyList (unliftTypeVal a1tyv) Nothing

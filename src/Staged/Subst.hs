@@ -9,6 +9,7 @@ module Staged.Subst
   )
 where
 
+import Data.Functor.Identity
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Tuple.Extra
@@ -421,12 +422,12 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
         A1TyTensor a0eList ->
           frees a0eList
         A1TyDataset DatasetParam {numTrain, numTest, image, label} ->
-          unionPairs $
-            concat
-              [ [frees numTrain, frees numTest],
-                map frees image,
-                map frees label
-              ]
+          unionPairs
+            [ frees numTrain,
+              frees numTest,
+              frees (runIdentity image),
+              frees (runIdentity label)
+            ]
     A1TyList a1tye1 ->
       frees a1tye1
     A1TyVar _atyvar ->
@@ -567,18 +568,16 @@ instance (Ord sv) => HasVar sv Type1EquationF where
         TyEq1TensorByWhole a0eList1 a0eList2 ->
           unionPairs [frees a0eList1, frees a0eList2]
         TyEq1Dataset dp1 dp2 ->
-          unionPairs $
-            concat
-              [ [ frees dp1.numTrain,
-                  frees dp1.numTest,
-                  frees dp2.numTrain,
-                  frees dp2.numTest
-                ],
-                fmap frees dp1.image,
-                fmap frees dp1.label,
-                fmap frees dp2.image,
-                fmap frees dp2.label
-              ]
+          unionPairs
+            [ frees dp1.numTrain,
+              frees dp1.numTest,
+              frees dp2.numTrain,
+              frees dp2.numTest,
+              frees (runIdentity dp1.image),
+              frees (runIdentity dp1.label),
+              frees (runIdentity dp2.image),
+              frees (runIdentity dp2.label)
+            ]
     TyEq1List ty1eqElem ->
       frees ty1eqElem
     TyEq1Arrow ty1eqDom ty1eqCod ->
@@ -625,12 +624,12 @@ instance (Ord sv) => HasVar sv Type1EquationF where
           (TyEq1Dataset dp11 dp12, TyEq1Dataset dp21 dp22) ->
             go dp11.numTrain dp21.numTrain
               && go dp11.numTest dp21.numTest
-              && go dp11.image dp21.image
-              && go dp11.label dp21.label
+              && go (runIdentity dp11.image) (runIdentity dp21.image)
+              && go (runIdentity dp11.label) (runIdentity dp21.label)
               && go dp12.numTrain dp22.numTrain
               && go dp12.numTest dp22.numTest
-              && go dp12.image dp22.image
-              && go dp12.label dp22.label
+              && go (runIdentity dp12.image) (runIdentity dp22.image)
+              && go (runIdentity dp12.label) (runIdentity dp22.label)
           (_, _) ->
             False
       (TyEq1List ty1eqElem1, TyEq1List ty1eqElem2) ->

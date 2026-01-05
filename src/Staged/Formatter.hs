@@ -8,6 +8,7 @@ module Staged.Formatter
   )
 where
 
+import Data.Functor.Identity
 import Data.List qualified as List
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -273,9 +274,9 @@ dispNameWithArgs req name dispArg args =
     [] -> name
     _ : _ -> deepenParenWhen (req <= Atomic) (List.foldl' (<+>) name (map dispArg args))
 
-dispDatasetParam :: (Disp a) => DatasetParam a -> Doc Ann
-dispDatasetParam DatasetParam {numTrain, numTest, image, label} =
-  disp numTrain <> " " <> disp numTest <> " " <> dispListLiteral image <> " " <> dispListLiteral label
+dispDatasetParam :: (a -> Doc Ann) -> (f a -> Doc Ann) -> DatasetParam f a -> Doc Ann
+dispDatasetParam dispElem dispList DatasetParam {numTrain, numTest, image, label} =
+  dispElem numTrain <> " " <> dispElem numTest <> " " <> dispList image <> " " <> dispList label
 
 dispLongName :: (Disp var) => [var] -> var -> Doc Ann
 dispLongName ms x =
@@ -550,7 +551,7 @@ instance Disp Ass0PrimType where
     A0TyTensor [n] -> dispNameWithArgs req "Vec" disp [n]
     A0TyTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
-    A0TyDataset datasetParam -> dispNameWithArgs req "Dataset" dispDatasetParam [datasetParam]
+    A0TyDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
 
 instance (Disp sv) => Disp (Ass0TypeExprF sv) where
   dispGen req = \case
@@ -587,7 +588,7 @@ instance (Disp sv) => Disp (Ass1PrimTypeF sv) where
         A0Literal (ALitList [a0e1, a0e2]) -> dispNameWithArgs req "Mat" dispPersistent [a0e1, a0e2]
         _ -> dispNameWithArgs req "Tensor" dispPersistent [a0eList]
     A1TyDataset datasetParam ->
-      dispNameWithArgs req "Dataset" dispDatasetParam [datasetParam]
+      dispNameWithArgs req "Dataset" (dispDatasetParam disp (disp . runIdentity)) [datasetParam]
 
 instance (Disp sv) => Disp (Ass1TypeExprF sv) where
   dispGen req = \case
@@ -977,7 +978,7 @@ instance Disp Ass0PrimTypeVal where
     A0TyValTensor [n] -> dispNameWithArgs req "Vec" disp [n]
     A0TyValTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyValTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
-    A0TyValDataset datasetParam -> dispNameWithArgs req "Dataset" dispDatasetParam [datasetParam]
+    A0TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
 
 instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case
@@ -994,6 +995,7 @@ instance Disp Ass1PrimTypeVal where
     A1TyValTensor [n] -> dispNameWithArgs req "Vec" dispPersistent [n]
     A1TyValTensor [m, n] -> dispNameWithArgs req "Mat" dispPersistent [m, n]
     A1TyValTensor ns -> dispNameWithArgs req "Tensor" dispPersistentListLiteral [ns]
+    A1TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
 
 instance Disp LocationInFile where
   dispGen _ (LocationInFile l c) =

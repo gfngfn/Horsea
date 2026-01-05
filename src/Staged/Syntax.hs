@@ -1,5 +1,6 @@
 module Staged.Syntax
-  ( StaticVar (..),
+  ( DatasetParam (..),
+    StaticVar (..),
     AssVarF (..),
     Symbol (..),
     symbolToVar,
@@ -16,7 +17,6 @@ module Staged.Syntax
     StrictAss0TypeExprF (..),
     AssPrimBaseType (..),
     validatePrimBaseType,
-    DatasetParam (..),
     Ass0PrimType (..),
     Ass1TypeExprF (..),
     Ass1PrimTypeF (..),
@@ -62,6 +62,7 @@ module Staged.Syntax
   )
 where
 
+import Data.Functor.Identity
 import Data.Map (Map)
 import Data.Text (Text)
 import Staged.BuiltIn.Core
@@ -69,6 +70,14 @@ import Util.Matrix (Matrix)
 import Util.TokenUtil (Span)
 import Util.Vector (Vector)
 import Prelude
+
+data DatasetParam f a = DatasetParam
+  { numTrain :: a,
+    numTest :: a,
+    image :: f a,
+    label :: f a
+  }
+  deriving stock (Eq, Show, Functor)
 
 newtype StaticVar = StaticVar Int
   deriving newtype (Eq, Ord, Show)
@@ -220,18 +229,10 @@ validatePrimBaseType = \case
   "Optimizer" -> Just ATyPrimOptimizer
   _ -> Nothing
 
-data DatasetParam a b = DatasetParam
-  { numTrain :: a,
-    numTest :: a,
-    image :: b,
-    label :: b
-  }
-  deriving stock (Eq, Show, Functor)
-
 data Ass0PrimType
   = A0TyPrimBase AssPrimBaseType
   | A0TyTensor [Int]
-  | A0TyDataset (DatasetParam Int [Int])
+  | A0TyDataset (DatasetParam [] Int)
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type expressions.
@@ -247,7 +248,7 @@ data Ass1TypeExprF sv
 data Ass1PrimTypeF sv
   = A1TyPrimBase AssPrimBaseType
   | A1TyTensor (Ass0ExprF sv)
-  | A1TyDataset (DatasetParam (Ass0ExprF sv) (Ass0ExprF sv))
+  | A1TyDataset (DatasetParam Identity (Ass0ExprF sv))
   deriving stock (Eq, Show, Functor)
 
 -- | The type of types for persistent value items.
@@ -325,7 +326,7 @@ data Ass0TypeValF sv
 data Ass0PrimTypeVal
   = A0TyValPrimBase AssPrimBaseType
   | A0TyValTensor [Int]
-  | A0TyValDataset (DatasetParam Int [Int])
+  | A0TyValDataset (DatasetParam [] Int)
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type values.
@@ -341,6 +342,7 @@ data Ass1TypeValF sv
 data Ass1PrimTypeVal
   = A1TyValPrimBase AssPrimBaseType
   | A1TyValTensor [Int]
+  | A1TyValDataset (DatasetParam [] Int)
   deriving stock (Eq, Show)
 
 -- | The type of well-formed type equations for assertion.
@@ -356,7 +358,7 @@ data Type1PrimEquationF sv
   | TyEq1TensorByLiteral [(Ass0ExprF sv, Ass0ExprF sv)]
   | -- | Pairs of expressions of type `List Nat`.
     TyEq1TensorByWhole (Ass0ExprF sv) (Ass0ExprF sv)
-  | TyEq1Dataset (DatasetParam (Ass0ExprF sv) (Ass0ExprF sv)) (DatasetParam (Ass0ExprF sv) (Ass0ExprF sv))
+  | TyEq1Dataset (DatasetParam Identity (Ass0ExprF sv)) (DatasetParam Identity (Ass0ExprF sv))
   deriving stock (Eq, Show, Functor)
 
 type EvalEnv = Map AssVar EvalEnvEntry
