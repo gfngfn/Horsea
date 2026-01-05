@@ -1563,8 +1563,16 @@ typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
           a0e <- validateExprArg0 trav arg
           ns <- validateIntListLiteral trav loc' a0e
           pure $ A0TyPrim (A0TyTensor ns) Nothing
-        ("Dataset", _args) -> do
-          let datasetParam = error "TODO: typecheckTypeExpr0, Dataset"
+        ("Dataset", [arg1@(_, loc1), arg2@(_, loc2), arg3@(_, loc3), arg4@(_, loc4)]) -> do
+          a0e1 <- validateExprArg0 trav arg1
+          a0e2 <- validateExprArg0 trav arg2
+          a0e3 <- validateExprArg0 trav arg3
+          a0e4 <- validateExprArg0 trav arg4
+          numTrain <- validateIntLiteral trav loc1 a0e1
+          numTest <- validateIntLiteral trav loc2 a0e2
+          image <- validateIntListLiteral trav loc3 a0e3
+          label <- validateIntListLiteral trav loc4 a0e4
+          let datasetParam = DatasetParam {numTrain, numTest, image, label}
           pure $ A0TyPrim (A0TyDataset datasetParam) Nothing
         _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName (List.length results)
@@ -1697,8 +1705,22 @@ typecheckTypeExpr1 trav tyEnv (TypeExpr loc tyeMain) = do
           e <- validatePersistentExprArg1 trav arg
           a0eList <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) e
           pure $ A1TyPrim (A1TyTensor a0eList)
-        ("Dataset", _args) -> do
-          let datasetParam = error "TODO: typecheckExpr1, Dataset"
+        ("Dataset", [arg1, arg2, arg3, arg4]) -> do
+          e1 <- validatePersistentExprArg1 trav arg1
+          e2 <- validatePersistentExprArg1 trav arg2
+          e3 <- validatePersistentExprArg1 trav arg3
+          e4 <- validatePersistentExprArg1 trav arg4
+          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
+          a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat e2
+          a0e3 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) e3
+          a0e4 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) e4
+          let datasetParam =
+                DatasetParam
+                  { numTrain = a0e1,
+                    numTest = a0e2,
+                    image = Identity a0e3,
+                    label = Identity a0e4
+                  }
           pure $ A1TyPrim (A1TyDataset datasetParam)
         _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (List.length args)
