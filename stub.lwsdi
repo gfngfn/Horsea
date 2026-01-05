@@ -14,6 +14,8 @@ val %( <= ) : Int -> Int -> Bool
   external (builtin = "int_leq", surface = "<=")
 val %( == ) : Int -> Int -> Bool
   external (builtin = "int_equal", surface = "==")
+val ~( :: ) : forall 'a -> 'a -> List 'a -> List 'a
+  external (builtin = "list__cons", surface = "::")
 val ~gen_vadd : {a : Nat} -> &(Vec %a -> Vec %a -> Vec %a)
   external (builtin = "gen_vadd", surface = "vadd")
 val ~gen_vconcat : {a : Nat} -> {b : Nat} -> &(Vec %a -> Vec %b -> Vec %(a + b))
@@ -214,13 +216,14 @@ end
 module DatasetHelper = struct
   val ~gen_train_batch :
     {ntrain : Nat} ->
-    {imgdim : Nat} ->
+    {ntest : Nat} ->
+    {imgdim : List Nat} ->
+    {labeldim : List Nat} ->
     (batch_size : Nat) ->
     &(Device ->
-      Tensor %[ntrain, imgdim] ->
-      Tensor %[ntrain] ->
+      Dataset %ntrain %ntest %imgdim %labeldim ->
       Int ->
-      Tensor %[batch_size, imgdim] * Tensor %[batch_size]
+      Tensor %(batch_size :: imgdim) * Tensor %(batch_size :: labeldim)
     )
     external (builtin = "dataset_helper__gen_train_batch", surface = "train_batch")
   val ~gen_batch_accuracy :

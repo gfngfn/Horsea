@@ -70,6 +70,7 @@ data BuiltInArity2
   | BIBroadcastable
   | BIBroadcast
   | BIReshapeable
+  | BIListCons
   | BIListAppend
   | BIListIter
   | BITensorGenAdd
@@ -254,6 +255,7 @@ validateExternalName0 = \case
   "broadcastable" -> arity2 BIBroadcastable
   "broadcast" -> arity2 BIBroadcast
   "reshapeable" -> arity2 BIReshapeable
+  "list__cons" -> arity2 BIListCons
   "list__append" -> arity2 BIListAppend
   "list__iter" -> arity2 BIListIter
   "tuple__first" -> arity1 BITupleFirst

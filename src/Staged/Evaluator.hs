@@ -249,6 +249,9 @@ reduceDeltaArity2 bi2 a0v1 a0v2 =
       ns2 <- validateIntListLiteral a0v2
       let b = List.foldl' (*) 1 ns1 == List.foldl' (*) 1 ns2
       pure $ A0ValLiteral (ALitBool b)
+    BIListCons -> do
+      a0vs2 <- validateListValue a0v2
+      pure $ A0ValLiteral (ALitList (a0v1 : a0vs2))
     BIListAppend -> do
       a0vs1 <- validateListValue a0v1
       a0vs2 <- validateListValue a0v2

@@ -392,6 +392,7 @@ instance Disp BuiltInArity2 where
     BIBroadcastable -> "BROADCASTABLE"
     BIBroadcast -> "BROADCAST"
     BIReshapeable -> "RESHAPEABLE"
+    BIListCons -> "::"
     BIListAppend -> "LIST.APPEND"
     BIListIter -> "LIST.ITER"
     BITensorGenAdd -> "TENSOR.GEN_ADD"
