@@ -14,6 +14,7 @@ module Staged.Syntax
     Type1EquationF (..),
     Type1PrimEquationF (..),
     ListEquationF (..),
+    DatasetParamEquationF (..),
     Ass0TypeExprF (..),
     StrictAss0TypeExprF (..),
     AssPrimBaseType (..),
@@ -371,13 +372,21 @@ data Type1EquationF sv
 data Type1PrimEquationF sv
   = TyEq1PrimBase AssPrimBaseType
   | TyEq1Tensor (ListEquationF sv)
-  | TyEq1Dataset (DatasetParam Identity (Ass0ExprF sv)) (DatasetParam Identity (Ass0ExprF sv))
+  | TyEq1Dataset (DatasetParamEquationF sv)
   deriving stock (Eq, Show, Functor)
 
 data ListEquationF sv
   = ListEqByElements [(Ass0ExprF sv, Ass0ExprF sv)]
   | -- | Pairs of expressions of type `List Nat`.
     ListEqByWhole (Ass0ExprF sv) (Ass0ExprF sv)
+  deriving stock (Eq, Show, Functor)
+
+data DatasetParamEquationF sv = DatasetParamEquation
+  { numTrainEq :: (Ass0ExprF sv, Ass0ExprF sv),
+    numTestEq :: (Ass0ExprF sv, Ass0ExprF sv),
+    imageEq :: ListEquationF sv,
+    labelEq :: ListEquationF sv
+  }
   deriving stock (Eq, Show, Functor)
 
 type EvalEnv = Map AssVar EvalEnvEntry
@@ -441,8 +450,26 @@ decomposeType1Equation = \case
       TyEq1Tensor listEq ->
         let (a0eList1, a0eList2) = decomposeListEquation listEq
          in (A1TyPrim (A1TyTensor a0eList1), A1TyPrim (A1TyTensor a0eList2))
-      TyEq1Dataset datasetParam1 datasetParam2 ->
-        (A1TyPrim (A1TyDataset datasetParam1), A1TyPrim (A1TyDataset datasetParam2))
+      TyEq1Dataset datasetParamEq ->
+        let (numTrain1, numTrain2) = datasetParamEq.numTrainEq
+            (numTest1, numTest2) = datasetParamEq.numTestEq
+            (image1, image2) = decomposeListEquation datasetParamEq.imageEq
+            (label1, label2) = decomposeListEquation datasetParamEq.labelEq
+            datasetParam1 =
+              DatasetParam
+                { numTrain = numTrain1,
+                  numTest = numTest1,
+                  image = Identity image1,
+                  label = Identity label1
+                }
+            datasetParam2 =
+              DatasetParam
+                { numTrain = numTrain2,
+                  numTest = numTest2,
+                  image = Identity image2,
+                  label = Identity label2
+                }
+         in (A1TyPrim (A1TyDataset datasetParam1), A1TyPrim (A1TyDataset datasetParam2))
   TyEq1List ty1eqElem ->
     let (a1tye1elem, a1tye2elem) = decomposeType1Equation ty1eqElem
      in (A1TyList a1tye1elem, A1TyList a1tye2elem)

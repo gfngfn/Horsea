@@ -19,6 +19,7 @@ import Control.Monad.Trans.State
 import Data.Either.Extra
 import Data.Foldable (foldrM)
 import Data.Function
+import Data.Functor.Identity
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.Map (Map)
@@ -422,11 +423,11 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
         (A1TyVar atyvar1, _) ->
           if atyvar1 `elem` tyvars1ToInfer
             then pure (True, makeTrivialEquationFromType a1tye2, Map.empty, Map.singleton atyvar1 a1tye2)
-            else error $ "TODO: makeEquation1, unexpected type variable (left) " ++ show atyvar1
+            else error $ "TODO (error): makeEquation1, unexpected type variable (left) " ++ show atyvar1
         (_, A1TyVar atyvar2) ->
           if atyvar2 `elem` tyvars1ToInfer
             then pure (True, makeTrivialEquationFromType a1tye1, Map.empty, Map.singleton atyvar2 a1tye1)
-            else error $ "TODO: makeEquation1, unexpected type variable (right) " ++ show atyvar2
+            else error $ "TODO (error): makeEquation1, unexpected type variable (right) " ++ show atyvar2
         (A1TyPrim a1tyPrim1, A1TyPrim a1tyPrim2) ->
           case (a1tyPrim1, a1tyPrim2) of
             (A1TyPrimBase tyPrimBase1, A1TyPrimBase tyPrimBase2) ->
@@ -436,8 +437,54 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
             (A1TyTensor a0eList1, A1TyTensor a0eList2) -> do
               (trivial, listEq, varSolution) <- goList varsToInfer a0eList1 a0eList2
               pure (trivial, TyEq1Prim (TyEq1Tensor listEq), varSolution, Map.empty)
-            (A1TyDataset _datasetParam1, A1TyDataset _datasetParam2) ->
-              error "TODO: makeEquation1, A1TyDataset; use TyEq1Dataset"
+            (A1TyDataset dp1, A1TyDataset dp2) -> do
+              let (trivialOnNumTrain, numTrain2', varSolutionByNumTrain) =
+                    checkExprArgs
+                      varsToInfer
+                      (dp1.numTrain, BuiltIn.tyNat)
+                      dp2.numTrain
+              let solAcc1 = varSolutionByNumTrain
+              let varsToInferAcc1 = varsToInfer \\ Map.keysSet varSolutionByNumTrain
+
+              let (trivialOnNumTest, numTest2', varSolutionByNumTest) =
+                    checkExprArgs
+                      varsToInferAcc1
+                      (applyVarSolution varSolutionByNumTrain dp1.numTest, BuiltIn.tyNat)
+                      dp2.numTest
+              let solAcc2 = Map.union solAcc1 varSolutionByNumTest
+              let varsToInferAcc2 = varsToInferAcc1 \\ Map.keysSet varSolutionByNumTest
+
+              (trivialOnImage, listEqOfImage, varSolutionByImage) <-
+                goList
+                  varsToInferAcc2
+                  (applyVarSolution solAcc2 (runIdentity dp1.image))
+                  (applyVarSolution solAcc2 (runIdentity dp2.image))
+              let solAcc3 = Map.union solAcc2 varSolutionByImage
+              let varsToInferAcc3 = varsToInferAcc2 \\ Map.keysSet varSolutionByImage
+
+              (trivialOnLabel, listEqOfLabel, varSolutionByLabel) <-
+                goList
+                  varsToInferAcc3
+                  (applyVarSolution solAcc3 (runIdentity dp1.label))
+                  (applyVarSolution solAcc3 (runIdentity dp2.label))
+              let solAcc4 = Map.union solAcc3 varSolutionByLabel
+
+              let finalize :: forall af. (HasVar StaticVar af) => af StaticVar -> af StaticVar
+                  finalize = applyVarSolution solAcc4
+
+              let datasetParamEq =
+                    DatasetParamEquation
+                      { numTrainEq = (finalize dp1.numTrain, finalize numTrain2'),
+                        numTestEq = (finalize dp1.numTest, finalize numTest2'),
+                        imageEq = finalize listEqOfImage,
+                        labelEq = listEqOfLabel
+                      }
+              pure
+                ( trivialOnNumTrain && trivialOnNumTest && trivialOnImage && trivialOnLabel,
+                  TyEq1Prim (TyEq1Dataset datasetParamEq),
+                  solAcc4,
+                  Map.empty
+                )
             (_, _) ->
               Left ()
         (A1TyList a1tye1elem, A1TyList a1tye2elem) -> do
