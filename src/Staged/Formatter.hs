@@ -369,6 +369,8 @@ instance Disp BuiltInArity1 where
     BITensorGenSubUpdate -> "TENSOR.GEN_SUB_UPDATE"
     BITensorGenCountEqual -> "TENSOR.GEN_COUNT_EQUAL"
     BITensorGenDropout -> "TENSOR.GEN_DROPOUT"
+    BITupleFirst -> "FST"
+    BITupleSecond -> "SND"
 
 instance Disp BuiltInArity2 where
   dispGen _ = \case

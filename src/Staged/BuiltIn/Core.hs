@@ -47,6 +47,8 @@ data BuiltInArity1
   | BITensorGenSubUpdate
   | BITensorGenCountEqual
   | BITensorGenDropout
+  | BITupleFirst
+  | BITupleSecond
   deriving stock (Eq, Show)
 
 data BuiltInArity2
@@ -254,6 +256,8 @@ validateExternalName0 = \case
   "reshapeable" -> arity2 BIReshapeable
   "list__append" -> arity2 BIListAppend
   "list__iter" -> arity2 BIListIter
+  "tuple__first" -> arity1 BITupleFirst
+  "tuple__second" -> arity1 BITupleSecond
   "device__gen_cuda_if_available" -> arity1 BIDeviceGenCudaIfAvailable
   "layer__gen_forward" -> arity2 BILayerGenForward
   "layer__gen_conv2d_" -> arity8 BILayerGenConv2d

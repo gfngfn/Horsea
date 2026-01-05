@@ -271,8 +271,24 @@ makeAssertiveCast trav loc =
                     A0Lam Nothing (ax, strictify a0tye1) $
                       A0App (A0App ass0exprAnd (A0App a0eCast1 (A0Var ax))) (A0App a0eCast2 (A0Var ax))
           pure (castForList, varSolution, tyvar0Solution)
-        (A0TyProduct _a0tye11 _a0tye12, A0TyProduct _a0tye21 _a0tye22) -> do
-          error "TODO: makeAssertiveCast, A0TyProduct"
+        (A0TyProduct a0tye11 a0tye12, A0TyProduct a0tye21 a0tye22) -> do
+          (cast1, varSolution1, tyvar0Solution1) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
+          (cast2, varSolution2, tyvar0Solution2) <-
+            go
+              (varsToInfer \\ Map.keysSet varSolution1)
+              (tyvars0ToInfer \\ Map.keysSet tyvar0Solution1)
+              (applySolution0 varSolution1 tyvar0Solution1 a0tye12)
+              (applySolution0 varSolution1 tyvar0Solution1 a0tye22)
+          let varSolution = Map.union varSolution1 varSolution2
+          let tyvar0Solution = Map.union tyvar0Solution1 tyvar0Solution2
+          cast <-
+            makeProductTypeCast
+              trav
+              (applySolution0 varSolution tyvar0Solution a0tye11)
+              (applySolution0 varSolution tyvar0Solution a0tye12)
+              (applySolution0 varSolution2 tyvar0Solution <$> cast1)
+              cast2
+          pure (cast, varSolution, tyvar0Solution)
         (A0TyArrow (x1opt, a0tye11) a0tye12, A0TyArrow (x2opt, a0tye21) a0tye22withX2opt) -> do
           (castDom, varSolutionDom, tyvar0SolutionDom) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
           (x, a0tye22) <-
@@ -330,25 +346,41 @@ makeAssertiveCast trav loc =
           (eq, varSolution, _tyvar1Solution) <- makeEquation1 trav loc varsToInfer Set.empty a1tye1 a1tye2
           let tyvar0Solution = Map.empty
           pure (A0TyEqAssert loc <$> eq, varSolution, tyvar0Solution)
-        _ ->
+        (_, _) ->
           typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
 
     makeFunctionTypeCast :: trav -> AssVar -> Ass0TypeExpr -> Ass0TypeExpr -> Ass0TypeExpr -> Maybe Ass0Expr -> Maybe Ass0Expr -> M trav (Maybe Ass0Expr)
-    makeFunctionTypeCast _trav x a0tye11 a0tye12 a0tye21 castDom castCod = do
-      let a0tye1 = A0TyArrow (Just x, a0tye11) a0tye12
-      f <- AssVarStatic <$> generateFreshVar Nothing
-      x' <- AssVarStatic <$> generateFreshVar Nothing
-      pure $
-        case (castDom, castCod) of
-          (Nothing, Nothing) ->
-            Nothing
-          _ -> do
-            let fDom = applyCast castDom
-            let fCod = applyCast castCod
+    makeFunctionTypeCast _trav x a0tye11 a0tye12 a0tye21 castDom castCod =
+      case (castDom, castCod) of
+        (Nothing, Nothing) ->
+          pure Nothing
+        (_, _) -> do
+          let a0tye1 = A0TyArrow (Just x, a0tye11) a0tye12
+          f <- AssVarStatic <$> generateFreshVar Nothing
+          x' <- AssVarStatic <$> generateFreshVar Nothing
+          let fDom = applyCast castDom
+          let fCod = applyCast castCod
+          pure $
             Just $
               A0Lam Nothing (f, strictify a0tye1) $
                 A0Lam Nothing (x, strictify a0tye21) $
                   A0App (A0Lam Nothing (x', strictify a0tye11) (fCod (A0App (A0Var f) (A0Var x')))) (fDom (A0Var x))
+
+    makeProductTypeCast :: trav -> Ass0TypeExpr -> Ass0TypeExpr -> Maybe Ass0Expr -> Maybe Ass0Expr -> M trav (Maybe Ass0Expr)
+    makeProductTypeCast _trav a0tye11 a0tye12 cast1 cast2 =
+      case (cast1, cast2) of
+        (Nothing, Nothing) ->
+          pure Nothing
+        (_, _) -> do
+          x <- AssVarStatic <$> generateFreshVar Nothing
+          let f1 = applyCast cast1
+          let f2 = applyCast cast2
+          pure $
+            Just $
+              A0Lam Nothing (x, strictify (A0TyProduct a0tye11 a0tye12)) $
+                A0Tuple
+                  (f1 (A0App (A0BuiltInName (BuiltInArity1 BITupleFirst)) (A0Var x)))
+                  (f2 (A0App (A0BuiltInName (BuiltInArity1 BITupleSecond)) (A0Var x)))
 
     castOrIdentityLam :: Maybe Ass0Expr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr)
     castOrIdentityLam maybePred2 a0tye1 = do

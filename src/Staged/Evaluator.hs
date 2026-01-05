@@ -97,6 +97,11 @@ validateStringLiteral = \case
   a0v -> bug $ NotAString a0v
 -}
 
+validateTupleValue :: Ass0Val -> M (Ass0Val, Ass0Val)
+validateTupleValue = \case
+  A0ValTuple a0v1 a0v2 -> pure (a0v1, a0v2)
+  a0v -> bug $ NotATuple a0v
+
 validateListValue :: Ass0Val -> M [Ass0Val]
 validateListValue = \case
   A0ValLiteral (ALitList a0vs) -> pure a0vs
@@ -166,6 +171,12 @@ reduceDeltaArity1 bi1 a0v1 =
     BITensorGenDropout -> do
       shape <- validateIntListLiteral a0v1
       pure $ A0ValBracket (A1ValConst (A1BITensorDropout shape))
+    BITupleFirst -> do
+      (a0v11, _) <- validateTupleValue a0v1
+      pure a0v11
+    BITupleSecond -> do
+      (_, a0v12) <- validateTupleValue a0v1
+      pure a0v12
 
 reduceDeltaArity2 :: BuiltInArity2 -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity2 bi2 a0v1 a0v2 =
