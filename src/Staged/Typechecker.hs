@@ -233,16 +233,15 @@ makeAssertiveCast trav loc =
                   then castOrIdentityLam maybePred2 (A0TyPrim (A0TyPrimBase tyPrimBase1) maybePred1)
                   else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
               (A0TyTensor ns1, A0TyTensor ns2) ->
-                case zipExactMay ns1 ns2 of
-                  Nothing ->
-                    typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-                  Just zipped ->
-                    if all (uncurry (==)) zipped
-                      then castOrIdentityLam maybePred2 (A0TyPrim (A0TyTensor ns1) maybePred1)
-                      else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-              (A0TyDataset _datasetParam1, A0TyDataset _datasetParam2) ->
-                error "TODO: makeAssertiveCast, A0TyDataset"
-              _ -> typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
+                if ns1 == ns2
+                  then castOrIdentityLam maybePred2 (A0TyPrim (A0TyTensor ns1) maybePred1)
+                  else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
+              (A0TyDataset datasetParam1, A0TyDataset datasetParam2) ->
+                if datasetParam1 == datasetParam2
+                  then castOrIdentityLam maybePred2 (A0TyPrim (A0TyDataset datasetParam1) maybePred1)
+                  else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
+              (_, _) ->
+                typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
           pure (cast, Map.empty, Map.empty)
         (A0TyList a0tye1' maybePred1, A0TyList a0tye2' maybePred2') -> do
           (castForElem, varSolution, tyvar0Solution) <- go varsToInfer tyvars0ToInfer a0tye1' a0tye2'
