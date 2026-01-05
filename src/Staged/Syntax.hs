@@ -13,6 +13,7 @@ module Staged.Syntax
     makeExprFromBinds,
     Type1EquationF (..),
     Type1PrimEquationF (..),
+    ListEquationF (..),
     Ass0TypeExprF (..),
     StrictAss0TypeExprF (..),
     AssPrimBaseType (..),
@@ -40,6 +41,7 @@ module Staged.Syntax
     mapMAssLiteral,
     strictify,
     decomposeType1Equation,
+    decomposeListEquation,
     AppContextF,
     AppContextEntryF (..),
     ResultF (..),
@@ -48,6 +50,7 @@ module Staged.Syntax
     Ass1Expr,
     AssBind,
     Type1Equation,
+    ListEquation,
     Ass0TypeExpr,
     StrictAss0TypeExpr,
     Ass1TypeExpr,
@@ -367,10 +370,14 @@ data Type1EquationF sv
 
 data Type1PrimEquationF sv
   = TyEq1PrimBase AssPrimBaseType
-  | TyEq1TensorByLiteral [(Ass0ExprF sv, Ass0ExprF sv)]
-  | -- | Pairs of expressions of type `List Nat`.
-    TyEq1TensorByWhole (Ass0ExprF sv) (Ass0ExprF sv)
+  | TyEq1Tensor (ListEquationF sv)
   | TyEq1Dataset (DatasetParam Identity (Ass0ExprF sv)) (DatasetParam Identity (Ass0ExprF sv))
+  deriving stock (Eq, Show, Functor)
+
+data ListEquationF sv
+  = ListEqByElements [(Ass0ExprF sv, Ass0ExprF sv)]
+  | -- | Pairs of expressions of type `List Nat`.
+    ListEqByWhole (Ass0ExprF sv) (Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 type EvalEnv = Map AssVar EvalEnvEntry
@@ -431,12 +438,9 @@ decomposeType1Equation = \case
     case ty1eqPrim of
       TyEq1PrimBase tyPrimBase ->
         prims $ A1TyPrimBase tyPrimBase
-      TyEq1TensorByLiteral zipped ->
-        let a0eList1 = A0Literal (ALitList (map fst zipped))
-            a0eList2 = A0Literal (ALitList (map snd zipped))
+      TyEq1Tensor listEq ->
+        let (a0eList1, a0eList2) = decomposeListEquation listEq
          in (A1TyPrim (A1TyTensor a0eList1), A1TyPrim (A1TyTensor a0eList2))
-      TyEq1TensorByWhole a0eList1 a0eList2 ->
-        (A1TyPrim (A1TyTensor a0eList1), A1TyPrim (A1TyTensor a0eList2))
       TyEq1Dataset datasetParam1 datasetParam2 ->
         (A1TyPrim (A1TyDataset datasetParam1), A1TyPrim (A1TyDataset datasetParam2))
   TyEq1List ty1eqElem ->
@@ -452,6 +456,13 @@ decomposeType1Equation = \case
      in (A1TyProduct a1tye11 a1tye12, A1TyProduct a1tye21 a1tye22)
   where
     prims p = (A1TyPrim p, A1TyPrim p)
+
+decomposeListEquation :: ListEquationF sv -> (Ass0ExprF sv, Ass0ExprF sv)
+decomposeListEquation = \case
+  ListEqByElements zipped -> (makeList (map fst zipped), makeList (map snd zipped))
+  ListEqByWhole a0eList1 a0eList2 -> (a0eList1, a0eList2)
+  where
+    makeList = A0Literal . ALitList
 
 -- | The type of application contexts, which play a key role of
 -- the "Let arguments go first" [Xie & Oliveira 2018] formalization.
@@ -485,6 +496,8 @@ type Ass1Expr = Ass1ExprF StaticVar
 type AssBind = AssBindF StaticVar
 
 type Type1Equation = Type1EquationF StaticVar
+
+type ListEquation = ListEquationF StaticVar
 
 type Ass0TypeExpr = Ass0TypeExprF StaticVar
 

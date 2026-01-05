@@ -434,41 +434,8 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
                 then pure (True, TyEq1Prim (TyEq1PrimBase tyPrimBase1), Map.empty, Map.empty)
                 else Left ()
             (A1TyTensor a0eList1, A1TyTensor a0eList2) -> do
-              case (a0eList1, a0eList2) of
-                -- Enhancement for the argument inference 1:
-                (A0Literal (ALitList a0es1), A0Literal (ALitList a0es2)) ->
-                  case zipExactMay a0es1 a0es2 of
-                    Nothing ->
-                      Left ()
-                    Just zipped -> do
-                      let (trivial, equationAccResult, _varsToInfer, varSolution) =
-                            List.foldl'
-                              ( \(trivialAcc, equationAcc, varsToInferAcc, varSolutionAcc) (a0e1, a0e2) ->
-                                  let a0e1sub = applyVarSolution varSolutionAcc a0e1
-                                      a0e2sub = applyVarSolution varSolutionAcc a0e2
-                                      (trivial', a0e2', varSolution') =
-                                        checkExprArgs varsToInferAcc (a0e1sub, BuiltIn.tyNat) a0e2sub
-                                   in ( trivialAcc && trivial',
-                                        (a0e1sub, a0e2') : equationAcc,
-                                        varsToInferAcc \\ Map.keysSet varSolution',
-                                        Map.union varSolution' varSolutionAcc
-                                      )
-                              )
-                              (True, [], varsToInfer, Map.empty)
-                              zipped
-                      let ty1eq = TyEq1Prim (TyEq1TensorByLiteral (reverse equationAccResult))
-                      pure (trivial, ty1eq, varSolution, Map.empty)
-                -- Enhancement for the argument inference 2:
-                (_, A0Var x2)
-                  | x2 `elem` varsToInfer -> do
-                      let ty1eq = TyEq1Prim (TyEq1TensorByWhole a0eList1 a0eList1)
-                      let varSolution = Map.singleton x2 (a0eList1, A0TyList BuiltIn.tyNat Nothing)
-                      pure (True, ty1eq, varSolution, Map.empty)
-                -- General rule:
-                (_, _) -> do
-                  let trivial = alphaEquivalent a0eList1 a0eList2
-                  let ty1eq = TyEq1Prim (TyEq1TensorByWhole a0eList1 a0eList2)
-                  pure (trivial, ty1eq, Map.empty, Map.empty)
+              (trivial, listEq, varSolution) <- goList varsToInfer a0eList1 a0eList2
+              pure (trivial, TyEq1Prim (TyEq1Tensor listEq), varSolution, Map.empty)
             (A1TyDataset _datasetParam1, A1TyDataset _datasetParam2) ->
               error "TODO: makeEquation1, A1TyDataset; use TyEq1Dataset"
             (_, _) ->
@@ -503,6 +470,44 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
           go varsToInfer (Set.insert atyvar2 tyvars1ToInfer) a1tye1 a1tye22
         (_, _) ->
           Left ()
+
+    goList :: Set AssVar -> Ass0Expr -> Ass0Expr -> Either () (Bool, ListEquation, VarSolution)
+    goList varsToInfer a0eList1 a0eList2 =
+      case (a0eList1, a0eList2) of
+        -- Enhancement for the argument inference 1:
+        (A0Literal (ALitList a0es1), A0Literal (ALitList a0es2)) ->
+          case zipExactMay a0es1 a0es2 of
+            Nothing ->
+              Left ()
+            Just zipped -> do
+              let (trivial, equationAccResult, _varsToInfer, varSolution) =
+                    List.foldl'
+                      ( \(trivialAcc, equationAcc, varsToInferAcc, varSolutionAcc) (a0e1, a0e2) ->
+                          let a0e1sub = applyVarSolution varSolutionAcc a0e1
+                              a0e2sub = applyVarSolution varSolutionAcc a0e2
+                              (trivial', a0e2', varSolution') =
+                                checkExprArgs varsToInferAcc (a0e1sub, BuiltIn.tyNat) a0e2sub
+                           in ( trivialAcc && trivial',
+                                (a0e1sub, a0e2') : equationAcc,
+                                varsToInferAcc \\ Map.keysSet varSolution',
+                                Map.union varSolution' varSolutionAcc
+                              )
+                      )
+                      (True, [], varsToInfer, Map.empty)
+                      zipped
+              let listEq = ListEqByElements (reverse equationAccResult)
+              pure (trivial, listEq, varSolution)
+        -- Enhancement for the argument inference 2:
+        (_, A0Var x2)
+          | x2 `elem` varsToInfer -> do
+              let listEq = ListEqByWhole a0eList1 a0eList1
+              let varSolution = Map.singleton x2 (a0eList1, A0TyList BuiltIn.tyNat Nothing)
+              pure (True, listEq, varSolution)
+        -- General rule:
+        (_, _) -> do
+          let trivial = alphaEquivalent a0eList1 a0eList2
+          let listEq = ListEqByWhole a0eList1 a0eList2
+          pure (trivial, listEq, Map.empty)
 
 mergeTypesByConditional0 :: forall trav. trav -> Bool -> Ass0Expr -> Ass0TypeExpr -> Ass0TypeExpr -> M' ConditionalMergeError trav Ass0TypeExpr
 mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0

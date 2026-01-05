@@ -562,11 +562,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       case ty1eqPrim of
         TyEq1PrimBase _ ->
           (Set.empty, Set.empty)
-        TyEq1TensorByLiteral zipped ->
-          unionPairs $
-            concatMap (\(a0e1, a0e2) -> [frees a0e1, frees a0e2]) zipped
-        TyEq1TensorByWhole a0eList1 a0eList2 ->
-          unionPairs [frees a0eList1, frees a0eList2]
+        TyEq1Tensor listEq ->
+          frees listEq
         TyEq1Dataset dp1 dp2 ->
           unionPairs
             [ frees dp1.numTrain,
@@ -590,8 +587,7 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       TyEq1Prim $
         case ty1eqPrim of
           TyEq1PrimBase tyPrimBase -> TyEq1PrimBase tyPrimBase
-          TyEq1TensorByLiteral zipped -> TyEq1TensorByLiteral (map (both go) zipped)
-          TyEq1TensorByWhole a0eList1 a0eList2 -> TyEq1TensorByWhole (go a0eList1) (go a0eList2)
+          TyEq1Tensor listEq -> TyEq1Tensor (go listEq)
           TyEq1Dataset dp1 dp2 -> TyEq1Dataset (fmap go dp1) (fmap go dp2)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
@@ -609,18 +605,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
         case (ty1eqPrim1, ty1eqPrim2) of
           (TyEq1PrimBase tyPrimBase1, TyEq1PrimBase tyPrimBase2) ->
             tyPrimBase1 == tyPrimBase2
-          (TyEq1TensorByLiteral zipped1, TyEq1TensorByLiteral zipped2) ->
-            case zipExactMay zipped1 zipped2 of
-              Nothing ->
-                False
-              Just zippedZipped ->
-                all
-                  ( \((a0e11, a0e12), (a0e21, a0e22)) ->
-                      go a0e11 a0e21 && go a0e12 a0e22
-                  )
-                  zippedZipped
-          (TyEq1TensorByWhole a0eList11 a0eList12, TyEq1TensorByWhole a0eList21 a0eList22) ->
-            go a0eList11 a0eList21 && go a0eList12 a0eList22
+          (TyEq1Tensor listEq1, TyEq1Tensor listEq2) ->
+            go listEq1 listEq2
           (TyEq1Dataset dp11 dp12, TyEq1Dataset dp21 dp22) ->
             go dp11.numTrain dp21.numTrain
               && go dp11.numTest dp21.numTest
@@ -635,8 +621,44 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       (TyEq1List ty1eqElem1, TyEq1List ty1eqElem2) ->
         go ty1eqElem1 ty1eqElem2
       (TyEq1Arrow ty1eqDom1 ty1eqCod1, TyEq1Arrow ty1eqDom2 ty1eqCod2) ->
-        go ty1eqDom1 ty1eqDom2
-          && go ty1eqCod1 ty1eqCod2
+        go ty1eqDom1 ty1eqDom2 && go ty1eqCod1 ty1eqCod2
+      (_, _) ->
+        False
+    where
+      go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
+      go = alphaEquivalent
+
+instance (Ord sv) => HasVar sv ListEquationF where
+  frees = \case
+    ListEqByElements zipped ->
+      unionPairs $
+        concatMap (\(a0e1, a0e2) -> [frees a0e1, frees a0e2]) zipped
+    ListEqByWhole a0eList1 a0eList2 ->
+      unionPairs [frees a0eList1, frees a0eList2]
+
+  subst s = \case
+    ListEqByElements zipped ->
+      ListEqByElements (map (both go) zipped)
+    ListEqByWhole a0eList1 a0eList2 ->
+      ListEqByWhole (go a0eList1) (go a0eList2)
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent listEq1 listEq2 =
+    case (listEq1, listEq2) of
+      (ListEqByElements zipped1, ListEqByElements zipped2) ->
+        case zipExactMay zipped1 zipped2 of
+          Nothing ->
+            False
+          Just zippedZipped ->
+            all
+              ( \((a0e11, a0e12), (a0e21, a0e22)) ->
+                  go a0e11 a0e21 && go a0e12 a0e22
+              )
+              zippedZipped
+      (ListEqByWhole a0eList11 a0eList12, ListEqByWhole a0eList21 a0eList22) ->
+        go a0eList11 a0eList21 && go a0eList12 a0eList22
       (_, _) ->
         False
     where
