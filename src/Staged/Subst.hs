@@ -622,6 +622,15 @@ instance (Ord sv) => HasVar sv Type1EquationF where
                   zippedZipped
           (TyEq1TensorByWhole a0eList11 a0eList12, TyEq1TensorByWhole a0eList21 a0eList22) ->
             go a0eList11 a0eList21 && go a0eList12 a0eList22
+          (TyEq1Dataset dp11 dp12, TyEq1Dataset dp21 dp22) ->
+            go dp11.numTrain dp21.numTrain
+              && go dp11.numTest dp21.numTest
+              && go dp11.image dp21.image
+              && go dp11.label dp21.label
+              && go dp12.numTrain dp22.numTrain
+              && go dp12.numTest dp22.numTest
+              && go dp12.image dp22.image
+              && go dp12.label dp22.label
           (_, _) ->
             False
       (TyEq1List ty1eqElem1, TyEq1List ty1eqElem2) ->

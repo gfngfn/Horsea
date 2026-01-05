@@ -220,18 +220,18 @@ validatePrimBaseType = \case
   "Optimizer" -> Just ATyPrimOptimizer
   _ -> Nothing
 
-data DatasetParam a = DatasetParam
+data DatasetParam a b = DatasetParam
   { numTrain :: a,
     numTest :: a,
-    image :: [a],
-    label :: [a]
+    image :: b,
+    label :: b
   }
   deriving stock (Eq, Show, Functor)
 
 data Ass0PrimType
   = A0TyPrimBase AssPrimBaseType
   | A0TyTensor [Int]
-  | A0TyDataset (DatasetParam Int)
+  | A0TyDataset (DatasetParam Int [Int])
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type expressions.
@@ -247,7 +247,7 @@ data Ass1TypeExprF sv
 data Ass1PrimTypeF sv
   = A1TyPrimBase AssPrimBaseType
   | A1TyTensor (Ass0ExprF sv)
-  | A1TyDataset (DatasetParam (Ass0ExprF sv))
+  | A1TyDataset (DatasetParam (Ass0ExprF sv) (Ass0ExprF sv))
   deriving stock (Eq, Show, Functor)
 
 -- | The type of types for persistent value items.
@@ -325,7 +325,7 @@ data Ass0TypeValF sv
 data Ass0PrimTypeVal
   = A0TyValPrimBase AssPrimBaseType
   | A0TyValTensor [Int]
-  | A0TyValDataset (DatasetParam Int)
+  | A0TyValDataset (DatasetParam Int [Int])
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type values.
@@ -356,7 +356,7 @@ data Type1PrimEquationF sv
   | TyEq1TensorByLiteral [(Ass0ExprF sv, Ass0ExprF sv)]
   | -- | Pairs of expressions of type `List Nat`.
     TyEq1TensorByWhole (Ass0ExprF sv) (Ass0ExprF sv)
-  | TyEq1Dataset (DatasetParam (Ass0ExprF sv)) (DatasetParam (Ass0ExprF sv))
+  | TyEq1Dataset (DatasetParam (Ass0ExprF sv) (Ass0ExprF sv)) (DatasetParam (Ass0ExprF sv) (Ass0ExprF sv))
   deriving stock (Eq, Show, Functor)
 
 type EvalEnv = Map AssVar EvalEnvEntry
