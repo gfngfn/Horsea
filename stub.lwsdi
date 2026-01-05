@@ -44,6 +44,10 @@ val %range : Int -> Int -> List Int
   external (builtin = "range", surface = "range")
 val ~lift_string : String -> &String
   external (builtin = "lift_string", surface = "lift_string")
+val ~fst : forall 'a -> forall 'b -> 'a * 'b -> 'a
+  external (builtin = "tuple__first", surface = "fst")
+val ~snd : forall 'a -> forall 'b -> 'a * 'b -> 'b
+  external (builtin = "tuple__second", surface = "snd")
 
 module List = struct
   val %append : forall 'a -> List 'a -> List 'a -> List 'a
