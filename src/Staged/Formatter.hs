@@ -246,11 +246,11 @@ dispOptArrowType req x tye1 tye2 =
 
 dispInternalRefinementType :: (Disp ty, Disp expr) => Associativity -> ty -> expr -> Doc Ann
 dispInternalRefinementType _req tye ePred =
-  "(" <> disp tye <+> "|" <+> disp ePred <> ")"
+  "{" <> disp tye <+> "|" <+> disp ePred <> "}"
 
 dispInternalRefinementListType :: (Disp ty, Disp expr) => Associativity -> ty -> expr -> Doc Ann
 dispInternalRefinementListType _req tye ePred =
-  "(" <> dispListType Outermost tye <+> "|" <+> disp ePred <> ")"
+  "{" <> dispListType Outermost tye <+> "|" <+> disp ePred <> "}"
 
 dispListLiteral :: (Disp e) => [e] -> Doc Ann
 dispListLiteral es =
