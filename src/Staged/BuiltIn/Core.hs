@@ -51,6 +51,7 @@ data BuiltInArity1
   | BITensorGenDropout
   | BITupleFirst
   | BITupleSecond
+  | BIListLength
   deriving stock (Eq, Show)
 
 data BuiltInArity2
@@ -195,8 +196,12 @@ data Ass1BuiltIn
   | A1BIPrintFloat
   | A1BIPrintString
   | A1BIRange
+  | A1BIListCons
   | A1BIListAppend
   | A1BIListIter
+  | A1BIListLength
+  | A1BITupleFirst
+  | A1BITupleSecond
   | A1BITensorF
   | A1BITensorBackward
   | A1BITensorNoGrad
@@ -237,8 +242,12 @@ unliftBuiltInName = \case
   A1BIMod -> arity2 BIMod
   A1BILeq -> arity2 BILeq
   A1BIEqual -> arity2 BIEqual
+  A1BIListCons -> arity2 BIListCons
   A1BIListAppend -> arity2 BIListAppend
   A1BIListIter -> arity2 BIListIter
+  A1BIListLength -> arity1 BIListLength
+  A1BITupleFirst -> arity1 BITupleFirst
+  A1BITupleSecond -> arity1 BITupleSecond
   a1builtInName -> error $ "TODO: unliftBuiltInName, " ++ show a1builtInName
   where
     arity1 = BuiltInArity1
@@ -264,6 +273,7 @@ validateExternalName0 = \case
   "list__cons" -> arity2 BIListCons
   "list__append" -> arity2 BIListAppend
   "list__iter" -> arity2 BIListIter
+  "list__length" -> arity1 BIListLength
   "tuple__first" -> arity1 BITupleFirst
   "tuple__second" -> arity1 BITupleSecond
   "device__gen_cuda_if_available" -> arity1 BIDeviceGenCudaIfAvailable
@@ -310,8 +320,12 @@ validateExternalName1 = \case
   "print_float" -> pure A1BIPrintFloat
   "print_string" -> pure A1BIPrintString
   "range" -> pure A1BIRange
+  "list__cons" -> pure A1BIListCons
   "list__append" -> pure A1BIListAppend
   "list__iter" -> pure A1BIListIter
+  "list__length" -> pure A1BIListLength
+  "tuple__first" -> pure A1BITupleFirst
+  "tuple__second" -> pure A1BITupleSecond
   "tensor__f" -> pure A1BITensorF
   "tensor__backward" -> pure A1BITensorBackward
   "tensor__no_grad" -> pure A1BITensorNoGrad

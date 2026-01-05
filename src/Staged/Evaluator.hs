@@ -177,6 +177,9 @@ reduceDeltaArity1 bi1 a0v1 =
     BITupleSecond -> do
       (_, a0v12) <- validateTupleValue a0v1
       pure a0v12
+    BIListLength -> do
+      a0vs1 <- validateListValue a0v1
+      pure $ A0ValLiteral (ALitInt (length a0vs1))
 
 reduceDeltaArity2 :: BuiltInArity2 -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity2 bi2 a0v1 a0v2 =

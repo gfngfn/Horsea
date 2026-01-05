@@ -371,6 +371,7 @@ instance Disp BuiltInArity1 where
     BITensorGenDropout -> "TENSOR.GEN_DROPOUT"
     BITupleFirst -> "FST"
     BITupleSecond -> "SND"
+    BIListLength -> "LIST.LENGTH"
 
 instance Disp BuiltInArity2 where
   dispGen _ = \case
@@ -921,8 +922,12 @@ instance Disp Ass1BuiltIn where
     A1BIFloat -> "float"
     A1BIPrintFloat -> "print_float"
     A1BIPrintString -> "print_string"
+    A1BIListCons -> "::"
     A1BIListAppend -> "List.append"
     A1BIListIter -> "List.iter"
+    A1BIListLength -> "List.length"
+    A1BITupleFirst -> "fst"
+    A1BITupleSecond -> "snd"
     A1BIRange -> "range"
     A1BITensorF -> "Tensor.f"
     A1BITensorBackward -> "Tensor.backward"
