@@ -102,8 +102,8 @@ module Tensor = struct
     external (builtin = "tensor__float_value", surface = "float_value")
   val ~gen_dropout :
     {shape : List Nat} ->
-    &(Float -> (* dropout prob *)
-      Bool -> (* is_training *)
+    &(#p Float -> (* dropout prob *)
+      #is_training Bool ->
       Tensor %shape ->
       Tensor %shape
     )
@@ -121,19 +121,16 @@ module Tensor = struct
     {l : Nat} ->
     {m : Nat} ->
     {n : Nat} ->
-    (padding1 : Int) ->
-    (padding2 : Int) ->
-    (ksize1 : Int) ->
-    (ksize2 : Int) ->
-    (stride1 : Int) ->
-    (stride2 : Int) ->
+    (padding : Int * Int) ->
+    (ksize : Int * Int) ->
+    (stride : Int * Int) ->
     &(Tensor %[k, l, m, n] ->
-      Tensor %[k, l, (m + 2 * padding1 - ksize1) // stride1 + 1, (n + 2 * padding2 - ksize2) // stride2 + 1]
+      Tensor %[k, l, (m + 2 * fst padding - fst ksize) // fst stride + 1, (n + 2 * snd padding - snd ksize) // snd stride + 1]
     )
     external (builtin = "tensor__gen_max_pool2d", surface = "max_pool2d")
   val ~gen_softmax :
     {ns : List Nat} ->
-    Int -> (* dim *)
+    #dim Int ->
     &(Tensor %ns -> Tensor %ns)
     external (builtin = "tensor__gen_softmax", surface = "softmax")
 end

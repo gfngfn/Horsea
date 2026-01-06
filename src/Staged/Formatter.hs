@@ -438,14 +438,11 @@ instance Disp BuiltInArity5 where
 instance Disp BuiltInArity7 where
   dispGen _ = \case
     BIDatasetHelperGenBatchAccuracy -> "DATASET_HELPER.GEN_BATCH_ACCURACY"
+    BITensorGenMaxPool2d -> "TENSOR.GEN_MAX_POOL2D"
 
 instance Disp BuiltInArity8 where
   dispGen _ = \case
     BILayerGenConv2d -> "LAYER.GEN_CONV2D"
-
-instance Disp BuiltInArity10 where
-  dispGen _ = \case
-    BITensorGenMaxPool2d -> "TENSOR.GEN_MAX_POOL2D"
 
 instance Disp BuiltIn where
   dispGen req = \case
@@ -455,7 +452,6 @@ instance Disp BuiltIn where
     BuiltInArity5 bi5 -> dispGen req bi5
     BuiltInArity7 bi7 -> dispGen req bi7
     BuiltInArity8 bi8 -> dispGen req bi8
-    BuiltInArity10 bi10 -> dispGen req bi10
     BuiltInOther s -> "OTHER '" <> disp s <> "'"
 
 instance (Disp e) => Disp (Surface.Literal e) where
