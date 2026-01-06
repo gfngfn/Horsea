@@ -208,18 +208,18 @@ end
 module Optimizer = struct
   val adam :
     VarStore ->
-    Float -> (* learning_rate *)
+    #learning_rate Float ->
     Optimizer
     external (builtin = "optimizer__adam", surface = "adam")
   val sgd :
     VarStore ->
-    Float -> (* learning_rate *)
-    Float -> (* momentum *)
+    #learning_rate Float ->
+    #momentum Float ->
     Optimizer
     external (builtin = "optimizer__sgd", surface = "sgd")
   val backward_step :
     Optimizer ->
-    Tensor %[] ->
+    #loss Tensor %[] ->
     Unit
     external (builtin = "optimizer__backward_step", surface = "backward_step")
 end
@@ -266,7 +266,7 @@ module DatasetHelper = struct
     {ntest : Nat} ->
     {imgdim : List Nat} ->
     {labeldim : List Nat} ->
-    (batch_size : Nat) ->
+    #batch_size (batch_size : Nat) ->
     ((actual_batch_size : Nat) ->
       &(Tensor %(actual_batch_size :: imgdim) -> Tensor %(actual_batch_size :: labeldim) ->
           Tensor %(actual_batch_size :: imgdim) * Tensor %(actual_batch_size :: labeldim)
@@ -312,10 +312,10 @@ module TorchVision = struct
       {dim0 : Nat} ->
       {dim2 : Nat} ->
       {dim3 : Nat} ->
-      (num_classes : Nat) -> (* default: 512 *)
+      #num_classes (num_classes : Nat) -> (* default: 512 *)
       &(VarStore ->
         Tensor %[dim0, 3, dim2, dim3] ->
-        Bool -> (* is_training *)
+        #is_training Bool ->
         Tensor %[dim0, num_classes]
       )
       external (builtin = "torch_vision__resnet__gen_resnet18", surface = "resnet18")
@@ -325,14 +325,14 @@ module TorchVision = struct
       {ntrain : Nat} ->
       {ntest : Nat} ->
       {imgdim : Nat} ->
-      String -> (* dir *)
-      List String -> (* classes *)
-      (* String -> *) (* with_cache *)
+      #dir String ->
+      #classes List String ->
+      (* #with_cache String -> *)
       &(Unit -> Dataset %ntrain %ntest %[imgdim] %[])
       external (builtin = "torch_vision__imagenet__gen_load_dataset", surface = "load_dataset")
     val ~load_image :
       {ns : List Nat} ->
-      (* Int * Int -> *) (* resize *)
+      (* #resize Int * Int -> *)
       String ->
       &(Tensor %ns)
       external (builtin = "torch_vision__imagenet__load_image", surface = "load_image")
@@ -342,7 +342,7 @@ module TorchVision = struct
       val ~names : List String
         external (builtin = "torch_vision__imagenet__classes__names", surface = "names")
       val ~gen_top :
-        Int -> (* k *)
+        #k Int ->
         &(Tensor %[1000] -> List (String * Float))
         external (builtin = "torch_vision__imagenet__classes__gen_top", surface = "top")
     end
@@ -352,8 +352,8 @@ end
 module Serialize = struct
   val ~load_multi_ :
     {ns : List Nat} ->
-    String -> (* filename *)
-    &(List (String * Tensor %ns) -> (* named_tensors *)
+    #filename String ->
+    &(#named_tensors List (String * Tensor %ns) ->
       Unit
     )
     external (builtin = "serialize__load_multi_", surface = "load_multi_")

@@ -7,10 +7,8 @@ let image_filename = "path/to/image" in
   let image = ~(TorchVision.Imagenet.load_image {image_shape} image_filename) in
   let pairs =
     ~Module.gen_forward model [image]
-    |> ~(Tensor.gen_softmax
-        -1 (* dim *))
-    |> ~(TorchVision.Imagenet.Classes.gen_top
-        5 (* k *))
+    |> ~(Tensor.gen_softmax #dim -1)
+    |> ~(TorchVision.Imagenet.Classes.gen_top #k 5)
   in
   pairs |> List.iter (fun (pair : String * Float) ->
     let (class_name, p) = pair in

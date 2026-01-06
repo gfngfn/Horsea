@@ -40,7 +40,7 @@ let linear2 {size : Nat} =
     vs
     Layer.Activation.none
 in
-let adam = Optimizer.adam vs learning_rate in
+let adam = Optimizer.adam vs #learning_rate learning_rate in
 let model (size : Nat) #is_training (is_training : Bool) (xs : Tensor [size, MnistHelper.image_dim]) =
   Tensor.reshape [size, 1, 28, 28] xs
   |> Layer.forward (conv2d1 {size})

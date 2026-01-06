@@ -7,24 +7,24 @@ let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (mode
       let dataset1 =
         let frozen_vs =
           VarStore.create
-            true (* frozen *)
-            "rn" (* name *)
-            Device.cpu (* device *)
+            #frozen true
+            #name "rn"
+            #device Device.cpu
             ()
         in
         let pretrained_model =
-          ~(TorchVision.Resnet.gen_resnet18 {2} {imgdim} {4} 512) frozen_vs (* TODO *)
+          ~(TorchVision.Resnet.gen_resnet18 {2} {imgdim} {4} #num_classes 512) frozen_vs (* TODO *)
         in
         print_string "Loading weights from";
         print_string ~(lift_string model_path);
         let named_tensors = ~(VarStore.gen_all_vars {[13]}) frozen_vs in (* TODO *)
         ~(Serialize.load_multi_
-            model_path (* filename *)
+            #filename model_path
           )
-          named_tensors (* named_tensors *);
+          #named_tensors named_tensors;
         print_string "Precomputing activations, this can take a minute...";
         ~(DatasetHelper.gen_map
-            4 (* batch_size *)
+            #batch_size 4
             (fun(actual_batch_size : Nat) ->
               &(fun(batch_images : Tensor %[actual_batch_size, imgdim, 107, 203]) -> (* TODO *)
                 fun(batch_labels : Tensor %[actual_batch_size]) ->
@@ -52,8 +52,8 @@ let model_path = "path/to/model" in
 &(let dataset =
     ~(TorchVision.Imagenet.gen_load_dataset
         {306} {407} {508} (* TODO *)
-        dataset_dir (* dir *)
-        classes (* classes *)
+        #dir dataset_dir
+        #classes classes
       )
       ()
   in
@@ -61,9 +61,9 @@ let model_path = "path/to/model" in
   let dataset = ~(gen_precompute_activations model_path) dataset in
   let train_vs =
     VarStore.create
-      false (* frozen *)
-      "rn-vs" (* name *)
-      Device.cpu (* device *)
+      #frozen false
+      #name "rn-vs"
+      #device Device.cpu
       ()
   in
   ~(let gen_model {ns : List Nat} =
@@ -71,8 +71,8 @@ let model_path = "path/to/model" in
           ~Layer.gen_forward
             (~(Layer.gen_linear
                 {ns}
-                512 (* input_dim *)
-                (List.length classes)
+                #input_dim 512
+                #output_dim (List.length classes)
               )
                 train_vs
                 Layer.Activation.none
@@ -83,8 +83,8 @@ let model_path = "path/to/model" in
     &(let sgd =
         Optimizer.sgd
           train_vs
-          0.001 (* learning_rate *)
-          0.9 (* momentum *)
+          #learning_rate 0.001
+          #momentum 0.9
       in
       List.iter (fun(epoch_idx : Int) ->
         let sum_loss = Tensor.f 0.0 in
@@ -104,7 +104,7 @@ let model_path = "path/to/model" in
                   ~Tensor.gen_increment sum_loss loss;
                   Optimizer.backward_step
                     sgd
-                    loss (* loss *)
+                    #loss loss
               )
             )
         )
@@ -113,10 +113,11 @@ let model_path = "path/to/model" in
         (* Compute the validation error. *)
         let test_accuracy =
           ~(DatasetHelper.gen_batch_accuracy
-              batch_size (* batch_size *)
+              batch_size
               (* `test *)
               gen_model (* predict *)
           )
+            Device.cpu
             dataset
         in
         print_string "train loss:";
