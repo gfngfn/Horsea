@@ -42,6 +42,9 @@ lower = expectToken (^? #_TokLower)
 upper :: P (Located Text)
 upper = expectToken (^? #_TokUpper)
 
+label :: P (Located Text)
+label = expectToken (^? #_TokLabel)
+
 longOrShortLower :: P (Located ([Text], Text))
 longOrShortLower =
   expectToken (^? #_TokLongLower)
@@ -93,13 +96,13 @@ compOp = expectToken (^? #_TokOpComp)
 
 makeBinOpApp :: Expr -> Located Var -> Expr -> Expr
 makeBinOpApp e1@(Expr loc1 _) (Located locBinOp binOp) e2@(Expr loc2 _) =
-  Expr (mergeSpan locLeft loc2) (App (Expr locLeft (App eOp e1)) e2)
+  Expr (mergeSpan locLeft loc2) (App (Expr locLeft (App eOp Nothing e1)) Nothing e2)
   where
     locLeft = mergeSpan loc1 locBinOp
     eOp = Expr locBinOp (Var ([], binOp))
 
 data FunArg
-  = FunArgMandatory Expr
+  = FunArgMandatory (Maybe (Located Text)) Expr
   | FunArgOptGiven (Located Expr)
   | FunArgOptOmitted Span
 
@@ -145,16 +148,19 @@ exprAtom, expr :: P Expr
         arg =
           (FunArgOptOmitted <$> token TokUnderscore)
             <|> (FunArgOptGiven <$> brace expr)
-            <|> (FunArgMandatory <$> staged)
+            <|> (FunArgMandatory . Just <$> label <*> staged)
+            <|> (FunArgMandatory Nothing <$> staged)
 
         makeApp :: NonEmpty FunArg -> P Expr
-        makeApp (FunArgMandatory eFun :| args) = pure $ List.foldl' makeAppSingle eFun args
+        makeApp (FunArgMandatory Nothing eFun :| args) = pure $ List.foldl' makeAppSingle eFun args
+        makeApp (FunArgMandatory (Just (Located loc lab)) _ :| _) = failure (Located loc (TokLabel lab))
         makeApp (FunArgOptGiven (Located loc _e) :| _) = failure (Located loc TokLeftBrace)
         makeApp (FunArgOptOmitted loc :| _) = failure (Located loc TokUnderscore)
 
         makeAppSingle :: Expr -> FunArg -> Expr
         makeAppSingle e1@(Expr loc1 _) = \case
-          FunArgMandatory e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 e2)
+          FunArgMandatory Nothing e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 Nothing e2)
+          FunArgMandatory (Just (Located _ l)) e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 (Just l) e2)
           FunArgOptGiven (Located loc2 e2) -> Expr (mergeSpan loc1 loc2) (AppOptGiven e1 e2)
           FunArgOptOmitted loc2 -> Expr (mergeSpan loc1 loc2) (AppOptOmitted e1)
 
@@ -185,7 +191,7 @@ exprAtom, expr :: P Expr
         makeFlipApp =
           List.foldl'
             ( \eArg@(Expr locArg _) eFun@(Expr locFun _) ->
-                Expr (mergeSpan locArg locFun) (App eFun eArg)
+                Expr (mergeSpan locArg locFun) (App eFun Nothing eArg)
             )
 
     lam :: P Expr
@@ -198,22 +204,24 @@ exprAtom, expr :: P Expr
         makeNonrecLam locFirst xBinder' e@(Expr locLast _) =
           Expr (mergeSpan locFirst locLast) $
             case xBinder' of
-              MandatoryBinder xBinder -> Lam Nothing xBinder e
-              OptionalBinder xBinder -> LamOpt xBinder e
+              MandatoryBinder labelOpt xBinder -> Lam Nothing labelOpt xBinder e
+              ImplicitBinder xBinder -> LamOpt xBinder e
 
         makeRecLam locFirst fBinder xBinder e@(Expr locLast _) =
-          Expr (mergeSpan locFirst locLast) (Lam (Just fBinder) xBinder e)
+          Expr (mergeSpan locFirst locLast) (Lam (Just fBinder) Nothing xBinder e)
 
         makeIf locFirst e0 e1 e2@(Expr locLast _) =
           Expr (mergeSpan locFirst locLast) (IfThenElse e0 e1 e2)
 
     lamBinder :: P LamBinder
     lamBinder =
-      (MandatoryBinder <$> mandatoryBinder) <|> (OptionalBinder <$> optionalBinder)
+      (MandatoryBinder . Just <$> noLoc label <*> mandatoryBinder)
+        <|> (MandatoryBinder Nothing <$> mandatoryBinder)
+        <|> (ImplicitBinder <$> implicitBinder)
 
-    mandatoryBinder, optionalBinder :: P (Var, TypeExpr)
+    mandatoryBinder, implicitBinder :: P (Var, TypeExpr)
     mandatoryBinder = noLoc (paren ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
-    optionalBinder = noLoc (brace ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
+    implicitBinder = noLoc (brace ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
 
     letin :: P Expr
     letin =
@@ -298,23 +306,47 @@ typeExpr = fun
       where
         makeTyArrow funDomSpec tye2@(TypeExpr loc2 _) =
           case funDomSpec of
-            (Nothing, tye1@(TypeExpr loc1 _)) ->
-              TypeExpr (mergeSpan loc1 loc2) (TyArrow (Nothing, tye1) tye2)
-            (Just (isMandatory, loc1, x), tye1) ->
-              TypeExpr (mergeSpan loc1 loc2) $
-                if isMandatory
-                  then TyArrow (Just x, tye1) tye2
-                  else TyOptArrow (x, tye1) tye2
+            DomMandatory locLabelOpt (varOpt, tye1@(TypeExpr locTye1 _)) ->
+              let loc1 =
+                    case locLabelOpt of
+                      Just (Located locLabel _) ->
+                        locLabel
+                      Nothing ->
+                        case varOpt of
+                          Just (locDom, _) -> locDom
+                          Nothing -> locTye1
+                  xOpt = fmap snd varOpt
+                  labelOpt = fmap (\(Located _ l) -> l) locLabelOpt
+               in TypeExpr (mergeSpan loc1 loc2) (TyArrow labelOpt (xOpt, tye1) tye2)
+            DomImplicit ((loc1, x), tye1) ->
+              TypeExpr (mergeSpan loc1 loc2) (TyOptArrow (x, tye1) tye2)
         makeForAll (Located loc1 tyvar) tye@(TypeExpr loc2 _) =
           TypeExpr (mergeSpan loc1 loc2) (TyForAll tyvar tye)
 
-    funDom :: P (Maybe (Bool, Span, Var), TypeExpr)
+    funDom :: P DomainSpec
     funDom =
-      (makeFunDom False <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> fun))
-        <|> try (makeFunDom True <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> fun))
-        <|> ((Nothing,) <$> prod)
+      (DomMandatory . Just <$> label <*> mandatoryFunDom)
+        <|> (DomMandatory Nothing <$> mandatoryFunDom)
+        <|> (DomImplicit <$> implicitFunDom)
       where
-        makeFunDom isMandatory (Located loc (x, tyeDom)) = (Just (isMandatory, loc, x), tyeDom)
+        mandatoryFunDom :: P (Maybe (Span, Var), TypeExpr)
+        mandatoryFunDom =
+          try (makeFunDom <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> fun))
+            <|> ((Nothing,) <$> prod)
+          where
+            makeFunDom (Located loc (x, tyeDom)) =
+              (Just (loc, x), tyeDom)
+
+        implicitFunDom :: P ((Span, Var), TypeExpr)
+        implicitFunDom =
+          makeFunDom <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> fun)
+          where
+            makeFunDom (Located loc (x, tyeDom)) =
+              ((loc, x), tyeDom)
+
+data DomainSpec
+  = DomMandatory (Maybe (Located Text)) (Maybe (Span, Var), TypeExpr)
+  | DomImplicit ((Span, Var), TypeExpr)
 
 bind :: P Bind
 bind =

@@ -67,6 +67,7 @@ data TypeErrorF sv
   | LetRecRequiresNonEmptyParams SpanInFile
   | CannotSynthesizeTypeFromExpr SpanInFile
   | CannotForceType SpanInFile (Ass0TypeExprF sv)
+  | ApplicationLabelMismatch SpanInFile (AppContextF sv) (Maybe Label) (Maybe Label)
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv

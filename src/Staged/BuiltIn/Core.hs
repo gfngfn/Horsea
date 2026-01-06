@@ -6,7 +6,6 @@ module Staged.BuiltIn.Core
     BuiltInArity5 (..),
     BuiltInArity7 (..),
     BuiltInArity8 (..),
-    BuiltInArity10 (..),
     Ass0PartialBuiltInApp (..),
     Ass0PartialBuiltInAppArity1 (..),
     Ass0PartialBuiltInAppArity2 (..),
@@ -16,8 +15,6 @@ module Staged.BuiltIn.Core
     Ass0PartialBuiltInAppArity6 (..),
     Ass0PartialBuiltInAppArity7 (..),
     Ass0PartialBuiltInAppArity8 (..),
-    Ass0PartialBuiltInAppArity9 (..),
-    Ass0PartialBuiltInAppArity10 (..),
     Ass1BuiltIn (..),
     validateExternalName0,
     validateExternalName1,
@@ -35,7 +32,6 @@ data BuiltIn
   | BuiltInArity5 BuiltInArity5
   | BuiltInArity7 BuiltInArity7
   | BuiltInArity8 BuiltInArity8
-  | BuiltInArity10 BuiltInArity10
   | BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
@@ -98,14 +94,11 @@ data BuiltInArity5
 
 data BuiltInArity7
   = BIDatasetHelperGenBatchAccuracy
+  | BITensorGenMaxPool2d
   deriving stock (Eq, Show)
 
 data BuiltInArity8
   = BILayerGenConv2d
-  deriving stock (Eq, Show)
-
-data BuiltInArity10
-  = BITensorGenMaxPool2d
   deriving stock (Eq, Show)
 
 data Ass0PartialBuiltInApp val
@@ -117,8 +110,6 @@ data Ass0PartialBuiltInApp val
   | A0PartialBuiltInAppArity6 (Ass0PartialBuiltInAppArity6 val)
   | A0PartialBuiltInAppArity7 (Ass0PartialBuiltInAppArity7 val)
   | A0PartialBuiltInAppArity8 (Ass0PartialBuiltInAppArity8 val)
-  | A0PartialBuiltInAppArity9 (Ass0PartialBuiltInAppArity9 val)
-  | A0PartialBuiltInAppArity10 (Ass0PartialBuiltInAppArity10 val)
   deriving stock (Eq, Show, Functor)
 
 data Ass0PartialBuiltInAppArity1 val
@@ -156,15 +147,6 @@ data Ass0PartialBuiltInAppArity7 val
 
 data Ass0PartialBuiltInAppArity8 val
   = PartialBuiltInAppArity8Nil BuiltInArity8
-  | PartialBuiltInAppArity8Cons (Ass0PartialBuiltInAppArity9 val) val
-  deriving stock (Eq, Show, Functor)
-
-data Ass0PartialBuiltInAppArity9 val
-  = PartialBuiltInAppArity9Cons (Ass0PartialBuiltInAppArity10 val) val
-  deriving stock (Eq, Show, Functor)
-
-data Ass0PartialBuiltInAppArity10 val
-  = PartialBuiltInAppArity10Nil BuiltInArity10
   deriving stock (Eq, Show, Functor)
 
 data Ass1BuiltIn
@@ -292,7 +274,7 @@ validateExternalName0 = \case
   "tensor__gen_count_equal" -> arity1 BITensorGenCountEqual
   "tensor__gen_dropout" -> arity1 BITensorGenDropout
   "tensor__gen_reshape" -> arity2 BITensorGenReshape
-  "tensor__gen_max_pool2d" -> arity10 BITensorGenMaxPool2d
+  "tensor__gen_max_pool2d" -> arity7 BITensorGenMaxPool2d
   "dataset_helper__gen_train_batch" -> arity5 BIDatasetHelperGenTrainBatch
   "dataset_helper__gen_batch_accuracy" -> arity7 BIDatasetHelperGenBatchAccuracy
   s -> pure $ BuiltInOther s
@@ -304,7 +286,6 @@ validateExternalName0 = \case
     arity5 = pure . BuiltInArity5
     arity7 = pure . BuiltInArity7
     arity8 = pure . BuiltInArity8
-    arity10 = pure . BuiltInArity10
 
 validateExternalName1 :: Text -> Maybe Ass1BuiltIn
 validateExternalName1 = \case

@@ -39,8 +39,8 @@ instance HasTypeVar Ass0TypeExprF where
       A0TyList (go a0tye1) ((unMaybe1 . go . Maybe1) maybePred)
     A0TyProduct a0tye1 a0tye2 ->
       A0TyProduct (go a0tye1) (go a0tye2)
-    A0TyArrow (svOpt, a0tye1) a0tye2 ->
-      A0TyArrow (svOpt, go a0tye1) (go a0tye2)
+    A0TyArrow labelOpt (svOpt, a0tye1) a0tye2 ->
+      A0TyArrow labelOpt (svOpt, go a0tye1) (go a0tye2)
     A0TyOptArrow (ax, a0tye1) a0tye2 ->
       A0TyOptArrow (ax, go a0tye1) (go a0tye2)
     A0TyCode a1tye1 ->
@@ -90,7 +90,7 @@ instance HasTypeVar Ass1TypeExprF where
         TypeSubst0 _ _ -> A1TyVar atyvar
         TypeSubst1 atyvar' a1tye' -> if atyvar == atyvar' then a1tye' else A1TyVar atyvar
     A1TyProduct a1tye1 a1tye2 -> A1TyProduct (go a1tye1) (go a1tye2)
-    A1TyArrow a1tye1 a1tye2 -> A1TyArrow (go a1tye1) (go a1tye2)
+    A1TyArrow labelOpt a1tye1 a1tye2 -> A1TyArrow labelOpt (go a1tye1) (go a1tye2)
     A1TyImplicitForAll atyvar a1tye2 ->
       A1TyImplicitForAll atyvar $
         case s of
