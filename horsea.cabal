@@ -61,6 +61,7 @@ library
     exposed-modules:
       Staged.BuiltIn,
       Staged.BuiltIn.Core,
+      Staged.Core,
       Staged.Entrypoint,
       Staged.EvalError,
       Staged.Evaluator,

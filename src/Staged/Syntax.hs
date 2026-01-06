@@ -1,7 +1,5 @@
 module Staged.Syntax
-  ( Label,
-    DatasetParam (..),
-    StaticVar (..),
+  ( StaticVar (..),
     AssVarF (..),
     Symbol (..),
     symbolToVar,
@@ -71,20 +69,11 @@ import Data.Functor.Identity
 import Data.Map (Map)
 import Data.Text (Text)
 import Staged.BuiltIn.Core
+import Staged.Core
 import Util.Matrix (Matrix)
 import Util.TokenUtil (Span)
 import Util.Vector (Vector)
 import Prelude
-
-type Label = Text
-
-data DatasetParam f a = DatasetParam
-  { numTrain :: a,
-    numTest :: a,
-    image :: f a,
-    label :: f a
-  }
-  deriving stock (Eq, Show, Functor)
 
 newtype StaticVar = StaticVar Int
   deriving newtype (Eq, Ord, Show)

@@ -3,7 +3,9 @@ module Staged.BuiltIn.Core
     BuiltInArity1 (..),
     BuiltInArity2 (..),
     BuiltInArity3 (..),
+    BuiltInArity4 (..),
     BuiltInArity5 (..),
+    BuiltInArity6 (..),
     BuiltInArity7 (..),
     BuiltInArity8 (..),
     Ass0PartialBuiltInApp (..),
@@ -23,13 +25,16 @@ module Staged.BuiltIn.Core
 where
 
 import Data.Text (Text)
+import Staged.Core
 import Prelude
 
 data BuiltIn
   = BuiltInArity1 BuiltInArity1
   | BuiltInArity2 BuiltInArity2
   | BuiltInArity3 BuiltInArity3
+  | BuiltInArity4 BuiltInArity4
   | BuiltInArity5 BuiltInArity5
+  | BuiltInArity6 BuiltInArity6
   | BuiltInArity7 BuiltInArity7
   | BuiltInArity8 BuiltInArity8
   | BuiltInOther Text -- TODO: remove this
@@ -88,8 +93,17 @@ data BuiltInArity3
   | BILayerGenLinear
   deriving stock (Eq, Show)
 
+data BuiltInArity4
+  = BIDatasetHelperGenPrintSummary
+  deriving stock (Eq, Show)
+
 data BuiltInArity5
   = BIDatasetHelperGenTrainBatch
+  deriving stock (Eq, Show)
+
+data BuiltInArity6
+  = BIDatasetHelperGenIter
+  | BIDatasetHelperGenMap
   deriving stock (Eq, Show)
 
 data BuiltInArity7
@@ -128,7 +142,8 @@ data Ass0PartialBuiltInAppArity3 val
   deriving stock (Eq, Show, Functor)
 
 data Ass0PartialBuiltInAppArity4 val
-  = PartialBuiltInAppArity4Cons (Ass0PartialBuiltInAppArity5 val) val
+  = PartialBuiltInAppArity4Nil BuiltInArity4
+  | PartialBuiltInAppArity4Cons (Ass0PartialBuiltInAppArity5 val) val
   deriving stock (Eq, Show, Functor)
 
 data Ass0PartialBuiltInAppArity5 val
@@ -137,7 +152,8 @@ data Ass0PartialBuiltInAppArity5 val
   deriving stock (Eq, Show, Functor)
 
 data Ass0PartialBuiltInAppArity6 val
-  = PartialBuiltInAppArity6Cons (Ass0PartialBuiltInAppArity7 val) val
+  = PartialBuiltInAppArity6Nil BuiltInArity6
+  | PartialBuiltInAppArity6Cons (Ass0PartialBuiltInAppArity7 val) val
   deriving stock (Eq, Show, Functor)
 
 data Ass0PartialBuiltInAppArity7 val
@@ -197,8 +213,11 @@ data Ass1BuiltIn
   | A1BIVarStoreCreate
   | A1BIOptimizerAdam
   | A1BIOptimizerBackwardStep
-  | A1BIDatasetHelperTrainBatch Int Int [Int] [Int] Int
-  | A1BIDatasetHelperBatchAccuracy Int Int [Int] [Int] Int Int
+  | A1BIDatasetHelperTrainBatch (DatasetParam [] Int) Int
+  | A1BIDatasetHelperBatchAccuracy (DatasetParam [] Int) Int Int
+  | A1BIDatasetHelperPrintSummary (DatasetParam [] Int)
+  | A1BIDatasetHelperIter (DatasetParam [] Int) Int
+  | A1BIDatasetHelperMap (DatasetParam [] Int) Int
   | A1BIMnistHelperTrainImages
   | A1BIMnistHelperTrainLabels
   | A1BIMnistHelperTestImages
@@ -277,13 +296,18 @@ validateExternalName0 = \case
   "tensor__gen_max_pool2d" -> arity7 BITensorGenMaxPool2d
   "dataset_helper__gen_train_batch" -> arity5 BIDatasetHelperGenTrainBatch
   "dataset_helper__gen_batch_accuracy" -> arity7 BIDatasetHelperGenBatchAccuracy
+  "dataset_helper__gen_print_summary" -> arity4 BIDatasetHelperGenPrintSummary
+  "dataset_helper__gen_iter" -> arity6 BIDatasetHelperGenIter
+  "dataset_helper__gen_map" -> arity6 BIDatasetHelperGenMap
   s -> pure $ BuiltInOther s
   --  _ -> Nothing
   where
     arity1 = pure . BuiltInArity1
     arity2 = pure . BuiltInArity2
     arity3 = pure . BuiltInArity3
+    arity4 = pure . BuiltInArity4
     arity5 = pure . BuiltInArity5
+    arity6 = pure . BuiltInArity6
     arity7 = pure . BuiltInArity7
     arity8 = pure . BuiltInArity8
 

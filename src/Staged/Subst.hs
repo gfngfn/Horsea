@@ -14,6 +14,7 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Safe.Exact
+import Staged.Core
 import Staged.Syntax
 import Util.Maybe1
 import Prelude

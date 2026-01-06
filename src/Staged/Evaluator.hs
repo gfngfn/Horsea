@@ -18,6 +18,7 @@ import Data.Map qualified as Map
 import Data.Maybe (isJust)
 import Data.Text qualified as Text
 import Staged.BuiltIn.Core
+import Staged.Core
 import Staged.EvalError
 import Staged.Syntax
 import Util.LocationInFile (SourceSpec, getSpanInFile)
@@ -118,6 +119,14 @@ validateIntPairLiteral a0v = do
   n1 <- validateIntLiteral a0v1
   n2 <- validateIntLiteral a0v2
   pure (n1, n2)
+
+validateDatasetParam :: Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M (DatasetParam [] Int)
+validateDatasetParam a0v1 a0v2 a0v3 a0v4 = do
+  numTrain <- validateIntLiteral a0v1
+  numTest <- validateIntLiteral a0v2
+  image <- validateIntListLiteral a0v3
+  label <- validateIntListLiteral a0v4
+  pure DatasetParam {numTrain, numTest, image, label}
 
 validateVec0 :: Ass0Val -> M Vector
 validateVec0 = \case
@@ -344,29 +353,44 @@ reduceDeltaArity3 bi3 a0v1 a0v2 a0v3 =
       output_dim <- validateIntLiteral a0v3
       pure $ A0ValBracket (A1ValConst (A1BILayerLinear ns input_dim output_dim))
 
+reduceDeltaArity4 :: BuiltInArity4 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
+reduceDeltaArity4 bi4 a0v1 a0v2 a0v3 a0v4 =
+  case bi4 of
+    BIDatasetHelperGenPrintSummary -> do
+      dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
+      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperPrintSummary dp))
+
 reduceDeltaArity5 :: BuiltInArity5 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity5 bi5 a0v1 a0v2 a0v3 a0v4 a0v5 =
   case bi5 of
     BIDatasetHelperGenTrainBatch -> do
-      ntrain <- validateIntLiteral a0v1
-      ntest <- validateIntLiteral a0v2
-      imgdim <- validateIntListLiteral a0v3
-      labeldim <- validateIntListLiteral a0v4
+      dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
       batchSize <- validateIntLiteral a0v5
-      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperTrainBatch ntrain ntest imgdim labeldim batchSize))
+      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperTrainBatch dp batchSize))
+
+reduceDeltaArity6 :: BuiltInArity6 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
+reduceDeltaArity6 bi6 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 =
+  case bi6 of
+    BIDatasetHelperGenIter -> do
+      dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
+      batchSize <- validateIntLiteral a0v5
+      let _f = a0v6
+      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperIter dp batchSize))
+    BIDatasetHelperGenMap -> do
+      dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
+      batchSize <- validateIntLiteral a0v5
+      let _f = a0v6
+      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperMap dp batchSize))
 
 reduceDeltaArity7 :: BuiltInArity7 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity7 bi7 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 =
   case bi7 of
     BIDatasetHelperGenBatchAccuracy -> do
-      ntrain <- validateIntLiteral a0v1
-      ntest <- validateIntLiteral a0v2
-      imgdim <- validateIntListLiteral a0v3
-      labeldim <- validateIntListLiteral a0v4
+      dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
       n <- validateIntLiteral a0v5
       batchSize <- validateIntLiteral a0v6
       let _f = a0v7
-      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperBatchAccuracy ntrain ntest imgdim labeldim n batchSize))
+      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperBatchAccuracy dp n batchSize))
     BITensorGenMaxPool2d -> do
       k <- validateIntLiteral a0v1
       l <- validateIntLiteral a0v2
@@ -427,12 +451,16 @@ reduceDelta pba a0vArg =
                   reduceDeltaArity3 bi3 v3 v2 v1
                 PartialBuiltInAppArity3Cons pba4 v4 ->
                   case pba4 of
+                    PartialBuiltInAppArity4Nil bi4 ->
+                      reduceDeltaArity4 bi4 v4 v3 v2 v1
                     PartialBuiltInAppArity4Cons pba5 v5 ->
                       case pba5 of
                         PartialBuiltInAppArity5Nil bi5 ->
                           reduceDeltaArity5 bi5 v5 v4 v3 v2 v1
                         PartialBuiltInAppArity5Cons pba6 v6 ->
                           case pba6 of
+                            PartialBuiltInAppArity6Nil bi6 ->
+                              reduceDeltaArity6 bi6 v6 v5 v4 v3 v2 v1
                             PartialBuiltInAppArity6Cons pba7 v7 ->
                               case pba7 of
                                 PartialBuiltInAppArity7Nil bi7 ->
@@ -480,7 +508,9 @@ evalExpr0 env = \case
         BuiltInArity1 bi1 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity1 (PartialBuiltInAppArity1Nil bi1))
         BuiltInArity2 bi2 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity2 (PartialBuiltInAppArity2Nil bi2))
         BuiltInArity3 bi3 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity3 (PartialBuiltInAppArity3Nil bi3))
+        BuiltInArity4 bi4 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity4 (PartialBuiltInAppArity4Nil bi4))
         BuiltInArity5 bi5 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity5 (PartialBuiltInAppArity5Nil bi5))
+        BuiltInArity6 bi6 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity6 (PartialBuiltInAppArity6Nil bi6))
         BuiltInArity7 bi7 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity7 (PartialBuiltInAppArity7Nil bi7))
         BuiltInArity8 bi8 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity8 (PartialBuiltInAppArity8Nil bi8))
         BuiltInOther s -> error $ "BuiltInOther: " ++ Text.unpack s

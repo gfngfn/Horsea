@@ -33,6 +33,7 @@ import Data.Tuple.Extra
 import Safe.Exact
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
+import Staged.Core
 import Staged.Scope.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
 import Staged.Scope.SigRecord qualified as SigRecord
 import Staged.Scope.TypeEnv (TypeEnv, TypeVarEntry (..))

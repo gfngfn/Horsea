@@ -6,6 +6,7 @@ module Staged.TypeSubst
 where
 
 import Data.Functor.Identity
+import Staged.Core
 import Staged.Syntax
 import Util.Maybe1
 import Prelude

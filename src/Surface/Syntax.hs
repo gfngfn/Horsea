@@ -19,7 +19,7 @@ module Surface.Syntax
 where
 
 import Data.Text (Text)
-import Staged.Syntax (Label)
+import Staged.Core
 import Util.TokenUtil (Span)
 import Prelude
 

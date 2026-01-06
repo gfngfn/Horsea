@@ -15,6 +15,7 @@ import Data.Text qualified as Text
 import Prettyprinter
 import Prettyprinter.Render.Terminal
 import Staged.BuiltIn.Core
+import Staged.Core
 import Staged.EvalError
 import Staged.SrcSyntax
 import Staged.Syntax
@@ -298,6 +299,9 @@ dispDatasetParam :: (a -> Doc Ann) -> (f a -> Doc Ann) -> DatasetParam f a -> Do
 dispDatasetParam dispElem dispList DatasetParam {numTrain, numTest, image, label} =
   dispElem numTrain <> " " <> dispElem numTest <> " " <> dispList image <> " " <> dispList label
 
+dispDatasetParam0 :: DatasetParam [] Int -> Doc Ann
+dispDatasetParam0 = dispDatasetParam disp dispListLiteral
+
 dispLongName :: (Disp var) => [var] -> var -> Doc Ann
 dispLongName ms x =
   foldr (\m doc -> disp m <> "." <> doc) (disp x) ms
@@ -432,9 +436,18 @@ instance Disp BuiltInArity3 where
     BITensorGenMm -> "TENSOR.GEN_MM"
     BILayerGenLinear -> "LAYER.GEN_LINEAR"
 
+instance Disp BuiltInArity4 where
+  dispGen _ = \case
+    BIDatasetHelperGenPrintSummary -> "DATASET_HELPER.GEN_PRINT_SUMMARY"
+
 instance Disp BuiltInArity5 where
   dispGen _ = \case
     BIDatasetHelperGenTrainBatch -> "DATASET_HELPER.GEN_TRAIN_BATCH"
+
+instance Disp BuiltInArity6 where
+  dispGen _ = \case
+    BIDatasetHelperGenIter -> "DATASET_HELPER.GEN_ITER"
+    BIDatasetHelperGenMap -> "DATASET_HELPER.GEN_MAP"
 
 instance Disp BuiltInArity7 where
   dispGen _ = \case
@@ -450,7 +463,9 @@ instance Disp BuiltIn where
     BuiltInArity1 bi1 -> dispGen req bi1
     BuiltInArity2 bi2 -> dispGen req bi2
     BuiltInArity3 bi3 -> dispGen req bi3
+    BuiltInArity4 bi4 -> dispGen req bi4
     BuiltInArity5 bi5 -> dispGen req bi5
+    BuiltInArity6 bi6 -> dispGen req bi6
     BuiltInArity7 bi7 -> dispGen req bi7
     BuiltInArity8 bi8 -> dispGen req bi8
     BuiltInOther s -> "OTHER '" <> disp s <> "'"
@@ -577,7 +592,7 @@ instance Disp Ass0PrimType where
     A0TyTensor [n] -> dispNameWithArgs req "Vec" disp [n]
     A0TyTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
-    A0TyDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
+    A0TyDataset datasetParam -> dispNameWithArgs req "Dataset" dispDatasetParam0 [datasetParam]
 
 instance (Disp sv) => Disp (Ass0TypeExprF sv) where
   dispGen req = \case
@@ -887,8 +902,10 @@ instance (Disp v) => Disp (Ass0PartialBuiltInApp v) where
     A0PartialBuiltInAppArity2 pba2 -> dispGen req pba2
     A0PartialBuiltInAppArity3 pba3 -> dispGen req pba3
     A0PartialBuiltInAppArity4 pba4 -> dispGen req pba4
+    A0PartialBuiltInAppArity5 pba5 -> dispGen req pba5
     A0PartialBuiltInAppArity6 pba6 -> dispGen req pba6
-    _ -> "TODO: Disp (Ass0PartialBuiltInApp v)"
+    A0PartialBuiltInAppArity7 pba7 -> dispGen req pba7
+    A0PartialBuiltInAppArity8 pba8 -> dispGen req pba8
 
 instance (Disp v) => Disp (Ass0PartialBuiltInAppArity1 v) where
   dispGen req = \case
@@ -913,6 +930,7 @@ instance (Disp v) => Disp (Ass0PartialBuiltInAppArity3 v) where
 
 instance (Disp v) => Disp (Ass0PartialBuiltInAppArity4 v) where
   dispGen req = \case
+    PartialBuiltInAppArity4Nil bi4 -> disp bi4
     PartialBuiltInAppArity4Cons pba5 v -> f (disp pba5 <+> dispGen Atomic v)
     where
       f = deepenParenWhen (req <= Atomic)
@@ -925,8 +943,22 @@ instance (Disp v) => Disp (Ass0PartialBuiltInAppArity5 v) where
       f = deepenParenWhen (req <= Atomic)
 
 instance (Disp v) => Disp (Ass0PartialBuiltInAppArity6 v) where
+  dispGen req = \case
+    PartialBuiltInAppArity6Nil bi6 -> disp bi6
+    PartialBuiltInAppArity6Cons pba7 v -> f (disp pba7 <+> dispGen Atomic v)
+    where
+      f = deepenParenWhen (req <= Atomic)
+
+instance (Disp v) => Disp (Ass0PartialBuiltInAppArity7 v) where
+  dispGen req = \case
+    PartialBuiltInAppArity7Nil bi7 -> disp bi7
+    PartialBuiltInAppArity7Cons pba8 v -> f (disp pba8 <+> dispGen Atomic v)
+    where
+      f = deepenParenWhen (req <= Atomic)
+
+instance (Disp v) => Disp (Ass0PartialBuiltInAppArity8 v) where
   dispGen _req = \case
-    PartialBuiltInAppArity6Cons _pba7 _v -> "TODO: Disp (Ass0PartialBuiltInAppArity6 v)"
+    PartialBuiltInAppArity8Nil bi8 -> disp bi8
 
 instance Disp Ass1BuiltIn where
   dispGen _ = \case
@@ -977,8 +1009,11 @@ instance Disp Ass1BuiltIn where
     A1BIVarStoreCreate -> "Var_store.create"
     A1BIOptimizerAdam -> "Optimizer.adam"
     A1BIOptimizerBackwardStep -> "Optimizer.backward_step"
-    A1BIDatasetHelperTrainBatch ntrain ntest imgdim labeldim batchSize -> "Dataset_helper.train_batch" <> param (disp ntrain <> "," <+> disp ntest <> "," <+> dispListLiteral imgdim <> "," <+> dispListLiteral labeldim <> "," <+> disp batchSize)
-    A1BIDatasetHelperBatchAccuracy ntrain ntest imgdim labeldim n batchSize -> "Dataset_helper.batch_accuracy" <> param (disp ntrain <> "," <+> disp ntest <> "," <+> dispListLiteral imgdim <> "," <+> dispListLiteral labeldim <> "," <+> disp n <> "," <+> disp batchSize)
+    A1BIDatasetHelperTrainBatch dp batchSize -> "Dataset_helper.train_batch" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
+    A1BIDatasetHelperBatchAccuracy dp n batchSize -> "Dataset_helper.batch_accuracy" <> param (dispDatasetParam0 dp <> "," <+> disp n <> "," <+> disp batchSize)
+    A1BIDatasetHelperPrintSummary dp -> "Dataset_helper.batch_accuracy" <> param (dispDatasetParam0 dp)
+    A1BIDatasetHelperIter dp batchSize -> "Dataset_helper.iter" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
+    A1BIDatasetHelperMap dp batchSize -> "Dataset_helper.map" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
     A1BIMnistHelperTrainImages -> "Mnist_helper.train_images"
     A1BIMnistHelperTrainLabels -> "Mnist_helper.train_labels"
     A1BIMnistHelperTestImages -> "Mnist_helper.test_images"
