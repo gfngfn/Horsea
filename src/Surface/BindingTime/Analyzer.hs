@@ -45,19 +45,19 @@ assignBindingTimeVarToExpr (Expr ann exprMain) = do
         Literal <$> mapMLiteral assignBindingTimeVarToExpr lit
       Var x ->
         pure $ Var x
-      Lam Nothing (x, ty) e -> do
+      Lam Nothing labelOpt (x, ty) e -> do
         bty <- assignBindingTimeVarToTypeExpr ty
         be <- assignBindingTimeVarToExpr e
-        pure $ Lam Nothing (x, bty) be
-      Lam (Just (f, tyRec)) (x, ty) e -> do
+        pure $ Lam Nothing labelOpt (x, bty) be
+      Lam (Just (f, tyRec)) labelOpt (x, ty) e -> do
         btyRec <- assignBindingTimeVarToTypeExpr tyRec
         bty <- assignBindingTimeVarToTypeExpr ty
         be <- assignBindingTimeVarToExpr e
-        pure $ Lam (Just (f, btyRec)) (x, bty) be
-      App e1 e2 -> do
+        pure $ Lam (Just (f, btyRec)) labelOpt (x, bty) be
+      App e1 labelOpt e2 -> do
         be1 <- assignBindingTimeVarToExpr e1
         be2 <- assignBindingTimeVarToExpr e2
-        pure $ App be1 be2
+        pure $ App be1 labelOpt be2
       LetIn x params eBody e2 -> do
         be1 <- makeLam params eBody
         be2 <- assignBindingTimeVarToExpr e2
@@ -108,12 +108,12 @@ makeLam params eBody = do
   foldrM go beBody params
   where
     go :: LamBinder -> BExpr -> Assigner BExpr
-    go (MandatoryBinder (x, ty@(TypeExpr loc1 _))) be@(Expr (_, loc2) _) = do
+    go (MandatoryBinder labelOpt (x, ty@(TypeExpr loc1 _))) be@(Expr (_, loc2) _) = do
       btv <- fresh
       let ann = mergeSpan loc1 loc2 -- TODO (enhance): give better range
       bty <- assignBindingTimeVarToTypeExpr ty
-      pure $ Expr (BTVar btv, ann) (Lam Nothing (x, bty) be)
-    go (OptionalBinder (x, ty@(TypeExpr loc1 _))) be@(Expr (_, loc2) _) = do
+      pure $ Expr (BTVar btv, ann) (Lam Nothing labelOpt (x, bty) be)
+    go (ImplicitBinder (x, ty@(TypeExpr loc1 _))) be@(Expr (_, loc2) _) = do
       btv <- fresh
       let ann = mergeSpan loc1 loc2 -- TODO (enhance): give better range
       bty <- assignBindingTimeVarToTypeExpr ty
@@ -124,8 +124,9 @@ makeRecLam f params tyBody eBody = do
   beBody <- assignBindingTimeVarToExpr eBody
   (x0, ty0, paramsRest) <-
     case params of
-      MandatoryBinder (x0', ty0') : paramsRest' -> pure (x0', ty0', paramsRest')
-      OptionalBinder _ : _ -> error "TODO (error): makeLamRec, optional binder"
+      MandatoryBinder Nothing (x0', ty0') : paramsRest' -> pure (x0', ty0', paramsRest')
+      MandatoryBinder (Just _) _ : _ -> error "TODO (error): makeLamRec, with a label"
+      ImplicitBinder _ : _ -> error "TODO (error): makeLamRec, implicit binder"
       [] -> error "TODO (error): makeLamRec, empty parameter sequence"
   btyBody <- assignBindingTimeVarToTypeExpr tyBody
   (beRest, btyRest) <- foldrM go (beBody, btyBody) paramsRest
@@ -136,18 +137,18 @@ makeRecLam f params tyBody eBody = do
         let TypeExpr loc1 _ = ty0
             Expr loc2 _ = eBody
          in mergeSpan loc1 loc2
-  let btyRec = TypeExpr (BTVar btv, ann) (TyArrow (Just x0, bty0) btyRest)
-  pure $ Expr (BTVar btv, ann) (Lam (Just (f, btyRec)) (x0, bty0) beRest)
+  let btyRec = TypeExpr (BTVar btv, ann) (TyArrow Nothing (Just x0, bty0) btyRest)
+  pure $ Expr (BTVar btv, ann) (Lam (Just (f, btyRec)) Nothing (x0, bty0) beRest)
   where
     go :: LamBinder -> (BExpr, BTypeExpr) -> Assigner (BExpr, BTypeExpr)
-    go (MandatoryBinder (x, ty@(TypeExpr loc1 _))) (beAcc@(Expr (_, loc2) _), btyAcc) = do
+    go (MandatoryBinder labelOpt (x, ty@(TypeExpr loc1 _))) (beAcc@(Expr (_, loc2) _), btyAcc) = do
       btv <- fresh
       let ann = mergeSpan loc1 loc2 -- TODO (enhance): give better code position
       bty <- assignBindingTimeVarToTypeExpr ty
-      let beAcc' = Expr (BTVar btv, ann) (Lam Nothing (x, bty) beAcc)
-      let btyAcc' = TypeExpr (BTVar btv, ann) (TyArrow (Just x, bty) btyAcc)
+      let beAcc' = Expr (BTVar btv, ann) (Lam Nothing labelOpt (x, bty) beAcc)
+      let btyAcc' = TypeExpr (BTVar btv, ann) (TyArrow labelOpt (Just x, bty) btyAcc)
       pure (beAcc', btyAcc')
-    go (OptionalBinder (x, ty@(TypeExpr loc1 _))) (beAcc@(Expr (_, loc2) _), btyAcc) = do
+    go (ImplicitBinder (x, ty@(TypeExpr loc1 _))) (beAcc@(Expr (_, loc2) _), btyAcc) = do
       btv <- fresh
       let ann = mergeSpan loc1 loc2 -- TODO (enhance): give better code position
       bty <- assignBindingTimeVarToTypeExpr ty
@@ -163,10 +164,10 @@ assignBindingTimeVarToTypeExpr (TypeExpr ann typeExprMain) = do
       TyName tyName args -> do
         bargs <- mapM assignBindingTimeVarToArgForType args
         pure $ TyName tyName bargs
-      TyArrow (xOpt, ty1) ty2 -> do
+      TyArrow labelOpt (xOpt, ty1) ty2 -> do
         bty1 <- assignBindingTimeVarToTypeExpr ty1
         bty2 <- assignBindingTimeVarToTypeExpr ty2
-        pure $ TyArrow (xOpt, bty1) bty2
+        pure $ TyArrow labelOpt (xOpt, bty1) bty2
       TyOptArrow (x, ty1) ty2 -> do
         bty1 <- assignBindingTimeVarToTypeExpr ty1
         bty2 <- assignBindingTimeVarToTypeExpr ty2
@@ -284,14 +285,14 @@ extractConstraintsFromExpr btenv (Expr (bt, ann) exprMain) = do
           Just (EntryModule _) ->
             analysisError $ NotAVal spanInFile ms x
       pure (Expr (bt, ann) (Var (ms, x')), bity, constraints)
-    Lam Nothing (x1, btye1) e2 -> do
+    Lam Nothing labelOpt (x1, btye1) e2 -> do
       (btye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr btenv btye1
       (e2', bity2@(BIType bt2 _), constraints2) <-
         extractConstraintsFromExpr (Map.insert x1 (EntryLocallyBound bt bity1) btenv) e2
       let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
-      let e' = Expr (bt, ann) (Lam Nothing (x1, btye1') e2')
+      let e' = Expr (bt, ann) (Lam Nothing labelOpt (x1, btye1') e2')
       pure (e', BIType bt (BITyArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
-    Lam (Just (f, btyeRec)) (x1, btye1) e2 -> do
+    Lam (Just (f, btyeRec)) labelOpt (x1, btye1) e2 -> do
       -- Not confident. TODO: check the validity of the following
       (btyeRec', bityRec, constraintsRec) <- extractConstraintsFromTypeExpr btenv btyeRec
       (btye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr btenv btye1
@@ -302,9 +303,9 @@ extractConstraintsFromExpr btenv (Expr (bt, ann) exprMain) = do
       let bitySynth = BIType bt (BITyArrow bity1 bity2)
       constraintsEq <- makeConstraintsFromBITypeEquation ann bitySynth bityRec
       let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
-      let e' = Expr (bt, ann) (Lam (Just (f, btyeRec')) (x1, btye1') e2')
+      let e' = Expr (bt, ann) (Lam (Just (f, btyeRec')) labelOpt (x1, btye1') e2')
       pure (e', bitySynth, constraintsRec ++ constraints1 ++ constraints2 ++ constraintsEq ++ constraints)
-    App e1 e2 -> do
+    App e1 labelOpt e2 -> do
       (e1WithoutOpts, bity1WithoutOpts, constraints1) <- extractConstraintsFromExpr btenv e1
       let (e1', bity1@(BIType bt1 bityMain1)) = appendOmittedOptionalArguments e1WithoutOpts bity1WithoutOpts
       (e2', bity2, constraints2) <- extractConstraintsFromExpr btenv e2
@@ -318,7 +319,7 @@ extractConstraintsFromExpr btenv (Expr (bt, ann) exprMain) = do
             let Expr (_, ann1) _ = e1
             spanInFile1 <- askSpanInFile ann1
             analysisError $ NotAFunction spanInFile1 bity1
-      pure (Expr (bt, ann) (App e1' e2'), bity, constraints)
+      pure (Expr (bt, ann) (App e1' labelOpt e2'), bity, constraints)
     LetIn _x (_ : _) _eBody _e2 ->
       error "Bug: Analyzer.extractConstraintsFromExpr, non-empty parameter sequence"
     LetIn x [] e1 e2 -> do
@@ -365,7 +366,7 @@ extractConstraintsFromExpr btenv (Expr (bt, ann) exprMain) = do
       -- Not confident. TODO: check the validity of the following
       (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr btenv e1
       (e2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromExpr btenv e2
-      let e' = Expr (bt, ann) (Sequential e1' e2')
+      let e' = Expr (bt, ann) (Tuple e1' e2')
       let bity = BIType bt (BITyProduct bity1 bity2)
       pure (e', bity, constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
     IfThenElse e0 e1 e2 -> do
@@ -503,19 +504,19 @@ extractConstraintsFromTypeExpr btenv (TypeExpr (bt, ann) typeExprMain) = do
             analysisError $ UnknownTypeOrInvalidArgs spanInFile tyName args
       let tye' = TypeExpr (bt, ann) (TyName tyName args')
       pure (tye', BIType bt (BITyBase bityBaseArgs), constraints)
-    TyArrow (x1opt, tye1) tye2 -> do
+    TyArrow labelOpt (x1opt, tye1) tye2 -> do
       (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr btenv tye1
       case x1opt of
         Nothing -> do
           (tye2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromTypeExpr btenv tye2
           let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
-          let tye' = TypeExpr (bt, ann) (TyArrow (Nothing, tye1') tye2')
+          let tye' = TypeExpr (bt, ann) (TyArrow labelOpt (Nothing, tye1') tye2')
           pure (tye', BIType bt (BITyArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
         Just x1 -> do
           (tye2', bity2@(BIType bt2 _), constraints2) <-
             extractConstraintsFromTypeExpr (Map.insert x1 (EntryLocallyBound bt bity1) btenv) tye2
           let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
-          let tye' = TypeExpr (bt, ann) (TyArrow (Just x1, tye1') tye2')
+          let tye' = TypeExpr (bt, ann) (TyArrow labelOpt (Just x1, tye1') tye2')
           pure (tye', BIType bt (BITyArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
     TyOptArrow (x1, tye1) tye2 -> do
       (tye1', bity1, constraints1) <- extractConstraintsFromTypeExpr btenv tye1

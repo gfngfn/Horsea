@@ -38,12 +38,12 @@ stageExpr0Main = \case
     Staged.Literal (convertLiteral stageExpr0 lit)
   Var (ms, x) ->
     Staged.Var (ms, x)
-  Lam Nothing (x, tye1) e2 ->
-    Staged.Lam Nothing (x, stageTypeExpr0 tye1) (stageExpr0 e2)
-  Lam (Just (f, tyeRec)) (x, tye1) e2 ->
-    Staged.Lam (Just (f, stageTypeExpr0 tyeRec)) (x, stageTypeExpr0 tye1) (stageExpr0 e2)
-  App e1 e2 ->
-    Staged.App (stageExpr0 e1) (stageExpr0 e2)
+  Lam Nothing labelOpt (x, tye1) e2 ->
+    Staged.Lam Nothing labelOpt (x, stageTypeExpr0 tye1) (stageExpr0 e2)
+  Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 ->
+    Staged.Lam (Just (f, stageTypeExpr0 tyeRec)) labelOpt (x, stageTypeExpr0 tye1) (stageExpr0 e2)
+  App e1 labelOpt e2 ->
+    Staged.App (stageExpr0 e1) labelOpt (stageExpr0 e2)
   LetIn _x (_ : _) _e1 _e2 ->
     error "Bug: Stager.stageExpr0Main, non-empty parameter sequence"
   LetIn x [] e1 e2 ->
@@ -81,12 +81,12 @@ stageExpr1Main = \case
     Staged.Literal (convertLiteral stageExpr1 lit)
   Var (ms, x) ->
     Staged.Var (ms, x)
-  Lam Nothing (x, tye1) e2 ->
-    Staged.Lam Nothing (x, stageTypeExpr1 tye1) (stageExpr1 e2)
-  Lam (Just (f, tyeRec)) (x, tye1) e2 ->
-    Staged.Lam (Just (f, stageTypeExpr1 tyeRec)) (x, stageTypeExpr1 tye1) (stageExpr1 e2)
-  App e1 e2 ->
-    Staged.App (stageExpr1 e1) (stageExpr1 e2)
+  Lam Nothing labelOpt (x, tye1) e2 ->
+    Staged.Lam Nothing labelOpt (x, stageTypeExpr1 tye1) (stageExpr1 e2)
+  Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 ->
+    Staged.Lam (Just (f, stageTypeExpr1 tyeRec)) labelOpt (x, stageTypeExpr1 tye1) (stageExpr1 e2)
+  App e1 labelOpt e2 ->
+    Staged.App (stageExpr1 e1) labelOpt (stageExpr1 e2)
   LetIn _x (_ : _) _e1 _e2 ->
     error "Bug: Stager.stageExpr0Main, non-empty parameter sequence"
   LetIn x [] e1 e2 ->
@@ -124,8 +124,8 @@ stageTypeExpr0Main = \case
     case args of
       [] -> Staged.TyName tyName []
       _ : _ -> error "bug: stageTypeExpr0Main, non-empty `args`"
-  TyArrow (xOpt, tye1) tye2 ->
-    Staged.TyArrow (xOpt, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
+  TyArrow labelOpt (xOpt, tye1) tye2 ->
+    Staged.TyArrow labelOpt (xOpt, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
   TyOptArrow (x, tye1) tye2 ->
     Staged.TyOptArrow (x, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
   TyProduct tye1 tye2 ->
@@ -140,7 +140,7 @@ stageTypeExpr1 (TypeExpr (btc, ann) typeExprMain) =
 stageTypeExpr1Main :: BCTypeExprMainF ann -> Staged.TypeExprMainF ann
 stageTypeExpr1Main = \case
   TyName tyName args -> Staged.TyName tyName (map stageArgForType1 args)
-  TyArrow (_xOpt, tye1) tye2 -> Staged.TyArrow (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
+  TyArrow labelOpt (_xOpt, tye1) tye2 -> Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
   TyOptArrow (_x, _tye1) _tye2 -> error "bug: stageTypeExpr1Main, TyOptArrow"
   TyProduct tye1 tye2 -> Staged.TyProduct (stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
 

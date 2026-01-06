@@ -112,6 +112,13 @@ validateIntListLiteral a0v = do
   a0vs <- validateListValue a0v
   mapM validateIntLiteral a0vs
 
+validateIntPairLiteral :: Ass0Val -> M (Int, Int)
+validateIntPairLiteral a0v = do
+  (a0v1, a0v2) <- validateTupleValue a0v
+  n1 <- validateIntLiteral a0v1
+  n2 <- validateIntLiteral a0v2
+  pure (n1, n2)
+
 validateVec0 :: Ass0Val -> M Vector
 validateVec0 = \case
   A0ValLiteral (ALitVec v) -> pure v
@@ -357,6 +364,15 @@ reduceDeltaArity7 bi7 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 =
       batchSize <- validateIntLiteral a0v6
       let _f = a0v7
       pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperBatchAccuracy ntrain ntest imgdim labeldim n batchSize))
+    BITensorGenMaxPool2d -> do
+      k <- validateIntLiteral a0v1
+      l <- validateIntLiteral a0v2
+      m <- validateIntLiteral a0v3
+      n <- validateIntLiteral a0v4
+      (padding1, padding2) <- validateIntPairLiteral a0v5
+      (ksize1, ksize2) <- validateIntPairLiteral a0v6
+      (stride1, stride2) <- validateIntPairLiteral a0v7
+      pure $ A0ValBracket (A1ValConst (A1BITensorMaxPool2d k l m n padding1 padding2 ksize1 ksize2 stride1 stride2))
 
 reduceDeltaArity8 :: BuiltInArity8 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity8 bi8 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 a0v8 =
@@ -371,22 +387,6 @@ reduceDeltaArity8 bi8 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 a0v8 =
       input_dim <- validateIntLiteral a0v7
       output_dim <- validateIntLiteral a0v8
       pure $ A0ValBracket (A1ValConst (A1BILayerConv2d l m n ksize stride padding input_dim output_dim))
-
-reduceDeltaArity10 :: BuiltInArity10 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
-reduceDeltaArity10 bi10 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 a0v8 a0v9 a0v10 =
-  case bi10 of
-    BITensorGenMaxPool2d -> do
-      k <- validateIntLiteral a0v1
-      l <- validateIntLiteral a0v2
-      m <- validateIntLiteral a0v3
-      n <- validateIntLiteral a0v4
-      padding1 <- validateIntLiteral a0v5
-      padding2 <- validateIntLiteral a0v6
-      ksize1 <- validateIntLiteral a0v7
-      ksize2 <- validateIntLiteral a0v8
-      stride1 <- validateIntLiteral a0v9
-      stride2 <- validateIntLiteral a0v10
-      pure $ A0ValBracket (A1ValConst (A1BITensorMaxPool2d k l m n padding1 padding2 ksize1 ksize2 stride1 stride2))
 
 reduceDelta :: Ass0PartialBuiltInApp Ass0Val -> Ass0Val -> M Ass0Val
 reduceDelta pba a0vArg =
@@ -407,10 +407,6 @@ reduceDelta pba a0vArg =
       partial $ A0PartialBuiltInAppArity6 (PartialBuiltInAppArity6Cons pba7 a0vArg)
     A0PartialBuiltInAppArity8 pba8 ->
       partial $ A0PartialBuiltInAppArity7 (PartialBuiltInAppArity7Cons pba8 a0vArg)
-    A0PartialBuiltInAppArity9 pba9 ->
-      partial $ A0PartialBuiltInAppArity8 (PartialBuiltInAppArity8Cons pba9 a0vArg)
-    A0PartialBuiltInAppArity10 pba10 ->
-      partial $ A0PartialBuiltInAppArity9 (PartialBuiltInAppArity9Cons pba10 a0vArg)
   where
     partial = pure . A0ValPartialBuiltInApp
 
@@ -442,12 +438,6 @@ reduceDelta pba a0vArg =
                                   case pba8 of
                                     PartialBuiltInAppArity8Nil bi8 ->
                                       reduceDeltaArity8 bi8 v8 v7 v6 v5 v4 v3 v2 v1
-                                    PartialBuiltInAppArity8Cons pba9 v9 ->
-                                      case pba9 of
-                                        PartialBuiltInAppArity9Cons pba10 v10 ->
-                                          case pba10 of
-                                            PartialBuiltInAppArity10Nil bi10 ->
-                                              reduceDeltaArity10 bi10 v10 v9 v8 v7 v6 v5 v4 v3 v2 v1
 
 reduceBeta :: Ass0Val -> Ass0Val -> M Ass0Val
 reduceBeta a0vFun a0vArg =
@@ -490,7 +480,6 @@ evalExpr0 env = \case
         BuiltInArity5 bi5 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity5 (PartialBuiltInAppArity5Nil bi5))
         BuiltInArity7 bi7 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity7 (PartialBuiltInAppArity7Nil bi7))
         BuiltInArity8 bi8 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity8 (PartialBuiltInAppArity8Nil bi8))
-        BuiltInArity10 bi10 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity10 (PartialBuiltInAppArity10Nil bi10))
         BuiltInOther s -> error $ "BuiltInOther: " ++ Text.unpack s
   A0Lam Nothing (x, a0tye1) a0e2 -> do
     a0tyv1 <- evalTypeExpr0 env a0tye1
@@ -668,10 +657,10 @@ evalTypeExpr1 env = \case
     a1tyv1 <- evalTypeExpr1 env a1tye1
     a1tyv2 <- evalTypeExpr1 env a1tye2
     pure $ A1TyValProduct a1tyv1 a1tyv2
-  A1TyArrow a1tye1 a1tye2 -> do
+  A1TyArrow labelOpt a1tye1 a1tye2 -> do
     a1tyv1 <- evalTypeExpr1 env a1tye1
     a1tyv2 <- evalTypeExpr1 env a1tye2
-    pure $ A1TyValArrow a1tyv1 a1tyv2
+    pure $ A1TyValArrow labelOpt a1tyv1 a1tyv2
   A1TyImplicitForAll atyvar a1tye2 -> do
     pure $ A1TyValImplicitForAll atyvar a1tye2
 
@@ -716,7 +705,7 @@ unliftTypeVal = \case
     error "TODO: unliftTypeVal, A1TyValVar"
   A1TyValProduct a1tyv1 a1tyv2 ->
     SA0TyProduct (unliftTypeVal a1tyv1) (unliftTypeVal a1tyv2)
-  A1TyValArrow a1tyv1 a1tyv2 ->
+  A1TyValArrow _labelOpt a1tyv1 a1tyv2 ->
     SA0TyArrow (Nothing, unliftTypeVal a1tyv1) (unliftTypeVal a1tyv2)
   A1TyValImplicitForAll _atyvar _a1tye2 ->
     error "TODO: unliftTypeVal, A1TyValImplicitForAll"

@@ -27,6 +27,7 @@ data Token
   | TokArrow
   | TokEqual
   | TokColon
+  | TokColonColon
   | TokComma
   | TokSemicolon
   | TokUnderscore
@@ -39,6 +40,7 @@ data Token
   | TokLower Text
   | TokUpper Text
   | TokLongLower ([Text], Text)
+  | TokLabel Text
   | TokInt Int
   | TokFloat Double
   | TokString Text
@@ -73,6 +75,7 @@ showToken = \case
   TokArrow -> "->"
   TokEqual -> "="
   TokColon -> ":"
+  TokColonColon -> "::"
   TokComma -> ","
   TokSemicolon -> ";"
   TokUnderscore -> "_"
@@ -85,6 +88,7 @@ showToken = \case
   TokLower lower -> Text.unpack lower
   TokUpper upper -> Text.unpack upper
   TokLongLower (mods, lower) -> Text.unpack (Text.intercalate "." mods <> lower)
+  TokLabel label -> "#" ++ Text.unpack label
   TokInt n -> show n
   TokFloat r -> show r
   TokString s -> show s
@@ -137,6 +141,7 @@ token =
       TokLeftBrace <$ Mp.single '{',
       TokRightBrace <$ Mp.single '}',
       TokArrow <$ Mp.chunk "->",
+      TokColonColon <$ Mp.chunk "::",
       TokColon <$ Mp.single ':',
       TokComma <$ Mp.single ',',
       Mp.try (TokOpComp <$> operatorLong '='),
@@ -147,6 +152,7 @@ token =
       TokVecLeft <$ Mp.chunk "[|",
       TokVecRight <$ Mp.chunk "|]",
       TokMatLeft <$ Mp.chunk "[#",
+      Mp.try (TokLabel <$> (Mp.single '#' *> lowerIdent)),
       TokMatRight <$ Mp.chunk "#]",
       TokLeftSquare <$ Mp.single '[',
       TokRightSquare <$ Mp.single ']',

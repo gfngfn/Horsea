@@ -1,5 +1,6 @@
 module Staged.Syntax
-  ( DatasetParam (..),
+  ( Label,
+    DatasetParam (..),
     StaticVar (..),
     AssVarF (..),
     Symbol (..),
@@ -74,6 +75,8 @@ import Util.Matrix (Matrix)
 import Util.TokenUtil (Span)
 import Util.Vector (Vector)
 import Prelude
+
+type Label = Text
 
 data DatasetParam f a = DatasetParam
   { numTrain :: a,
@@ -184,7 +187,7 @@ data Ass0TypeExprF sv
   | A0TyVar AssTypeVar
   | A0TyProduct (Ass0TypeExprF sv) (Ass0TypeExprF sv) -- TODO: generalize product types
   | -- | (Possibly dependent) function types.
-    A0TyArrow (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
+    A0TyArrow (Maybe Label) (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | -- | Function types with an implicit parameter.
     A0TyOptArrow (AssVarF sv, Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | A0TyCode (Ass1TypeExprF sv)
@@ -245,7 +248,7 @@ data Ass1TypeExprF sv
   | A1TyList (Ass1TypeExprF sv)
   | A1TyVar AssTypeVar
   | A1TyProduct (Ass1TypeExprF sv) (Ass1TypeExprF sv) -- TODO: generalize product types
-  | A1TyArrow (Ass1TypeExprF sv) (Ass1TypeExprF sv)
+  | A1TyArrow (Maybe Label) (Ass1TypeExprF sv) (Ass1TypeExprF sv)
   | A1TyImplicitForAll AssTypeVar (Ass1TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
@@ -261,7 +264,7 @@ data AssPersTypeExpr
   | APersTyVar AssTypeVar
   | APersTyList AssPersTypeExpr
   | APersTyProduct AssPersTypeExpr AssPersTypeExpr
-  | APersTyArrow AssPersTypeExpr AssPersTypeExpr
+  | APersTyArrow (Maybe Label) AssPersTypeExpr AssPersTypeExpr
   | APersTyImplicitForAll AssTypeVar AssPersTypeExpr
   deriving stock (Eq, Show)
 
@@ -271,7 +274,7 @@ persistentTypeTo0 = \case
   APersTyVar atyvar -> A0TyVar atyvar
   APersTyList aPtye -> A0TyList (persistentTypeTo0 aPtye) Nothing
   APersTyProduct aPtye1 aPtye2 -> A0TyProduct (persistentTypeTo0 aPtye1) (persistentTypeTo0 aPtye2)
-  APersTyArrow aPtye1 aPtye2 -> A0TyArrow (Nothing, persistentTypeTo0 aPtye1) (persistentTypeTo0 aPtye2)
+  APersTyArrow labelOpt aPtye1 aPtye2 -> A0TyArrow labelOpt (Nothing, persistentTypeTo0 aPtye1) (persistentTypeTo0 aPtye2)
   APersTyImplicitForAll atyvar aPtye -> A0TyImplicitForAll atyvar (persistentTypeTo0 aPtye)
 
 persistentTypeTo1 :: AssPersTypeExpr -> Ass1TypeExprF sv
@@ -280,7 +283,7 @@ persistentTypeTo1 = \case
   APersTyVar atyvar -> A1TyVar atyvar
   APersTyList aPtye -> A1TyList (persistentTypeTo1 aPtye)
   APersTyProduct aPtye1 aPtye2 -> A1TyProduct (persistentTypeTo1 aPtye1) (persistentTypeTo1 aPtye2)
-  APersTyArrow aPtye1 aPtye2 -> A1TyArrow (persistentTypeTo1 aPtye1) (persistentTypeTo1 aPtye2)
+  APersTyArrow labelOpt aPtye1 aPtye2 -> A1TyArrow labelOpt (persistentTypeTo1 aPtye1) (persistentTypeTo1 aPtye2)
   APersTyImplicitForAll atyvar aPtye -> A1TyImplicitForAll atyvar (persistentTypeTo1 aPtye)
 
 liftPrimType :: Ass0PrimType -> Ass1PrimTypeF sv
@@ -351,7 +354,7 @@ data Ass1TypeValF sv
   | A1TyValList (Ass1TypeValF sv)
   | A1TyValVar AssTypeVar
   | A1TyValProduct (Ass1TypeValF sv) (Ass1TypeValF sv)
-  | A1TyValArrow (Ass1TypeValF sv) (Ass1TypeValF sv)
+  | A1TyValArrow (Maybe Label) (Ass1TypeValF sv) (Ass1TypeValF sv)
   | A1TyValImplicitForAll AssTypeVar (Ass1TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
@@ -365,7 +368,7 @@ data Ass1PrimTypeVal
 data Type1EquationF sv
   = TyEq1Prim (Type1PrimEquationF sv)
   | TyEq1List (Type1EquationF sv)
-  | TyEq1Arrow (Type1EquationF sv) (Type1EquationF sv)
+  | TyEq1Arrow (Maybe Label) (Type1EquationF sv) (Type1EquationF sv)
   | TyEq1Product (Type1EquationF sv) (Type1EquationF sv)
   deriving stock (Eq, Show, Functor)
 
@@ -424,7 +427,7 @@ strictify = \case
   A0TyVar atyvar -> SA0TyVar atyvar
   A0TyList a0tye maybePred -> SA0TyList (strictify a0tye) maybePred
   A0TyProduct a0tye1 a0tye2 -> SA0TyProduct (strictify a0tye1) (strictify a0tye2)
-  A0TyArrow (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, strictify a0tye1) (strictify a0tye2)
+  A0TyArrow _labelOpt (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, strictify a0tye1) (strictify a0tye2)
   A0TyCode a1tye1 -> SA0TyCode a1tye1
   A0TyOptArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictify a0tye1) (strictify a0tye2)
   A0TyImplicitForAll atyvar a0tye -> SA0TyExplicitForAll atyvar (strictify a0tye)
@@ -473,10 +476,10 @@ decomposeType1Equation = \case
   TyEq1List ty1eqElem ->
     let (a1tye1elem, a1tye2elem) = decomposeType1Equation ty1eqElem
      in (A1TyList a1tye1elem, A1TyList a1tye2elem)
-  TyEq1Arrow ty1eqDom ty1eqCod ->
+  TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
     let (a1tye11, a1tye21) = decomposeType1Equation ty1eqDom
         (a1tye12, a1tye22) = decomposeType1Equation ty1eqCod
-     in (A1TyArrow a1tye11 a1tye12, A1TyArrow a1tye21 a1tye22)
+     in (A1TyArrow labelOpt a1tye11 a1tye12, A1TyArrow labelOpt a1tye21 a1tye22)
   TyEq1Product ty1eq1 ty1eq2 ->
     let (a1tye11, a1tye21) = decomposeType1Equation ty1eq1
         (a1tye12, a1tye22) = decomposeType1Equation ty1eq2
@@ -496,8 +499,8 @@ decomposeListEquation = \case
 type AppContextF sv = [AppContextEntryF sv]
 
 data AppContextEntryF sv
-  = AppArg0 (Ass0ExprF sv) (Ass0TypeExprF sv)
-  | AppArg1 (Ass1TypeExprF sv)
+  = AppArg0 (Maybe Label) (Ass0ExprF sv) (Ass0TypeExprF sv)
+  | AppArg1 (Maybe Label) (Ass1TypeExprF sv)
   | AppArgOptGiven0 (Ass0ExprF sv) (Ass0TypeExprF sv)
   | AppArgOptOmitted0
   deriving (Eq, Show, Functor)

@@ -32,10 +32,16 @@ tyCode :: TypeExprVoid -> TypeExprVoid
 tyCode = typ . TyCode
 
 tyDepFun :: Var -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
-tyDepFun x tye1 tye2 = typ (TyArrow (Just x, tye1) tye2)
+tyDepFun x tye1 tye2 = typ (TyArrow Nothing (Just x, tye1) tye2)
+
+tyDepFunWithLabel :: Label -> Var -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
+tyDepFunWithLabel label x tye1 tye2 = typ (TyArrow (Just label) (Just x, tye1) tye2)
 
 tyNondepFun :: TypeExprVoid -> TypeExprVoid -> TypeExprVoid
-tyNondepFun tye1 tye2 = typ (TyArrow (Nothing, tye1) tye2)
+tyNondepFun tye1 tye2 = typ (TyArrow Nothing (Nothing, tye1) tye2)
+
+tyNondepFunWithLabel :: Label -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
+tyNondepFunWithLabel label tye1 tye2 = typ (TyArrow (Just label) (Nothing, tye1) tye2)
 
 tyRefinement :: Var -> TypeExprVoid -> ExprVoid -> TypeExprVoid
 tyRefinement x tye1 e2 = typ (TyRefinement x tye1 e2)
@@ -71,13 +77,16 @@ longVar :: [Var] -> Var -> ExprVoid
 longVar ms x = expr (long ms x)
 
 nonrecLam :: (Var, TypeExprVoid) -> ExprVoid -> ExprVoid
-nonrecLam binder e = expr (Lam Nothing binder e)
+nonrecLam binder e = expr (Lam Nothing Nothing binder e)
 
 recLam :: (Var, TypeExprVoid) -> (Var, TypeExprVoid) -> ExprVoid -> ExprVoid
-recLam binderF binderX e = expr (Lam (Just binderF) binderX e)
+recLam binderF binderX e = expr (Lam (Just binderF) Nothing binderX e)
 
 app :: ExprVoid -> ExprVoid -> ExprVoid
-app e1 e2 = expr (App e1 e2)
+app e1 e2 = expr (App e1 Nothing e2)
+
+appWithLabel :: ExprVoid -> Label -> ExprVoid -> ExprVoid
+appWithLabel e1 label e2 = expr (App e1 (Just label) e2)
 
 appOptGiven :: ExprVoid -> ExprVoid -> ExprVoid
 appOptGiven e1 e2 = expr (AppOptGiven e1 e2)

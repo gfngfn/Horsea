@@ -332,7 +332,7 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
       unionPairs [frees a0tye, frees (Maybe1 maybePred)]
     A0TyProduct a0tye1 a0tye2 ->
       unionPairs [frees a0tye1, frees a0tye2]
-    A0TyArrow (yOpt, a0tye1) a0tye2 ->
+    A0TyArrow _labelOpt (yOpt, a0tye1) a0tye2 ->
       let (var0set1, var1set1) = frees a0tye1
           (var0set2, var1set2) = frees a0tye2
           var0set =
@@ -362,8 +362,8 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
       A0TyList (go a0tye) (unMaybe1 . go . Maybe1 $ maybePred)
     A0TyProduct a0tye1 a0tye2 ->
       A0TyProduct (go a0tye1) (go a0tye2)
-    A0TyArrow (yOpt, a0tye1) a0tye2 ->
-      A0TyArrow (yOpt, go a0tye1) $
+    A0TyArrow labelOpt (yOpt, a0tye1) a0tye2 ->
+      A0TyArrow labelOpt (yOpt, go a0tye1) $
         case (yOpt, s) of
           (Just y, Subst0 x _) -> if y == x then a0tye2 else go a0tye2
           (Nothing, _) -> go a0tye2
@@ -389,9 +389,10 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
         atyvar1 == atyvar2
       (A0TyList a0tye1' maybePred1, A0TyList a0tye2' maybePred2) ->
         go a0tye1' a0tye2' && go (Maybe1 maybePred1) (Maybe1 maybePred2)
-      (A0TyArrow (y1opt, a0tye11) a0tye12, A0TyArrow (y2opt, a0tye21) a0tye22) ->
-        (go a0tye11 a0tye21 &&) $
-          case (y1opt, y2opt) of
+      (A0TyArrow labelOpt1 (y1opt, a0tye11) a0tye12, A0TyArrow labelOpt2 (y2opt, a0tye21) a0tye22) ->
+        labelOpt1 == labelOpt2
+          && go a0tye11 a0tye21
+          && case (y1opt, y2opt) of
             (Nothing, Nothing) ->
               go a0tye12 a0tye22
             (Just y1, Nothing) ->
@@ -434,7 +435,7 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       (Set.empty, Set.empty)
     A1TyProduct a1tye1 a1tye2 ->
       unionPairs [frees a1tye1, frees a1tye2]
-    A1TyArrow a1tye1 a1tye2 ->
+    A1TyArrow _labelOpt a1tye1 a1tye2 ->
       unionPairs [frees a1tye1, frees a1tye2]
     A1TyImplicitForAll _atyvar a1tye2 ->
       frees a1tye2
@@ -451,8 +452,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       A1TyVar atyvar
     A1TyProduct a1tye1 a1tye2 ->
       A1TyProduct (go a1tye1) (go a1tye2)
-    A1TyArrow a1tye1 a1tye2 ->
-      A1TyArrow (go a1tye1) (go a1tye2)
+    A1TyArrow labelOpt a1tye1 a1tye2 ->
+      A1TyArrow labelOpt (go a1tye1) (go a1tye2)
     A1TyImplicitForAll atyvar a1tye2 ->
       A1TyImplicitForAll atyvar (go a1tye2)
     where
@@ -471,8 +472,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
             False
       (A1TyList a1tye1', A1TyList a1tye2') ->
         go a1tye1' a1tye2'
-      (A1TyArrow a1tye11 a1tye12, A1TyArrow a1tye21 a1tye22) ->
-        go a1tye11 a1tye21 && go a1tye12 a1tye22
+      (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) ->
+        labelOpt1 == labelOpt2 && go a1tye11 a1tye21 && go a1tye12 a1tye22
       (_, _) ->
         False
     where
@@ -565,7 +566,7 @@ instance (Ord sv) => HasVar sv Type1EquationF where
         TyEq1Dataset datasetParamEq -> frees datasetParamEq
     TyEq1List ty1eqElem ->
       frees ty1eqElem
-    TyEq1Arrow ty1eqDom ty1eqCod ->
+    TyEq1Arrow _labelOpt ty1eqDom ty1eqCod ->
       unionPairs [frees ty1eqDom, frees ty1eqCod]
     TyEq1Product ty1eq1 ty1eq2 ->
       unionPairs [frees ty1eq1, frees ty1eq2]
@@ -579,8 +580,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
           TyEq1Dataset dpEq -> TyEq1Dataset (go dpEq)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
-    TyEq1Arrow ty1eqDom ty1eqCod ->
-      TyEq1Arrow (go ty1eqDom) (go ty1eqCod)
+    TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
+      TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
     TyEq1Product ty1eq1 ty1eq2 ->
       TyEq1Product (go ty1eq1) (go ty1eq2)
     where
@@ -597,8 +598,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
           (_, _) -> False
       (TyEq1List ty1eqElem1, TyEq1List ty1eqElem2) ->
         go ty1eqElem1 ty1eqElem2
-      (TyEq1Arrow ty1eqDom1 ty1eqCod1, TyEq1Arrow ty1eqDom2 ty1eqCod2) ->
-        go ty1eqDom1 ty1eqDom2 && go ty1eqCod1 ty1eqCod2
+      (TyEq1Arrow labelOpt1 ty1eqDom1 ty1eqCod1, TyEq1Arrow labelOpt2 ty1eqDom2 ty1eqCod2) ->
+        labelOpt1 == labelOpt2 && go ty1eqDom1 ty1eqDom2 && go ty1eqCod1 ty1eqCod2
       (_, _) ->
         False
     where
