@@ -76,10 +76,6 @@ module Tensor = struct
     {shape1 : List Nat} -> {shape2 : {s : List Nat | broadcastable shape1 s}} ->
     &(Tensor %shape1 -> Tensor %shape2 -> Tensor %(broadcast shape1 shape2))
     external (builtin = "tensor__gen_add", surface = "+")
-  val ~gen_increment :
-    {shape : List Nat} ->
-    &(Tensor %shape -> Tensor %shape -> Unit)
-    external (builtin = "tensor__gen_increment", surface = "+=")
   val ~gen_mult :
     {shape1 : List Nat} -> {shape2 : {s : List Nat | broadcastable shape1 s}} ->
     &(Tensor %shape1 -> Tensor %shape2 -> Tensor %(broadcast shape1 shape2))
@@ -90,6 +86,8 @@ module Tensor = struct
     external (builtin = "tensor__gen_zero_grad", surface = "zero_grad")
   val ~gen_mm : {a : Nat} -> {b : Nat} -> {c : Nat} -> &(Mat %a %b -> Mat %b %c -> Mat %a %c)
     external (builtin = "tensor__gen_mm", surface = "mm")
+  val ~gen_add_update : {shape : List Nat} -> &(Tensor %shape -> Tensor %shape -> Unit)
+    external (builtin = "tensor__gen_add_update", surface = "+=")
   val ~gen_sub_update : {shape : List Nat} -> &(Tensor %shape -> Tensor %shape -> Unit)
     external (builtin = "tensor__gen_sub_update", surface = "-=")
   val ~gen_argmax : {shape : List Nat} -> (dim : Nat) -> &(Tensor %shape -> Tensor %(drop_at dim shape))
@@ -243,19 +241,26 @@ module DatasetHelper = struct
     {imgdim : List Nat} ->
     {labeldim : List Nat} ->
     {n : Nat} ->
-    (batch_size : Nat) ->
-    (predict :
-      ((actual_batch_size : Nat) ->
-        &(Tensor %(actual_batch_size :: imgdim) -> Tensor %[actual_batch_size, n])
-      )) ->
+    #batch_size (batch_size : Nat) ->
+    #predict ((actual_batch_size : Nat) ->
+      &(Tensor %(actual_batch_size :: imgdim) -> Tensor %[actual_batch_size, n])
+    ) ->
     &(Device -> Dataset %ntrain %ntest %imgdim %labeldim -> Float)
     external (builtin = "dataset_helper__gen_batch_accuracy", surface = "batch_accuracy")
+  val ~gen_batches_per_epoch :
+    {ntrain : Nat} ->
+    {ntest : Nat} ->
+    {imgdim : List Nat} ->
+    {labeldim : List Nat} ->
+    #batch_size (batch_size : Nat) ->
+    &(Dataset %ntrain %ntest %imgdim %labeldim -> Int)
+    external (builtin = "dataset_helper__gen_batches_per_epoch", surface = "batches_per_epoch")
   val ~gen_iter :
     {ntrain : Nat} ->
     {ntest : Nat} ->
     {imgdim : List Nat} ->
     {labeldim : List Nat} ->
-    (batch_size : Nat) ->
+    #batch_size (batch_size : Nat) ->
     ((actual_batch_size : Nat) ->
       &(Tensor %(actual_batch_size :: imgdim) -> Tensor %(actual_batch_size :: labeldim) -> Unit)
     ) ->
