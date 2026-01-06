@@ -66,19 +66,18 @@ let model_path = "path/to/model" in
       Device.cpu (* device *)
       ()
   in
-  ~(let gen_fc1 {ns : List Nat} =
-      &(~(Layer.gen_linear
-            {ns}
-            512 (* input_dim *)
-            (List.length classes)
-          )
-          train_vs
-          Layer.Activation.none
-      )
-    in
-    let gen_model {ns : List Nat} =
+  ~(let gen_model {ns : List Nat} =
       &(fun(xs : Tensor %ns) ->
-          ~Layer.gen_forward ~(gen_fc1 {ns}) xs
+          ~Layer.gen_forward
+            (~(Layer.gen_linear
+                {ns}
+                512 (* input_dim *)
+                (List.length classes)
+              )
+                train_vs
+                Layer.Activation.none
+            )
+            xs
       )
     in
     &(let sgd =
@@ -87,32 +86,38 @@ let model_path = "path/to/model" in
           0.001 (* learning_rate *)
           0.9 (* momentum *)
       in
-      List.iter (fun(epoch_idx : Nat) ->
+      List.iter (fun(epoch_idx : Int) ->
         let sum_loss = Tensor.f 0.0 in
-        DatasetHelper.iter
-          dataset
-          batch_size (* batch_size *)
-          (fun(u : X) -> fun(batch_images : Y) -> fun(batch_labels : Z) ->
-            let predicted = ~gen_model batch_images in
-            (* Compute the cross-entropy loss. *)
-            let loss =
-              Tensor.cross_entropy_for_logits
-                predicted
-                batch_labels (* targets *)
-            in
-            (let open Tensor in sum_loss += loss);
-            Optimizer.backward_step
-              sgd
-              loss (* loss *)
-          );
+        ~(DatasetHelper.gen_iter
+            batch_size (* batch_size *)
+            (fun(b : Nat) ->
+              &(fun(batch_images : Tensor %(batch_size :: [601, 702, 803])) -> fun(batch_labels : Tensor %[batch_size]) -> (* TODO *)
+                  let predicted = ~gen_model batch_images in
+
+                  (* Compute the cross-entropy loss. *)
+                  let loss =
+                    ~(Tensor.gen_cross_entropy_for_logits {904} {1105}) (* TODO *)
+                      predicted
+                      batch_labels (* targets *)
+                  in
+
+                  ~Tensor.gen_increment sum_loss loss;
+                  Optimizer.backward_step
+                    sgd
+                    loss (* loss *)
+              )
+            )
+        )
+          Device.cpu
+          dataset;
         (* Compute the validation error. *)
         let test_accuracy =
           ~(DatasetHelper.gen_batch_accuracy
               batch_size (* batch_size *)
               (* `test *)
-              dataset
-              model (* predict *)
+              gen_model (* predict *)
           )
+            dataset
         in
         print_string "train loss:";
         print_float (Tensor.float_value sum_loss / Float.of_int (DatasetHelper.batches_per_epoch dataset batch_size));
