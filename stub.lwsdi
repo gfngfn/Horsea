@@ -175,8 +175,8 @@ module Layer = struct
   val ~gen_forward_ :
     {shape1 : List Nat} ->
     {shape2 : List Nat} ->
-    &((Tensor %shape1 -> Bool -> Tensor %shape2) ->
-      Tensor %shape1 -> Bool -> Tensor %shape2
+    &((Tensor %shape1 -> #is_training Bool -> Tensor %shape2) ->
+      Tensor %shape1 -> #is_training Bool -> Tensor %shape2
     )
     external (builtin = "layer__gen_forward_", surface = "forward_")
   val ~gen_conv2d_ :

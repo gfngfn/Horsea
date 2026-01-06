@@ -32,7 +32,7 @@ let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (mode
                     ~Layer.gen_forward_
                       pretrained_model
                       batch_images
-                      false (* is_training *)
+                      #is_training false
                   in
                   (~Tensor.gen_copy activations, batch_labels)
               )
