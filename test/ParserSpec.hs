@@ -244,6 +244,9 @@ spec = do
     it "parses dependent function types (3)" $
       parseTypeExpr "(f : (n : Int) -> Int) -> Bool"
         `shouldBe` pure (tyDepFun "f" (tyDepFun "n" tyInt tyInt) tyBool)
+    it "parses dependent function types with labels" $
+      parseTypeExpr "#foo (n : Int) -> Bool"
+        `shouldBe` pure (tyDepFunWithLabel "foo" "n" tyInt tyBool)
     it "parses non-dependent function types (1)" $
       parseTypeExpr "Int -> Bool"
         `shouldBe` pure (tyNondepFun tyInt tyBool)
@@ -253,6 +256,9 @@ spec = do
     it "parses non-dependent function types (3)" $
       parseTypeExpr "(Int -> Int) -> Bool"
         `shouldBe` pure (tyNondepFun (tyNondepFun tyInt tyInt) tyBool)
+    it "parses non-dependent function types with labels" $
+      parseTypeExpr "#foo Int -> Bool"
+        `shouldBe` pure (tyNondepFunWithLabel "foo" tyInt tyBool)
     it "parses mixed function types (1)" $
       parseTypeExpr "(m : Int) -> Int -> Bool"
         `shouldBe` pure (tyDepFun "m" tyInt (tyNondepFun tyInt tyBool))
@@ -348,6 +354,7 @@ spec = do
       let ty =
             typLoc 9 26 $
               TyArrow
+                Nothing
                 (Just "n", typLoc 14 17 $ TyName "Int" [])
                 (typLoc 22 26 $ TyName "Bool" [])
           e =

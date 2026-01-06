@@ -32,10 +32,16 @@ tyCode :: TypeExprVoid -> TypeExprVoid
 tyCode = typ . TyCode
 
 tyDepFun :: Var -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
-tyDepFun x tye1 tye2 = typ (TyArrow (Just x, tye1) tye2)
+tyDepFun x tye1 tye2 = typ (TyArrow Nothing (Just x, tye1) tye2)
+
+tyDepFunWithLabel :: Label -> Var -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
+tyDepFunWithLabel label x tye1 tye2 = typ (TyArrow (Just label) (Just x, tye1) tye2)
 
 tyNondepFun :: TypeExprVoid -> TypeExprVoid -> TypeExprVoid
-tyNondepFun tye1 tye2 = typ (TyArrow (Nothing, tye1) tye2)
+tyNondepFun tye1 tye2 = typ (TyArrow Nothing (Nothing, tye1) tye2)
+
+tyNondepFunWithLabel :: Label -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
+tyNondepFunWithLabel label tye1 tye2 = typ (TyArrow (Just label) (Nothing, tye1) tye2)
 
 tyRefinement :: Var -> TypeExprVoid -> ExprVoid -> TypeExprVoid
 tyRefinement x tye1 e2 = typ (TyRefinement x tye1 e2)

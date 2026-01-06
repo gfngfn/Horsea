@@ -99,7 +99,7 @@ data TypeExprF ann = TypeExpr ann (TypeExprMainF ann)
 data TypeExprMainF ann
   = TyName TypeName [ArgForTypeF ann]
   | TyVar TypeVar
-  | TyArrow (Maybe Var, TypeExprF ann) (TypeExprF ann)
+  | TyArrow (Maybe Text) (Maybe Var, TypeExprF ann) (TypeExprF ann)
   | TyCode (TypeExprF ann)
   | TyOptArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)

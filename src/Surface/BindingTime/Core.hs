@@ -77,7 +77,7 @@ fromStaged0 = \case
     wrap0 $ BITyBase [fromStaged0 a0tye']
   Staged.A0TyProduct a0tye1 a0tye2 ->
     wrap0 $ BITyProduct (fromStaged0 a0tye1) (fromStaged0 a0tye2)
-  Staged.A0TyArrow (_, a0tye1) a0tye2 ->
+  Staged.A0TyArrow _labelOpt (_, a0tye1) a0tye2 ->
     wrap0 $ BITyArrow (fromStaged0 a0tye1) (fromStaged0 a0tye2)
   Staged.A0TyOptArrow (_, a0tye1) a0tye2 ->
     wrap0 $ BITyOptArrow (fromStaged0 a0tye1) (fromStaged0 a0tye2)
@@ -100,7 +100,7 @@ fromStaged1 = \case
     wrap1 $ BITyBase []
   Staged.A1TyProduct a1tye1 a1tye2 ->
     wrap1 $ BITyProduct (fromStaged1 a1tye1) (fromStaged1 a1tye2)
-  Staged.A1TyArrow a1tye1 a1tye2 ->
+  Staged.A1TyArrow _labelOpt a1tye1 a1tye2 ->
     wrap1 $ BITyArrow (fromStaged1 a1tye1) (fromStaged1 a1tye2)
   Staged.A1TyImplicitForAll _atyvar a1tye2 ->
     -- TODO: support type application
@@ -119,7 +119,7 @@ fromStagedPers = \case
     wrapP $ BITyBase [fromStagedPers aPtye']
   Staged.APersTyProduct aPtye1 aPtye2 ->
     wrapP $ BITyProduct (fromStagedPers aPtye1) (fromStagedPers aPtye2)
-  Staged.APersTyArrow aPtye1 aPtye2 ->
+  Staged.APersTyArrow _labelOpt aPtye1 aPtye2 ->
     wrapP $ BITyArrow (fromStagedPers aPtye1) (fromStagedPers aPtye2)
   Staged.APersTyImplicitForAll _atyvar aPtye2 ->
     -- TODO: support type application

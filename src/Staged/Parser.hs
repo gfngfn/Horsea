@@ -306,23 +306,47 @@ typeExpr = fun
       where
         makeTyArrow funDomSpec tye2@(TypeExpr loc2 _) =
           case funDomSpec of
-            (Nothing, tye1@(TypeExpr loc1 _)) ->
-              TypeExpr (mergeSpan loc1 loc2) (TyArrow (Nothing, tye1) tye2)
-            (Just (isMandatory, loc1, x), tye1) ->
-              TypeExpr (mergeSpan loc1 loc2) $
-                if isMandatory
-                  then TyArrow (Just x, tye1) tye2
-                  else TyOptArrow (x, tye1) tye2
+            DomMandatory locLabelOpt (varOpt, tye1@(TypeExpr locTye1 _)) ->
+              let loc1 =
+                    case locLabelOpt of
+                      Just (Located locLabel _) ->
+                        locLabel
+                      Nothing ->
+                        case varOpt of
+                          Just (locDom, _) -> locDom
+                          Nothing -> locTye1
+                  xOpt = fmap snd varOpt
+                  labelOpt = fmap (\(Located _ l) -> l) locLabelOpt
+               in TypeExpr (mergeSpan loc1 loc2) (TyArrow labelOpt (xOpt, tye1) tye2)
+            DomImplicit ((loc1, x), tye1) ->
+              TypeExpr (mergeSpan loc1 loc2) (TyOptArrow (x, tye1) tye2)
         makeForAll (Located loc1 tyvar) tye@(TypeExpr loc2 _) =
           TypeExpr (mergeSpan loc1 loc2) (TyForAll tyvar tye)
 
-    funDom :: P (Maybe (Bool, Span, Var), TypeExpr)
+    funDom :: P DomainSpec
     funDom =
-      (makeFunDom False <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> fun))
-        <|> try (makeFunDom True <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> fun))
-        <|> ((Nothing,) <$> prod)
+      (DomMandatory . Just <$> label <*> mandatoryFunDom)
+        <|> (DomMandatory Nothing <$> mandatoryFunDom)
+        <|> (DomImplicit <$> implicitFunDom)
       where
-        makeFunDom isMandatory (Located loc (x, tyeDom)) = (Just (isMandatory, loc, x), tyeDom)
+        mandatoryFunDom :: P (Maybe (Span, Var), TypeExpr)
+        mandatoryFunDom =
+          try (makeFunDom <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> fun))
+            <|> ((Nothing,) <$> prod)
+          where
+            makeFunDom (Located loc (x, tyeDom)) =
+              (Just (loc, x), tyeDom)
+
+        implicitFunDom :: P ((Span, Var), TypeExpr)
+        implicitFunDom =
+          makeFunDom <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> fun)
+          where
+            makeFunDom (Located loc (x, tyeDom)) =
+              ((loc, x), tyeDom)
+
+data DomainSpec
+  = DomMandatory (Maybe (Located Text)) (Maybe (Span, Var), TypeExpr)
+  | DomImplicit ((Span, Var), TypeExpr)
 
 bind :: P Bind
 bind =
