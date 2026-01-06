@@ -121,9 +121,9 @@ module Tensor = struct
     {l : Nat} ->
     {m : Nat} ->
     {n : Nat} ->
-    (padding : Int * Int) ->
-    (ksize : Int * Int) ->
-    (stride : Int * Int) ->
+    #padding (padding : Int * Int) ->
+    #ksize (ksize : Int * Int) ->
+    #stride (stride : Int * Int) ->
     &(Tensor %[k, l, m, n] ->
       Tensor %[k, l, (m + 2 * fst padding - fst ksize) // fst stride + 1, (n + 2 * snd padding - snd ksize) // snd stride + 1]
     )
@@ -137,9 +137,9 @@ end
 
 module VarStore = struct
   val create :
-    Bool -> (* frozen *)
-    String -> (* name *)
-    Device -> (* device *)
+    #frozen Bool ->
+    #name String ->
+    #device Device ->
     Unit -> VarStore
     external (builtin = "var_store__create", surface = "create")
   val freeze : VarStore -> Unit
@@ -175,11 +175,11 @@ module Layer = struct
     {l : Nat} ->
     {m : Nat} ->
     {n : Nat} ->
-    (ksize : Int) ->
-    (stride : Int) ->
-    (padding : Int) ->
-    (input_dim : Nat) ->
-    (output_dim : Nat) ->
+    #ksize (ksize : Int) ->
+    #stride (stride : Int) ->
+    #padding (padding : Int) ->
+    #input_dim (input_dim : Nat) ->
+    #output_dim (output_dim : Nat) ->
     &(VarStore ->
       Tensor %[l, input_dim, m, n] ->
       Tensor %[l, output_dim, (m + 2 * padding - ksize) // stride + 1, (n + 2 * padding - ksize) // stride + 1]
@@ -187,8 +187,8 @@ module Layer = struct
     external (builtin = "layer__gen_conv2d_", surface = "conv2d_")
   val ~gen_linear :
     {ns : List Nat} ->
-    (input_dim : Nat) ->
-    (output_dim : Nat) ->
+    #input_dim (input_dim : Nat) ->
+    #output_dim (output_dim : Nat) ->
     &(VarStore ->
       Activation ->
       Tensor %(List.append ns [input_dim]) ->
