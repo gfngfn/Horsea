@@ -126,10 +126,11 @@ dispLamOpt req x tye1 e2 =
 
 dispApp :: (Disp expr) => Associativity -> expr -> Maybe Label -> expr -> Doc Ann
 dispApp req e1 labelOpt e2 =
-  deepenParenWhen (req <= Atomic) $ group $
-    case labelOpt of
-      Nothing -> doc1 <> nest 2 (line <> doc2)
-      Just label -> doc1 <+> "#" <> disp label <> nest 2 (line <> doc2)
+  deepenParenWhen (req <= Atomic) $
+    group $
+      case labelOpt of
+        Nothing -> doc1 <> nest 2 (line <> doc2)
+        Just label -> doc1 <+> "#" <> disp label <> nest 2 (line <> doc2)
   where
     doc1 = dispGen FunDomain e1
     doc2 = dispGen Atomic e2

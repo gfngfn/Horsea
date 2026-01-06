@@ -30,9 +30,9 @@ import Data.Functor.Classes
 import Data.Text (Text)
 import Generic.Data
 import Generic.Data.Orphans ()
+import Staged.Syntax (Label)
 import Util.TokenUtil (Span)
 import Prelude
-import Staged.Syntax (Label)
 
 type Var = Text
 
