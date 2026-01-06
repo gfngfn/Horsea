@@ -166,7 +166,7 @@ typecheckAndEval sourceSpecOfStub bindsInStub sourceSpecOfInput e = do
 handle' :: M Bool
 handle' = do
   Argument {inputFilePath, stubFilePath} <- ask
-  lift $ putStrLn "Lightweight Dependent Types via Staging"
+  lift $ putStrLn "Staged Shape-Dependent Types"
   stub <- lift $ TextIO.readFile stubFilePath
   let sourceSpecOfStub =
         SourceSpec
