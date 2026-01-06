@@ -366,7 +366,7 @@ extractConstraintsFromExpr btenv (Expr (bt, ann) exprMain) = do
       -- Not confident. TODO: check the validity of the following
       (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr btenv e1
       (e2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromExpr btenv e2
-      let e' = Expr (bt, ann) (Sequential e1' e2')
+      let e' = Expr (bt, ann) (Tuple e1' e2')
       let bity = BIType bt (BITyProduct bity1 bity2)
       pure (e', bity, constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
     IfThenElse e0 e1 e2 -> do

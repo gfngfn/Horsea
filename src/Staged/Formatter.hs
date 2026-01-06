@@ -846,7 +846,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       where
         labelExpected = maybe "no label" quote labelOptExpected
         labelGot = maybe "no label" quote labelOptGot
-        quote t = "'" <> disp t <> "'"
+        quote t = "'#" <> disp t <> "'"
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case
