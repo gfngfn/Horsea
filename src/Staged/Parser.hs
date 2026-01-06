@@ -215,7 +215,7 @@ exprAtom, expr :: P Expr
 
     lamBinder :: P LamBinder
     lamBinder =
-      ((\(Located _ l) pair -> MandatoryBinder (Just l) pair) <$> label <*> mandatoryBinder)
+      (MandatoryBinder . Just <$> noLoc label <*> mandatoryBinder)
         <|> (MandatoryBinder Nothing <$> mandatoryBinder)
         <|> (OptionalBinder <$> optionalBinder)
 

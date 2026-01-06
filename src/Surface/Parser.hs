@@ -71,7 +71,10 @@ mat :: P (Located [[Int]])
 mat = genMat TokMatLeft TokMatRight TokSemicolon TokComma (noLoc int)
 
 operator :: P (Located Var)
-operator = compOp <|> addOp <|> multOp
+operator = compOp <|> addOp <|> multOp <|> consOp
+
+consOp :: P (Located Var)
+consOp = fmap (const "::") <$> expectToken (^? #_TokColonColon)
 
 multOp :: P (Located Var)
 multOp =
@@ -104,7 +107,7 @@ exprAtom, expr :: P Expr
       (located (Literal . LitInt) <$> int)
         <|> (located (Literal . LitFloat) <$> float)
         <|> (located (Literal . LitString) <$> string)
-        <|> (located (Literal . LitList) <$> list letin)
+        <|> (located (Literal . LitList) <$> list expr)
         <|> (located (Literal . LitVec) <$> vec)
         <|> (located (Literal . LitMat) <$> mat)
         <|> (makeBool True <$> token TokTrue)
@@ -128,7 +131,7 @@ exprAtom, expr :: P Expr
         arg :: P FunArg
         arg =
           (FunArgOptOmitted <$> token TokUnderscore)
-            <|> (FunArgOptGiven <$> brace letin)
+            <|> (FunArgOptGiven <$> brace expr)
             <|> (FunArgMandatory <$> atom)
 
         makeApp :: NonEmpty FunArg -> P Expr
@@ -151,8 +154,11 @@ exprAtom, expr :: P Expr
           Nothing -> e1
           Just tye2@(TypeExpr loc2 _) -> Expr (mergeSpan loc1 loc2) (As e1 tye2)
 
+    con :: P Expr
+    con = binSep makeBinOpApp consOp as
+
     mult :: P Expr
-    mult = binSep makeBinOpApp multOp as
+    mult = binSep makeBinOpApp multOp con
 
     add :: P Expr
     add = binSep makeBinOpApp addOp mult
@@ -210,10 +216,10 @@ exprAtom, expr :: P Expr
 
     letInMain :: P (ExprMain, Span)
     letInMain =
-      try (makeLetTupleIn <$> paren ((,) <$> (noLoc boundIdent <* token TokComma) <*> noLoc boundIdent) <*> (token TokEqual *> letin) <*> (token TokIn *> letin))
-        <|> (makeLetIn <$> noLoc boundIdent <*> many lamBinder <*> (token TokEqual *> letin) <*> (token TokIn *> letin))
-        <|> (makeLetRecIn <$> (token TokRec *> noLoc boundIdent) <*> many lamBinder <*> (token TokColon *> typeExpr) <*> (token TokEqual *> letin) <*> (token TokIn *> letin))
-        <|> (makeLetOpenIn <$> (token TokOpen *> noLoc upper) <*> (token TokIn *> letin))
+      try (makeLetTupleIn <$> paren ((,) <$> (noLoc boundIdent <* token TokComma) <*> noLoc boundIdent) <*> (token TokEqual *> expr) <*> (token TokIn *> expr))
+        <|> (makeLetIn <$> noLoc boundIdent <*> many lamBinder <*> (token TokEqual *> expr) <*> (token TokIn *> expr))
+        <|> (makeLetRecIn <$> (token TokRec *> noLoc boundIdent) <*> many lamBinder <*> (token TokColon *> typeExpr) <*> (token TokEqual *> expr) <*> (token TokIn *> expr))
+        <|> (makeLetOpenIn <$> (token TokOpen *> noLoc upper) <*> (token TokIn *> expr))
       where
         makeLetTupleIn (Located _ (x1, x2)) e1 e2@(Expr locLast _) = (LetTupleIn x1 x2 e1 e2, locLast)
         makeLetIn x params e1 e2@(Expr locLast _) = (LetIn x params e1 e2, locLast)
