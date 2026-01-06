@@ -32,6 +32,7 @@ import Generic.Data
 import Generic.Data.Orphans ()
 import Util.TokenUtil (Span)
 import Prelude
+import Staged.Syntax (Label)
 
 type Var = Text
 
@@ -55,8 +56,8 @@ data ExprF ann = Expr ann (ExprMainF ann)
 data ExprMainF ann
   = Literal (Literal (ExprF ann))
   | Var ([Var], Var) -- A module name chain and a value identifier
-  | Lam (Maybe (Var, TypeExprF ann)) (Var, TypeExprF ann) (ExprF ann)
-  | App (ExprF ann) (ExprF ann)
+  | Lam (Maybe (Var, TypeExprF ann)) (Maybe Label) (Var, TypeExprF ann) (ExprF ann)
+  | App (ExprF ann) (Maybe Label) (ExprF ann)
   | LetIn Var [LamBinderF ann] (ExprF ann) (ExprF ann)
   | LetRecIn Var [LamBinderF ann] (TypeExprF ann) (ExprF ann) (ExprF ann)
   | LetTupleIn Var Var (ExprF ann) (ExprF ann)
@@ -74,7 +75,7 @@ data ExprMainF ann
   deriving (Eq1, Show1) via (Generically1 ExprMainF)
 
 data LamBinderF ann
-  = MandatoryBinder (Var, TypeExprF ann)
+  = MandatoryBinder (Maybe Label) (Var, TypeExprF ann)
   | OptionalBinder (Var, TypeExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
   deriving (Eq1, Show1) via (Generically1 LamBinderF)

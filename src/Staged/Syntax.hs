@@ -1,5 +1,6 @@
 module Staged.Syntax
-  ( DatasetParam (..),
+  ( Label,
+    DatasetParam (..),
     StaticVar (..),
     AssVarF (..),
     Symbol (..),
@@ -74,6 +75,8 @@ import Util.Matrix (Matrix)
 import Util.TokenUtil (Span)
 import Util.Vector (Vector)
 import Prelude
+
+type Label = Text
 
 data DatasetParam f a = DatasetParam
   { numTrain :: a,
@@ -496,8 +499,8 @@ decomposeListEquation = \case
 type AppContextF sv = [AppContextEntryF sv]
 
 data AppContextEntryF sv
-  = AppArg0 (Ass0ExprF sv) (Ass0TypeExprF sv)
-  | AppArg1 (Ass1TypeExprF sv)
+  = AppArg0 (Maybe Label) (Ass0ExprF sv) (Ass0TypeExprF sv)
+  | AppArg1 (Maybe Label) (Ass1TypeExprF sv)
   | AppArgOptGiven0 (Ass0ExprF sv) (Ass0TypeExprF sv)
   | AppArgOptOmitted0
   deriving (Eq, Show, Functor)

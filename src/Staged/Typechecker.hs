@@ -737,7 +737,8 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
       case (appCtx, a0tye) of
         ([], _) ->
           pure (Pure a0tye, Map.empty, Map.empty)
-        (AppArg0 a0e1' a0tye1' : appCtx', A0TyArrow (xOpt, a0tye1) a0tye2) -> do
+        (AppArg0 _labelOpt' a0e1' a0tye1' : appCtx', A0TyArrow (xOpt, a0tye1) a0tye2) -> do
+          -- TODO: use `labelOpt'`
           (cast, varSolution1, tyvar0Solution1) <-
             makeAssertiveCast trav loc varsToInfer tyvars0ToInfer a0tye1' a0tye1
           let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
@@ -843,7 +844,8 @@ instantiateGuidedByAppContext1 trav loc varsToInfer0 appCtx0 a1tye0 = do
               pure (InsertType1 a1tyeInferred result', varSolution', tyvar1Solution')
             Nothing ->
               error "TODO (error): instantiateGuidedByAppContext1, cannot infer a type for a type variable"
-        (AppArg1 a1tye1' : appCtx', A1TyArrow a1tye1 a1tye2) -> do
+        (AppArg1 _labelOpt' a1tye1' : appCtx', A1TyArrow a1tye1 a1tye2) -> do
+          -- TODO: use `labelOpt'`
           (eq, varSolution1, tyvar1Solution1) <-
             makeEquation1 trav loc varsToInfer tyvars1ToInfer a1tye1' a1tye1
           (result', varSolution', tyvar1Solution') <-
@@ -947,7 +949,8 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           Right svX -> do
             let ax = AssVarStatic svX
             pure (result, A0Var ax)
-      Lam recOpt (x1, tye1) e2 ->
+      Lam recOpt _labelOpt (x1, tye1) e2 ->
+        -- TODO: use `labelOpt`
         case appCtx of
           [] -> do
             svX1 <- generateFreshVar (Just x1)
@@ -979,9 +982,9 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                 pure (Pure a0tyeRec, applyCast cast (A0Lam (Just (af, sa0tyeRec)) (ax1, sa0tye1) a0e2))
           _ : _ ->
             error "TODO: stage-0, Lam, non-empty AppContext"
-      App e1 e2 -> do
+      App e1 labelOpt e2 -> do
         (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
-        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArg0 a0e2 a0tye2 : appCtx) e1
+        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArg0 labelOpt a0e2 a0tye2 : appCtx) e1
         case result1 of
           Cast0 cast _a0tye11 result -> do
             pure (result, A0App a0e1 (applyCast cast a0e2))
@@ -1031,7 +1034,8 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         a0tye1Rec <- typecheckTypeExpr0 trav tyEnv tyeRec
         (x0, tyeParam0, paramsRest) <-
           case params of
-            MandatoryBinder (x0', tyeParam0') : paramsRest' -> pure (x0', tyeParam0', paramsRest')
+            MandatoryBinder Nothing (x0', tyeParam0') : paramsRest' -> pure (x0', tyeParam0', paramsRest')
+            MandatoryBinder (Just _) _ : _ -> error "TODO (error): rec param with a label"
             OptionalBinder _ : _ -> typeError trav $ LetRecParamsCannotStartWithOptional spanInFile
             [] -> typeError trav $ LetRecRequiresNonEmptyParams spanInFile
         svFInner <- generateFreshVar (Just f)
@@ -1145,8 +1149,8 @@ constructFunTypeExpr0 :: Span -> [LamBinder] -> TypeExpr -> TypeExpr
 constructFunTypeExpr0 loc params tyeBody =
   foldr
     ( \param tyeAcc ->
-        case param of
-          MandatoryBinder (x, tye) -> TypeExpr loc (TyArrow (Just x, tye) tyeAcc)
+        case param of -- TODO: use `labelOpt`
+          MandatoryBinder _labelOpt (x, tye) -> TypeExpr loc (TyArrow (Just x, tye) tyeAcc)
           OptionalBinder (x, tye) -> TypeExpr loc (TyOptArrow (x, tye) tyeAcc)
     )
     tyeBody
@@ -1159,8 +1163,8 @@ constructFunTypeExpr1 trav loc params tyeBody = do
   spanInFile <- askSpanInFile loc
   foldrM
     ( \param tyeAcc ->
-        case param of
-          MandatoryBinder (_x, tye) -> pure $ TypeExpr loc (TyArrow (Nothing, tye) tyeAcc)
+        case param of -- TODO: use `labelOpt`
+          MandatoryBinder _labelOpt (_x, tye) -> pure $ TypeExpr loc (TyArrow (Nothing, tye) tyeAcc)
           OptionalBinder (_x, _tye) -> typeError trav $ CannotUseLamOptAtStage1 spanInFile
     )
     tyeBody
@@ -1172,7 +1176,8 @@ typecheckLetInBody0 trav tyEnv params e1 =
     [] -> do
       (a0tye1, a0e1) <- typecheckExpr0Single trav tyEnv e1
       pure (a0tye1, a0e1)
-    MandatoryBinder (x, tye) : params' -> do
+    MandatoryBinder _labelOpt (x, tye) : params' -> do
+      -- TODO: use `labelOpt`
       a0tye <- typecheckTypeExpr0 trav tyEnv tye
       svX <- generateFreshVar (Just x)
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' e1
@@ -1263,7 +1268,8 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           Right svX -> do
             let ax = AssVarStatic svX
             pure (result, A1Var ax)
-      Lam recOpt (x1, tye1) e2 ->
+      Lam recOpt _labelOpt (x1, tye1) e2 ->
+        -- TODO: use `labelOpt`
         case appCtx of
           [] -> do
             svX1 <- generateFreshVar (Just x1)
@@ -1293,9 +1299,9 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                 pure (Pure a1tyeRec, applyEquationCast loc eq (A1Lam (Just (af, a1tyeRec)) (ax1, a1tye1) a1e2))
           _ : _ ->
             error "TODO: stage-1, Lam, non-empty AppContext"
-      App e1 e2 -> do
+      App e1 labelOpt e2 -> do
         (a1tye2, a1e2) <- typecheckExpr1Single trav tyEnv e2
-        (result1, a1e1) <- typecheckExpr1 trav tyEnv (AppArg1 a1tye2 : appCtx) e1
+        (result1, a1e1) <- typecheckExpr1 trav tyEnv (AppArg1 labelOpt a1tye2 : appCtx) e1
         case result1 of
           Cast1 cast _a1tye11 result ->
             -- Embeds type equality assertion at stage 0 here!
@@ -1322,7 +1328,8 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         a1tye1Rec <- typecheckTypeExpr1 trav tyEnv tyeRec
         (x0, tyeParam0, paramsRest) <-
           case params of
-            MandatoryBinder (x0', tyeParam0') : paramsRest' -> pure (x0', tyeParam0', paramsRest')
+            MandatoryBinder Nothing (x0', tyeParam0') : paramsRest' -> pure (x0', tyeParam0', paramsRest')
+            MandatoryBinder (Just _) _ : _ -> error "TODO (error): rec param with a label"
             OptionalBinder _ : _ -> typeError trav $ LetRecParamsCannotStartWithOptional spanInFile
             [] -> typeError trav $ LetRecRequiresNonEmptyParams spanInFile
         svFInner <- generateFreshVar (Just f)
@@ -1453,7 +1460,8 @@ typecheckLetInBody1 trav tyEnv params e1 =
     [] -> do
       (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
       pure (a1tye1, a1e1)
-    MandatoryBinder (x, tye) : params' -> do
+    MandatoryBinder _labelOpt (x, tye) : params' -> do
+      -- TODO: use `labelOpt`
       a1tye <- typecheckTypeExpr1 trav tyEnv tye
       svX <- generateFreshVar (Just x)
       (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv) params' e1

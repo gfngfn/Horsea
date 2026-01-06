@@ -97,28 +97,42 @@ disps (first : rest) = List.foldl' (\doc x -> doc <> "," <+> disp x) (disp first
 deepenParenWhen :: Bool -> Doc Ann -> Doc Ann
 deepenParenWhen b doc = if b then "(" <> nest 2 doc <> ")" else doc
 
-dispNonrecLam :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> expr -> Doc Ann
-dispNonrecLam req x tye1 e2 =
+dispNonrecLam :: (Disp var, Disp ty, Disp expr) => Associativity -> Maybe Label -> var -> ty -> expr -> Doc Ann
+dispNonrecLam req labelOpt x tye1 e2 =
   deepenParenWhen (req <= FunDomain) $
-    group ("λ" <> disp x <+> ":" <+> disp tye1 <> "." <> nest 2 (line <> disp e2))
+    group (doc <+> ":" <+> disp tye1 <> "." <> nest 2 (line <> disp e2))
+  where
+    doc =
+      case labelOpt of
+        Nothing -> "λ" <> disp x
+        Just label -> "λ" <+> "#" <> disp label <+> disp x
 
-dispRecLam :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> var -> ty -> expr -> Doc Ann
-dispRecLam req f tyeRec x tye1 e2 =
+dispRecLam :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> Maybe Label -> var -> ty -> expr -> Doc Ann
+dispRecLam req f tyeRec labelOpt x tye1 e2 =
   deepenParenWhen (req <= FunDomain) $
     group (docBinderF <+> docBinderX <> nest 2 (line <> disp e2))
   where
     docBinderF = "rec" <+> disp f <+> ":" <+> disp tyeRec <> "."
-    docBinderX = "λ" <> disp x <+> ":" <+> disp tye1 <> "."
+    docBinderX = doc <+> ":" <+> disp tye1 <> "."
+    doc =
+      case labelOpt of
+        Nothing -> "λ" <> disp x
+        Just label -> "λ" <+> "#" <> disp label <+> disp x
 
 dispLamOpt :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> expr -> Doc Ann
 dispLamOpt req x tye1 e2 =
   deepenParenWhen (req <= FunDomain) $
     group ("λ{" <> disp x <+> ":" <+> disp tye1 <> "}." <> nest 2 (line <> disp e2))
 
-dispApp :: (Disp expr) => Associativity -> expr -> expr -> Doc Ann
-dispApp req e1 e2 =
-  deepenParenWhen (req <= Atomic) $
-    group (dispGen FunDomain e1 <> nest 2 (line <> dispGen Atomic e2))
+dispApp :: (Disp expr) => Associativity -> expr -> Maybe Label -> expr -> Doc Ann
+dispApp req e1 labelOpt e2 =
+  deepenParenWhen (req <= Atomic) $ group $
+    case labelOpt of
+      Nothing -> doc1 <> nest 2 (line <> doc2)
+      Just label -> doc1 <+> "#" <> disp label <> nest 2 (line <> doc2)
+  where
+    doc1 = dispGen FunDomain e1
+    doc2 = dispGen Atomic e2
 
 dispAppOptGiven :: (Disp expr) => Associativity -> expr -> expr -> Doc Ann
 dispAppOptGiven req e1 e2 =
@@ -316,9 +330,9 @@ instance Disp (ExprMainF ann) where
   dispGen req = \case
     Literal lit -> dispGen req lit
     Var (ms, x) -> dispLongName ms x
-    Lam Nothing (x, tye1) e2 -> dispNonrecLam req x tye1 e2
-    Lam (Just (f, tyeRec)) (x, tye1) e2 -> dispRecLam req f tyeRec x tye1 e2
-    App e1 e2 -> dispApp req e1 e2
+    Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
+    Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
+    App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
     LamOpt (x, tye1) e2 -> dispLamOpt req x tye1 e2
     AppOptGiven e1 e2 -> dispAppOptGiven req e1 e2
     AppOptOmitted e1 -> dispAppOptOmitted req e1
@@ -335,7 +349,8 @@ instance Disp (ExprMainF ann) where
 
 instance Disp (LamBinderF ann) where
   dispGen _ = \case
-    MandatoryBinder (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
+    MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
+    MandatoryBinder (Just label) (x, tye) -> "(#" <> disp label <+> disp x <+> ":" <+> disp tye <> ")"
     OptionalBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
 
 instance Disp (TypeExprF ann) where
@@ -455,9 +470,9 @@ instance Disp Surface.ExprMain where
   dispGen req = \case
     Surface.Literal lit -> dispGen req lit
     Surface.Var (ms, x) -> dispLongName ms x
-    Surface.Lam Nothing (x, tye1) e2 -> dispNonrecLam req x tye1 e2
-    Surface.Lam (Just (f, tyeRec)) (x, tye1) e2 -> dispRecLam req f tyeRec x tye1 e2
-    Surface.App e1 e2 -> dispApp req e1 e2
+    Surface.Lam Nothing (x, tye1) e2 -> dispNonrecLam req Nothing x tye1 e2
+    Surface.Lam (Just (f, tyeRec)) (x, tye1) e2 -> dispRecLam req f tyeRec Nothing x tye1 e2
+    Surface.App e1 e2 -> dispApp req e1 Nothing e2
     Surface.LetIn x params eBody e2 -> dispLetIn req x params eBody e2
     Surface.LetRecIn f params tyeBody eBody e2 -> dispLetRecIn req f params tyeBody eBody e2
     Surface.LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2
@@ -507,9 +522,9 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
     A0Literal lit -> disp lit
     A0Var y -> disp y
     A0BuiltInName builtInName -> disp builtInName
-    A0Lam Nothing (y, a0tye1) a0e2 -> dispNonrecLam req y a0tye1 a0e2
-    A0Lam (Just (f, a0tyeRec)) (y, a0tye1) a0e2 -> dispRecLam req f a0tyeRec y a0tye1 a0e2
-    A0App a0e1 a0e2 -> dispApp req a0e1 a0e2
+    A0Lam Nothing (y, a0tye1) a0e2 -> dispNonrecLam req Nothing y a0tye1 a0e2
+    A0Lam (Just (f, a0tyeRec)) (y, a0tye1) a0e2 -> dispRecLam req f a0tyeRec Nothing y a0tye1 a0e2
+    A0App a0e1 a0e2 -> dispApp req a0e1 Nothing a0e2
     A0LetIn (y, a0tye1) a0e1 a0e2 -> dispLetInWithAnnot req y a0tye1 a0e1 a0e2
     A0LetTupleIn xL xR a0e1 a0e2 -> dispLetTupleIn req xL xR a0e1 a0e2
     A0Sequential a0e1 a0e2 -> dispSequential req a0e1 a0e2
@@ -530,9 +545,9 @@ instance (Disp sv) => Disp (Ass1ExprF sv) where
     A1Literal lit -> disp lit
     A1Var x -> disp x
     A1BuiltInName a1builtInName -> disp a1builtInName
-    A1Lam Nothing (x, a1tye1) a1e2 -> dispNonrecLam req x a1tye1 a1e2
-    A1Lam (Just (f, a1tyeRec)) (x, a1tye1) a1e2 -> dispRecLam req f a1tyeRec x a1tye1 a1e2
-    A1App a1e1 a1e2 -> dispApp req a1e1 a1e2
+    A1Lam Nothing (x, a1tye1) a1e2 -> dispNonrecLam req Nothing x a1tye1 a1e2
+    A1Lam (Just (f, a1tyeRec)) (x, a1tye1) a1e2 -> dispRecLam req f a1tyeRec Nothing x a1tye1 a1e2
+    A1App a1e1 a1e2 -> dispApp req a1e1 Nothing a1e2
     A1LetTupleIn xL xR a1e1 a1e2 -> dispLetTupleIn req xL xR a1e1 a1e2
     A1Sequential a1e1 a1e2 -> dispSequential req a1e1 a1e2
     A1Tuple a1e1 a1e2 -> dispTuple a1e1 a1e2
@@ -820,8 +835,10 @@ instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
 
 instance (Disp sv) => Disp (AppContextEntryF sv) where
   dispGen _ = \case
-    AppArg0 a0e a0tye -> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye)
-    AppArg1 a1tye -> stage1Style (disp a1tye)
+    AppArg0 Nothing a0e a0tye -> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye)
+    AppArg0 (Just label) a0e a0tye -> "#" <> disp label <+> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye)
+    AppArg1 Nothing a1tye -> stage1Style (disp a1tye)
+    AppArg1 (Just label) a1tye -> "#" <> disp label <+> stage1Style (disp a1tye)
     AppArgOptGiven0 a0e a0tye -> "{" <> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye) <> "}"
     AppArgOptOmitted0 -> "_"
 
@@ -840,8 +857,8 @@ instance (Disp sv) => Disp (Ass0ValF sv) where
   dispGen req = \case
     A0ValLiteral lit -> disp lit
     A0ValTuple a1v1 a1v2 -> dispTuple a1v1 a1v2
-    A0ValLam Nothing (x, a0tyv1) a0v2 _env -> dispNonrecLam req x a0tyv1 a0v2
-    A0ValLam (Just (f, a0tyvRec)) (x, a0tyv1) a0v2 _env -> dispRecLam req f a0tyvRec x a0tyv1 a0v2
+    A0ValLam Nothing (x, a0tyv1) a0v2 _env -> dispNonrecLam req Nothing x a0tyv1 a0v2
+    A0ValLam (Just (f, a0tyvRec)) (x, a0tyv1) a0v2 _env -> dispRecLam req f a0tyvRec Nothing x a0tyv1 a0v2
     A0ValBracket a1v1 -> dispBracket a1v1
     A0ValPartialBuiltInApp pba -> dispGen req pba
 
@@ -953,11 +970,11 @@ instance (Disp sv) => Disp (Ass1ValF sv) where
     A1ValConst c -> disp c
     A1ValVar symb -> disp symb
     A1ValLam Nothing (symbX, a1tyv1) a1v2 ->
-      dispNonrecLam req symbX a1tyv1 a1v2
+      dispNonrecLam req Nothing symbX a1tyv1 a1v2
     A1ValLam (Just (symbF, a1tyvRec)) (symbX, a1tyv1) a1v2 ->
-      dispRecLam req symbF a1tyvRec symbX a1tyv1 a1v2
+      dispRecLam req symbF a1tyvRec Nothing symbX a1tyv1 a1v2
     A1ValApp a1v1 a1v2 ->
-      dispApp req a1v1 a1v2
+      dispApp req a1v1 Nothing a1v2
     A1ValLetTupleIn xL xR a1v1 a1v2 ->
       dispLetTupleIn req xL xR a1v1 a1v2
     A1ValSequential a1v1 a1v2 ->
@@ -1164,9 +1181,9 @@ instance Disp (Bta.BCExprMainF ann) where
   dispGen req = \case
     Surface.Literal lit -> disp lit
     Surface.Var (ms, x) -> dispLongName ms x
-    Surface.Lam Nothing (x, tye1) e2 -> dispNonrecLam req x tye1 e2
-    Surface.Lam (Just (f, tyeRec)) (x, tye1) e2 -> dispRecLam req f tyeRec x tye1 e2
-    Surface.App e1 e2 -> dispApp req e1 e2
+    Surface.Lam Nothing (x, tye1) e2 -> dispNonrecLam req Nothing x tye1 e2
+    Surface.Lam (Just (f, tyeRec)) (x, tye1) e2 -> dispRecLam req f tyeRec Nothing x tye1 e2
+    Surface.App e1 e2 -> dispApp req e1 Nothing e2
     Surface.LetIn x params eBody e2 -> dispLetIn req x params eBody e2
     Surface.LetRecIn f params tyeBody eBody e2 -> dispLetRecIn req f params tyeBody eBody e2
     Surface.LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2

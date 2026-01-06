@@ -95,9 +95,21 @@ spec = do
       let eBody = expr (LetIn "z" [] (litInt 1) (app (var "y") (var "z")))
       parseExpr "Foo.bar (fun(y : Y) -> let z = 1 in y z)"
         `shouldBe` pure (app (longVar ["Foo"] "bar") (nonrecLam ("y", typ (TyName "Y" [])) eBody))
+    it "parses applications with labels (1)" $
+      parseExpr "x #foo y"
+        `shouldBe` pure (appWithLabel (var "x") "foo" (var "y"))
+    it "parses applications with labels (2)" $
+      parseExpr "x y #foo z"
+        `shouldBe` pure (appWithLabel (app (var "x") (var "y")) "foo" (var "z"))
+    it "parses applications with labels (3)" $
+      parseExpr "x (y #foo z)"
+        `shouldBe` pure (app (var "x") (appWithLabel (var "y") "foo" (var "z")))
     it "parses applications and integer literals" $
       parseExpr "x 42 z"
         `shouldBe` pure (app (app (var "x") (litInt 42)) (var "z"))
+    it "parses applications with labels and integer literals" $
+      parseExpr "x #foo 42 z"
+        `shouldBe` pure (app (appWithLabel (var "x") "foo" (litInt 42)) (var "z"))
     it "parses applications and integer/float literals" $
       parseExpr "x 42 5.7"
         `shouldBe` pure (app (app (var "x") (litInt 42)) (litFloat 5.7))
@@ -118,9 +130,9 @@ spec = do
     it "parses let-expressions (2)" $ do
       let ty = tyDepFun "n" tyInt tyBool
       parseExpr "let f (x : (n : Int) -> Bool) = x y in f"
-        `shouldBe` pure (expr (LetIn "f" [MandatoryBinder ("x", ty)] (app (var "x") (var "y")) (var "f")))
+        `shouldBe` pure (expr (LetIn "f" [MandatoryBinder Nothing ("x", ty)] (app (var "x") (var "y")) (var "f")))
     it "parses let-expressions (3)" $ do
-      let params = [OptionalBinder ("n", tyInt), MandatoryBinder ("x", tyPersVec (var "n"))]
+      let params = [OptionalBinder ("n", tyInt), MandatoryBinder Nothing ("x", tyPersVec (var "n"))]
       parseExpr "let f {n : Int} (x : Vec %n) = g x in f"
         `shouldBe` pure (expr (LetIn "f" params (app (var "g") (var "x")) (var "f")))
     it "parses let-open-expressions" $
@@ -304,29 +316,32 @@ spec = do
         `shouldBe` pure (exprLoc 0 9 $ long ["Foo", "Bar"] "x")
     it "parses applications (1)" $
       parseExprWithLoc "x y"
-        `shouldBe` pure (exprLoc 0 3 $ App (exprLoc 0 1 $ short "x") (exprLoc 2 3 $ short "y"))
+        `shouldBe` pure (exprLoc 0 3 (App (exprLoc 0 1 (short "x")) Nothing (exprLoc 2 3 (short "y"))))
     it "parses applications (2)" $ do
       let e =
             exprLoc 0 5 $
               App
-                (exprLoc 0 3 $ App (exprLoc 0 1 $ short "x") (exprLoc 2 3 $ short "y"))
-                (exprLoc 4 5 $ short "z")
+                (exprLoc 0 3 (App (exprLoc 0 1 (short "x")) Nothing (exprLoc 2 3 (short "y"))))
+                Nothing
+                (exprLoc 4 5 (short "z"))
       parseExprWithLoc "x y z"
         `shouldBe` pure e
     it "parses applications (3)" $ do
       let e =
             exprLoc 0 7 $
-              App
-                (exprLoc 0 1 $ short "x")
-                (exprLoc 2 7 $ App (exprLoc 3 4 $ short "y") (exprLoc 5 6 $ short "z"))
+              App (exprLoc 0 1 (short "x")) Nothing $
+                exprLoc 2 7 $
+                  App (exprLoc 3 4 (short "y")) Nothing (exprLoc 5 6 (short "z"))
       parseExprWithLoc "x (y z)"
         `shouldBe` pure e
     it "parses brackets" $ do
       let e =
             exprLoc 0 8 $
-              App
-                (exprLoc 0 1 $ short "f")
-                (exprLoc 2 8 $ Bracket (exprLoc 3 8 $ App (exprLoc 4 5 $ short "g") (exprLoc 6 7 $ short "x")))
+              App (exprLoc 0 1 (short "f")) Nothing $
+                exprLoc 2 8 $
+                  Bracket $
+                    exprLoc 3 8 $
+                      App (exprLoc 4 5 (short "g")) Nothing (exprLoc 6 7 (short "x"))
       parseExprWithLoc "f &(g x)"
         `shouldBe` pure e
     it "parses lambda abstractions" $ do
@@ -337,10 +352,9 @@ spec = do
                 (typLoc 22 26 $ TyName "Bool" [])
           e =
             exprLoc 0 34 $
-              Lam
-                Nothing
-                ("x", ty)
-                (exprLoc 31 34 $ App (exprLoc 31 32 $ short "x") (exprLoc 33 34 $ short "y"))
+              Lam Nothing Nothing ("x", ty) $
+                exprLoc 31 34 $
+                  App (exprLoc 31 32 (short "x")) Nothing (exprLoc 33 34 (short "y"))
       parseExprWithLoc "fun (x : (n : Int) -> Bool) -> x y"
         `shouldBe` pure e
     it "parses optional applications (1)" $
