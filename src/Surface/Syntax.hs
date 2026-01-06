@@ -19,6 +19,7 @@ module Surface.Syntax
 where
 
 import Data.Text (Text)
+import Staged.Syntax (Label)
 import Util.TokenUtil (Span)
 import Prelude
 
@@ -41,8 +42,8 @@ data ExprF ann = Expr ann (ExprMainF ann)
 data ExprMainF ann
   = Literal (Literal (ExprF ann))
   | Var ([Var], Var)
-  | Lam (Maybe (Var, TypeExprF ann)) (Var, TypeExprF ann) (ExprF ann)
-  | App (ExprF ann) (ExprF ann)
+  | Lam (Maybe (Var, TypeExprF ann)) (Maybe Label) (Var, TypeExprF ann) (ExprF ann)
+  | App (ExprF ann) (Maybe Label) (ExprF ann)
   | LetIn Var [LamBinderF ann] (ExprF ann) (ExprF ann)
   | LetRecIn Var [LamBinderF ann] (TypeExprF ann) (ExprF ann) (ExprF ann)
   | LetTupleIn Var Var (ExprF ann) (ExprF ann)
@@ -57,8 +58,8 @@ data ExprMainF ann
   deriving stock (Show, Functor)
 
 data LamBinderF ann
-  = MandatoryBinder (Var, TypeExprF ann)
-  | OptionalBinder (Var, TypeExprF ann)
+  = MandatoryBinder (Maybe Label) (Var, TypeExprF ann)
+  | ImplicitBinder (Var, TypeExprF ann)
   deriving stock (Show, Functor)
 
 type Expr = ExprF Span
@@ -74,7 +75,7 @@ data TypeExprF ann = TypeExpr ann (TypeExprMainF ann)
 
 data TypeExprMainF ann
   = TyName TypeName [ArgForTypeF ann]
-  | TyArrow (Maybe Var, TypeExprF ann) (TypeExprF ann)
+  | TyArrow (Maybe Label) (Maybe Var, TypeExprF ann) (TypeExprF ann)
   | TyOptArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyProduct (TypeExprF ann) (TypeExprF ann)
   deriving stock (Show, Functor)

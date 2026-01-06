@@ -132,8 +132,12 @@ spec = do
       parseExpr "let f (x : (n : Int) -> Bool) = x y in f"
         `shouldBe` pure (expr (LetIn "f" [MandatoryBinder Nothing ("x", ty)] (app (var "x") (var "y")) (var "f")))
     it "parses let-expressions (3)" $ do
-      let params = [OptionalBinder ("n", tyInt), MandatoryBinder Nothing ("x", tyPersVec (var "n"))]
+      let params = [ImplicitBinder ("n", tyInt), MandatoryBinder Nothing ("x", tyPersVec (var "n"))]
       parseExpr "let f {n : Int} (x : Vec %n) = g x in f"
+        `shouldBe` pure (expr (LetIn "f" params (app (var "g") (var "x")) (var "f")))
+    it "parses let-expressions (4)" $ do
+      let params = [ImplicitBinder ("n", tyInt), MandatoryBinder (Just "foo") ("x", tyPersVec (var "n"))]
+      parseExpr "let f {n : Int} #foo (x : Vec %n) = g x in f"
         `shouldBe` pure (expr (LetIn "f" params (app (var "g") (var "x")) (var "f")))
     it "parses let-open-expressions" $
       parseExpr "let open X in f 42"

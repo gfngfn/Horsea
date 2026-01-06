@@ -205,7 +205,7 @@ exprAtom, expr :: P Expr
           Expr (mergeSpan locFirst locLast) $
             case xBinder' of
               MandatoryBinder labelOpt xBinder -> Lam Nothing labelOpt xBinder e
-              OptionalBinder xBinder -> LamOpt xBinder e
+              ImplicitBinder xBinder -> LamOpt xBinder e
 
         makeRecLam locFirst fBinder xBinder e@(Expr locLast _) =
           Expr (mergeSpan locFirst locLast) (Lam (Just fBinder) Nothing xBinder e)
@@ -217,11 +217,11 @@ exprAtom, expr :: P Expr
     lamBinder =
       (MandatoryBinder . Just <$> noLoc label <*> mandatoryBinder)
         <|> (MandatoryBinder Nothing <$> mandatoryBinder)
-        <|> (OptionalBinder <$> optionalBinder)
+        <|> (ImplicitBinder <$> implicitBinder)
 
-    mandatoryBinder, optionalBinder :: P (Var, TypeExpr)
+    mandatoryBinder, implicitBinder :: P (Var, TypeExpr)
     mandatoryBinder = noLoc (paren ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
-    optionalBinder = noLoc (brace ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
+    implicitBinder = noLoc (brace ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
 
     letin :: P Expr
     letin =

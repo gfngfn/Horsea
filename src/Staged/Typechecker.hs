@@ -1057,7 +1057,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           case params of
             MandatoryBinder Nothing (x0', tyeParam0') : paramsRest' -> pure (x0', tyeParam0', paramsRest')
             MandatoryBinder (Just _) _ : _ -> error "TODO (error): rec param with a label"
-            OptionalBinder _ : _ -> typeError trav $ LetRecParamsCannotStartWithOptional spanInFile
+            ImplicitBinder _ : _ -> typeError trav $ LetRecParamsCannotStartWithOptional spanInFile
             [] -> typeError trav $ LetRecRequiresNonEmptyParams spanInFile
         svFInner <- generateFreshVar (Just f)
         let afInner = AssVarStatic svFInner
@@ -1172,7 +1172,7 @@ constructFunTypeExpr0 loc params tyeBody =
     ( \param tyeAcc ->
         case param of
           MandatoryBinder labelOpt (x, tye) -> TypeExpr loc (TyArrow labelOpt (Just x, tye) tyeAcc)
-          OptionalBinder (x, tye) -> TypeExpr loc (TyOptArrow (x, tye) tyeAcc)
+          ImplicitBinder (x, tye) -> TypeExpr loc (TyOptArrow (x, tye) tyeAcc)
     )
     tyeBody
     params
@@ -1186,7 +1186,7 @@ constructFunTypeExpr1 trav loc params tyeBody = do
     ( \param tyeAcc ->
         case param of
           MandatoryBinder labelOpt (_x, tye) -> pure $ TypeExpr loc (TyArrow labelOpt (Nothing, tye) tyeAcc)
-          OptionalBinder (_x, _tye) -> typeError trav $ CannotUseLamOptAtStage1 spanInFile
+          ImplicitBinder (_x, _tye) -> typeError trav $ CannotUseLamOptAtStage1 spanInFile
     )
     tyeBody
     params
@@ -1203,7 +1203,7 @@ typecheckLetInBody0 trav tyEnv params e1 =
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' e1
       let ax = AssVarStatic svX
       pure (A0TyArrow labelOpt (Just ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
-    OptionalBinder (x, tye) : params' -> do
+    ImplicitBinder (x, tye) : params' -> do
       a0tye <- typecheckTypeExpr0 trav tyEnv tye
       svX <- generateFreshVar (Just x)
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' e1
@@ -1349,7 +1349,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           case params of
             MandatoryBinder Nothing (x0', tyeParam0') : paramsRest' -> pure (x0', tyeParam0', paramsRest')
             MandatoryBinder (Just _) _ : _ -> error "TODO (error): rec param with a label"
-            OptionalBinder _ : _ -> typeError trav $ LetRecParamsCannotStartWithOptional spanInFile
+            ImplicitBinder _ : _ -> typeError trav $ LetRecParamsCannotStartWithOptional spanInFile
             [] -> typeError trav $ LetRecRequiresNonEmptyParams spanInFile
         svFInner <- generateFreshVar (Just f)
         let afInner = AssVarStatic svFInner
@@ -1485,7 +1485,7 @@ typecheckLetInBody1 trav tyEnv params e1 =
       (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv) params' e1
       let ax = AssVarStatic svX
       pure (A1TyArrow labelOpt a1tye a1tye', A1Lam Nothing (ax, a1tye) a1e')
-    OptionalBinder (_x, tye) : _params' -> do
+    ImplicitBinder (_x, tye) : _params' -> do
       let TypeExpr loc _ = tye -- TODO (enhance): give a better code position
       spanInFile <- askSpanInFile loc
       typeError trav $ CannotUseLamOptAtStage1 spanInFile

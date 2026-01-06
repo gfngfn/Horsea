@@ -76,7 +76,7 @@ data ExprMainF ann
 
 data LamBinderF ann
   = MandatoryBinder (Maybe Label) (Var, TypeExprF ann)
-  | OptionalBinder (Var, TypeExprF ann)
+  | ImplicitBinder (Var, TypeExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
   deriving (Eq1, Show1) via (Generically1 LamBinderF)
 
