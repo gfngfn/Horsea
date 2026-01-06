@@ -73,7 +73,7 @@ let test_model (size : Nat) = model size #is_training false in
       {batch_size} {MnistHelper.label_count}
       (train_model batch_size batch_images) batch_labels
   in
-  Optimizer.backward_step adam loss;
+  Optimizer.backward_step adam #loss loss;
   if mod batch_idx 50 == 0 then
     let test_accuracy =
       DatasetHelper.batch_accuracy
