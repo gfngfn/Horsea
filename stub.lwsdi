@@ -228,7 +228,7 @@ module DatasetHelper = struct
     {ntest : Nat} ->
     {imgdim : List Nat} ->
     {labeldim : List Nat} ->
-    (batch_size : Nat) ->
+    #batch_size (batch_size : Nat) ->
     &(Device ->
       Dataset %ntrain %ntest %imgdim %labeldim ->
       Int ->

@@ -44,15 +44,9 @@ let adam = Optimizer.adam vs #learning_rate learning_rate in
 let model (size : Nat) #is_training (is_training : Bool) (xs : Tensor [size, MnistHelper.image_dim]) =
   Tensor.reshape [size, 1, 28, 28] xs
   |> Layer.forward (conv2d1 {size})
-  |> Tensor.max_pool2d
-      #padding (0, 0)
-      #ksize (2, 2)
-      #stride (2, 2)
+  |> Tensor.max_pool2d #padding (0, 0) #ksize (2, 2) #stride (2, 2)
   |> Layer.forward (conv2d2 {size})
-  |> Tensor.max_pool2d
-      #padding (0, 0)
-      #ksize (2, 2)
-      #stride (2, 2)
+  |> Tensor.max_pool2d #padding (0, 0) #ksize (2, 2) #stride (2, 2)
   |> Tensor.reshape [size, 1024]
   |> Layer.forward (linear1 {size})
   |> Tensor.dropout #p 0.5 #is_training is_training
@@ -63,7 +57,7 @@ let test_model (size : Nat) = model size #is_training false in
 (range 1 epochs) |> List.iter (fun(batch_idx : Int) ->
   let (batch_images, batch_labels) =
     DatasetHelper.train_batch
-      batch_size
+      #batch_size batch_size
       device
       MnistHelper.dataset
       batch_idx
@@ -78,8 +72,8 @@ let test_model (size : Nat) = model size #is_training false in
     let test_accuracy =
       DatasetHelper.batch_accuracy
         _ _ _ _ {MnistHelper.label_count}
-        batch_size
-        test_model
+        #batch_size batch_size
+        #predict test_model
         device
         MnistHelper.dataset
     in
