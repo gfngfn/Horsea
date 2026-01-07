@@ -398,6 +398,8 @@ instance Disp BuiltInArity1 where
     BITupleFirst -> "FST"
     BITupleSecond -> "SND"
     BIListLength -> "LIST.LENGTH"
+    BITorchVisionImagenetClassesGenTop -> "TORCHVISION.IMAGENET.CLASSES.GEN_TOP"
+    BIModuleGenForward -> "MODULE.GEN_FORWARD"
 
 instance Disp BuiltInArity2 where
   dispGen _ = \case
@@ -429,6 +431,9 @@ instance Disp BuiltInArity2 where
     BITensorAdd ns -> "TENSOR.ADD@{" <> dispListLiteral ns <> "}"
     BITensorMm k m n -> "TENSOR.MM@{" <> disps [k, m, n] <> "}"
     BITensorGenReshape -> "TENSOR.GEN_RESHAPE"
+    BITensorGenSoftmax -> "TENSOR.GEN_SOFTMAX"
+    BITorchVisionImagenetLoadImage -> "TORCHVISION.IMAGENET.LOAD_IMAGE"
+    BIModuleGenLoad -> "MODULE.GEN_LOAD"
     BILayerGenForward -> "LAYER.GEN_FORWARD"
     BISerializeGenLoadMulti -> "SERIALIZE.GEN_LOAD_MULTI_"
 
@@ -1004,6 +1009,7 @@ instance Disp Ass1BuiltIn where
     A1BITensorNoGrad -> "Tensor.no_grad"
     A1BITensorFloatValue -> "Tensor.float_value"
     A1BITensorMaxPool2d k l m n padding1 padding2 ksize1 ksize2 stride1 stride2 -> "Tensor.max_pool2d" <> param (disps [k, l, m, n, padding1, padding2, ksize1, ksize2, stride1, stride2])
+    A1BITensorSoftmax ns dim -> "Tensor.softmax" <> param (dispListLiteral ns <> "," <+> disp dim)
     A1BILayerActivationRelu -> "Layer.Activation.relu"
     A1BILayerActivationNone -> "Layer.Activation.none"
     A1BILayerLinear ns input_dim output_dim -> "Layer.linear" <> param (dispListLiteral ns <> "," <+> disps [input_dim, output_dim])
@@ -1012,17 +1018,21 @@ instance Disp Ass1BuiltIn where
     A1BIVarStoreCreate -> "Var_store.create"
     A1BIOptimizerAdam -> "Optimizer.adam"
     A1BIOptimizerBackwardStep -> "Optimizer.backward_step"
+    A1BITorchVisionImagenetLoadImage ns filename -> "TorchVision.Imagenet.load_image" <> param (dispListLiteral ns <> "," <+> dispStringLiteral filename)
+    A1BITorchVisionImagenetClassesTop n -> "TorchVision.Imagenet.Classes.top" <> param (disp n)
     A1BIDatasetHelperTrainBatch dp batchSize -> "Dataset_helper.train_batch" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
     A1BIDatasetHelperBatchAccuracy dp n batchSize -> "Dataset_helper.batch_accuracy" <> param (dispDatasetParam0 dp <> "," <+> disp n <> "," <+> disp batchSize)
     A1BIDatasetHelperBatchesPerEpoch dp batchSize -> "Dataset_helper.batches_per_epoch" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
     A1BIDatasetHelperIter dp batchSize -> "Dataset_helper.iter" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
     A1BIDatasetHelperMap dp batchSize -> "Dataset_helper.map" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
     A1BIDatasetHelperPrintSummary dp -> "Dataset_helper.batch_accuracy" <> param (dispDatasetParam0 dp)
+    A1BIModuleLoad ns filename -> "Module.load" <> param (dispListLiteral ns <> "," <+> dispStringLiteral filename)
+    A1BIModuleForward ns -> "Module.forward" <> param (dispListLiteral ns)
     A1BIMnistHelperTrainImages -> "Mnist_helper.train_images"
     A1BIMnistHelperTrainLabels -> "Mnist_helper.train_labels"
     A1BIMnistHelperTestImages -> "Mnist_helper.test_images"
     A1BIMnistHelperTestLabels -> "Mnist_helper.test_labels"
-    A1BISerializeLoadMulti shape filename -> "Serialize.load_multi_" <> param (dispListLiteral shape <> "," <+> disp filename)
+    A1BISerializeLoadMulti shape filename -> "Serialize.load_multi_" <> param (dispListLiteral shape <> "," <+> dispStringLiteral filename)
     A1BuiltInOther s -> "OTHER '" <> disp s <> "'"
     where
       param doc = stagingOperatorStyle ("@{" <> doc <> "}")

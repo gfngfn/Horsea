@@ -305,10 +305,10 @@ module MnistHelper = struct
 end
 
 module Module = struct
-  val ~load : {ns : List Nat} -> String -> &(List (Tensor %ns) -> Tensor %ns)
-    external (builtin = "module__load", surface = "load")
+  val ~gen_load : {ns : List Nat} -> String -> &(List (Tensor %ns) -> Tensor %ns)
+    external (builtin = "module__gen_load", surface = "load")
   val ~gen_forward : {ns : List Nat} -> &((List (Tensor %ns) -> Tensor %ns) -> List (Tensor %ns) -> Tensor %ns)
-    external (builtin = "module__forward", surface = "forward")
+    external (builtin = "module__gen_forward", surface = "forward")
 end
 
 module TorchVision = struct
@@ -342,8 +342,7 @@ module TorchVision = struct
       &(Tensor %ns)
       external (builtin = "torch_vision__imagenet__load_image", surface = "load_image")
     module Classes = struct
-      val ~count : Nat
-        external (builtin = "torch_vision__imagenet__classes__count", surface = "count")
+      val ~count = 1000 as Nat
       val ~names : List String
         external (builtin = "torch_vision__imagenet__classes__names", surface = "names")
       val ~gen_top :

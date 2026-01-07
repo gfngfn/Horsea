@@ -186,6 +186,9 @@ reduceDeltaArity1 bi1 a0v1 =
     BITensorGenDropout -> do
       shape <- validateIntListLiteral a0v1
       pure $ A0ValBracket (A1ValConst (A1BITensorDropout shape))
+    BIModuleGenForward -> do
+      shape <- validateIntListLiteral a0v1
+      pure $ A0ValBracket (A1ValConst (A1BIModuleForward shape))
     BILiftString -> do
       s <- validateStringLiteral a0v1
       pure $ A0ValBracket (A1ValLiteral (ALitString s))
@@ -198,6 +201,9 @@ reduceDeltaArity1 bi1 a0v1 =
     BIListLength -> do
       a0vs1 <- validateListValue a0v1
       pure $ A0ValLiteral (ALitInt (length a0vs1))
+    BITorchVisionImagenetClassesGenTop -> do
+      n <- validateIntLiteral a0v1
+      pure $ A0ValBracket (A1ValConst (A1BITorchVisionImagenetClassesTop n))
 
 reduceDeltaArity2 :: BuiltInArity2 -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity2 bi2 a0v1 a0v2 =
@@ -319,6 +325,18 @@ reduceDeltaArity2 bi2 a0v1 a0v2 =
       shape1 <- validateIntListLiteral a0v1
       shape2 <- validateIntListLiteral a0v2
       pure $ A0ValBracket (A1ValConst (A1BITensorReshape shape1 shape2))
+    BITensorGenSoftmax -> do
+      shape <- validateIntListLiteral a0v1
+      dim <- validateIntLiteral a0v2
+      pure $ A0ValBracket (A1ValConst (A1BITensorSoftmax shape dim))
+    BITorchVisionImagenetLoadImage -> do
+      shape <- validateIntListLiteral a0v1
+      filename <- validateStringLiteral a0v2
+      pure $ A0ValBracket (A1ValConst (A1BITorchVisionImagenetLoadImage shape filename))
+    BIModuleGenLoad -> do
+      shape <- validateIntListLiteral a0v1
+      filename <- validateStringLiteral a0v2
+      pure $ A0ValBracket (A1ValConst (A1BIModuleLoad shape filename))
     BILayerGenForward -> do
       shape1 <- validateIntListLiteral a0v1
       shape2 <- validateIntListLiteral a0v2

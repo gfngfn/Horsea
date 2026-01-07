@@ -54,6 +54,8 @@ data BuiltInArity1
   | BITupleFirst
   | BITupleSecond
   | BIListLength
+  | BITorchVisionImagenetClassesGenTop
+  | BIModuleGenForward
   deriving stock (Eq, Show)
 
 data BuiltInArity2
@@ -85,6 +87,9 @@ data BuiltInArity2
   | BITensorAdd [Int]
   | BITensorMm Int Int Int
   | BITensorGenReshape
+  | BITensorGenSoftmax
+  | BITorchVisionImagenetLoadImage
+  | BIModuleGenLoad
   | BILayerGenForward
   | BISerializeGenLoadMulti
   deriving stock (Eq, Show)
@@ -208,6 +213,7 @@ data Ass1BuiltIn
   | A1BITensorNoGrad
   | A1BITensorFloatValue
   | A1BITensorMaxPool2d Int Int Int Int Int Int Int Int Int Int
+  | A1BITensorSoftmax [Int] Int
   | A1BILayerActivationRelu
   | A1BILayerActivationNone
   | A1BILayerLinear [Int] Int Int
@@ -216,6 +222,8 @@ data Ass1BuiltIn
   | A1BIVarStoreCreate
   | A1BIOptimizerAdam
   | A1BIOptimizerBackwardStep
+  | A1BITorchVisionImagenetLoadImage [Int] Text
+  | A1BITorchVisionImagenetClassesTop Int
   | A1BIDatasetHelperTrainBatch (DatasetParam [] Int) Int
   | A1BIDatasetHelperBatchAccuracy (DatasetParam [] Int) Int Int
   | A1BIDatasetHelperBatchesPerEpoch (DatasetParam [] Int) Int
@@ -226,6 +234,8 @@ data Ass1BuiltIn
   | A1BIMnistHelperTrainLabels
   | A1BIMnistHelperTestImages
   | A1BIMnistHelperTestLabels
+  | A1BIModuleLoad [Int] Text
+  | A1BIModuleForward [Int]
   | A1BISerializeLoadMulti [Int] Text
   | A1BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
@@ -300,12 +310,17 @@ validateExternalName0 = \case
   "tensor__gen_dropout" -> arity1 BITensorGenDropout
   "tensor__gen_reshape" -> arity2 BITensorGenReshape
   "tensor__gen_max_pool2d" -> arity7 BITensorGenMaxPool2d
+  "tensor__gen_softmax" -> arity2 BITensorGenSoftmax
+  "torch_vision__imagenet__load_image" -> arity2 BITorchVisionImagenetLoadImage
+  "torch_vision__imagenet__classes__gen_top" -> arity1 BITorchVisionImagenetClassesGenTop
   "dataset_helper__gen_train_batch" -> arity5 BIDatasetHelperGenTrainBatch
   "dataset_helper__gen_batch_accuracy" -> arity7 BIDatasetHelperGenBatchAccuracy
   "dataset_helper__gen_batches_per_epoch" -> arity5 BIDatasetHelperGenBatchesPerEpoch
   "dataset_helper__gen_iter" -> arity6 BIDatasetHelperGenIter
   "dataset_helper__gen_map" -> arity6 BIDatasetHelperGenMap
   "dataset_helper__gen_print_summary" -> arity4 BIDatasetHelperGenPrintSummary
+  "module__gen_load" -> arity2 BIModuleGenLoad
+  "module__gen_forward" -> arity1 BIModuleGenForward
   "serialize__gen_load_multi_" -> arity2 BISerializeGenLoadMulti
   s -> pure $ BuiltInOther s
   --  _ -> Nothing
