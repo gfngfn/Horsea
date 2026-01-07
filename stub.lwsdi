@@ -355,11 +355,11 @@ module TorchVision = struct
 end
 
 module Serialize = struct
-  val ~load_multi_ :
+  val ~gen_load_multi_ :
     {ns : List Nat} ->
     #filename String ->
     &(#named_tensors List (String * Tensor %ns) ->
       Unit
     )
-    external (builtin = "serialize__load_multi_", surface = "load_multi_")
+    external (builtin = "serialize__gen_load_multi_", surface = "load_multi_")
 end

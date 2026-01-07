@@ -11,7 +11,7 @@ let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (mode
         in
         print_string "Loading weights from";
         print_string ~(lift_string model_path);
-        ~(Serialize.load_multi_ #filename model_path)
+        ~(Serialize.gen_load_multi_ #filename model_path)
           #named_tensors (~(VarStore.gen_all_vars {[13]}) frozen_vs); (* TODO *)
         print_string "Precomputing activations, this can take a minute...";
         ~(DatasetHelper.gen_map

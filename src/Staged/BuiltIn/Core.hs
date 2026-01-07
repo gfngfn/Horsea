@@ -50,6 +50,7 @@ data BuiltInArity1
   | BITensorGenSubUpdate
   | BITensorGenCountEqual
   | BITensorGenDropout
+  | BILiftString
   | BITupleFirst
   | BITupleSecond
   | BIListLength
@@ -85,6 +86,7 @@ data BuiltInArity2
   | BITensorMm Int Int Int
   | BITensorGenReshape
   | BILayerGenForward
+  | BISerializeGenLoadMulti
   deriving stock (Eq, Show)
 
 data BuiltInArity3
@@ -99,6 +101,7 @@ data BuiltInArity4
 
 data BuiltInArity5
   = BIDatasetHelperGenTrainBatch
+  | BIDatasetHelperGenBatchesPerEpoch
   deriving stock (Eq, Show)
 
 data BuiltInArity6
@@ -215,13 +218,15 @@ data Ass1BuiltIn
   | A1BIOptimizerBackwardStep
   | A1BIDatasetHelperTrainBatch (DatasetParam [] Int) Int
   | A1BIDatasetHelperBatchAccuracy (DatasetParam [] Int) Int Int
-  | A1BIDatasetHelperPrintSummary (DatasetParam [] Int)
+  | A1BIDatasetHelperBatchesPerEpoch (DatasetParam [] Int) Int
   | A1BIDatasetHelperIter (DatasetParam [] Int) Int
   | A1BIDatasetHelperMap (DatasetParam [] Int) Int
+  | A1BIDatasetHelperPrintSummary (DatasetParam [] Int)
   | A1BIMnistHelperTrainImages
   | A1BIMnistHelperTrainLabels
   | A1BIMnistHelperTestImages
   | A1BIMnistHelperTestLabels
+  | A1BISerializeLoadMulti [Int] Text
   | A1BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
@@ -275,6 +280,7 @@ validateExternalName0 = \case
   "list__append" -> arity2 BIListAppend
   "list__iter" -> arity2 BIListIter
   "list__length" -> arity1 BIListLength
+  "lift_string" -> arity1 BILiftString
   "tuple__first" -> arity1 BITupleFirst
   "tuple__second" -> arity1 BITupleSecond
   "device__gen_cuda_if_available" -> arity1 BIDeviceGenCudaIfAvailable
@@ -296,9 +302,11 @@ validateExternalName0 = \case
   "tensor__gen_max_pool2d" -> arity7 BITensorGenMaxPool2d
   "dataset_helper__gen_train_batch" -> arity5 BIDatasetHelperGenTrainBatch
   "dataset_helper__gen_batch_accuracy" -> arity7 BIDatasetHelperGenBatchAccuracy
-  "dataset_helper__gen_print_summary" -> arity4 BIDatasetHelperGenPrintSummary
+  "dataset_helper__gen_batches_per_epoch" -> arity5 BIDatasetHelperGenBatchesPerEpoch
   "dataset_helper__gen_iter" -> arity6 BIDatasetHelperGenIter
   "dataset_helper__gen_map" -> arity6 BIDatasetHelperGenMap
+  "dataset_helper__gen_print_summary" -> arity4 BIDatasetHelperGenPrintSummary
+  "serialize__gen_load_multi_" -> arity2 BISerializeGenLoadMulti
   s -> pure $ BuiltInOther s
   --  _ -> Nothing
   where

@@ -394,6 +394,7 @@ instance Disp BuiltInArity1 where
     BITensorGenSubUpdate -> "TENSOR.GEN_SUB_UPDATE"
     BITensorGenCountEqual -> "TENSOR.GEN_COUNT_EQUAL"
     BITensorGenDropout -> "TENSOR.GEN_DROPOUT"
+    BILiftString -> "LIFT_STRING"
     BITupleFirst -> "FST"
     BITupleSecond -> "SND"
     BIListLength -> "LIST.LENGTH"
@@ -429,6 +430,7 @@ instance Disp BuiltInArity2 where
     BITensorMm k m n -> "TENSOR.MM@{" <> disps [k, m, n] <> "}"
     BITensorGenReshape -> "TENSOR.GEN_RESHAPE"
     BILayerGenForward -> "LAYER.GEN_FORWARD"
+    BISerializeGenLoadMulti -> "SERIALIZE.GEN_LOAD_MULTI_"
 
 instance Disp BuiltInArity3 where
   dispGen _ = \case
@@ -443,6 +445,7 @@ instance Disp BuiltInArity4 where
 instance Disp BuiltInArity5 where
   dispGen _ = \case
     BIDatasetHelperGenTrainBatch -> "DATASET_HELPER.GEN_TRAIN_BATCH"
+    BIDatasetHelperGenBatchesPerEpoch -> "DATASET_HELPER.GEN_BATCHES_PER_EPOCH"
 
 instance Disp BuiltInArity6 where
   dispGen _ = \case
@@ -1011,13 +1014,15 @@ instance Disp Ass1BuiltIn where
     A1BIOptimizerBackwardStep -> "Optimizer.backward_step"
     A1BIDatasetHelperTrainBatch dp batchSize -> "Dataset_helper.train_batch" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
     A1BIDatasetHelperBatchAccuracy dp n batchSize -> "Dataset_helper.batch_accuracy" <> param (dispDatasetParam0 dp <> "," <+> disp n <> "," <+> disp batchSize)
-    A1BIDatasetHelperPrintSummary dp -> "Dataset_helper.batch_accuracy" <> param (dispDatasetParam0 dp)
+    A1BIDatasetHelperBatchesPerEpoch dp batchSize -> "Dataset_helper.batches_per_epoch" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
     A1BIDatasetHelperIter dp batchSize -> "Dataset_helper.iter" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
     A1BIDatasetHelperMap dp batchSize -> "Dataset_helper.map" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
+    A1BIDatasetHelperPrintSummary dp -> "Dataset_helper.batch_accuracy" <> param (dispDatasetParam0 dp)
     A1BIMnistHelperTrainImages -> "Mnist_helper.train_images"
     A1BIMnistHelperTrainLabels -> "Mnist_helper.train_labels"
     A1BIMnistHelperTestImages -> "Mnist_helper.test_images"
     A1BIMnistHelperTestLabels -> "Mnist_helper.test_labels"
+    A1BISerializeLoadMulti shape filename -> "Serialize.load_multi_" <> param (dispListLiteral shape <> "," <+> disp filename)
     A1BuiltInOther s -> "OTHER '" <> disp s <> "'"
     where
       param doc = stagingOperatorStyle ("@{" <> doc <> "}")

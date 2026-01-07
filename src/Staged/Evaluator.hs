@@ -16,6 +16,7 @@ import Data.Functor.Identity
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Staged.BuiltIn.Core
 import Staged.Core
@@ -91,12 +92,10 @@ validateUnitLiteral = \case
   A0ValLiteral ALitUnit -> pure ()
   a0v -> bug $ NotAUnit a0v
 
-{-
 validateStringLiteral :: Ass0Val -> M Text
 validateStringLiteral = \case
   A0ValLiteral (ALitString s) -> pure s
   a0v -> bug $ NotAString a0v
--}
 
 validateTupleValue :: Ass0Val -> M (Ass0Val, Ass0Val)
 validateTupleValue = \case
@@ -187,6 +186,9 @@ reduceDeltaArity1 bi1 a0v1 =
     BITensorGenDropout -> do
       shape <- validateIntListLiteral a0v1
       pure $ A0ValBracket (A1ValConst (A1BITensorDropout shape))
+    BILiftString -> do
+      s <- validateStringLiteral a0v1
+      pure $ A0ValBracket (A1ValLiteral (ALitString s))
     BITupleFirst -> do
       (a0v11, _) <- validateTupleValue a0v1
       pure a0v11
@@ -321,6 +323,10 @@ reduceDeltaArity2 bi2 a0v1 a0v2 =
       shape1 <- validateIntListLiteral a0v1
       shape2 <- validateIntListLiteral a0v2
       pure $ A0ValBracket (A1ValConst (A1BILayerForward shape1 shape2))
+    BISerializeGenLoadMulti -> do
+      shape <- validateIntListLiteral a0v1
+      filename <- validateStringLiteral a0v2
+      pure $ A0ValBracket (A1ValConst (A1BISerializeLoadMulti shape filename))
   where
     arithmetic :: (Int -> Int -> Ass0Val) -> M Ass0Val
     arithmetic f = do
@@ -367,6 +373,10 @@ reduceDeltaArity5 bi5 a0v1 a0v2 a0v3 a0v4 a0v5 =
       dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
       batchSize <- validateIntLiteral a0v5
       pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperTrainBatch dp batchSize))
+    BIDatasetHelperGenBatchesPerEpoch -> do
+      dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
+      batchSize <- validateIntLiteral a0v5
+      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperBatchesPerEpoch dp batchSize))
 
 reduceDeltaArity6 :: BuiltInArity6 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity6 bi6 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 =
