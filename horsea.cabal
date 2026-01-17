@@ -85,6 +85,7 @@ library
       Surface.Parser,
       Surface.Syntax,
       Surface.Token,
+      Util.Elaborator,
       Util.FrontError,
       Util.LocationInFile,
       Util.Matrix,
