@@ -406,8 +406,11 @@ extractConstraintsFromTypeExpr trav btenv (TypeExpr ann typeExprMain) = do
           ("Tensor", [ExprArg eList]) -> do
             (exprArgs, cs) <- extractConstraintsFromExprArgsForType trav btenv bt ann [(eList, bityNatList)]
             pure (map ExprArg exprArgs, [], cs)
-          ("Dataset", _) ->
-            error "TODO: extractConstraintsFromTypeExpr, Dataset"
+          ("Dataset", [ExprArg e1, ExprArg e2, ExprArg e3, ExprArg e4]) -> do
+            (exprArgs, cs) <-
+              extractConstraintsFromExprArgsForType trav btenv bt ann $
+                [(e1, bityNatList), (e2, bityNatList), (e3, bityNat), (e4, bityNat)]
+            pure (map ExprArg exprArgs, [], cs)
           (_, _) ->
             analysisError trav $ UnknownTypeOrInvalidArgs spanInFile tyName args
       let tye' = TypeExpr (bt, ann) (TyName tyName args')
