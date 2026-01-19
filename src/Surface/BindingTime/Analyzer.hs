@@ -42,75 +42,6 @@ fresh = do
   putState $ AnalysisState {nextBindingTimeVarIndex = i + 1}
   pure $ BindingTimeVar i
 
-{-
--- TODO (enhance): merge this function into `extractConstraintsFromExpr`
-assignBindingTimeVarToExpr :: Expr -> Assigner BExpr
-assignBindingTimeVarToExpr (Expr ann exprMain) = do
-  btv <- fresh
-  Expr (BTVar btv, ann)
-    <$> case exprMain of
-      Literal lit ->
-        Literal <$> mapMLiteral assignBindingTimeVarToExpr lit
-      Var x ->
-        pure $ Var x
-      Lam Nothing labelOpt (x, ty) e -> do
-        bty <- assignBindingTimeVarToTypeExpr ty
-        be <- assignBindingTimeVarToExpr e
-        pure $ Lam Nothing labelOpt (x, bty) be
-      Lam (Just (f, tyRec)) labelOpt (x, ty) e -> do
-        btyRec <- assignBindingTimeVarToTypeExpr tyRec
-        bty <- assignBindingTimeVarToTypeExpr ty
-        be <- assignBindingTimeVarToExpr e
-        pure $ Lam (Just (f, btyRec)) labelOpt (x, bty) be
-      App e1 labelOpt e2 -> do
-        be1 <- assignBindingTimeVarToExpr e1
-        be2 <- assignBindingTimeVarToExpr e2
-        pure $ App be1 labelOpt be2
-      LetIn x params eBody e2 -> do
-        be1 <- makeLam params eBody
-        be2 <- assignBindingTimeVarToExpr e2
-        pure $ LetIn x [] be1 be2
-      LetRecIn f params tyeBody eBody e2 -> do
-        be1 <- makeRecLam f params tyeBody eBody
-        be2 <- assignBindingTimeVarToExpr e2
-        pure $ LetIn f [] be1 be2
-      LetTupleIn xL xR e1 e2 -> do
-        be1 <- assignBindingTimeVarToExpr e1
-        be2 <- assignBindingTimeVarToExpr e2
-        pure $ LetTupleIn xL xR be1 be2
-      LetOpenIn m e -> do
-        be <- assignBindingTimeVarToExpr e
-        pure $ LetOpenIn m be
-      Sequential e1 e2 -> do
-        be1 <- assignBindingTimeVarToExpr e1
-        be2 <- assignBindingTimeVarToExpr e2
-        pure $ Sequential be1 be2
-      Tuple e1 e2 -> do
-        be1 <- assignBindingTimeVarToExpr e1
-        be2 <- assignBindingTimeVarToExpr e2
-        pure $ Tuple be1 be2
-      IfThenElse e0 e1 e2 -> do
-        be0 <- assignBindingTimeVarToExpr e0
-        be1 <- assignBindingTimeVarToExpr e1
-        be2 <- assignBindingTimeVarToExpr e2
-        pure $ IfThenElse be0 be1 be2
-      As e1 ty2 -> do
-        be1 <- assignBindingTimeVarToExpr e1
-        btye2 <- assignBindingTimeVarToTypeExpr ty2
-        pure $ As be1 btye2
-      LamOpt (x, ty) e -> do
-        bty <- assignBindingTimeVarToTypeExpr ty
-        be <- assignBindingTimeVarToExpr e
-        pure $ LamOpt (x, bty) be
-      AppOptGiven e1 e2 -> do
-        be1 <- assignBindingTimeVarToExpr e1
-        be2 <- assignBindingTimeVarToExpr e2
-        pure $ AppOptGiven be1 be2
-      AppOptOmitted e1 -> do
-        be1 <- assignBindingTimeVarToExpr e1
-        pure $ AppOptOmitted be1
--}
-
 makeLam :: [LamBinder] -> Expr -> Expr
 makeLam params eBody = do
   foldr go eBody params
@@ -151,34 +82,6 @@ makeRecLam _trav f params tyBody eBody = do
       let eAcc' = Expr ann (LamOpt (x, ty) eAcc)
       let tyAcc' = TypeExpr ann (TyOptArrow (x, ty) tyAcc)
       (eAcc', tyAcc')
-
-{-
-assignBindingTimeVarToTypeExpr :: trav -> TypeExpr -> M trav BTypeExpr
-assignBindingTimeVarToTypeExpr trav (TypeExpr ann typeExprMain) = do
-  btv <- fresh
-  TypeExpr (BTVar btv, ann)
-    <$> case typeExprMain of
-      TyName tyName args -> do
-        bargs <- mapM assignBindingTimeVarToArgForType args
-        pure $ TyName tyName bargs
-      TyArrow labelOpt (xOpt, ty1) ty2 -> do
-        bty1 <- assignBindingTimeVarToTypeExpr ty1
-        bty2 <- assignBindingTimeVarToTypeExpr ty2
-        pure $ TyArrow labelOpt (xOpt, bty1) bty2
-      TyOptArrow (x, ty1) ty2 -> do
-        bty1 <- assignBindingTimeVarToTypeExpr ty1
-        bty2 <- assignBindingTimeVarToTypeExpr ty2
-        pure $ TyOptArrow (x, bty1) bty2
-      TyProduct ty1 ty2 -> do
-        bty1 <- assignBindingTimeVarToTypeExpr ty1
-        bty2 <- assignBindingTimeVarToTypeExpr ty2
-        pure $ TyProduct bty1 bty2
-
-assignBindingTimeVarToArgForType :: trav -> ArgForType -> M trav BArgForType
-assignBindingTimeVarToArgForType trav = \case
-  ExprArg e -> ExprArg <$> assignBindingTimeVarToExpr trav e
-  TypeArg tye -> TypeArg <$> assignBindingTimeVarToTypeExpr trav tye
--}
 
 analysisError :: trav -> AnalysisError -> M trav a
 analysisError = raiseError
@@ -545,7 +448,6 @@ extractConstraintsFromTypeExpr trav btenv (TypeExpr ann typeExprMain) = do
 
 run :: SourceSpec -> BindingTimeEnv -> Expr -> Either AnalysisError (BExpr, [Constraint Span])
 run sourceSpec btenv e = do
-  -- let (be, initialState') = runState (assignBindingTimeVarToExpr e) initialState
   let (result, _finalState) = Elaborator.run (extractConstraintsFromExpr () btenv e) analysisConfig initialState
   (be', _bity, constraints) <- mapLeft fst result
   pure (be', constraints)
