@@ -6,6 +6,7 @@ where
 import Surface.BindingTime.Core
 import Surface.Syntax
 import Util.LocationInFile (SpanInFile)
+import Util.TokenUtil
 import Prelude
 
 data AnalysisError
@@ -17,6 +18,6 @@ data AnalysisError
   | NotABase SpanInFile BIType
   | BindingTimeContradiction SpanInFile
   | BITypeContradiction SpanInFile BIType BIType BIType BIType
-  | UnknownTypeOrInvalidArgs SpanInFile TypeName [BArgForType]
+  | UnknownTypeOrInvalidArgs SpanInFile TypeName [ArgForTypeF Span]
   | NotATuple SpanInFile BIType
   deriving stock (Show)
