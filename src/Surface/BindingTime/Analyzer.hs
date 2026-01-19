@@ -109,61 +109,50 @@ assignBindingTimeVarToExpr (Expr ann exprMain) = do
       AppOptOmitted e1 -> do
         be1 <- assignBindingTimeVarToExpr e1
         pure $ AppOptOmitted be1
+-}
 
-makeLam :: [LamBinder] -> Expr -> Assigner BExpr
+makeLam :: [LamBinder] -> Expr -> Expr
 makeLam params eBody = do
-  beBody <- assignBindingTimeVarToExpr eBody
-  foldrM go beBody params
+  foldr go eBody params
   where
-    go :: LamBinder -> BExpr -> Assigner BExpr
-    go (MandatoryBinder labelOpt (x, ty@(TypeExpr loc1 _))) be@(Expr (_, loc2) _) = do
-      btv <- fresh
-      let ann = mergeSpan loc1 loc2 -- TODO (enhance): give better range
-      bty <- assignBindingTimeVarToTypeExpr ty
-      pure $ Expr (BTVar btv, ann) (Lam Nothing labelOpt (x, bty) be)
-    go (ImplicitBinder (x, ty@(TypeExpr loc1 _))) be@(Expr (_, loc2) _) = do
-      btv <- fresh
-      let ann = mergeSpan loc1 loc2 -- TODO (enhance): give better range
-      bty <- assignBindingTimeVarToTypeExpr ty
-      pure $ Expr (BTVar btv, ann) (LamOpt (x, bty) be)
+    go :: LamBinder -> Expr -> Expr
+    go (MandatoryBinder labelOpt (x, ty@(TypeExpr loc1 _))) e@(Expr loc2 _) =
+      -- TODO (enhance): give better range:
+      Expr (mergeSpan loc1 loc2) (Lam Nothing labelOpt (x, ty) e)
+    go (ImplicitBinder (x, ty@(TypeExpr loc1 _))) e@(Expr loc2 _) =
+      -- TODO (enhance): give better range:
+      Expr (mergeSpan loc1 loc2) (LamOpt (x, ty) e)
 
-makeRecLam :: trav -> Var -> [LamBinder] -> TypeExpr -> Expr -> M trav BExpr
-makeRecLam trav f params tyBody eBody = do
-  beBody <- assignBindingTimeVarToExpr eBody
+makeRecLam :: trav -> Var -> [LamBinder] -> TypeExpr -> Expr -> M trav Expr
+makeRecLam _trav f params tyBody eBody = do
   (x0, ty0, paramsRest) <-
     case params of
       MandatoryBinder Nothing (x0', ty0') : paramsRest' -> pure (x0', ty0', paramsRest')
       MandatoryBinder (Just _) _ : _ -> error "TODO (error): makeLamRec, with a label"
       ImplicitBinder _ : _ -> error "TODO (error): makeLamRec, implicit binder"
       [] -> error "TODO (error): makeLamRec, empty parameter sequence"
-  btyBody <- assignBindingTimeVarToTypeExpr tyBody
-  (beRest, btyRest) <- foldrM go (beBody, btyBody) paramsRest
-  bty0 <- assignBindingTimeVarToTypeExpr ty0
-  btv <- fresh
+  let (eRest, tyRest) = foldr go (eBody, tyBody) paramsRest
   let ann =
         -- TODO (enhance): give better code position
         let TypeExpr loc1 _ = ty0
             Expr loc2 _ = eBody
          in mergeSpan loc1 loc2
-  let btyRec = TypeExpr (BTVar btv, ann) (TyArrow Nothing (Just x0, bty0) btyRest)
-  pure $ Expr (BTVar btv, ann) (Lam (Just (f, btyRec)) Nothing (x0, bty0) beRest)
+  let tyRec = TypeExpr ann (TyArrow Nothing (Just x0, ty0) tyRest)
+  pure $ Expr ann (Lam (Just (f, tyRec)) Nothing (x0, ty0) eRest)
   where
-    go :: LamBinder -> (BExpr, BTypeExpr) -> Assigner (BExpr, BTypeExpr)
-    go (MandatoryBinder labelOpt (x, ty@(TypeExpr loc1 _))) (beAcc@(Expr (_, loc2) _), btyAcc) = do
-      btv <- fresh
+    go :: LamBinder -> (Expr, TypeExpr) -> (Expr, TypeExpr)
+    go (MandatoryBinder labelOpt (x, ty@(TypeExpr loc1 _))) (eAcc@(Expr loc2 _), tyAcc) = do
       let ann = mergeSpan loc1 loc2 -- TODO (enhance): give better code position
-      bty <- assignBindingTimeVarToTypeExpr ty
-      let beAcc' = Expr (BTVar btv, ann) (Lam Nothing labelOpt (x, bty) beAcc)
-      let btyAcc' = TypeExpr (BTVar btv, ann) (TyArrow labelOpt (Just x, bty) btyAcc)
-      pure (beAcc', btyAcc')
-    go (ImplicitBinder (x, ty@(TypeExpr loc1 _))) (beAcc@(Expr (_, loc2) _), btyAcc) = do
-      btv <- fresh
+      let eAcc' = Expr ann (Lam Nothing labelOpt (x, ty) eAcc)
+      let tyAcc' = TypeExpr ann (TyArrow labelOpt (Just x, ty) tyAcc)
+      (eAcc', tyAcc')
+    go (ImplicitBinder (x, ty@(TypeExpr loc1 _))) (eAcc@(Expr loc2 _), tyAcc) = do
       let ann = mergeSpan loc1 loc2 -- TODO (enhance): give better code position
-      bty <- assignBindingTimeVarToTypeExpr ty
-      let beAcc' = Expr (BTVar btv, ann) (LamOpt (x, bty) beAcc)
-      let btyAcc' = TypeExpr (BTVar btv, ann) (TyOptArrow (x, bty) btyAcc)
-      pure (beAcc', btyAcc')
+      let eAcc' = Expr ann (LamOpt (x, ty) eAcc)
+      let tyAcc' = TypeExpr ann (TyOptArrow (x, ty) tyAcc)
+      (eAcc', tyAcc')
 
+{-
 assignBindingTimeVarToTypeExpr :: trav -> TypeExpr -> M trav BTypeExpr
 assignBindingTimeVarToTypeExpr trav (TypeExpr ann typeExprMain) = do
   btv <- fresh
@@ -326,17 +315,22 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
             spanInFile1 <- askSpanInFile ann1
             analysisError trav $ NotAFunction spanInFile1 bity1
       pure (Expr (bt, ann) (App e1' labelOpt e2'), bity, constraints)
-    LetIn _x (_ : _) _eBody _e2 ->
-      error "Bug: Analyzer.extractConstraintsFromExpr, non-empty parameter sequence"
-    LetIn x [] e1 e2 -> do
+    LetIn x params eBody e2 -> do
+      let e1 = makeLam params eBody
       -- Not confident. TODO: check the validity of the following
       (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr trav btenv e1
       (e2', bity2@(BIType bt2 _), constraints2) <-
         extractConstraintsFromExpr trav (Map.insert x (EntryLocallyBound bt bity1) btenv) e2
       let e' = Expr (bt, ann) (LetIn x [] e1' e2')
       pure (e', bity2, constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
-    LetRecIn _x _params _tye _eBody _e2 ->
-      error "Bug: Analyzer.extractConstraintsFromExpr, LetRecIn"
+    LetRecIn x params tye eBody e2 -> do
+      e1 <- makeRecLam trav x params tye eBody
+      -- Not confident. TODO: check the validity of the following
+      (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr trav btenv e1
+      (e2', bity2@(BIType bt2 _), constraints2) <-
+        extractConstraintsFromExpr trav (Map.insert x (EntryLocallyBound bt bity1) btenv) e2
+      let e' = Expr (bt, ann) (LetIn x [] e1' e2')
+      pure (e', bity2, constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
     LetTupleIn xL xR e1 e2 -> do
       (e1', bity1@(BIType bt1 bityMain1), constraints1) <- extractConstraintsFromExpr trav btenv e1
       case bityMain1 of
