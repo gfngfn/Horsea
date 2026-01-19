@@ -7,7 +7,9 @@ where
 import Control.Monad
 import Data.Either.Extra (mapLeft)
 import Data.Function ((&))
+import Data.Map (Map)
 import Data.Map qualified as Map
+import Data.Set (Set)
 import Safe.Exact (zipExactMay)
 import Staged.Syntax qualified as Staged
 import Surface.BindingTime.AnalysisError
@@ -41,6 +43,9 @@ fresh = do
   AnalysisState {nextBindingTimeVarIndex = i} <- getState
   putState $ AnalysisState {nextBindingTimeVarIndex = i + 1}
   pure $ BindingTimeVar i
+
+freshBITypeVar :: M trav BITypeVar
+freshBITypeVar = error "TODO: freshBITypeVar"
 
 makeLam :: [LamBinder] -> Expr -> Expr
 makeLam params eBody = do
@@ -91,16 +96,17 @@ askSpanInFile loc = do
   AnalysisConfig {sourceSpec} <- askConfig
   pure $ getSpanInFile sourceSpec loc
 
-enhanceBIType :: (bt -> BindingTime) -> BITypeF bt -> BIType
-enhanceBIType enhBt (BIType bt bityMain) =
+enhanceBIType :: (bt -> BindingTime) -> (tv -> BITypeVar) -> BITypeF bt tv -> BIType
+enhanceBIType enhBt enhBitv (BIType bt bityMain) =
   BIType (enhBt bt) $
     case bityMain of
+      BITyVar bitv -> BITyVar (enhBitv bitv)
       BITyBase bityBaseArgs -> BITyBase (map fBIType bityBaseArgs)
       BITyProduct bity1 bity2 -> BITyProduct (fBIType bity1) (fBIType bity2)
       BITyArrow bity1 bity2 -> BITyArrow (fBIType bity1) (fBIType bity2)
       BITyOptArrow bity1 bity2 -> BITyOptArrow (fBIType bity1) (fBIType bity2)
   where
-    fBIType = enhanceBIType enhBt
+    fBIType = enhanceBIType enhBt enhBitv
 
 extractConstraintsFromLiteral :: trav -> BindingTimeEnv -> (BindingTime, Span) -> Literal Expr -> M trav (Literal BExpr, [BIType], [Constraint Span])
 extractConstraintsFromLiteral trav btenv (btLit, annLit) = \case
@@ -117,7 +123,8 @@ extractConstraintsFromLiteral trav btenv (btLit, annLit) = \case
   LitList es ->
     case es of
       [] -> do
-        let bity = error "TODO: BIType variable (not BindingTimeVar)"
+        bitv <- freshBITypeVar
+        let bity = BIType btLit (BITyVar bitv)
         pure (LitList [], [bity], [])
       eFirst : esTail -> do
         (eFirst', bityFirst@(BIType btElem _), constraintsFirst) <- extractConstraintsFromExpr trav btenv eFirst
@@ -159,6 +166,15 @@ openModule trav spanInFile m btenv =
     _ ->
       analysisError trav $ NotAModule spanInFile m
 
+makeInstantiationMap :: Set BITypeBoundVar -> M trav (Map BITypeBoundVar BITypeVar)
+makeInstantiationMap =
+  foldM
+    (\ instantiationMap boundVar -> do
+        bitv <- freshBITypeVar
+        pure $ Map.insert boundVar bitv instantiationMap
+    )
+    Map.empty
+
 extractConstraintsFromExpr :: trav -> BindingTimeEnv -> Expr -> M trav (BExpr, BIType, [Constraint Span])
 extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
   btv <- fresh
@@ -173,10 +189,26 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
         case findVal btenv ms x of
           Nothing ->
             analysisError trav $ UnboundVar spanInFile ms x
-          Just (EntryBuiltInPersistent x' bityVoid) ->
-            pure (x', enhanceBIType (\() -> bt) bityVoid, [])
-          Just (EntryBuiltInFixed x' btc' bityConst) ->
-            pure (x', enhanceBIType BTConst bityConst, [CEqual ann bt (BTConst btc')])
+          Just (EntryBuiltInPersistent x' biptyVoid) -> do
+            let BIPolyType binders bityVoid = biptyVoid
+            instantiationMap <- makeInstantiationMap binders
+            let bity =
+                  enhanceBIType
+                    (\() -> bt)
+                    ( \boundVar ->
+                        case Map.lookup boundVar instantiationMap of
+                          Nothing -> error "bug: extractConstraintsFromExpr, not found"
+                          Just bitv -> bitv
+                    )
+                    bityVoid
+            pure (x', bity, [])
+          Just (EntryBuiltInFixed x' btc' bityConst) -> do
+            let bity =
+                  enhanceBIType
+                    BTConst
+                    (error "TODO")
+                    bityConst
+            pure (x', bity, [CEqual ann bt (BTConst btc')])
           Just (EntryLocallyBound bt' bity) ->
             pure (x, bity, [CEqual ann bt bt'])
           Just (EntryModule _) ->
