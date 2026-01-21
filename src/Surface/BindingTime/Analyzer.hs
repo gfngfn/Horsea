@@ -10,6 +10,7 @@ import Data.Function ((&))
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
+import Data.Void (absurd)
 import Safe.Exact (zipExactMay)
 import Staged.Syntax qualified as Staged
 import Surface.BindingTime.AnalysisError
@@ -22,8 +23,9 @@ import Util.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
 import Util.TokenUtil
 import Prelude hiding (succ)
 
-newtype AnalysisState = AnalysisState
-  { nextBindingTimeVarIndex :: Int
+data AnalysisState = AnalysisState
+  { nextBindingTimeVarIndex :: Int,
+    nextBITypeVarIndex :: Int
   }
 
 newtype AnalysisConfig = AnalysisConfig
@@ -35,17 +37,21 @@ type M trav a = Elaborator AnalysisState AnalysisConfig AnalysisError trav a
 initialState :: AnalysisState
 initialState =
   AnalysisState
-    { nextBindingTimeVarIndex = 0
+    { nextBindingTimeVarIndex = 0,
+      nextBITypeVarIndex = 0
     }
 
-fresh :: M trav BindingTimeVar
-fresh = do
-  AnalysisState {nextBindingTimeVarIndex = i} <- getState
-  putState $ AnalysisState {nextBindingTimeVarIndex = i + 1}
+freshBindingTimeVar :: M trav BindingTimeVar
+freshBindingTimeVar = do
+  st@AnalysisState {nextBindingTimeVarIndex = i} <- getState
+  putState $ st {nextBindingTimeVarIndex = i + 1}
   pure $ BindingTimeVar i
 
 freshBITypeVar :: M trav BITypeVar
-freshBITypeVar = error "TODO: freshBITypeVar"
+freshBITypeVar = do
+  st@AnalysisState {nextBITypeVarIndex = j} <- getState
+  putState $ st {nextBITypeVarIndex = j + 1}
+  pure $ BITypeVar j
 
 makeLam :: [LamBinder] -> Expr -> Expr
 makeLam params eBody = do
@@ -177,7 +183,7 @@ makeInstantiationMap =
 
 extractConstraintsFromExpr :: trav -> BindingTimeEnv -> Expr -> M trav (BExpr, BIType, [Constraint Span])
 extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
-  btv <- fresh
+  btv <- freshBindingTimeVar
   let bt = BTVar btv
   spanInFile <- askSpanInFile ann
   case exprMain of
@@ -202,13 +208,22 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
                     )
                     bityVoid
             pure (x', bity, [])
-          Just (EntryBuiltInFixed x' btc' bityConst) -> do
+          Just (EntryBuiltInFixed0 x' biptyVoid) -> do
+            let BIPolyType binders bityVoid = biptyVoid
+            instantiationMap <- makeInstantiationMap binders
             let bity =
                   enhanceBIType
                     BTConst
-                    (error "TODO")
-                    bityConst
-            pure (x', bity, [CEqual ann bt (BTConst btc')])
+                    ( \boundVar ->
+                        case Map.lookup boundVar instantiationMap of
+                          Nothing -> error "bug: extractConstraintsFromExpr, not found"
+                          Just bitv -> bitv
+                    )
+                    bityVoid
+            pure (x', bity, [CEqual ann bt (BTConst BT0)])
+          Just (EntryBuiltInFixed1 x' bityVoid) -> do
+            let bity = enhanceBIType BTConst absurd bityVoid
+            pure (x', bity, [CEqual ann bt (BTConst BT1)])
           Just (EntryLocallyBound bt' bity) ->
             pure (x, bity, [CEqual ann bt bt'])
           Just (EntryModule _) ->
@@ -413,7 +428,7 @@ extractConstraintsFromExprArgsForType trav btenv bt ann argsWithBityReq = do
 
 extractConstraintsFromTypeExpr :: trav -> BindingTimeEnv -> TypeExpr -> M trav (BTypeExpr, BIType, [Constraint Span])
 extractConstraintsFromTypeExpr trav btenv (TypeExpr ann typeExprMain) = do
-  btv <- fresh
+  btv <- freshBindingTimeVar
   let bt = BTVar btv
   spanInFile <- askSpanInFile ann
   case typeExprMain of

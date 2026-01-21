@@ -68,7 +68,8 @@ type BIType = BITypeF BindingTime BITypeVar
 
 data BindingTimeEnvEntry
   = EntryBuiltInPersistent Var (BIPolyTypeF ())
-  | EntryBuiltInFixed Var BindingTimeConst (BITypeF BindingTimeConst BITypeVar)
+  | EntryBuiltInFixed0 Var BIPolyTypeVoid
+  | EntryBuiltInFixed1 Var BITypeVoid
   | EntryLocallyBound BindingTime BIType
   | EntryModule BindingTimeEnv
   deriving stock (Show)
