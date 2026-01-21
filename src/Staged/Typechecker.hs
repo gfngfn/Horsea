@@ -13,9 +13,6 @@ module Staged.Typechecker
 where
 
 import Control.Monad
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Reader
-import Control.Monad.Trans.State
 import Data.Either.Extra
 import Data.Foldable (foldrM)
 import Data.Function
@@ -43,6 +40,7 @@ import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
 import Staged.TypeSubst
+import Util.Elaborator
 import Util.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
 import Util.Matrix qualified as Matrix
 import Util.Maybe1
@@ -63,44 +61,15 @@ data TypecheckState = TypecheckState
     assTypeVarDisplay :: Map AssTypeVar Text
   }
 
-type MImpl err trav a = StateT TypecheckState (Reader TypecheckConfig) (Either (err, trav) a)
-
-newtype M' err trav a = M' (MImpl err trav a)
-
-mapRightOfM :: (a -> MImpl err trav b) -> Either (err, trav) a -> MImpl err trav b
-mapRightOfM f = \case
-  Left e -> lift $ pure $ Left e
-  Right vx -> f vx
-
-flipFmapImpl :: MImpl err trav a -> (a -> b) -> MImpl err trav b
-flipFmapImpl sx vf = sx >>= mapRightOfM (pure . Right . vf)
-
-instance Functor (M' err trav) where
-  fmap vf (M' sx) = M' $ flipFmapImpl sx vf
-
-instance Applicative (M' err trav) where
-  pure v = M' $ pure $ Right v
-  (M' sf) <*> (M' sx) = M' $ sf >>= mapRightOfM (flipFmapImpl sx)
-
-instance Monad (M' err trav) where
-  (M' sx) >>= f = M' $ sx >>= mapRightOfM (\v -> let M' s' = f v in s')
+type M' err trav a = Elaborator TypecheckState TypecheckConfig err trav a
 
 type M trav a = M' TypeError trav a
 
-getState :: M' err trav TypecheckState
-getState = M' $ Right <$> get
-
-putState :: TypecheckState -> M' err trav ()
-putState tcState = M' $ Right <$> put tcState
-
-askConfig :: M trav TypecheckConfig
-askConfig = M' $ lift $ Right <$> ask
-
 typeError :: trav -> err -> M' err trav a
-typeError trav e = M' $ lift $ pure $ Left (e, trav)
+typeError = raiseError
 
 mapTypeError :: (err1 -> err2) -> M' err1 trav a -> M' err2 trav a
-mapTypeError f (M' s) = M' $ mapStateT (mapReader (first (mapLeft (first f)))) s
+mapTypeError = mapError
 
 bug :: String -> a
 bug msg = error $ "bug: " ++ msg
@@ -109,9 +78,6 @@ askSpanInFile :: Span -> M trav SpanInFile
 askSpanInFile loc = do
   TypecheckConfig {sourceSpec} <- askConfig
   pure $ getSpanInFile sourceSpec loc
-
-liftEither :: Either (TypeError, trav) a -> M trav a
-liftEither x = M' $ pure x
 
 findValVar :: trav -> Span -> [Var] -> Var -> TypeEnv -> M trav ValEntry
 findValVar trav loc ms x tyEnv = do
@@ -1894,11 +1860,3 @@ typecheckBinds trav tyEnv =
             typeError trav $ BindingOverwritten spanInFile m
     )
     (tyEnv, SigRecord.empty, [])
-
-run :: M trav a -> TypecheckConfig -> TypecheckState -> (Either (TypeError, trav) a, TypecheckState)
-run (M' checker) config st = runReader (runStateT checker st) config
-
--- runStateT :: StateT s m b -> s -> m (b, s)
--- s = TypecheckState
--- m = Reader TypecheckConfig
--- b = Either (TypeError, trav) a

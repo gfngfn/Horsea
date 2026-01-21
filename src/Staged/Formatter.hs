@@ -1220,12 +1220,17 @@ instance Disp Bta.BindingTime where
     Bta.BTConst Bta.BT1 -> "1"
     Bta.BTVar (Bta.BindingTimeVar n) -> "β" <> disp n
 
-instance (Disp bt) => Disp (Bta.BITypeF bt) where
+instance Disp Bta.BITypeVar where
+  dispGen _req (Bta.BITypeVar j) = "α" <> disp j
+
+instance (Disp bt, Disp tv) => Disp (Bta.BITypeF bt tv) where
   dispGen _req (Bta.BIType bt btMain) =
     dispGen Atomic btMain <> "^" <> dispGen Atomic bt
 
-instance (Disp bt) => Disp (Bta.BITypeMainF bt) where
+instance (Disp bt, Disp tv) => Disp (Bta.BITypeMainF bt tv) where
   dispGen req = \case
+    Bta.BITyVar bitv ->
+      disp bitv
     Bta.BITyBase [] ->
       "●"
     Bta.BITyBase (bt0 : bts) ->
