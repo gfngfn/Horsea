@@ -175,7 +175,7 @@ openModule trav spanInFile m btenv =
 makeInstantiationMap :: Set BITypeBoundVar -> M trav (Map BITypeBoundVar BITypeVar)
 makeInstantiationMap =
   foldM
-    (\ instantiationMap boundVar -> do
+    ( \instantiationMap boundVar -> do
         bitv <- freshBITypeVar
         pure $ Map.insert boundVar bitv instantiationMap
     )

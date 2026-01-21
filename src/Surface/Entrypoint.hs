@@ -44,10 +44,10 @@ makeBindingTimeEnvFromStub =
                     Left Ass0Metadata {ass0surfaceName} -> fromMaybe varVal ass0surfaceName
                     Right _ -> varVal
              in case fromStaged0 a0tye of
-                Nothing ->
-                  bindingTimeEnv
-                Just biptyVoid ->
-                  Map.insert
+                  Nothing ->
+                    bindingTimeEnv
+                  Just biptyVoid ->
+                    Map.insert
                       x
                       (EntryBuiltInFixed0 varVal biptyVoid)
                       bindingTimeEnv
@@ -67,10 +67,10 @@ makeBindingTimeEnvFromStub =
                   -- Uses the same name if not specified
                   fromMaybe varVal assPsurfaceName
              in case fromStagedPers aPtye of
-                Nothing ->
-                  bindingTimeEnv
-                Just bipty ->
-                  Map.insert
+                  Nothing ->
+                    bindingTimeEnv
+                  Just bipty ->
+                    Map.insert
                       x
                       (EntryBuiltInPersistent varVal bipty)
                       bindingTimeEnv
