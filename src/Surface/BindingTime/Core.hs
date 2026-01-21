@@ -8,6 +8,7 @@ module Surface.BindingTime.Core
     BITypeBoundVar (..),
     BIPolyTypeF (..),
     BIType,
+    BITypeMain,
     BindingTimeEnvEntry (..),
     BindingTimeEnv,
     BExpr,
@@ -65,6 +66,8 @@ data BITypeMainF bt tv
   deriving stock (Functor, Show)
 
 type BIType = BITypeF BindingTime BITypeVar
+
+type BITypeMain = BITypeMainF BindingTime BITypeVar
 
 data BindingTimeEnvEntry
   = EntryBuiltInPersistent Var (BIPolyTypeF ())
