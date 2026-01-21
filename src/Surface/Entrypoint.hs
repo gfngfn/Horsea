@@ -43,28 +43,37 @@ makeBindingTimeEnvFromStub =
                   case a0metadataOpt of
                     Left Ass0Metadata {ass0surfaceName} -> fromMaybe varVal ass0surfaceName
                     Right _ -> varVal
-             in Map.insert
-                  x
-                  (EntryBuiltInFixed varVal BT0 (fromStaged0 a0tye))
-                  bindingTimeEnv
+             in case fromStaged0 a0tye of
+                  Nothing ->
+                    bindingTimeEnv
+                  Just biptyVoid ->
+                    Map.insert
+                      x
+                      (EntryBuiltInFixed0 varVal biptyVoid)
+                      bindingTimeEnv
           Ass1Entry a1tye a1metadataOpt ->
             let x =
                   -- Uses the same name if not specified
                   case a1metadataOpt of
                     Left Ass1Metadata {ass1surfaceName} -> fromMaybe varVal ass1surfaceName
                     Right _ -> varVal
+                bityVoid = fromStaged1 a1tye
              in Map.insert
                   x
-                  (EntryBuiltInFixed varVal BT1 (fromStaged1 a1tye))
+                  (EntryBuiltInFixed1 varVal bityVoid)
                   bindingTimeEnv
           AssPersEntry aPtye AssPersMetadata {assPsurfaceName} ->
             let x =
                   -- Uses the same name if not specified
                   fromMaybe varVal assPsurfaceName
-             in Map.insert
-                  x
-                  (EntryBuiltInPersistent varVal (fromStagedPers aPtye))
-                  bindingTimeEnv
+             in case fromStagedPers aPtye of
+                  Nothing ->
+                    bindingTimeEnv
+                  Just bipty ->
+                    Map.insert
+                      x
+                      (EntryBuiltInPersistent varVal bipty)
+                      bindingTimeEnv
     )
     ( \varMod (ModuleEntry sigr) bindingTimeEnv ->
         -- Reuses the module name `varMod` in the core language for the surface language.

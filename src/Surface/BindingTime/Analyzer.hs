@@ -7,7 +7,10 @@ where
 import Control.Monad
 import Data.Either.Extra (mapLeft)
 import Data.Function ((&))
+import Data.Map (Map)
 import Data.Map qualified as Map
+import Data.Set (Set)
+import Data.Void (absurd)
 import Safe.Exact (zipExactMay)
 import Staged.Syntax qualified as Staged
 import Surface.BindingTime.AnalysisError
@@ -20,8 +23,10 @@ import Util.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
 import Util.TokenUtil
 import Prelude hiding (succ)
 
-newtype AnalysisState = AnalysisState
-  { nextBindingTimeVarIndex :: Int
+data AnalysisState = AnalysisState
+  { nextBindingTimeVarIndex :: Int,
+    nextBITypeVarIndex :: Int,
+    solution :: Map BITypeVar BITypeMain
   }
 
 newtype AnalysisConfig = AnalysisConfig
@@ -33,14 +38,22 @@ type M trav a = Elaborator AnalysisState AnalysisConfig AnalysisError trav a
 initialState :: AnalysisState
 initialState =
   AnalysisState
-    { nextBindingTimeVarIndex = 0
+    { nextBindingTimeVarIndex = 0,
+      nextBITypeVarIndex = 0,
+      solution = Map.empty
     }
 
-fresh :: M trav BindingTimeVar
-fresh = do
-  AnalysisState {nextBindingTimeVarIndex = i} <- getState
-  putState $ AnalysisState {nextBindingTimeVarIndex = i + 1}
+freshBindingTimeVar :: M trav BindingTimeVar
+freshBindingTimeVar = do
+  st@AnalysisState {nextBindingTimeVarIndex = i} <- getState
+  putState $ st {nextBindingTimeVarIndex = i + 1}
   pure $ BindingTimeVar i
+
+freshBITypeVar :: M trav BITypeVar
+freshBITypeVar = do
+  st@AnalysisState {nextBITypeVarIndex = j} <- getState
+  putState $ st {nextBITypeVarIndex = j + 1}
+  pure $ BITypeVar j
 
 makeLam :: [LamBinder] -> Expr -> Expr
 makeLam params eBody = do
@@ -91,16 +104,17 @@ askSpanInFile loc = do
   AnalysisConfig {sourceSpec} <- askConfig
   pure $ getSpanInFile sourceSpec loc
 
-enhanceBIType :: (bt -> BindingTime) -> BITypeF bt -> BIType
-enhanceBIType enhBt (BIType bt bityMain) =
+enhanceBIType :: (bt -> BindingTime) -> (tv -> BITypeVar) -> BITypeF bt tv -> BIType
+enhanceBIType enhBt enhBitv (BIType bt bityMain) =
   BIType (enhBt bt) $
     case bityMain of
+      BITyVar bitv -> BITyVar (enhBitv bitv)
       BITyBase bityBaseArgs -> BITyBase (map fBIType bityBaseArgs)
       BITyProduct bity1 bity2 -> BITyProduct (fBIType bity1) (fBIType bity2)
       BITyArrow bity1 bity2 -> BITyArrow (fBIType bity1) (fBIType bity2)
       BITyOptArrow bity1 bity2 -> BITyOptArrow (fBIType bity1) (fBIType bity2)
   where
-    fBIType = enhanceBIType enhBt
+    fBIType = enhanceBIType enhBt enhBitv
 
 extractConstraintsFromLiteral :: trav -> BindingTimeEnv -> (BindingTime, Span) -> Literal Expr -> M trav (Literal BExpr, [BIType], [Constraint Span])
 extractConstraintsFromLiteral trav btenv (btLit, annLit) = \case
@@ -117,7 +131,8 @@ extractConstraintsFromLiteral trav btenv (btLit, annLit) = \case
   LitList es ->
     case es of
       [] -> do
-        let bity = error "TODO: BIType variable (not BindingTimeVar)"
+        bitv <- freshBITypeVar
+        let bity = BIType btLit (BITyVar bitv)
         pure (LitList [], [bity], [])
       eFirst : esTail -> do
         (eFirst', bityFirst@(BIType btElem _), constraintsFirst) <- extractConstraintsFromExpr trav btenv eFirst
@@ -159,9 +174,18 @@ openModule trav spanInFile m btenv =
     _ ->
       analysisError trav $ NotAModule spanInFile m
 
+makeInstantiationMap :: Set BITypeBoundVar -> M trav (Map BITypeBoundVar BITypeVar)
+makeInstantiationMap =
+  foldM
+    ( \instantiationMap boundVar -> do
+        bitv <- freshBITypeVar
+        pure $ Map.insert boundVar bitv instantiationMap
+    )
+    Map.empty
+
 extractConstraintsFromExpr :: trav -> BindingTimeEnv -> Expr -> M trav (BExpr, BIType, [Constraint Span])
 extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
-  btv <- fresh
+  btv <- freshBindingTimeVar
   let bt = BTVar btv
   spanInFile <- askSpanInFile ann
   case exprMain of
@@ -173,10 +197,35 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
         case findVal btenv ms x of
           Nothing ->
             analysisError trav $ UnboundVar spanInFile ms x
-          Just (EntryBuiltInPersistent x' bityVoid) ->
-            pure (x', enhanceBIType (\() -> bt) bityVoid, [])
-          Just (EntryBuiltInFixed x' btc' bityConst) ->
-            pure (x', enhanceBIType BTConst bityConst, [CEqual ann bt (BTConst btc')])
+          Just (EntryBuiltInPersistent x' biptyVoid) -> do
+            let BIPolyType binders bityVoid = biptyVoid
+            instantiationMap <- makeInstantiationMap binders
+            let bity =
+                  enhanceBIType
+                    (\() -> bt)
+                    ( \boundVar ->
+                        case Map.lookup boundVar instantiationMap of
+                          Nothing -> error "bug: extractConstraintsFromExpr, not found"
+                          Just bitv -> bitv
+                    )
+                    bityVoid
+            pure (x', bity, [])
+          Just (EntryBuiltInFixed0 x' biptyVoid) -> do
+            let BIPolyType binders bityVoid = biptyVoid
+            instantiationMap <- makeInstantiationMap binders
+            let bity =
+                  enhanceBIType
+                    BTConst
+                    ( \boundVar ->
+                        case Map.lookup boundVar instantiationMap of
+                          Nothing -> error "bug: extractConstraintsFromExpr, not found"
+                          Just bitv -> bitv
+                    )
+                    bityVoid
+            pure (x', bity, [CEqual ann bt (BTConst BT0)])
+          Just (EntryBuiltInFixed1 x' bityVoid) -> do
+            let bity = enhanceBIType BTConst absurd bityVoid
+            pure (x', bity, [CEqual ann bt (BTConst BT1)])
           Just (EntryLocallyBound bt' bity) ->
             pure (x, bity, [CEqual ann bt bt'])
           Just (EntryModule _) ->
@@ -334,35 +383,90 @@ appendOmittedOptionalArguments e@(Expr (_, ann) _) bity@(BIType _bt bityMain) =
     _ ->
       (e, bity)
 
+unwrapBITypeVar :: BITypeMain -> M trav (Either BITypeVar BITypeMain)
+unwrapBITypeVar = \case
+  BITyVar bitv -> do
+    AnalysisState {solution} <- getState
+    pure $
+      case Map.lookup bitv solution of
+        Nothing -> Left bitv
+        Just bityMain -> Right bityMain
+  bityMain ->
+    pure $ Right bityMain
+
+occurs :: BITypeVar -> BITypeMain -> Bool
+occurs bitv = goMain
+  where
+    goMain = \case
+      BITyVar bitv' -> bitv' == bitv
+      BITyBase bitys -> any go bitys
+      BITyProduct bity1 bity2 -> go bity1 || go bity2
+      BITyArrow bity1 bity2 -> go bity1 || go bity2
+      BITyOptArrow bity1 bity2 -> go bity1 || go bity2
+    go (BIType _bt bityMain) =
+      goMain bityMain
+
 makeConstraintsFromBITypeEquation :: forall trav. trav -> Span -> BIType -> BIType -> M trav [Constraint Span]
 makeConstraintsFromBITypeEquation trav ann bity1' bity2' = go bity1' bity2'
   where
     go :: BIType -> BIType -> M trav [Constraint Span]
-    go bity1@(BIType bt1 bityMain1) bity2@(BIType bt2 bityMain2) =
+    go bity1@(BIType bt1 bityMain1') bity2@(BIType bt2 bityMain2') = do
+      unwrapped1 <- unwrapBITypeVar bityMain1'
+      unwrapped2 <- unwrapBITypeVar bityMain2'
       ([CEqual ann bt1 bt2] ++)
-        <$> case (bityMain1, bityMain2) of
-          (BITyBase bityBaseArgs1, BITyBase bityBaseArgs2) ->
-            case zipExactMay bityBaseArgs1 bityBaseArgs2 of
-              Nothing -> do
-                spanInFile <- askSpanInFile ann
-                analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
-              Just zipped -> do
-                concat <$> mapM (uncurry go) zipped
-          (BITyProduct bity11 bity12, BITyProduct bity21 bity22) -> do
-            constraints1 <- go bity11 bity21
-            constraints2 <- go bity12 bity22
-            pure $ constraints1 ++ constraints2
-          (BITyArrow bity11 bity12, BITyArrow bity21 bity22) -> do
-            constraints1 <- go bity11 bity21
-            constraints2 <- go bity12 bity22
-            pure $ constraints1 ++ constraints2
-          (BITyOptArrow bity11 bity12, BITyOptArrow bity21 bity22) -> do
-            constraints1 <- go bity11 bity21
-            constraints2 <- go bity12 bity22
-            pure $ constraints1 ++ constraints2
-          (_, _) -> do
-            spanInFile <- askSpanInFile ann
-            analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
+        <$> case (unwrapped1, unwrapped2) of
+          (Right nonvarBityMain1, Right nonvarBityMain2) ->
+            goNonvar nonvarBityMain1 nonvarBityMain2
+          (Left bitv1, Left bitv2) -> do
+            if bitv1 == bitv2
+              then pure ()
+              else solve bitv1 bityMain2'
+            pure []
+          (Left bitv1, Right nonvarBityMain2) ->
+            if bitv1 `occurs` nonvarBityMain2
+              then
+                error "TODO (error): inclusion error"
+              else do
+                solve bitv1 nonvarBityMain2
+                pure []
+          (Right nonvarBityMain1, Left bitv2) ->
+            if bitv2 `occurs` nonvarBityMain1
+              then
+                error "TODO (error): inclusion error"
+              else do
+                solve bitv2 nonvarBityMain1
+                pure []
+      where
+        solve :: BITypeVar -> BITypeMain -> M trav ()
+        solve bitv bityMain = do
+          st@AnalysisState {solution} <- getState
+          putState $ st {solution = Map.insert bitv bityMain solution}
+
+        goNonvar :: BITypeMain -> BITypeMain -> M trav [Constraint Span]
+        goNonvar bityMain1 bityMain2 =
+          case (bityMain1, bityMain2) of
+            (BITyBase bityBaseArgs1, BITyBase bityBaseArgs2) ->
+              case zipExactMay bityBaseArgs1 bityBaseArgs2 of
+                Nothing -> do
+                  spanInFile <- askSpanInFile ann
+                  analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
+                Just zipped -> do
+                  concat <$> mapM (uncurry go) zipped
+            (BITyProduct bity11 bity12, BITyProduct bity21 bity22) -> do
+              constraints1 <- go bity11 bity21
+              constraints2 <- go bity12 bity22
+              pure $ constraints1 ++ constraints2
+            (BITyArrow bity11 bity12, BITyArrow bity21 bity22) -> do
+              constraints1 <- go bity11 bity21
+              constraints2 <- go bity12 bity22
+              pure $ constraints1 ++ constraints2
+            (BITyOptArrow bity11 bity12, BITyOptArrow bity21 bity22) -> do
+              constraints1 <- go bity11 bity21
+              constraints2 <- go bity12 bity22
+              pure $ constraints1 ++ constraints2
+            (_, _) -> do
+              spanInFile <- askSpanInFile ann
+              analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
 
 extractConstraintsFromExprArgsForType :: trav -> BindingTimeEnv -> BindingTime -> Span -> [(Expr, BIType)] -> M trav ([BExpr], [Constraint Span])
 extractConstraintsFromExprArgsForType trav btenv bt ann argsWithBityReq = do
@@ -381,7 +485,7 @@ extractConstraintsFromExprArgsForType trav btenv bt ann argsWithBityReq = do
 
 extractConstraintsFromTypeExpr :: trav -> BindingTimeEnv -> TypeExpr -> M trav (BTypeExpr, BIType, [Constraint Span])
 extractConstraintsFromTypeExpr trav btenv (TypeExpr ann typeExprMain) = do
-  btv <- fresh
+  btv <- freshBindingTimeVar
   let bt = BTVar btv
   spanInFile <- askSpanInFile ann
   case typeExprMain of
