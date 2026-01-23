@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Staged.BuiltIn.Core
   ( BuiltIn (..),
     BuiltInArity1 (..),
@@ -23,7 +24,18 @@ module Staged.BuiltIn.Core
 where
 
 import Data.Text (Text)
+import Staged.BuiltIn.CompileTime
 import Prelude
+
+$(derive
+    [ BuiltInSpec "BIGenVadd" [ParamInt] "A1BIVadd",
+      BuiltInSpec "BITensorGenZeros" [ParamIntList] "A1BITensorZeros",
+      BuiltInSpec "BITensorGenGrad" [ParamIntList] "A1BITensorGrad",
+      BuiltInSpec "BITensorGenZeroGrad" [ParamIntList] "A1BITensorZeroGrad",
+      BuiltInSpec "BITensorGenSubUpdate" [ParamIntList] "A1BITensorSubUpdate",
+      BuiltInSpec "BITensorGenCountEqual" [ParamIntList] "A1BITensorCountEqual",
+      BuiltInSpec "BITensorGenDropout" [ParamIntList] "A1BITensorDropout"
+    ])
 
 data BuiltIn
   = BuiltInArity1 BuiltInArity1
@@ -35,16 +47,9 @@ data BuiltIn
   | BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
-data BuiltInArity1
-  = BIGenVadd
-  | BIMtranspose Int Int
+data BuiltInArity1'
+  = BIMtranspose Int Int
   | BIDeviceGenCudaIfAvailable
-  | BITensorGenZeros
-  | BITensorGenGrad
-  | BITensorGenZeroGrad
-  | BITensorGenSubUpdate
-  | BITensorGenCountEqual
-  | BITensorGenDropout
   | BITupleFirst
   | BITupleSecond
   deriving stock (Eq, Show)
