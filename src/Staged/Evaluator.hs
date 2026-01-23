@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Staged.Evaluator
   ( evalExpr0,
     evalExpr1,
@@ -17,7 +18,9 @@ import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
 import Data.Text qualified as Text
+import Staged.BuiltIn.CompileTime (deriveDeltaReduction)
 import Staged.BuiltIn.Core
+import Staged.BuiltIn.Definitions (definitions)
 import Staged.EvalError
 import Staged.Syntax
 import Util.LocationInFile (SourceSpec, getSpanInFile)
@@ -146,6 +149,9 @@ broadcast ns1' ns2' = reverse <$> go (reverse ns1', reverse ns2')
       (n1 : ns1, n2 : ns2) | n1 == n2 -> (n1 :) <$> broadcast ns1 ns2
       _ -> Nothing
 
+$(deriveDeltaReduction definitions)
+
+{-
 reduceDeltaArity1 :: BuiltInArity1 -> Ass0Val -> M Ass0Val
 reduceDeltaArity1 bi1 a0v1 =
   case bi1 of
@@ -184,6 +190,7 @@ reduceDeltaArity1 bi1 a0v1 =
     BITupleSecond -> do
       (_, a0v12) <- validateTupleValue a0v1
       pure a0v12
+-}
 
 reduceDeltaArity2 :: BuiltInArity2 -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity2 bi2 a0v1 a0v2 =

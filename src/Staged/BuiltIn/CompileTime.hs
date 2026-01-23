@@ -12,6 +12,7 @@ module Staged.BuiltIn.CompileTime
   )
 where
 
+import Control.Monad.Extra (mapMaybeM)
 import Data.List (foldl')
 import Data.Maybe (mapMaybe)
 import Language.Haskell.TH qualified as TH
@@ -34,7 +35,8 @@ data GenSpec = GenSpec
 
 data VersatileSpec = VersatileSpec
   { fixedParams :: [ParamSpec],
-    arity :: Int
+    arity :: Int,
+    bodyQ :: TH.Q TH.Exp
   }
 
 data ParamSpec
@@ -102,12 +104,26 @@ makeParam = \case
 
 deriveDeltaReduction :: [BuiltInSpec] -> TH.Q [TH.Dec]
 deriveDeltaReduction allBiSpecs =
-  pure $ map (deriveDeltaReductionPerArity allBiSpecs) [1 .. 1]
+  concat <$> mapM (deriveDeltaReductionPerArity allBiSpecs) [1 .. 1]
 
-deriveDeltaReductionPerArity :: [BuiltInSpec] -> Int -> TH.Dec
-deriveDeltaReductionPerArity allBiSpecs arity =
-  TH.FunD reduceDeltaArityFunName [TH.Clause (map TH.VarP (biName : argValNames)) (TH.NormalB body) []]
+deriveDeltaReductionPerArity :: [BuiltInSpec] -> Int -> TH.Q [TH.Dec]
+deriveDeltaReductionPerArity allBiSpecs arity = do
+  body <- makeBody
+  pure
+    [ TH.SigD reduceDeltaArityFunName (TH.ConT builtInWithArityTypeName `arr` funType arity),
+      TH.FunD reduceDeltaArityFunName [TH.Clause (map TH.VarP (biName : argValNames)) (TH.NormalB body) []]
+    ]
   where
+    arr :: TH.Type -> TH.Type -> TH.Type
+    arr ty1 = TH.AppT (TH.AppT TH.ArrowT ty1)
+
+    funType n =
+      if n <= 0
+        then TH.AppT (TH.ConT (TH.mkName "M")) (TH.ConT ass0ValTypeName)
+        else TH.ConT ass0ValTypeName `arr` funType (n - 1)
+
+    builtInWithArityTypeName = TH.mkName $ "BuiltInArity" ++ show arity
+    ass0ValTypeName = TH.mkName $ "Ass0Val"
     reduceDeltaArityFunName = TH.mkName $ "reduceDeltaArity" ++ show arity
     biName = TH.mkName $ "bi" ++ show arity
     namePairs = map (\i -> (TH.mkName ("x" ++ show i), TH.mkName ("a0v" ++ show i))) [1 .. arity]
@@ -123,9 +139,20 @@ deriveDeltaReductionPerArity allBiSpecs arity =
         )
         allBiSpecs
 
+    allVersPairs =
+      mapMaybe
+        ( \BuiltInSpec {constructor0, main} ->
+            case main of
+              Gen _ -> Nothing
+              Versatile versSpec -> Just (constructor0, versSpec)
+        )
+        allBiSpecs
+
     -- The body of the function `reduceDeltaArity{N}`.
-    body :: TH.Exp
-    body = TH.CaseE (TH.VarE biName) (mapMaybe makeGenBranch allGenPairs)
+    makeBody :: TH.Q TH.Exp
+    makeBody = do
+      TH.CaseE (TH.VarE biName) <$>
+        ((mapMaybe makeGenBranch allGenPairs ++) <$> mapMaybeM makeVersatileBranch allVersPairs)
 
     -- Constructs a branch for handling one *Gen-based* built-in function.
     makeGenBranch :: (String, GenSpec) -> Maybe TH.Match
@@ -151,5 +178,15 @@ deriveDeltaReductionPerArity allBiSpecs arity =
             TH.AppE (TH.ConE (TH.mkName "A1ValConst")) $
               foldl'
                 TH.AppE
-                (TH.VarE (TH.mkName genSpec.constructor1))
+                (TH.ConE (TH.mkName genSpec.constructor1))
                 (map TH.VarE validatedValNames)
+
+    makeVersatileBranch :: (String, VersatileSpec) -> TH.Q (Maybe TH.Match)
+    makeVersatileBranch (constructor0, versSpec) = do
+      let fixedParamVars = map (\i -> TH.mkName ("p" ++ show i)) [1 .. length versSpec.fixedParams]
+      if versSpec.arity /= arity
+        then
+          pure Nothing
+        else do
+          branchBody <- versSpec.bodyQ
+          pure . Just $ TH.Match (TH.ConP (TH.mkName constructor0) [] (map TH.VarP fixedParamVars)) (TH.NormalB branchBody) []
