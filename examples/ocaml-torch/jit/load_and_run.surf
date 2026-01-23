@@ -10,7 +10,7 @@ let pairs =
   |> Tensor.softmax #dim -1
   |> TorchVision.Imagenet.Classes.top #k 5
 in
-pairs |> List.iter (fun (pair : String * Float) -> (* TODO: fix BTA *)
+pairs |> List.iter (fun (pair : String * Float) ->
   let (class_name, p) = pair in
   print_string class_name;
   print_float p
