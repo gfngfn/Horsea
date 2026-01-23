@@ -7,7 +7,7 @@ module Staged.BuiltIn.CompileTime
     ParamSpec (..),
     gen,
     versatile,
-    derive,
+    deriveDecs,
   )
 where
 
@@ -30,7 +30,8 @@ data GenSpec = GenSpec
   }
 
 data VersatileSpec = VersatileSpec
-  { arity :: Int
+  { fixedParams :: [ParamSpec],
+    arity :: Int
   }
 
 data ParamSpec
@@ -43,8 +44,8 @@ gen constructor0 genSpec = BuiltInSpec {constructor0, main = Gen genSpec}
 versatile :: String -> VersatileSpec -> BuiltInSpec
 versatile constructor0 versSpec = BuiltInSpec {constructor0, main = Versatile versSpec}
 
-derive :: [BuiltInSpec] -> TH.Q [TH.Dec]
-derive allBiSpecs = do
+deriveDecs :: [BuiltInSpec] -> TH.Q [TH.Dec]
+deriveDecs allBiSpecs = do
   let dec0s = map (derivePerArity allBiSpecs) [1 .. 1]
   -- TODO: change "Foo" to "Ass1BuiltIn":
   let dec1 = TH.DataD [] (TH.mkName "Foo") [] Nothing (mapMaybe makeConstructor1 allBiSpecs) derivClauses
@@ -64,32 +65,34 @@ derive allBiSpecs = do
         Versatile _ ->
           Nothing
 
-    noBang :: TH.Bang
-    noBang = TH.Bang TH.NoSourceUnpackedness TH.NoSourceStrictness
-
-    makeParam :: ParamSpec -> TH.Type
-    makeParam = \case
-      ParamInt -> TH.ConT ''Int
-      ParamIntList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Int)
-
 derivePerArity :: [BuiltInSpec] -> Int -> TH.Dec
 derivePerArity allBiSpecs arity =
-  TH.DataD [] builtInArityName [] Nothing (map makeConstructor0 constructor0s) derivClauses
+  TH.DataD [] builtInArityName [] Nothing (map makeConstructor0 pairs) derivClauses
   where
     builtInArityName = TH.mkName $ "BuiltInArity" ++ show arity
 
-    constructor0s =
+    pairs =
       mapMaybe
         ( \BuiltInSpec {constructor0, main} ->
             case main of
-              Gen genSpec -> if length genSpec.params == arity then Just constructor0 else Nothing
-              Versatile versSpec -> if versSpec.arity == arity then Just constructor0 else Nothing
+              Gen genSpec ->
+                if length genSpec.params == arity then Just (constructor0, []) else Nothing
+              Versatile versSpec ->
+                if versSpec.arity == arity then Just (constructor0, versSpec.fixedParams) else Nothing
         )
         allBiSpecs
 
     derivClauses :: [TH.DerivClause]
     derivClauses = [TH.DerivClause (Just TH.StockStrategy) [TH.ConT ''Eq, TH.ConT ''Show]]
 
-    makeConstructor0 :: String -> TH.Con
-    makeConstructor0 constructor0 =
-      TH.NormalC (TH.mkName constructor0) []
+    makeConstructor0 :: (String, [ParamSpec]) -> TH.Con
+    makeConstructor0 (constructor0, fixedParams) =
+      TH.NormalC (TH.mkName constructor0) (map ((noBang,) . makeParam) fixedParams)
+
+noBang :: TH.Bang
+noBang = TH.Bang TH.NoSourceUnpackedness TH.NoSourceStrictness
+
+makeParam :: ParamSpec -> TH.Type
+makeParam = \case
+  ParamInt -> TH.ConT ''Int
+  ParamIntList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Int)

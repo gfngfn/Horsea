@@ -152,13 +152,11 @@ reduceDeltaArity1 bi1 a0v1 =
     BIGenVadd -> do
       n1 <- validateIntLiteral a0v1
       pure $ A0ValBracket (A1ValConst (A1BIVadd n1))
-{-
     BIMtranspose m n -> do
       mat1 <- validateMat0 a0v1
       case Matrix.transpose m n mat1 of
         Just mat -> pure $ A0ValLiteral (ALitMat mat)
         Nothing -> bug $ InconsistentAppBuiltInArity1 bi1 a0v1
--}
     BIDeviceGenCudaIfAvailable -> do
       () <- validateUnitLiteral a0v1
       pure $ A0ValBracket (A1ValLiteral ALitUnit) -- TODO: return a value of type `Device`

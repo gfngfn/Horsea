@@ -62,6 +62,7 @@ library
       Staged.BuiltIn,
       Staged.BuiltIn.CompileTime,
       Staged.BuiltIn.Core,
+      Staged.BuiltIn.Definitions,
       Staged.Entrypoint,
       Staged.EvalError,
       Staged.Evaluator,
