@@ -382,7 +382,7 @@ instance Disp (ArgForTypeF ann) where
 instance Disp BuiltInArity1 where
   dispGen _ = \case
     BIGenVadd -> "GEN_VADD"
-    BIMtranspose m n -> "MTRANSPOSE@{" <> disps [m, n] <> "}"
+    -- BIMtranspose m n -> "MTRANSPOSE@{" <> disps [m, n] <> "}"
     BIDeviceGenCudaIfAvailable -> "DEVICE.GEN_CUDA_IF_AVAILABLE"
     BITensorGenZeros -> "TENSOR.GEN_ZEROS"
     BITensorGenGrad -> "TENSOR.GEN_GRAD"

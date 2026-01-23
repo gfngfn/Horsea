@@ -28,13 +28,17 @@ import Staged.BuiltIn.CompileTime
 import Prelude
 
 $(derive
-    [ BuiltInSpec "BIGenVadd" [ParamInt] "A1BIVadd",
-      BuiltInSpec "BITensorGenZeros" [ParamIntList] "A1BITensorZeros",
-      BuiltInSpec "BITensorGenGrad" [ParamIntList] "A1BITensorGrad",
-      BuiltInSpec "BITensorGenZeroGrad" [ParamIntList] "A1BITensorZeroGrad",
-      BuiltInSpec "BITensorGenSubUpdate" [ParamIntList] "A1BITensorSubUpdate",
-      BuiltInSpec "BITensorGenCountEqual" [ParamIntList] "A1BITensorCountEqual",
-      BuiltInSpec "BITensorGenDropout" [ParamIntList] "A1BITensorDropout"
+    [ gen "BIGenVadd" $ GenSpec [ParamInt] "A1BIVadd",
+      gen "BITensorGenZeros" $ GenSpec [ParamIntList] "A1BITensorZeros",
+      gen "BITensorGenGrad" $ GenSpec [ParamIntList] "A1BITensorGrad",
+      gen "BITensorGenZeroGrad" $ GenSpec [ParamIntList] "A1BITensorZeroGrad",
+      gen "BITensorGenSubUpdate" $ GenSpec [ParamIntList] "A1BITensorSubUpdate",
+      gen "BITensorGenCountEqual" $ GenSpec [ParamIntList] "A1BITensorCountEqual",
+      gen "BITensorGenDropout" $ GenSpec [ParamIntList] "A1BITensorDropout",
+      versatile "BITupleFirst" $ VersatileSpec 1,
+      versatile "BITupleSecond" $ VersatileSpec 1,
+      versatile "BIDeviceGenCudaIfAvailable" $ VersatileSpec 1
+      -- BIMtranspose Int Int
     ])
 
 data BuiltIn
@@ -45,13 +49,6 @@ data BuiltIn
   | BuiltInArity7 BuiltInArity7
   | BuiltInArity8 BuiltInArity8
   | BuiltInOther Text -- TODO: remove this
-  deriving stock (Eq, Show)
-
-data BuiltInArity1'
-  = BIMtranspose Int Int
-  | BIDeviceGenCudaIfAvailable
-  | BITupleFirst
-  | BITupleSecond
   deriving stock (Eq, Show)
 
 data BuiltInArity2
@@ -210,7 +207,7 @@ unliftBuiltInName :: Ass1BuiltIn -> BuiltIn
 unliftBuiltInName = \case
   A1BIVadd n -> arity2 (BIVadd n)
   A1BIVconcat m n -> arity2 (BIVconcat m n)
-  A1BIMtranspose m n -> arity1 (BIMtranspose m n)
+  -- A1BIMtranspose m n -> arity1 (BIMtranspose m n)
   A1BIMconcatVert m1 m2 n -> arity2 (BIMconcatVert m1 m2 n)
   A1BITensorAdd ns1 ns2 ->
     if ns1 == ns2
@@ -228,7 +225,7 @@ unliftBuiltInName = \case
   A1BIListIter -> arity2 BIListIter
   a1builtInName -> error $ "TODO: unliftBuiltInName, " ++ show a1builtInName
   where
-    arity1 = BuiltInArity1
+    -- arity1 = BuiltInArity1
     arity2 = BuiltInArity2
 
 validateExternalName0 :: Text -> Maybe BuiltIn
