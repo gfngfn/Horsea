@@ -14,7 +14,6 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Function ((&))
 import Data.Functor.Identity
-import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
 import Data.Text qualified as Text
@@ -25,9 +24,7 @@ import Staged.EvalError
 import Staged.Syntax
 import Util.LocationInFile (SourceSpec, getSpanInFile)
 import Util.Matrix (Matrix)
-import Util.Matrix qualified as Matrix
 import Util.Vector (Vector)
-import Util.Vector qualified as Vector
 import Prelude
 
 data EvalState = EvalState
@@ -149,8 +146,21 @@ broadcast ns1' ns2' = reverse <$> go (reverse ns1', reverse ns2')
       (n1 : ns1, n2 : ns2) | n1 == n2 -> (n1 :) <$> broadcast ns1 ns2
       _ -> Nothing
 
+arithmetic :: (Int -> Int -> Ass0Val) -> Ass0Val -> Ass0Val -> M Ass0Val
+arithmetic f a0v1 a0v2 = do
+  n1 <- validateIntLiteral a0v1
+  n2 <- validateIntLiteral a0v2
+  pure (f n1 n2)
+
+logical :: (Bool -> Bool -> Ass0Val) -> Ass0Val -> Ass0Val -> M Ass0Val
+logical f a0v1 a0v2 = do
+  b1 <- validateBoolLiteral a0v1
+  b2 <- validateBoolLiteral a0v2
+  pure (f b1 b2)
+
 $(deriveDeltaReduction definitions)
 
+{-
 reduceDeltaArity2 :: BuiltInArity2 -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity2 bi2 a0v1 a0v2 =
   case bi2 of
@@ -275,18 +285,7 @@ reduceDeltaArity2 bi2 a0v1 a0v2 =
       shape1 <- validateIntListLiteral a0v1
       shape2 <- validateIntListLiteral a0v2
       pure $ A0ValBracket (A1ValConst (A1BILayerForward shape1 shape2))
-  where
-    arithmetic :: (Int -> Int -> Ass0Val) -> M Ass0Val
-    arithmetic f = do
-      n1 <- validateIntLiteral a0v1
-      n2 <- validateIntLiteral a0v2
-      pure (f n1 n2)
-
-    logical :: (Bool -> Bool -> Ass0Val) -> M Ass0Val
-    logical f = do
-      b1 <- validateBoolLiteral a0v1
-      b2 <- validateBoolLiteral a0v2
-      pure (f b1 b2)
+-}
 
 reduceDeltaArity3 :: BuiltInArity3 -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity3 bi3 a0v1 a0v2 a0v3 =

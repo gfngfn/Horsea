@@ -384,6 +384,7 @@ instance Disp (ArgForTypeF ann) where
 
 $(deriveDisp definitions)
 
+{-
 instance Disp BuiltInArity2 where
   dispGen _ = \case
     BIAdd -> "+"
@@ -415,6 +416,7 @@ instance Disp BuiltInArity2 where
     BITensorMm k m n -> "TENSOR.MM@{" <> disps [k, m, n] <> "}"
     BITensorGenReshape -> "TENSOR.GEN_RESHAPE"
     BILayerGenForward -> "LAYER.GEN_FORWARD"
+-}
 
 instance Disp BuiltInArity3 where
   dispGen _ = \case

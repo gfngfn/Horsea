@@ -41,6 +41,7 @@ data BuiltIn
   | BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
+{-
 data BuiltInArity2
   = BIAdd
   | BISub
@@ -72,6 +73,7 @@ data BuiltInArity2
   | BITensorGenReshape
   | BILayerGenForward
   deriving stock (Eq, Show)
+-}
 
 data BuiltInArity3
   = BIGenMconcatVert
