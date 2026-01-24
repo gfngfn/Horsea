@@ -17,7 +17,6 @@ module Staged.BuiltIn.Core
     Ass0PartialBuiltInAppArity6 (..),
     Ass0PartialBuiltInAppArity7 (..),
     Ass0PartialBuiltInAppArity8 (..),
-    Foo (..), -- TODO: remove this
     Ass1BuiltIn (..),
     validateExternalName0,
     validateExternalName1,
@@ -90,6 +89,7 @@ data Ass0PartialBuiltInAppArity8 val
   = PartialBuiltInAppArity8Nil BuiltInArity8
   deriving stock (Eq, Show, Functor)
 
+{-
 data Ass1BuiltIn
   = A1BIVadd Int
   | A1BIVconcat Int Int
@@ -147,6 +147,7 @@ data Ass1BuiltIn
   | A1BIListCons
   | A1BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
+-}
 
 unliftBuiltInName :: Ass1BuiltIn -> BuiltIn
 unliftBuiltInName = \case

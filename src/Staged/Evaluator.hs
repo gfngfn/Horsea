@@ -17,6 +17,7 @@ import Data.Function ((&))
 import Data.Functor.Identity
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Staged.BuiltIn.CompileTime (deriveDeltaReduction)
 import Staged.BuiltIn.Core
@@ -86,17 +87,20 @@ validateBoolLiteral = \case
   A0ValLiteral (ALitBool b) -> pure b
   a0v -> bug $ NotABoolean a0v
 
+validateFloatLiteral :: Ass0Val -> M Double
+validateFloatLiteral = \case
+  A0ValLiteral (ALitFloat r) -> pure r
+  a0v -> bug $ NotAFloat a0v
+
 validateUnitLiteral :: Ass0Val -> M ()
 validateUnitLiteral = \case
   A0ValLiteral ALitUnit -> pure ()
   a0v -> bug $ NotAUnit a0v
 
-{-
 validateStringLiteral :: Ass0Val -> M Text
 validateStringLiteral = \case
   A0ValLiteral (ALitString s) -> pure s
   a0v -> bug $ NotAString a0v
--}
 
 validateTupleValue :: Ass0Val -> M (Ass0Val, Ass0Val)
 validateTupleValue = \case

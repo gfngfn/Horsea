@@ -888,6 +888,7 @@ instance (Disp v) => Disp (Ass0PartialBuiltInAppArity8 v) where
   dispGen _req = \case
     PartialBuiltInAppArity8Nil pba8 -> disp pba8
 
+{-
 instance Disp Ass1BuiltIn where
   dispGen _ = \case
     A1BIVadd n -> "vadd" <> param (disp n)
@@ -947,6 +948,7 @@ instance Disp Ass1BuiltIn where
     A1BuiltInOther s -> "OTHER '" <> disp s <> "'"
     where
       param doc = stagingOperatorStyle ("@{" <> doc <> "}")
+-}
 
 instance (Disp sv) => Disp (Ass1ValF sv) where
   dispGen req = \case
@@ -1048,6 +1050,8 @@ instance (Disp sv) => Disp (BugF sv) where
       "Not a matrix:" <+> disp a0v
     NotABoolean a0v ->
       "Not a Boolean:" <+> disp a0v
+    NotAFloat a0v ->
+      "Not a float:" <+> disp a0v
     NotAUnit a0v ->
       "Not a unit:" <+> disp a0v
     NotAString a0v ->
