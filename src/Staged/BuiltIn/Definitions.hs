@@ -171,158 +171,182 @@ definitions =
       ForBothStages
       []
       1
-      [| do
+      [|
+        do
           n <- validateIntLiteral a0v1
-          pure $ A0ValLiteral (ALitFloat (fromIntegral n)) |],
+          pure $ A0ValLiteral (ALitFloat (fromIntegral n))
+        |],
     versatile
       []
       "float_div"
       ForBothStages
       []
       2
-      [| do
+      [|
+        do
           r1 <- validateFloatLiteral a0v1
           r2 <- validateFloatLiteral a0v2
-          pure $ A0ValLiteral (ALitFloat (r1 / r2)) |],
+          pure $ A0ValLiteral (ALitFloat (r1 / r2))
+        |],
     versatile
       []
       "print_string"
       ForBothStages
       []
       1
-      [| do
+      [|
+        do
           _s <- validateStringLiteral a0v1
           -- TODO: print `s` here
-          pure $ A0ValLiteral ALitUnit |],
+          pure $ A0ValLiteral ALitUnit
+        |],
     versatile
       []
       "print_float"
       ForBothStages
       []
       1
-      [| do
+      [|
+        do
           _r <- validateFloatLiteral a0v1
           -- TODO: print `r` here
-          pure $ A0ValLiteral ALitUnit |],
+          pure $ A0ValLiteral ALitUnit
+        |],
     versatile
       []
       "range"
       ForBothStages
       []
       2
-      [| do
+      [|
+        do
           n1 <- validateIntLiteral a0v1
           n2 <- validateIntLiteral a0v2
-          pure $ A0ValLiteral (ALitList (map (A0ValLiteral . ALitInt) [n1 .. n2])) |],
+          pure $ A0ValLiteral (ALitList (map (A0ValLiteral . ALitInt) [n1 .. n2]))
+        |],
     versatile
       ["tensor"]
       "f"
       ForStage1
       []
       1
-      [| do
+      [|
+        do
           _r <- validateFloatLiteral a0v1
-          error "TODO: Tensor.f" |],
+          error "TODO: Tensor.f"
+        |],
     versatile
       ["tensor"]
       "float_value"
       ForStage1
       []
       1
-      [| do
-          error "TODO: Tensor.float_value" |],
+      [|
+        do
+          error "TODO: Tensor.float_value"
+        |],
     versatile
       ["tensor"]
       "backward"
       ForStage1
       []
       1
-      [| do
+      [|
+        do
           let _tensor = a0v1
-          error "TODO: Tensor.backward" |],
+          error "TODO: Tensor.backward"
+        |],
     versatile
       ["tensor"]
       "no_grad"
       ForStage1
       []
       1
-      [| do
+      [|
+        do
           let _f = a0v1
-          error "TODO: Tensor.no_grad" |],
+          error "TODO: Tensor.no_grad"
+        |],
     versatile
       ["layer", "activation"]
       "relu"
       ForStage1
       []
       0
-      [| error "TODO: Layer.Activation.relu" |],
+      [|error "TODO: Layer.Activation.relu"|],
     versatile
       ["var_store"]
       "create"
       ForStage1
       []
       4
-      [| do
+      [|
+        do
           _frozen <- validateBoolLiteral a0v1
           _name <- validateStringLiteral a0v2
           let _device = a0v3
           () <- validateUnitLiteral a0v4
-          error "TODO: VarStore.create" |],
+          error "TODO: VarStore.create"
+        |],
     versatile
       ["optimizer"]
       "adam"
       ForStage1
       []
       2
-      [| do
+      [|
+        do
           let _varStore = a0v1
           _r <- validateFloatLiteral a0v2
-          error "TODO: Optimizer.adam" |],
+          error "TODO: Optimizer.adam"
+        |],
     versatile
       ["optimizer"]
       "backward_step"
       ForStage1
       []
       2
-      [| do
+      [|
+        do
           let _optimizer = a0v1
           let _tensor = a0v2
-          error "TODO: Optimizer.backward_step" |],
+          error "TODO: Optimizer.backward_step"
+        |],
     versatile
       ["layer", "activation"]
       "none"
       ForStage1
       []
       0
-      [| error "TODO: Layer.Activation.none" |],
+      [|error "TODO: Layer.Activation.none"|],
     versatile
       ["mnist_helper"]
       "train_images"
       ForStage1
       []
       0
-      [| error "TODO: MnistHelper.train_images" |],
+      [|error "TODO: MnistHelper.train_images"|],
     versatile
       ["mnist_helper"]
       "train_labels"
       ForStage1
       []
       0
-      [| error "TODO: MnistHelper.train_labels" |],
+      [|error "TODO: MnistHelper.train_labels"|],
     versatile
       ["mnist_helper"]
       "test_images"
       ForStage1
       []
       0
-      [| error "TODO: MnistHelper.test_images" |],
+      [|error "TODO: MnistHelper.test_images"|],
     versatile
       ["mnist_helper"]
       "test_labels"
       ForStage1
       []
       0
-      [| error "TODO: MnistHelper.test_labels" |],
+      [|error "TODO: MnistHelper.test_labels"|],
     versatile
       ["list"]
       "map"
