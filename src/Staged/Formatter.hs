@@ -384,14 +384,6 @@ instance Disp (ArgForTypeF ann) where
 
 $(deriveDisp definitions)
 
-{-
-instance Disp BuiltInArity3 where
-  dispGen _ = \case
-    BIGenMconcatVert -> "GEN_MCONCAT_VERT"
-    BITensorGenMm -> "TENSOR.GEN_MM"
-    BILayerGenLinear -> "LAYER.GEN_LINEAR"
--}
-
 instance Disp BuiltInArity5 where
   dispGen _ = \case
     BIDatasetHelperGenTrainBatch -> "DATASET_HELPER.GEN_TRAIN_BATCH"

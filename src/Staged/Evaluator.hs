@@ -160,27 +160,6 @@ logical f a0v1 a0v2 = do
 
 $(deriveDeltaReduction definitions)
 
-{-
-reduceDeltaArity3 :: BuiltInArity3 -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
-reduceDeltaArity3 bi3 a0v1 a0v2 a0v3 =
-  case bi3 of
-    BIGenMconcatVert -> do
-      n1 <- validateIntLiteral a0v1
-      n2 <- validateIntLiteral a0v2
-      n3 <- validateIntLiteral a0v3
-      pure $ A0ValBracket (A1ValConst (A1BIMconcatVert n1 n2 n3))
-    BITensorGenMm -> do
-      n1 <- validateIntLiteral a0v1
-      n2 <- validateIntLiteral a0v2
-      n3 <- validateIntLiteral a0v3
-      pure $ A0ValBracket (A1ValConst (A1BITensorMm n1 n2 n3))
-    BILayerGenLinear -> do
-      ns <- validateIntListLiteral a0v1
-      input_dim <- validateIntLiteral a0v2
-      output_dim <- validateIntLiteral a0v3
-      pure $ A0ValBracket (A1ValConst (A1BILayerLinear ns input_dim output_dim))
--}
-
 reduceDeltaArity5 :: BuiltInArity5 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity5 bi5 a0v1 a0v2 a0v3 a0v4 a0v5 =
   case bi5 of
