@@ -374,5 +374,13 @@ definitions =
     versatile ["mnist_helper"] "test_images" ForStage1 0 $
       [|error "UNIMPLEMENTED: MnistHelper.test_images"|],
     versatile ["mnist_helper"] "test_labels" ForStage1 0 $
-      [|error "UNIMPLEMENTED: MnistHelper.test_labels"|]
+      [|error "UNIMPLEMENTED: MnistHelper.test_labels"|],
+    gen ["module"] "load" [ParamIntList, ParamString],
+    gen ["module"] "forward" [ParamIntList],
+    gen ["torch_vision", "resnet"] "resnet18" [ParamInt, ParamInt, ParamInt, ParamInt],
+    gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamInt, ParamString, ParamStringList],
+    gen ["torch_vision", "imagenet"] "load_image" [ParamIntList, ParamString],
+    -- TODO: support `TorchVision.Imagenet.Classes.names`
+    gen ["torch_vision", "imagenet", "classes"] "top" [ParamInt],
+    gen ["serialize"] "load_multi_" [ParamIntList, ParamString]
   ]

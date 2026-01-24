@@ -342,7 +342,7 @@ module TorchVision = struct
       (* #with_cache String -> *)
       &(Unit -> Dataset %ntrain %ntest %[imgdim] %[])
       external (builtin = "torch_vision__imagenet__gen_load_dataset", surface = "load_dataset")
-    val ~load_image :
+    val ~gen_load_image :
       {ns : List Nat} ->
       (* #resize Int * Int -> *)
       String ->

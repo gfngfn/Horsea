@@ -96,8 +96,12 @@ commaSep :: [Doc Ann] -> Doc Ann
 commaSep = sep . punctuate comma
 
 disps :: (Disp a) => [a] -> Doc Ann
-disps [] = mempty
-disps (first : rest) = List.foldl' (\doc x -> doc <> "," <+> disp x) (disp first) rest
+disps = disps' disp
+
+disps' :: (a -> Doc Ann) -> [a] -> Doc Ann
+disps' f = \case
+  [] -> mempty
+  first : rest -> List.foldl' (\doc x -> doc <> "," <+> f x) (f first) rest
 
 deepenParenWhen :: Bool -> Doc Ann -> Doc Ann
 deepenParenWhen b doc = if b then "(" <> nest 2 doc <> ")" else doc
@@ -280,6 +284,10 @@ dispInternalRefinementListType _req tye ePred =
 dispListLiteral :: (Disp e) => [e] -> Doc Ann
 dispListLiteral es =
   "[" <> disps es <> "]"
+
+dispStringListLiteral :: [Text] -> Doc Ann
+dispStringListLiteral es =
+  "[" <> disps' dispStringLiteral es <> "]"
 
 dispPairLiteral :: (Disp e) => (e, e) -> Doc Ann
 dispPairLiteral (e1, e2) =
