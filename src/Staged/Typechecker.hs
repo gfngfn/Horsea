@@ -350,8 +350,8 @@ makeAssertiveCast trav loc =
             Just $
               A0Lam Nothing (x, strictify (A0TyProduct a0tye11 a0tye12)) $
                 A0Tuple
-                  (f1 (A0App (A0BuiltInName (BuiltInArity1 BITupleFirst)) (A0Var x)))
-                  (f2 (A0App (A0BuiltInName (BuiltInArity1 BITupleSecond)) (A0Var x)))
+                  (f1 (A0App (A0BuiltInName (BuiltInArity1 BIFst)) (A0Var x)))
+                  (f2 (A0App (A0BuiltInName (BuiltInArity1 BISnd)) (A0Var x)))
 
     castOrIdentityLam :: Maybe Ass0Expr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr)
     castOrIdentityLam maybePred2 a0tye1 = do
