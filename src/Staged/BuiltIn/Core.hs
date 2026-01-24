@@ -140,13 +140,11 @@ data Ass1BuiltIn
   | A1BIMnistHelperTrainLabels
   | A1BIMnistHelperTestImages
   | A1BIMnistHelperTestLabels
-
   | A1BIFst
   | A1BISnd
   | A1BIAnd
   | A1BIListMap
   | A1BIListCons
-
   | A1BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
