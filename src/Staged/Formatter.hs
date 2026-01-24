@@ -872,8 +872,21 @@ instance (Disp v) => Disp (Ass0PartialBuiltInAppArity5 v) where
       f = deepenParenWhen (req <= Atomic)
 
 instance (Disp v) => Disp (Ass0PartialBuiltInAppArity6 v) where
+  dispGen req = \case
+    PartialBuiltInAppArity6Cons pba7 v -> f (disp pba7 <+> dispGen Atomic v)
+    where
+      f = deepenParenWhen (req <= Atomic)
+
+instance (Disp v) => Disp (Ass0PartialBuiltInAppArity7 v) where
+  dispGen req = \case
+    PartialBuiltInAppArity7Nil bi7 -> disp bi7
+    PartialBuiltInAppArity7Cons pba8 v -> f (disp pba8 <+> dispGen Atomic v)
+    where
+      f = deepenParenWhen (req <= Atomic)
+
+instance (Disp v) => Disp (Ass0PartialBuiltInAppArity8 v) where
   dispGen _req = \case
-    PartialBuiltInAppArity6Cons _pba7 _v -> "TODO: Disp (Ass0PartialBuiltInAppArity6 v)"
+    PartialBuiltInAppArity8Nil pba8 -> disp pba8
 
 instance Disp Ass1BuiltIn where
   dispGen _ = \case
