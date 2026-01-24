@@ -321,41 +321,29 @@ definitions =
           error "TODO: VarStore.freeze"
         |],
     gen ["tensor"] "all_vars" [ParamIntList],
-    -- TODO: built-in functions should be reordered henceforth:
-    versatile
-      ["layer", "activation"]
-      "relu"
-      ForStage1
-      0
+    versatile ["layer", "activation"] "relu" ForStage1 0 $
       [|error "TODO: Layer.Activation.relu"|],
-    versatile
-      ["optimizer"]
-      "adam"
-      ForStage1
-      2
+    versatile ["layer", "activation"] "none" ForStage1 0 $
+      [|error "TODO: Layer.Activation.none"|],
+    gen ["layer"] "forward" [ParamIntList, ParamIntList],
+    gen ["layer"] "forward_" [ParamIntList, ParamIntList],
+    gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt],
+    gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt],
+    versatile ["optimizer"] "adam" ForStage1 2 $
       [|
         do
           let _varStore = a0v1
           _r <- validateFloatLiteral a0v2
           error "TODO: Optimizer.adam"
         |],
-    versatile
-      ["optimizer"]
-      "backward_step"
-      ForStage1
-      2
+    versatile ["optimizer"] "backward_step" ForStage1 2 $
       [|
         do
           let _optimizer = a0v1
           let _tensor = a0v2
           error "TODO: Optimizer.backward_step"
         |],
-    versatile
-      ["layer", "activation"]
-      "none"
-      ForStage1
-      0
-      [|error "TODO: Layer.Activation.none"|],
+    -- TODO: built-in functions should be reordered henceforth:
     versatile
       ["mnist_helper"]
       "train_images"
@@ -380,12 +368,8 @@ definitions =
       ForStage1
       0
       [|error "TODO: MnistHelper.test_labels"|],
-    gen ["layer"] "forward" [ParamIntList, ParamIntList],
-    gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt],
     -- Arity 5:
     gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     -- Arity 7:
-    gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded],
-    -- Arity 8:
-    gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt]
+    gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded]
   ]
