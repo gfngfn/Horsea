@@ -46,6 +46,7 @@ data GenSpec = GenSpec
 -- TODO: refactor; non-null `fixedParams` implies that `name0` be `Nothing`.
 data VersatileSpec = VersatileSpec
   { name0 :: Maybe String,
+    nameAndConstructor1 :: Maybe (String, String),
     fixedParams :: [ParamSpec],
     arity :: Int,
     bodyQ :: TH.Q TH.Exp
@@ -73,7 +74,8 @@ deriveDecs allBiSpecs = do
   let typeDec0s = map (deriveDecPerArity allBiSpecs) allArities
   let typeDec1 = TH.DataD [] ass1builtInName [] Nothing (mapMaybe makeConstructor1 allBiSpecs) derivClauses
   let nameValidationFunDec0s = deriveNameValidationFun0 allBiSpecs
-  pure $ typeDec0s ++ typeDec1 : nameValidationFunDec0s
+  let nameValidationFunDec1s = deriveNameValidationFun1 allBiSpecs
+  pure $ typeDec0s ++ typeDec1 : nameValidationFunDec0s ++ nameValidationFunDec1s
   where
     derivClauses :: [TH.DerivClause]
     derivClauses = [TH.DerivClause (Just TH.StockStrategy) [TH.ConT ''Eq, TH.ConT ''Show]]
@@ -153,6 +155,40 @@ deriveNameValidationFun0 allBiSpecs =
           case main of
             Gen genSpec -> length genSpec.params
             Versatile versSpec -> versSpec.arity
+
+deriveNameValidationFun1 :: [BuiltInSpec] -> [TH.Dec]
+deriveNameValidationFun1 allBiSpecs =
+  [ TH.SigD nameValidationFunName funType,
+    TH.ValD
+      (TH.VarP nameValidationFunName)
+      (TH.NormalB (TH.LamCaseE (mapMaybe makeBranch1 allBiSpecs ++ [otherwiseBranch0])))
+      []
+  ]
+  where
+    nameValidationFunName = TH.mkName "validateExternalName1"
+
+    funType :: TH.Type
+    funType = TH.ConT ''Text `arr` TH.AppT (TH.ConT ''Maybe) (TH.ConT (TH.mkName "Ass1BuiltIn"))
+
+    -- TODO: change this to `_ -> Nothing`
+    otherwiseBranch0 :: TH.Match
+    otherwiseBranch0 =
+      TH.Match (TH.VarP name) (TH.NormalB body) []
+      where
+        name = TH.mkName "s"
+        body =
+          TH.AppE (TH.ConE 'Just) $
+            TH.AppE (TH.ConE (TH.mkName "A1BuiltInOther")) $
+              TH.VarE name
+
+    makeBranch1 :: BuiltInSpec -> Maybe TH.Match
+    makeBranch1 BuiltInSpec {main} = do
+      (name1, constructor1) <-
+        case main of
+          Gen _genSpec -> Nothing
+          Versatile versSpec -> versSpec.nameAndConstructor1
+      let body = TH.AppE (TH.ConE 'Just) $ TH.ConE (TH.mkName constructor1)
+      pure $ TH.Match (TH.LitP (TH.StringL name1)) (TH.NormalB body) []
 
 noBang :: TH.Bang
 noBang = TH.Bang TH.NoSourceUnpackedness TH.NoSourceStrictness

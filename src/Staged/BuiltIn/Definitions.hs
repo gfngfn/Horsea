@@ -28,7 +28,7 @@ gen modules name params =
     constructorDisplay1 = intercalate "." $ map snakeToCamel modules ++ [name]
     name0 = intercalate "__" $ modules ++ ["gen_" ++ name]
 
-data Availability = ForStage0 | ForStage1 | ForBothStages
+data Availability = ForStage0 | ForStage1 | ForBothStages | ForInternal
 
 versatile :: [String] -> String -> Availability -> [ParamSpec] -> Int -> TH.Q TH.Exp -> BuiltInSpec
 versatile modules name availability fixedParams arity bodyQ =
@@ -37,13 +37,20 @@ versatile modules name availability fixedParams arity bodyQ =
       main = Versatile versSpec
     }
   where
-    versSpec = VersatileSpec {name0, fixedParams, arity, bodyQ}
-    constructor0 = "BI" ++ concatMap snakeToCamel (modules ++ [name])
+    versSpec = VersatileSpec {name0, nameAndConstructor1, fixedParams, arity, bodyQ}
+    constructorSuffix = concatMap snakeToCamel (modules ++ [name])
+    constructor0 = "BI" ++ constructorSuffix
     constructorDisplay0 = intercalate "." $ map uppercase (modules ++ [name])
     name0 =
       case availability of
+        ForInternal -> Nothing
         ForStage1 -> Nothing
         _ -> Just $ intercalate "__" $ modules ++ [name]
+    nameAndConstructor1 =
+      case availability of
+        ForInternal -> Nothing
+        ForStage0 -> Nothing
+        _ -> Just (intercalate "__" (modules ++ [name]), "A1BI" ++ constructorSuffix)
 
 definitions :: [BuiltInSpec]
 definitions =
@@ -91,7 +98,7 @@ definitions =
     versatile
       []
       "mtranspose"
-      ForStage1
+      ForInternal
       [ParamInt, ParamInt]
       1
       [|
@@ -104,49 +111,49 @@ definitions =
     -- Arity 2:
     versatile
       []
-      "add"
+      "int_add"
       ForBothStages
       []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 + n2))) a0v1 a0v2|],
     versatile
       []
-      "sub"
+      "int_sub"
       ForBothStages
       []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 - n2))) a0v1 a0v2|],
     versatile
       []
-      "mult"
+      "int_mult"
       ForBothStages
       []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 * n2))) a0v1 a0v2|],
     versatile
       []
-      "div"
+      "int_div"
       ForBothStages
       []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 `div` n2))) a0v1 a0v2|],
     versatile
       []
-      "mod"
+      "int_mod"
       ForBothStages
       []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 `mod` n2))) a0v1 a0v2|],
     versatile
       []
-      "leq"
+      "int_leq"
       ForBothStages
       []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 <= n2))) a0v1 a0v2|],
     versatile
       []
-      "equal"
+      "int_equal"
       ForBothStages
       []
       2
@@ -176,7 +183,7 @@ definitions =
     versatile
       []
       "vadd"
-      ForStage1
+      ForInternal
       [ParamInt]
       2
       [|
@@ -190,7 +197,7 @@ definitions =
     versatile
       []
       "vconcat"
-      ForStage1
+      ForInternal
       [ParamInt, ParamInt]
       2
       [|
@@ -204,7 +211,7 @@ definitions =
     versatile
       []
       "mconcat_vert"
-      ForStage1
+      ForInternal
       [ParamInt, ParamInt, ParamInt]
       2
       [|
@@ -310,7 +317,7 @@ definitions =
     versatile
       ["tensor"]
       "add"
-      ForStage1
+      ForInternal
       [ParamIntList]
       2
       [|
@@ -333,7 +340,7 @@ definitions =
     versatile
       ["tensor"]
       "mm"
-      ForStage1
+      ForInternal
       [ParamInt, ParamInt, ParamInt]
       2
       [|

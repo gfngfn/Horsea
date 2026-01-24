@@ -906,14 +906,14 @@ instance Disp Ass1BuiltIn where
     A1BITensorReshape shape1 shape2 -> "Tensor.reshape" <> param (dispListLiteral shape1 <> "," <+> dispListLiteral shape2)
     A1BITensorAdd ns1 ns2 -> "Tensor.add" <> param (dispListLiteral ns1 <> "," <+> dispListLiteral ns2)
     A1BITensorMm k m n -> "Tensor.mm" <> param (disps [k, m, n])
-    A1BIAdd -> "+"
-    A1BISub -> "-"
-    A1BIMult -> "*"
-    A1BIDiv -> "//"
-    A1BIFloatDiv -> "/"
-    A1BIMod -> "mod"
-    A1BILeq -> "<="
-    A1BIEqual -> "=="
+    A1BIIntAdd -> "(+)"
+    A1BIIntSub -> "(-)"
+    A1BIIntMult -> "(*)"
+    A1BIIntDiv -> "(//)"
+    A1BIFloatDiv -> "(/)"
+    A1BIIntMod -> "mod"
+    A1BIIntLeq -> "(<=)"
+    A1BIIntEqual -> "(==)"
     A1BIFloat -> "float"
     A1BIPrintFloat -> "print_float"
     A1BIPrintString -> "print_string"
@@ -939,6 +939,11 @@ instance Disp Ass1BuiltIn where
     A1BIMnistHelperTrainLabels -> "Mnist_helper.train_labels"
     A1BIMnistHelperTestImages -> "Mnist_helper.test_images"
     A1BIMnistHelperTestLabels -> "Mnist_helper.test_labels"
+    A1BIFst -> "fst"
+    A1BISnd -> "snd"
+    A1BIAnd -> "(&&)"
+    A1BIListMap -> "List.map"
+    A1BIListCons -> "(::)"
     A1BuiltInOther s -> "OTHER '" <> disp s <> "'"
     where
       param doc = stagingOperatorStyle ("@{" <> doc <> "}")

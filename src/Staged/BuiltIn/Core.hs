@@ -107,14 +107,14 @@ data Ass1BuiltIn
   | A1BITensorCountEqual [Int]
   | A1BITensorDropout [Int]
   | A1BITensorReshape [Int] [Int]
-  | A1BIAdd
-  | A1BISub
-  | A1BIMult
-  | A1BIDiv
+  | A1BIIntAdd
+  | A1BIIntSub
+  | A1BIIntMult
+  | A1BIIntDiv
   | A1BIFloatDiv
-  | A1BIMod
-  | A1BILeq
-  | A1BIEqual
+  | A1BIIntMod
+  | A1BIIntLeq
+  | A1BIIntEqual
   | A1BIFloat
   | A1BIPrintFloat
   | A1BIPrintString
@@ -140,6 +140,13 @@ data Ass1BuiltIn
   | A1BIMnistHelperTrainLabels
   | A1BIMnistHelperTestImages
   | A1BIMnistHelperTestLabels
+
+  | A1BIFst
+  | A1BISnd
+  | A1BIAnd
+  | A1BIListMap
+  | A1BIListCons
+
   | A1BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
@@ -154,13 +161,13 @@ unliftBuiltInName = \case
       then arity2 (BITensorAdd ns1)
       else error $ "TODO: unliftBuiltInName, A1BITensorAdd, broadcast, " ++ show ns1 ++ " and " ++ show ns2
   A1BITensorMm k m n -> arity2 (BITensorMm k m n)
-  A1BIAdd -> arity2 BIAdd
-  A1BISub -> arity2 BISub
-  A1BIMult -> arity2 BIMult
-  A1BIDiv -> arity2 BIDiv
-  A1BIMod -> arity2 BIMod
-  A1BILeq -> arity2 BILeq
-  A1BIEqual -> arity2 BIEqual
+  A1BIIntAdd -> arity2 BIIntAdd
+  A1BIIntSub -> arity2 BIIntSub
+  A1BIIntMult -> arity2 BIIntMult
+  A1BIIntDiv -> arity2 BIIntDiv
+  A1BIIntMod -> arity2 BIIntMod
+  A1BIIntLeq -> arity2 BIIntLeq
+  A1BIIntEqual -> arity2 BIIntEqual
   A1BIListAppend -> arity2 BIListAppend
   A1BIListIter -> arity2 BIListIter
   a1builtInName -> error $ "TODO: unliftBuiltInName, " ++ show a1builtInName
@@ -168,6 +175,7 @@ unliftBuiltInName = \case
     arity1 = BuiltInArity1
     arity2 = BuiltInArity2
 
+{-
 validateExternalName1 :: Text -> Maybe Ass1BuiltIn
 validateExternalName1 = \case
   "int_add" -> pure A1BIAdd
@@ -200,3 +208,4 @@ validateExternalName1 = \case
   s -> pure $ A1BuiltInOther s
 
 -- _ -> Nothing
+-}
