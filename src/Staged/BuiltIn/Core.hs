@@ -92,8 +92,26 @@ data Ass0PartialBuiltInAppArity8 val
   = PartialBuiltInAppArity8Nil BuiltInArity8
   deriving stock (Eq, Show, Functor)
 
+-- TODO: generate this function by Template Haskell;
+-- essential for persistent built-in functions.
 unliftBuiltInName :: Ass1BuiltIn -> BuiltIn
 unliftBuiltInName = \case
+  A1BIIntAdd -> arity2 BIIntAdd
+  A1BIIntSub -> arity2 BIIntSub
+  A1BIIntMult -> arity2 BIIntMult
+  A1BIIntDiv -> arity2 BIIntDiv
+  A1BIFloatDiv -> arity2 BIFloatDiv
+  A1BIIntMod -> arity2 BIIntMod
+  A1BIIntLeq -> arity2 BIIntLeq
+  A1BIIntEqual -> arity2 BIIntEqual
+  A1BIAnd -> arity2 BIAnd
+  A1BICons -> arity2 BICons
+  A1BIFloat -> arity1 BIFloat
+  A1BIPrintFloat -> arity1 BIPrintFloat
+  A1BIPrintString -> arity1 BIPrintString
+  A1BIRange -> arity2 BIRange
+  A1BIFst -> arity1 BIFst
+  A1BISnd -> arity1 BISnd
   A1BIVadd n -> arity2 (BIVadd n)
   A1BIVconcat m n -> arity2 (BIVconcat m n)
   A1BIMtranspose m n -> arity1 (BIMtranspose m n)
@@ -102,16 +120,10 @@ unliftBuiltInName = \case
     if ns1 == ns2
       then arity2 (BITensorAdd ns1)
       else error $ "TODO: unliftBuiltInName, A1BITensorAdd, broadcast, " ++ show ns1 ++ " and " ++ show ns2
-  A1BITensorMm k m n -> arity2 (BITensorMm k m n)
-  A1BIIntAdd -> arity2 BIIntAdd
-  A1BIIntSub -> arity2 BIIntSub
-  A1BIIntMult -> arity2 BIIntMult
-  A1BIIntDiv -> arity2 BIIntDiv
-  A1BIIntMod -> arity2 BIIntMod
-  A1BIIntLeq -> arity2 BIIntLeq
-  A1BIIntEqual -> arity2 BIIntEqual
+  A1BIListMap -> arity2 BIListMap
   A1BIListAppend -> arity2 BIListAppend
   A1BIListIter -> arity2 BIListIter
+  A1BITensorMm k m n -> arity2 (BITensorMm k m n)
   a1builtInName -> error $ "TODO: unliftBuiltInName, " ++ show a1builtInName
   where
     arity1 = BuiltInArity1
