@@ -231,7 +231,7 @@ definitions =
           pure $ A0ValLiteral ALitUnit
         |],
     versatile ["device"] "cpu" ForStage1 0 $
-      [|error "TODO: Device.cpu"|],
+      [|error "UNIMPLEMENTED: Device.cpu"|],
     versatile ["device"] "gen_cuda_if_available" ForStage0 1 $
       [|
         do
@@ -256,7 +256,7 @@ definitions =
               Just mat -> pure $ A0ValLiteral (ALitMat mat)
               Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
           _ ->
-            error "TODO: evalExpr0, BITadd, dimension >= 3"
+            error "UNIMPLEMENTED: evalExpr0, BITadd, dimension >= 3"
         |],
     gen ["tensor"] "mult" [ParamIntList, ParamIntList],
     gen ["tensor"] "grad" [ParamIntList],
@@ -279,22 +279,22 @@ definitions =
       [|
         do
           _r <- validateFloatLiteral a0v1
-          error "TODO: Tensor.f"
+          error "UNIMPLEMENTED: Tensor.f"
         |],
     versatile ["tensor"] "backward" ForStage1 1 $
       [|
         do
           let _tensor = a0v1
-          error "TODO: Tensor.backward"
+          error "UNIMPLEMENTED: Tensor.backward"
         |],
     versatile ["tensor"] "no_grad" ForStage1 1 $
       [|
         do
           let _f = a0v1
-          error "TODO: Tensor.no_grad"
+          error "UNIMPLEMENTED: Tensor.no_grad"
         |],
     versatile ["tensor"] "float_value" ForStage1 1 $
-      [|error "TODO: Tensor.float_value"|],
+      [|error "UNIMPLEMENTED: Tensor.float_value"|],
     gen ["tensor"] "dropout" [ParamIntList],
     gen ["tensor"] "reshape" [ParamIntList, ParamIntList],
     gen ["tensor"] "max_pool2d" [ParamInt, ParamInt, ParamInt, ParamInt, ParamIntPair, ParamIntPair, ParamIntPair],
@@ -306,25 +306,25 @@ definitions =
           _name <- validateStringLiteral a0v2
           let _device = a0v3
           () <- validateUnitLiteral a0v4
-          error "TODO: VarStore.create"
+          error "UNIMPLEMENTED: VarStore.create"
         |],
     versatile ["var_store"] "freeze" ForStage1 1 $
       [|
         do
           let _varStore = a0v1
-          error "TODO: VarStore.freeze"
+          error "UNIMPLEMENTED: VarStore.freeze"
         |],
     versatile ["var_store"] "unfreeze" ForStage1 1 $
       [|
         do
           let _varStore = a0v1
-          error "TODO: VarStore.freeze"
+          error "UNIMPLEMENTED: VarStore.freeze"
         |],
     gen ["tensor"] "all_vars" [ParamIntList],
     versatile ["layer", "activation"] "relu" ForStage1 0 $
-      [|error "TODO: Layer.Activation.relu"|],
+      [|error "UNIMPLEMENTED: Layer.Activation.relu"|],
     versatile ["layer", "activation"] "none" ForStage1 0 $
-      [|error "TODO: Layer.Activation.none"|],
+      [|error "UNIMPLEMENTED: Layer.Activation.none"|],
     gen ["layer"] "forward" [ParamIntList, ParamIntList],
     gen ["layer"] "forward_" [ParamIntList, ParamIntList],
     gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt],
@@ -334,26 +334,26 @@ definitions =
         do
           let _varStore = a0v1
           _r <- validateFloatLiteral a0v2
-          error "TODO: Optimizer.adam"
+          error "UNIMPLEMENTED: Optimizer.adam"
         |],
     versatile ["optimizer"] "backward_step" ForStage1 2 $
       [|
         do
           let _optimizer = a0v1
           let _tensor = a0v2
-          error "TODO: Optimizer.backward_step"
+          error "UNIMPLEMENTED: Optimizer.backward_step"
         |],
     gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded],
     gen ["dataset_helper"] "map" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamDiscarded],
     versatile ["mnist_helper"] "dataset" ForStage1 0 $
-      [|error "TODO: MnistHelper.dataset"|],
+      [|error "UNIMPLEMENTED: MnistHelper.dataset"|],
     versatile ["mnist_helper"] "train_images" ForStage1 0 $
-      [|error "TODO: MnistHelper.train_images"|],
+      [|error "UNIMPLEMENTED: MnistHelper.train_images"|],
     versatile ["mnist_helper"] "train_labels" ForStage1 0 $
-      [|error "TODO: MnistHelper.train_labels"|],
+      [|error "UNIMPLEMENTED: MnistHelper.train_labels"|],
     versatile ["mnist_helper"] "test_images" ForStage1 0 $
-      [|error "TODO: MnistHelper.test_images"|],
+      [|error "UNIMPLEMENTED: MnistHelper.test_images"|],
     versatile ["mnist_helper"] "test_labels" ForStage1 0 $
-      [|error "TODO: MnistHelper.test_labels"|]
+      [|error "UNIMPLEMENTED: MnistHelper.test_labels"|]
   ]
