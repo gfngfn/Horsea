@@ -85,11 +85,90 @@ definitions =
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 == n2))) a0v1 a0v2|],
     versatile [] "and" ForBothStages 2 $
       [|logical (\b1 b2 -> A0ValLiteral (ALitBool (b1 && b2))) a0v1 a0v2|],
-    versatile ["list"] "cons" ForBothStages 2 $
+    versatile [] "cons" ForBothStages 2 $
       [|
         do
           a0vs2 <- validateListValue a0v2
           pure $ A0ValLiteral (ALitList (a0v1 : a0vs2))
+        |],
+    versatile [] "float" ForBothStages 1 $
+      [|
+        do
+          n <- validateIntLiteral a0v1
+          pure $ A0ValLiteral (ALitFloat (fromIntegral n))
+        |],
+    versatile [] "print_float" ForBothStages 1 $
+      [|
+        do
+          _r <- validateFloatLiteral a0v1
+          -- TODO: print `r` here
+          pure $ A0ValLiteral ALitUnit
+        |],
+    versatile [] "print_string" ForBothStages 1 $
+      [|
+        do
+          _s <- validateStringLiteral a0v1
+          -- TODO: print `s` here
+          pure $ A0ValLiteral ALitUnit
+        |],
+    versatile [] "range" ForBothStages 2 $
+      [|
+        do
+          n1 <- validateIntLiteral a0v1
+          n2 <- validateIntLiteral a0v2
+          pure $ A0ValLiteral (ALitList (map (A0ValLiteral . ALitInt) [n1 .. n2]))
+        |],
+    versatile [] "fst" ForBothStages 1 $
+      [|
+        do
+          (a0v11, _) <- validateTupleValue a0v1
+          pure a0v11
+        |],
+    versatile [] "snd" ForBothStages 1 $
+      [|
+        do
+          (_, a0v12) <- validateTupleValue a0v1
+          pure a0v12
+        |],
+    versatile [] "lift_string" ForStage0 1 $
+      [|
+        do
+          s <- validateStringLiteral a0v1
+          pure $ A0ValBracket (A1ValLiteral (ALitString s))
+        |],
+    versatile [] "drop_at" ForStage0 2 $
+      [|
+        do
+          n1 <- validateIntLiteral a0v1
+          a0vs2 <- validateListValue a0v2
+          pure $ A0ValLiteral (ALitList (dropAt n1 a0vs2))
+        |],
+    versatile [] "broadcastable" ForStage0 2 $
+      [|
+        do
+          ns1 <- validateIntListLiteral a0v1
+          ns2 <- validateIntListLiteral a0v2
+          let b = isJust (broadcast ns1 ns2)
+          pure $ A0ValLiteral (ALitBool b)
+        |],
+    versatile [] "broadcast" ForStage0 2 $
+      [|
+        do
+          ns1 <- validateIntListLiteral a0v1
+          ns2 <- validateIntListLiteral a0v2
+          ns <-
+            case broadcast ns1 ns2 of
+              Just ns' -> pure ns'
+              Nothing -> bug $ BroadcastFailed ns1 ns2
+          pure $ A0ValLiteral (ALitList (map (A0ValLiteral . ALitInt) ns))
+        |],
+    versatile [] "reshapeable" ForStage0 2 $
+      [|
+        do
+          ns1 <- validateIntListLiteral a0v1
+          ns2 <- validateIntListLiteral a0v2
+          let b = List.foldl' (*) 1 ns1 == List.foldl' (*) 1 ns2
+          pure $ A0ValLiteral (ALitBool b)
         |],
     gen [] "vadd" [ParamInt],
     versatile [] "vadd" (ForInternal [ParamInt]) 2 $
@@ -129,85 +208,6 @@ definitions =
           case Matrix.concatVert p1 p2 p3 mat1 mat2 of
             Just mat -> pure $ A0ValLiteral (ALitMat mat)
             Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
-        |],
-    versatile [] "drop_at" ForStage0 2 $
-      [|
-        do
-          n1 <- validateIntLiteral a0v1
-          a0vs2 <- validateListValue a0v2
-          pure $ A0ValLiteral (ALitList (dropAt n1 a0vs2))
-        |],
-    versatile [] "broadcastable" ForStage0 2 $
-      [|
-        do
-          ns1 <- validateIntListLiteral a0v1
-          ns2 <- validateIntListLiteral a0v2
-          let b = isJust (broadcast ns1 ns2)
-          pure $ A0ValLiteral (ALitBool b)
-        |],
-    versatile [] "broadcast" ForStage0 2 $
-      [|
-        do
-          ns1 <- validateIntListLiteral a0v1
-          ns2 <- validateIntListLiteral a0v2
-          ns <-
-            case broadcast ns1 ns2 of
-              Just ns' -> pure ns'
-              Nothing -> bug $ BroadcastFailed ns1 ns2
-          pure $ A0ValLiteral (ALitList (map (A0ValLiteral . ALitInt) ns))
-        |],
-    versatile [] "reshapeable" ForStage0 2 $
-      [|
-        do
-          ns1 <- validateIntListLiteral a0v1
-          ns2 <- validateIntListLiteral a0v2
-          let b = List.foldl' (*) 1 ns1 == List.foldl' (*) 1 ns2
-          pure $ A0ValLiteral (ALitBool b)
-        |],
-    versatile [] "float" ForBothStages 1 $
-      [|
-        do
-          n <- validateIntLiteral a0v1
-          pure $ A0ValLiteral (ALitFloat (fromIntegral n))
-        |],
-    versatile [] "print_float" ForBothStages 1 $
-      [|
-        do
-          _r <- validateFloatLiteral a0v1
-          -- TODO: print `r` here
-          pure $ A0ValLiteral ALitUnit
-        |],
-    versatile [] "print_string" ForBothStages 1 $
-      [|
-        do
-          _s <- validateStringLiteral a0v1
-          -- TODO: print `s` here
-          pure $ A0ValLiteral ALitUnit
-        |],
-    versatile [] "range" ForBothStages 2 $
-      [|
-        do
-          n1 <- validateIntLiteral a0v1
-          n2 <- validateIntLiteral a0v2
-          pure $ A0ValLiteral (ALitList (map (A0ValLiteral . ALitInt) [n1 .. n2]))
-        |],
-    versatile [] "lift_string" ForStage0 1 $
-      [|
-        do
-          s <- validateStringLiteral a0v1
-          pure $ A0ValBracket (A1ValLiteral (ALitString s))
-        |],
-    versatile [] "fst" ForBothStages 1 $
-      [|
-        do
-          (a0v11, _) <- validateTupleValue a0v1
-          pure a0v11
-        |],
-    versatile [] "snd" ForBothStages 1 $
-      [|
-        do
-          (_, a0v12) <- validateTupleValue a0v1
-          pure a0v12
         |],
     versatile ["list"] "map" ForBothStages 2 $
       [|
