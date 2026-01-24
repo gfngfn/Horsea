@@ -191,6 +191,53 @@ definitions =
           n2 <- validateIntLiteral a0v2
           pure $ A0ValLiteral (ALitList (map (A0ValLiteral . ALitInt) [n1 .. n2]))
         |],
+    versatile [] "lift_string" ForStage0 1 $
+      [|
+        do
+          s <- validateStringLiteral a0v1
+          pure $ A0ValBracket (A1ValLiteral (ALitString s))
+        |],
+    versatile [] "fst" ForBothStages 1 $
+      [|
+        do
+          (a0v11, _) <- validateTupleValue a0v1
+          pure a0v11
+        |],
+    versatile [] "snd" ForBothStages 1 $
+      [|
+        do
+          (_, a0v12) <- validateTupleValue a0v1
+          pure a0v12
+        |],
+    versatile ["list"] "map" ForBothStages 2 $
+      [|
+        do
+          a0vsIn <- validateListValue a0v2
+          a0vsOut <- mapM (reduceBeta a0v1) a0vsIn
+          pure $ A0ValLiteral (ALitList a0vsOut)
+        |],
+    versatile ["list"] "append" ForBothStages 2 $
+      [|
+        do
+          a0vs1 <- validateListValue a0v1
+          a0vs2 <- validateListValue a0v2
+          pure $ A0ValLiteral (ALitList (a0vs1 ++ a0vs2))
+        |],
+    versatile ["list"] "iter" ForBothStages 2 $
+      [|
+        do
+          a0vsIn <- validateListValue a0v2
+          forM_ a0vsIn (reduceBeta a0v1 >=> validateUnitLiteral)
+          pure $ A0ValLiteral ALitUnit
+        |],
+    versatile ["device"] "cpu" ForStage1 0 $
+      [|error "TODO: Device.cpu"|],
+    versatile ["device"] "gen_cuda_if_available" ForStage0 1 $
+      [|
+        do
+          () <- validateUnitLiteral a0v1
+          pure $ A0ValBracket (A1ValLiteral ALitUnit) -- TODO: return a value of type `Device`
+        |],
     -- TODO: built-in functions should be reordered henceforth:
     gen ["tensor"] "zeros" [ParamIntList],
     gen ["tensor"] "grad" [ParamIntList],
@@ -198,36 +245,6 @@ definitions =
     gen ["tensor"] "sub_update" [ParamIntList],
     gen ["tensor"] "count_equal" [ParamIntList],
     gen ["tensor"] "dropout" [ParamIntList],
-    versatile
-      []
-      "fst"
-      ForBothStages
-      1
-      [|
-        do
-          (a0v11, _) <- validateTupleValue a0v1
-          pure a0v11
-        |],
-    versatile
-      []
-      "snd"
-      ForBothStages
-      1
-      [|
-        do
-          (_, a0v12) <- validateTupleValue a0v1
-          pure a0v12
-        |],
-    versatile
-      ["device"]
-      "gen_cuda_if_available"
-      ForStage0
-      1
-      [|
-        do
-          () <- validateUnitLiteral a0v1
-          pure $ A0ValBracket (A1ValLiteral ALitUnit) -- TODO: return a value of type `Device`
-        |],
     versatile
       ["tensor"]
       "f"
@@ -338,40 +355,7 @@ definitions =
       ForStage1
       0
       [|error "TODO: MnistHelper.test_labels"|],
-    versatile
-      ["list"]
-      "map"
-      ForBothStages
-      2
-      [|
-        do
-          a0vsIn <- validateListValue a0v2
-          a0vsOut <- mapM (reduceBeta a0v1) a0vsIn
-          pure $ A0ValLiteral (ALitList a0vsOut)
-        |],
     gen ["tensor"] "add" [ParamIntList, ParamIntList],
-    versatile
-      ["list"]
-      "append"
-      ForBothStages
-      2
-      [|
-        do
-          a0vs1 <- validateListValue a0v1
-          a0vs2 <- validateListValue a0v2
-          pure $ A0ValLiteral (ALitList (a0vs1 ++ a0vs2))
-        |],
-    versatile
-      ["list"]
-      "iter"
-      ForBothStages
-      2
-      [|
-        do
-          a0vsIn <- validateListValue a0v2
-          forM_ a0vsIn (reduceBeta a0v1 >=> validateUnitLiteral)
-          pure $ A0ValLiteral ALitUnit
-        |],
     gen ["tensor"] "mult" [ParamIntList, ParamIntList],
     gen ["tensor"] "argmax" [ParamIntList, ParamInt],
     gen ["tensor"] "cross_entropy_for_logits" [ParamInt, ParamInt],
