@@ -41,40 +41,6 @@ data BuiltIn
   | BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
-{-
-data BuiltInArity2
-  = BIAdd
-  | BISub
-  | BIMult
-  | BIDiv
-  | BIMod
-  | BILeq
-  | BIEqual
-  | BIAnd
-  | BIListMap
-  | BIGenVconcat
-  | BIGenMtranspose
-  | BIVadd Int
-  | BIVconcat Int Int
-  | BIMconcatVert Int Int Int
-  | BIDropAt
-  | BIBroadcastable
-  | BIBroadcast
-  | BIReshapeable
-  | BIListCons
-  | BIListAppend
-  | BIListIter
-  | BITensorGenAdd
-  | BITensorGenMult
-  | BITensorGenCrossEntropyForLogits
-  | BITensorGenArgmax
-  | BITensorAdd [Int]
-  | BITensorMm Int Int Int
-  | BITensorGenReshape
-  | BILayerGenForward
-  deriving stock (Eq, Show)
--}
-
 data BuiltInArity3
   = BIGenMconcatVert
   | BITensorGenMm

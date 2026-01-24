@@ -384,40 +384,6 @@ instance Disp (ArgForTypeF ann) where
 
 $(deriveDisp definitions)
 
-{-
-instance Disp BuiltInArity2 where
-  dispGen _ = \case
-    BIAdd -> "+"
-    BISub -> "-"
-    BIMult -> "*"
-    BIDiv -> "//"
-    BIMod -> "mod"
-    BILeq -> "<="
-    BIEqual -> "=="
-    BIAnd -> "&&"
-    BIListMap -> "LIST.MAP"
-    BIGenVconcat -> "GEN_VCONCAT"
-    BIGenMtranspose -> "GEN_MTRANSPOSE"
-    BIVadd n -> "VADD@{" <> disp n <> "}"
-    BIVconcat m n -> "VCONCAT@{" <> disps [m, n] <> "}"
-    BIMconcatVert m1 m2 n -> "MCONCAT_VERT@{" <> disps [m1, m2, n] <> "}"
-    BIDropAt -> "DROP_AT"
-    BIBroadcastable -> "BROADCASTABLE"
-    BIBroadcast -> "BROADCAST"
-    BIReshapeable -> "RESHAPEABLE"
-    BIListCons -> "::"
-    BIListAppend -> "LIST.APPEND"
-    BIListIter -> "LIST.ITER"
-    BITensorGenAdd -> "TENSOR.GEN_ADD"
-    BITensorGenMult -> "TENSOR.GEN_MULT"
-    BITensorGenArgmax -> "TENSOR.GEN_ARGMAX"
-    BITensorGenCrossEntropyForLogits -> "TENSOR.GEN_CROSS_ENTROPY_FOR_LOGITS"
-    BITensorAdd ns -> "TENSOR.ADD@{" <> dispListLiteral ns <> "}"
-    BITensorMm k m n -> "TENSOR.MM@{" <> disps [k, m, n] <> "}"
-    BITensorGenReshape -> "TENSOR.GEN_RESHAPE"
-    BILayerGenForward -> "LAYER.GEN_FORWARD"
--}
-
 instance Disp BuiltInArity3 where
   dispGen _ = \case
     BIGenMconcatVert -> "GEN_MCONCAT_VERT"
