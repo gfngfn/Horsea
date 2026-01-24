@@ -151,47 +151,6 @@ broadcast ns1' ns2' = reverse <$> go (reverse ns1', reverse ns2')
 
 $(deriveDeltaReduction definitions)
 
-{-
-reduceDeltaArity1 :: BuiltInArity1 -> Ass0Val -> M Ass0Val
-reduceDeltaArity1 bi1 a0v1 =
-  case bi1 of
-    BIGenVadd -> do
-      n1 <- validateIntLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BIVadd n1))
-    BIMtranspose m n -> do
-      mat1 <- validateMat0 a0v1
-      case Matrix.transpose m n mat1 of
-        Just mat -> pure $ A0ValLiteral (ALitMat mat)
-        Nothing -> bug $ InconsistentAppBuiltInArity1 bi1 a0v1
-    BIDeviceGenCudaIfAvailable -> do
-      () <- validateUnitLiteral a0v1
-      pure $ A0ValBracket (A1ValLiteral ALitUnit) -- TODO: return a value of type `Device`
-    BITensorGenZeros -> do
-      ns1 <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITensorZeros ns1))
-    BITensorGenGrad -> do
-      ns1 <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITensorGrad ns1))
-    BITensorGenZeroGrad -> do
-      ns1 <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITensorZeroGrad ns1))
-    BITensorGenSubUpdate -> do
-      ns1 <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITensorSubUpdate ns1))
-    BITensorGenCountEqual -> do
-      ns1 <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITensorCountEqual ns1))
-    BITensorGenDropout -> do
-      shape <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITensorDropout shape))
-    BITupleFirst -> do
-      (a0v11, _) <- validateTupleValue a0v1
-      pure a0v11
-    BITupleSecond -> do
-      (_, a0v12) <- validateTupleValue a0v1
-      pure a0v12
--}
-
 reduceDeltaArity2 :: BuiltInArity2 -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity2 bi2 a0v1 a0v2 =
   case bi2 of
