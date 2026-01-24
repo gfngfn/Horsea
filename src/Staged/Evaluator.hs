@@ -164,55 +164,6 @@ logical f a0v1 a0v2 = do
 
 $(deriveDeltaReduction definitions)
 
-{-
-reduceDeltaArity5 :: BuiltInArity5 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
-reduceDeltaArity5 bi5 a0v1 a0v2 a0v3 a0v4 a0v5 =
-  case bi5 of
-    BIDatasetHelperGenTrainBatch -> do
-      ntrain <- validateIntLiteral a0v1
-      ntest <- validateIntLiteral a0v2
-      imgdim <- validateIntListLiteral a0v3
-      labeldim <- validateIntListLiteral a0v4
-      batchSize <- validateIntLiteral a0v5
-      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperTrainBatch ntrain ntest imgdim labeldim batchSize))
-
-reduceDeltaArity7 :: BuiltInArity7 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
-reduceDeltaArity7 bi7 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 =
-  case bi7 of
-    BIDatasetHelperGenBatchAccuracy -> do
-      ntrain <- validateIntLiteral a0v1
-      ntest <- validateIntLiteral a0v2
-      imgdim <- validateIntListLiteral a0v3
-      labeldim <- validateIntListLiteral a0v4
-      n <- validateIntLiteral a0v5
-      batchSize <- validateIntLiteral a0v6
-      let _f = a0v7
-      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperBatchAccuracy ntrain ntest imgdim labeldim n batchSize))
-    BITensorGenMaxPool2d -> do
-      k <- validateIntLiteral a0v1
-      l <- validateIntLiteral a0v2
-      m <- validateIntLiteral a0v3
-      n <- validateIntLiteral a0v4
-      (padding1, padding2) <- validateIntPairLiteral a0v5
-      (ksize1, ksize2) <- validateIntPairLiteral a0v6
-      (stride1, stride2) <- validateIntPairLiteral a0v7
-      pure $ A0ValBracket (A1ValConst (A1BITensorMaxPool2d k l m n padding1 padding2 ksize1 ksize2 stride1 stride2))
-
-reduceDeltaArity8 :: BuiltInArity8 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
-reduceDeltaArity8 bi8 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 a0v8 =
-  case bi8 of
-    BILayerGenConv2d -> do
-      l <- validateIntLiteral a0v1
-      m <- validateIntLiteral a0v2
-      n <- validateIntLiteral a0v3
-      ksize <- validateIntLiteral a0v4
-      stride <- validateIntLiteral a0v5
-      padding <- validateIntLiteral a0v6
-      input_dim <- validateIntLiteral a0v7
-      output_dim <- validateIntLiteral a0v8
-      pure $ A0ValBracket (A1ValConst (A1BILayerConv2d l m n ksize stride padding input_dim output_dim))
--}
-
 reduceDelta :: Ass0PartialBuiltInApp Ass0Val -> Ass0Val -> M Ass0Val
 reduceDelta pba a0vArg =
   case pba of

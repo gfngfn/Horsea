@@ -392,21 +392,6 @@ instance Disp (ArgForTypeF ann) where
 
 $(deriveDisp definitions)
 
-{-
-instance Disp BuiltInArity5 where
-  dispGen _ = \case
-    BIDatasetHelperGenTrainBatch -> "DATASET_HELPER.GEN_TRAIN_BATCH"
-
-instance Disp BuiltInArity7 where
-  dispGen _ = \case
-    BIDatasetHelperGenBatchAccuracy -> "DATASET_HELPER.GEN_BATCH_ACCURACY"
-    BITensorGenMaxPool2d -> "TENSOR.GEN_MAX_POOL2D"
-
-instance Disp BuiltInArity8 where
-  dispGen _ = \case
-    BILayerGenConv2d -> "LAYER.GEN_CONV2D"
--}
-
 instance Disp BuiltIn where
   dispGen req = \case
     BuiltInArity1 bi1 -> dispGen req bi1

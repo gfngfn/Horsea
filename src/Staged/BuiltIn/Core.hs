@@ -42,21 +42,6 @@ data BuiltIn
   | BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
-{-
-data BuiltInArity5
-  = BIDatasetHelperGenTrainBatch
-  deriving stock (Eq, Show)
-
-data BuiltInArity7
-  = BIDatasetHelperGenBatchAccuracy
-  | BITensorGenMaxPool2d
-  deriving stock (Eq, Show)
-
-data BuiltInArity8
-  = BILayerGenConv2d
-  deriving stock (Eq, Show)
--}
-
 data Ass0PartialBuiltInApp val
   = A0PartialBuiltInAppArity1 (Ass0PartialBuiltInAppArity1 val)
   | A0PartialBuiltInAppArity2 (Ass0PartialBuiltInAppArity2 val)
