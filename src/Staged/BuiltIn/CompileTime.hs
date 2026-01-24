@@ -50,6 +50,9 @@ data ParamSpec
   = ParamInt
   | ParamIntList
 
+allArities :: [Int]
+allArities = [1, 2, 3]
+
 -- TODO: change "Foo" to "Ass1BuiltIn":
 ass1builtInName :: TH.Name
 ass1builtInName = TH.mkName "Foo"
@@ -60,7 +63,7 @@ makeAss1builtInConstructor s = TH.mkName $ "Bar" ++ s
 
 deriveDecs :: [BuiltInSpec] -> TH.Q [TH.Dec]
 deriveDecs allBiSpecs = do
-  let dec0s = map (deriveDecPerArity allBiSpecs) [1 .. 2]
+  let dec0s = map (deriveDecPerArity allBiSpecs) allArities
   let dec1 = TH.DataD [] ass1builtInName [] Nothing (mapMaybe makeConstructor1 allBiSpecs) derivClauses
   let decs = dec1 : dec0s
   TH.runIO $ putStrLn $ "DECS: " ++ show decs
@@ -137,7 +140,7 @@ string = TH.LitE . TH.StringL
 -- ```
 deriveDeltaReduction :: [BuiltInSpec] -> TH.Q [TH.Dec]
 deriveDeltaReduction allBiSpecs =
-  concat <$> mapM (deriveDeltaReductionPerArity allBiSpecs) [1 .. 2]
+  concat <$> mapM (deriveDeltaReductionPerArity allBiSpecs) allArities
 
 deriveDeltaReductionPerArity :: [BuiltInSpec] -> Int -> TH.Q [TH.Dec]
 deriveDeltaReductionPerArity allBiSpecs arity = do
@@ -255,7 +258,7 @@ makeParamDisp (pName, paramSpec) =
 -- * `instance Disp Ass1BuiltIn`.
 deriveDisp :: [BuiltInSpec] -> TH.Q [TH.Dec]
 deriveDisp allBiSpecs = do
-  dec0s <- mapM (deriveDispPerArity allBiSpecs) [1 .. 2]
+  dec0s <- mapM (deriveDispPerArity allBiSpecs) allArities
   let dec1 = makeDispInstance (TH.ConT ass1builtInName) (mapMaybe makeBranch1 allBiSpecs)
   let decs = dec1 : dec0s
   TH.runIO $ putStrLn $ "DECS: " ++ show decs

@@ -41,11 +41,13 @@ data BuiltIn
   | BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
+{-
 data BuiltInArity3
   = BIGenMconcatVert
   | BITensorGenMm
   | BILayerGenLinear
   deriving stock (Eq, Show)
+-}
 
 data BuiltInArity5
   = BIDatasetHelperGenTrainBatch

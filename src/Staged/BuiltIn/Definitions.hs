@@ -177,5 +177,10 @@ definitions =
           Just mat -> pure $ A0ValLiteral (ALitMat mat)
           Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2 |],
     gen ["tensor"] "reshape" [ParamIntList, ParamIntList],
-    gen ["layer"] "forward" [ParamIntList, ParamIntList]
+    gen ["layer"] "forward" [ParamIntList, ParamIntList],
+
+    -- Arity 3:
+    gen [] "mconcat_vert" [ParamInt, ParamInt, ParamInt],
+    gen ["tensor"] "mm" [ParamInt, ParamInt, ParamInt],
+    gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt]
   ]
