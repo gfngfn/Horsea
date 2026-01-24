@@ -238,63 +238,68 @@ definitions =
           () <- validateUnitLiteral a0v1
           pure $ A0ValBracket (A1ValLiteral ALitUnit) -- TODO: return a value of type `Device`
         |],
-    -- TODO: built-in functions should be reordered henceforth:
     gen ["tensor"] "zeros" [ParamIntList],
+    gen ["tensor"] "add" [ParamIntList, ParamIntList],
+    versatile ["tensor"] "add" (ForInternal [ParamIntList]) 2 $
+      [|
+        case p1 of
+          [n] -> do
+            v1 <- validateVec0 a0v1
+            v2 <- validateVec0 a0v2
+            case Vector.add n v1 v2 of
+              Just v -> pure $ A0ValLiteral (ALitVec v)
+              Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
+          [m, n] -> do
+            mat1 <- validateMat0 a0v1
+            mat2 <- validateMat0 a0v2
+            case Matrix.add m n mat1 mat2 of
+              Just mat -> pure $ A0ValLiteral (ALitMat mat)
+              Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
+          _ ->
+            error "TODO: evalExpr0, BITadd, dimension >= 3"
+        |],
+    gen ["tensor"] "mult" [ParamIntList, ParamIntList],
     gen ["tensor"] "grad" [ParamIntList],
     gen ["tensor"] "zero_grad" [ParamIntList],
+    gen ["tensor"] "mm" [ParamInt, ParamInt, ParamInt],
+    versatile ["tensor"] "mm" (ForInternal [ParamInt, ParamInt, ParamInt]) 2 $
+      [|
+        do
+          mat1 <- validateMat0 a0v1
+          mat2 <- validateMat0 a0v2
+          case Matrix.mult p1 p2 p3 mat1 mat2 of
+            Just mat -> pure $ A0ValLiteral (ALitMat mat)
+            Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
+        |],
     gen ["tensor"] "sub_update" [ParamIntList],
+    gen ["tensor"] "argmax" [ParamIntList, ParamInt],
+    gen ["tensor"] "cross_entropy_for_logits" [ParamInt, ParamInt],
     gen ["tensor"] "count_equal" [ParamIntList],
-    gen ["tensor"] "dropout" [ParamIntList],
-    versatile
-      ["tensor"]
-      "f"
-      ForStage1
-      1
+    versatile ["tensor"] "f" ForStage1 1 $
       [|
         do
           _r <- validateFloatLiteral a0v1
           error "TODO: Tensor.f"
         |],
-    versatile
-      ["tensor"]
-      "float_value"
-      ForStage1
-      1
-      [|
-        do
-          error "TODO: Tensor.float_value"
-        |],
-    versatile
-      ["tensor"]
-      "backward"
-      ForStage1
-      1
+    versatile ["tensor"] "backward" ForStage1 1 $
       [|
         do
           let _tensor = a0v1
           error "TODO: Tensor.backward"
         |],
-    versatile
-      ["tensor"]
-      "no_grad"
-      ForStage1
-      1
+    versatile ["tensor"] "no_grad" ForStage1 1 $
       [|
         do
           let _f = a0v1
           error "TODO: Tensor.no_grad"
         |],
-    versatile
-      ["layer", "activation"]
-      "relu"
-      ForStage1
-      0
-      [|error "TODO: Layer.Activation.relu"|],
-    versatile
-      ["var_store"]
-      "create"
-      ForStage1
-      4
+    versatile ["tensor"] "float_value" ForStage1 1 $
+      [|error "TODO: Tensor.float_value"|],
+    gen ["tensor"] "dropout" [ParamIntList],
+    gen ["tensor"] "reshape" [ParamIntList, ParamIntList],
+    gen ["tensor"] "max_pool2d" [ParamInt, ParamInt, ParamInt, ParamInt, ParamIntPair, ParamIntPair, ParamIntPair],
+    gen ["tensor"] "softmax" [ParamIntList, ParamInt],
+    versatile ["var_store"] "create" ForStage1 4 $
       [|
         do
           _frozen <- validateBoolLiteral a0v1
@@ -303,6 +308,26 @@ definitions =
           () <- validateUnitLiteral a0v4
           error "TODO: VarStore.create"
         |],
+    versatile ["var_store"] "freeze" ForStage1 1 $
+      [|
+        do
+          let _varStore = a0v1
+          error "TODO: VarStore.freeze"
+        |],
+    versatile ["var_store"] "unfreeze" ForStage1 1 $
+      [|
+        do
+          let _varStore = a0v1
+          error "TODO: VarStore.freeze"
+        |],
+    gen ["tensor"] "all_vars" [ParamIntList],
+    -- TODO: built-in functions should be reordered henceforth:
+    versatile
+      ["layer", "activation"]
+      "relu"
+      ForStage1
+      0
+      [|error "TODO: Layer.Activation.relu"|],
     versatile
       ["optimizer"]
       "adam"
@@ -355,54 +380,12 @@ definitions =
       ForStage1
       0
       [|error "TODO: MnistHelper.test_labels"|],
-    gen ["tensor"] "add" [ParamIntList, ParamIntList],
-    gen ["tensor"] "mult" [ParamIntList, ParamIntList],
-    gen ["tensor"] "argmax" [ParamIntList, ParamInt],
-    gen ["tensor"] "cross_entropy_for_logits" [ParamInt, ParamInt],
-    versatile
-      ["tensor"]
-      "add"
-      (ForInternal [ParamIntList])
-      2
-      [|
-        case p1 of
-          [n] -> do
-            v1 <- validateVec0 a0v1
-            v2 <- validateVec0 a0v2
-            case Vector.add n v1 v2 of
-              Just v -> pure $ A0ValLiteral (ALitVec v)
-              Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
-          [m, n] -> do
-            mat1 <- validateMat0 a0v1
-            mat2 <- validateMat0 a0v2
-            case Matrix.add m n mat1 mat2 of
-              Just mat -> pure $ A0ValLiteral (ALitMat mat)
-              Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
-          _ ->
-            error "TODO: evalExpr0, BITadd, dimension >= 3"
-        |],
-    versatile
-      ["tensor"]
-      "mm"
-      (ForInternal [ParamInt, ParamInt, ParamInt])
-      2
-      [|
-        do
-          mat1 <- validateMat0 a0v1
-          mat2 <- validateMat0 a0v2
-          case Matrix.mult p1 p2 p3 mat1 mat2 of
-            Just mat -> pure $ A0ValLiteral (ALitMat mat)
-            Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
-        |],
-    gen ["tensor"] "reshape" [ParamIntList, ParamIntList],
     gen ["layer"] "forward" [ParamIntList, ParamIntList],
-    gen ["tensor"] "mm" [ParamInt, ParamInt, ParamInt],
     gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt],
     -- Arity 5:
     gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     -- Arity 7:
     gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded],
-    gen ["tensor"] "max_pool2d" [ParamInt, ParamInt, ParamInt, ParamInt, ParamIntPair, ParamIntPair, ParamIntPair],
     -- Arity 8:
     gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt]
   ]
