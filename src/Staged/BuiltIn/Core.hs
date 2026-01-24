@@ -89,66 +89,6 @@ data Ass0PartialBuiltInAppArity8 val
   = PartialBuiltInAppArity8Nil BuiltInArity8
   deriving stock (Eq, Show, Functor)
 
-{-
-data Ass1BuiltIn
-  = A1BIVadd Int
-  | A1BIVconcat Int Int
-  | A1BIMtranspose Int Int
-  | A1BIMconcatVert Int Int Int
-  | A1BITensorZeros [Int]
-  | A1BITensorAdd [Int] [Int]
-  | A1BITensorMult [Int] [Int]
-  | A1BITensorMm Int Int Int
-  | A1BITensorGrad [Int]
-  | A1BITensorZeroGrad [Int]
-  | A1BITensorSubUpdate [Int]
-  | A1BITensorArgmax [Int] Int
-  | A1BITensorCrossEntropyForLogits Int Int
-  | A1BITensorCountEqual [Int]
-  | A1BITensorDropout [Int]
-  | A1BITensorReshape [Int] [Int]
-  | A1BIIntAdd
-  | A1BIIntSub
-  | A1BIIntMult
-  | A1BIIntDiv
-  | A1BIFloatDiv
-  | A1BIIntMod
-  | A1BIIntLeq
-  | A1BIIntEqual
-  | A1BIFloat
-  | A1BIPrintFloat
-  | A1BIPrintString
-  | A1BIRange
-  | A1BIListAppend
-  | A1BIListIter
-  | A1BITensorF
-  | A1BITensorBackward
-  | A1BITensorNoGrad
-  | A1BITensorFloatValue
-  | A1BITensorMaxPool2d Int Int Int Int (Int, Int) (Int, Int) (Int, Int)
-  | A1BILayerActivationRelu
-  | A1BILayerActivationNone
-  | A1BILayerLinear [Int] Int Int
-  | A1BILayerForward [Int] [Int]
-  | A1BILayerConv2d_ Int Int Int Int Int Int Int Int
-  | A1BIVarStoreCreate
-  | A1BIOptimizerAdam
-  | A1BIOptimizerBackwardStep
-  | A1BIDatasetHelperTrainBatch Int Int [Int] [Int] Int
-  | A1BIDatasetHelperBatchAccuracy Int Int [Int] [Int] Int Int ()
-  | A1BIMnistHelperTrainImages
-  | A1BIMnistHelperTrainLabels
-  | A1BIMnistHelperTestImages
-  | A1BIMnistHelperTestLabels
-  | A1BIFst
-  | A1BISnd
-  | A1BIAnd
-  | A1BIListMap
-  | A1BIListCons
-  | A1BuiltInOther Text -- TODO: remove this
-  deriving stock (Eq, Show)
--}
-
 unliftBuiltInName :: Ass1BuiltIn -> BuiltIn
 unliftBuiltInName = \case
   A1BIVadd n -> arity2 (BIVadd n)
