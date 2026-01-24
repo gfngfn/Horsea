@@ -16,8 +16,8 @@ where
 import Control.Monad.Extra (mapMaybeM)
 import Data.List (foldl')
 import Data.List.NonEmpty (nonEmpty)
-import Data.Text (Text)
 import Data.Maybe (mapMaybe)
+import Data.Text (Text)
 import Language.Haskell.TH qualified as TH
 import Safe.Exact (zipExactMay)
 import Prelude
@@ -115,7 +115,8 @@ deriveNameValidationFun0 allBiSpecs =
   [ TH.SigD nameValidationFunName funType,
     TH.ValD
       (TH.VarP nameValidationFunName)
-      (TH.NormalB (TH.LamCaseE (mapMaybe makeBranch0 allBiSpecs ++ [otherwiseBranch0]))) []
+      (TH.NormalB (TH.LamCaseE (mapMaybe makeBranch0 allBiSpecs ++ [otherwiseBranch0])))
+      []
   ]
   where
     nameValidationFunName = TH.mkName "validateExternalName0"
