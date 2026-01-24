@@ -834,8 +834,10 @@ instance (Disp v) => Disp (Ass0PartialBuiltInApp v) where
     A0PartialBuiltInAppArity2 pba2 -> dispGen req pba2
     A0PartialBuiltInAppArity3 pba3 -> dispGen req pba3
     A0PartialBuiltInAppArity4 pba4 -> dispGen req pba4
+    A0PartialBuiltInAppArity5 pba5 -> dispGen req pba5
     A0PartialBuiltInAppArity6 pba6 -> dispGen req pba6
-    _ -> "TODO: Disp (Ass0PartialBuiltInApp v)"
+    A0PartialBuiltInAppArity7 pba7 -> dispGen req pba7
+    A0PartialBuiltInAppArity8 pba8 -> dispGen req pba8
 
 instance (Disp v) => Disp (Ass0PartialBuiltInAppArity1 v) where
   dispGen req = \case
@@ -887,68 +889,6 @@ instance (Disp v) => Disp (Ass0PartialBuiltInAppArity7 v) where
 instance (Disp v) => Disp (Ass0PartialBuiltInAppArity8 v) where
   dispGen _req = \case
     PartialBuiltInAppArity8Nil pba8 -> disp pba8
-
-{-
-instance Disp Ass1BuiltIn where
-  dispGen _ = \case
-    A1BIVadd n -> "vadd" <> param (disp n)
-    A1BIVconcat m n -> "vconcat" <> param (disps [m, n])
-    A1BIMtranspose m n -> "mtranspose" <> param (disps [m, n])
-    A1BIMconcatVert m1 m2 n -> "mconcat_vert" <> param (disps [m1, m2, n])
-    A1BITensorZeros ns1 -> "Tensor.zeros" <> param (dispListLiteral ns1)
-    A1BITensorMult ns1 ns2 -> "Tensor.mult" <> param (dispListLiteral ns1 <> "," <+> dispListLiteral ns2)
-    A1BITensorGrad ns1 -> "Tensor.grad" <> param (dispListLiteral ns1)
-    A1BITensorZeroGrad ns1 -> "Tensor.zero_grad" <> param (dispListLiteral ns1)
-    A1BITensorSubUpdate ns1 -> "Tensor.sub_update" <> param (dispListLiteral ns1)
-    A1BITensorArgmax ns1 n2 -> "Tensor.argmax" <> param (dispListLiteral ns1 <> "," <+> disp n2)
-    A1BITensorCrossEntropyForLogits n1 n2 -> "Tensor.cross_entropy_for_logits" <> param (disps [n1, n2])
-    A1BITensorCountEqual ns -> "Tensor.count_equal" <> param (dispListLiteral ns)
-    A1BITensorDropout shape -> "Tensor.dropout" <> param (dispListLiteral shape)
-    A1BITensorReshape shape1 shape2 -> "Tensor.reshape" <> param (dispListLiteral shape1 <> "," <+> dispListLiteral shape2)
-    A1BITensorAdd ns1 ns2 -> "Tensor.add" <> param (dispListLiteral ns1 <> "," <+> dispListLiteral ns2)
-    A1BITensorMm k m n -> "Tensor.mm" <> param (disps [k, m, n])
-    A1BIIntAdd -> "(+)"
-    A1BIIntSub -> "(-)"
-    A1BIIntMult -> "(*)"
-    A1BIIntDiv -> "(//)"
-    A1BIFloatDiv -> "(/)"
-    A1BIIntMod -> "mod"
-    A1BIIntLeq -> "(<=)"
-    A1BIIntEqual -> "(==)"
-    A1BIFloat -> "float"
-    A1BIPrintFloat -> "print_float"
-    A1BIPrintString -> "print_string"
-    A1BIListAppend -> "List.append"
-    A1BIListIter -> "List.iter"
-    A1BIRange -> "range"
-    A1BITensorF -> "Tensor.f"
-    A1BITensorBackward -> "Tensor.backward"
-    A1BITensorNoGrad -> "Tensor.no_grad"
-    A1BITensorFloatValue -> "Tensor.float_value"
-    A1BITensorMaxPool2d k l m n (padding1, padding2) (ksize1, ksize2) (stride1, stride2) -> "Tensor.max_pool2d" <> param (disps [k, l, m, n, padding1, padding2, ksize1, ksize2, stride1, stride2])
-    A1BILayerActivationRelu -> "Layer.Activation.relu"
-    A1BILayerActivationNone -> "Layer.Activation.none"
-    A1BILayerLinear ns input_dim output_dim -> "Layer.linear" <> param (dispListLiteral ns <> "," <+> disps [input_dim, output_dim])
-    A1BILayerForward shape1 shape2 -> "Layber.forward" <> param (dispListLiteral shape1 <> "," <+> dispListLiteral shape2)
-    A1BILayerConv2d_ l m n ksize stride padding input_dim output_dim -> "Layer.conv2d" <> param (disps [l, m, n, ksize, stride, padding, input_dim, output_dim])
-    A1BIVarStoreCreate -> "Var_store.create"
-    A1BIOptimizerAdam -> "Optimizer.adam"
-    A1BIOptimizerBackwardStep -> "Optimizer.backward_step"
-    A1BIDatasetHelperTrainBatch ntrain ntest imgdim labeldim batchSize -> "Dataset_helper.train_batch" <> param (disp ntrain <> "," <+> disp ntest <> "," <+> dispListLiteral imgdim <> "," <+> dispListLiteral labeldim <> "," <+> disp batchSize)
-    A1BIDatasetHelperBatchAccuracy ntrain ntest imgdim labeldim n batchSize () -> "Dataset_helper.batch_accuracy" <> param (disp ntrain <> "," <+> disp ntest <> "," <+> dispListLiteral imgdim <> "," <+> dispListLiteral labeldim <> "," <+> disp n <> "," <+> disp batchSize <> "," <+> dispDiscarded ())
-    A1BIMnistHelperTrainImages -> "Mnist_helper.train_images"
-    A1BIMnistHelperTrainLabels -> "Mnist_helper.train_labels"
-    A1BIMnistHelperTestImages -> "Mnist_helper.test_images"
-    A1BIMnistHelperTestLabels -> "Mnist_helper.test_labels"
-    A1BIFst -> "fst"
-    A1BISnd -> "snd"
-    A1BIAnd -> "(&&)"
-    A1BIListMap -> "List.map"
-    A1BIListCons -> "(::)"
-    A1BuiltInOther s -> "OTHER '" <> disp s <> "'"
-    where
-      param doc = stagingOperatorStyle ("@{" <> doc <> "}")
--}
 
 instance (Disp sv) => Disp (Ass1ValF sv) where
   dispGen req = \case

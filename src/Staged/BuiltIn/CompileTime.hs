@@ -354,9 +354,7 @@ deriveDisp :: [BuiltInSpec] -> TH.Q [TH.Dec]
 deriveDisp allBiSpecs = do
   dec0s <- mapM (deriveDispPerArity allBiSpecs) allArities
   let dec1 = makeDispInstance (TH.ConT ass1builtInTypeName) (mapMaybe makeBranch1 allBiSpecs ++ [other])
-  let decs = dec1 : dec0s
-  TH.runIO $ putStrLn $ "DECS: " ++ show decs
-  pure decs
+  pure $ dec1 : dec0s
   where
     makeBranch1 :: BuiltInSpec -> Maybe TH.Match
     makeBranch1 BuiltInSpec {common, main} =
