@@ -130,7 +130,7 @@ data Ass1BuiltIn
   | A1BILayerActivationNone
   | A1BILayerLinear [Int] Int Int
   | A1BILayerForward [Int] [Int]
-  | A1BILayerConv2d Int Int Int Int Int Int Int Int
+  | A1BILayerConv2d_ Int Int Int Int Int Int Int Int
   | A1BIVarStoreCreate
   | A1BIOptimizerAdam
   | A1BIOptimizerBackwardStep
