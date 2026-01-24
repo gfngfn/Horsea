@@ -36,7 +36,8 @@ data BuiltInSpecMain
 
 data GenSpec = GenSpec
   { params :: [ParamSpec],
-    constructor1 :: String
+    constructor1 :: String,
+    constructorDisplay1 :: String
   }
 
 data VersatileSpec = VersatileSpec
@@ -49,11 +50,18 @@ data ParamSpec
   = ParamInt
   | ParamIntList
 
+-- TODO: change "Foo" to "Ass1BuiltIn":
+ass1builtInName :: TH.Name
+ass1builtInName = TH.mkName "Foo"
+
+-- TODO: remove "Bar":
+makeAss1builtInConstructor :: String -> TH.Name
+makeAss1builtInConstructor s = TH.mkName $ "Bar" ++ s
+
 deriveDecs :: [BuiltInSpec] -> TH.Q [TH.Dec]
 deriveDecs allBiSpecs = do
   let dec0s = map (deriveDecPerArity allBiSpecs) [1 .. 1]
-  -- TODO: change "Foo" to "Ass1BuiltIn":
-  let dec1 = TH.DataD [] (TH.mkName "Foo") [] Nothing (mapMaybe makeConstructor1 allBiSpecs) derivClauses
+  let dec1 = TH.DataD [] ass1builtInName [] Nothing (mapMaybe makeConstructor1 allBiSpecs) derivClauses
   let decs = dec1 : dec0s
   TH.runIO $ putStrLn $ "DECS: " ++ show decs
   pure decs
@@ -65,8 +73,7 @@ deriveDecs allBiSpecs = do
     makeConstructor1 BuiltInSpec {main} =
       case main of
         Gen GenSpec {constructor1, params} ->
-          -- TODO: remove "Bar":
-          pure $ TH.NormalC (TH.mkName ("Bar" ++ constructor1)) (map ((noBang,) . makeParam) params)
+          pure $ TH.NormalC (makeAss1builtInConstructor constructor1) (map ((noBang,) . makeParam) params)
         Versatile _ ->
           Nothing
 
@@ -212,26 +219,75 @@ deriveDeltaReductionPerArity allBiSpecs arity = do
         pat = TH.ConP (TH.mkName common.constructor0) [] (map TH.VarP fixedParamVars)
         fixedParamVars = map (\i -> TH.mkName ("p" ++ show i)) [1 .. length versSpec.fixedParams]
 
--- | Generates `instance Disp BuiltInArity{n} where ...` for each arity.
-deriveDisp :: [BuiltInSpec] -> TH.Q [TH.Dec]
-deriveDisp allBiSpecs =
-  mapM (deriveDispPerArity allBiSpecs) [1 .. 1]
-
-deriveDispPerArity :: [BuiltInSpec] -> Int -> TH.Q TH.Dec
-deriveDispPerArity allBiSpecs arity =
-  pure $
-    TH.InstanceD
-      Nothing
-      []
-      (TH.AppT (TH.ConT dispTypeClassName) (TH.ConT builtInWithArityTypeName))
-      [ TH.FunD
-          dispGenFunName
-          [ TH.Clause [TH.WildP] (TH.NormalB (TH.LamCaseE branches)) []
-          ]
-      ]
+makeDispInstance :: TH.Type -> [TH.Match] -> TH.Dec
+makeDispInstance ty branches =
+  TH.InstanceD
+    Nothing
+    []
+    (TH.AppT (TH.ConT dispTypeClassName) ty)
+    [ TH.FunD
+        dispGenFunName
+        [ TH.Clause [TH.WildP] (TH.NormalB (TH.LamCaseE branches)) []
+        ]
+    ]
   where
     dispTypeClassName = TH.mkName "Disp"
     dispGenFunName = TH.mkName "dispGen"
+
+joinDocsDirect :: TH.Exp -> TH.Exp -> TH.Exp
+joinDocsDirect e1 =
+  TH.AppE (TH.AppE (TH.VarE (TH.mkName "<>")) e1)
+
+joinDocsWithComma :: TH.Exp -> TH.Exp -> TH.Exp
+joinDocsWithComma e1 =
+  TH.AppE (TH.AppE (TH.VarE (TH.mkName "<+>")) (joinDocsDirect e1 (string ",")))
+
+makeParamDisp :: (TH.Name, ParamSpec) -> TH.Exp
+makeParamDisp (pName, paramSpec) =
+  TH.AppE (TH.VarE (TH.mkName dispFun)) (TH.VarE pName)
+  where
+    dispFun =
+      case paramSpec of
+        ParamInt -> "disp"
+        ParamIntList -> "dispListLiteral"
+
+-- | Generates `instance Disp BuiltInArity{n} where ...` for each arity.
+deriveDisp :: [BuiltInSpec] -> TH.Q [TH.Dec]
+deriveDisp allBiSpecs = do
+  dec0s <- mapM (deriveDispPerArity allBiSpecs) [1 .. 1]
+  let dec1 = makeDispInstance (TH.ConT ass1builtInName) (mapMaybe makeBranch1 allBiSpecs)
+  let decs = dec1 : dec0s
+  TH.runIO $ putStrLn $ "DECS: " ++ show decs
+  pure decs
+  where
+    makeBranch1 :: BuiltInSpec -> Maybe TH.Match
+    makeBranch1 BuiltInSpec {main} = do
+      GenSpec {constructor1, constructorDisplay1, params} <-
+        case main of
+          Gen genSpec -> pure genSpec
+          Versatile _ -> Nothing
+      let paramVars =
+            map
+              (\(i, paramSpec) -> (TH.mkName ("p" ++ show i), paramSpec))
+              (zip [(1 :: Int) ..] params)
+      let pat = TH.ConP (makeAss1builtInConstructor constructor1) [] (map (TH.VarP . fst) paramVars)
+      let branchBody =
+            case nonEmpty paramVars of
+              Nothing ->
+                string constructorDisplay1
+              Just paramVarsNonEmpty ->
+                joinDocsDirect
+                  (string constructorDisplay1)
+                  (joinDocsDirect (joinDocsDirect (string "@{") paramDispE) (string "}"))
+                where
+                  paramDispE =
+                    foldl1 joinDocsWithComma (fmap makeParamDisp paramVarsNonEmpty)
+      pure $ TH.Match pat (TH.NormalB branchBody) []
+
+deriveDispPerArity :: [BuiltInSpec] -> Int -> TH.Q TH.Dec
+deriveDispPerArity allBiSpecs arity =
+  pure $ makeDispInstance (TH.ConT builtInWithArityTypeName) branches
+  where
     builtInWithArityTypeName = TH.mkName $ "BuiltInArity" ++ show arity
 
     allGenPairs = filterGen allBiSpecs
@@ -279,20 +335,3 @@ deriveDispPerArity allBiSpecs arity =
               where
                 paramDispE =
                   foldl1 joinDocsWithComma (fmap makeParamDisp fixedParamVarsNonEmpty)
-
-        makeParamDisp :: (TH.Name, ParamSpec) -> TH.Exp
-        makeParamDisp (pName, paramSpec) =
-          TH.AppE (TH.VarE (TH.mkName dispFun)) (TH.VarE pName)
-          where
-            dispFun =
-              case paramSpec of
-                ParamInt -> "disp"
-                ParamIntList -> "dispListLiteral"
-
-        joinDocsDirect :: TH.Exp -> TH.Exp -> TH.Exp
-        joinDocsDirect e1 =
-          TH.AppE (TH.AppE (TH.VarE (TH.mkName "<>")) e1)
-
-        joinDocsWithComma :: TH.Exp -> TH.Exp -> TH.Exp
-        joinDocsWithComma e1 =
-          TH.AppE (TH.AppE (TH.VarE (TH.mkName "<+>")) (joinDocsDirect e1 (string ",")))

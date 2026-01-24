@@ -24,13 +24,13 @@ versatile constructor0 constructorDisplay0 versSpec =
 
 definitions :: [BuiltInSpec]
 definitions =
-  [ gen "BIGenVadd" "GEN_VADD" $ GenSpec [ParamInt] "A1BIVadd",
-    gen "BITensorGenZeros" "TENSOR.GEN_ZEROS" $ GenSpec [ParamIntList] "A1BITensorZeros",
-    gen "BITensorGenGrad" "TENSOR.GEN_GRAD" $ GenSpec [ParamIntList] "A1BITensorGrad",
-    gen "BITensorGenZeroGrad" "TENSOR.GEN_ZERO_GRAD" $ GenSpec [ParamIntList] "A1BITensorZeroGrad",
-    gen "BITensorGenSubUpdate" "TENSOR.GEN_SUB_UPDATE" $ GenSpec [ParamIntList] "A1BITensorSubUpdate",
-    gen "BITensorGenCountEqual" "TENSOR.GEN_COUNT_EQUAL" $ GenSpec [ParamIntList] "A1BITensorCountEqual",
-    gen "BITensorGenDropout" "TENSOR.GEN_DROPOUT" $ GenSpec [ParamIntList] "A1BITensorDropout",
+  [ gen "BIGenVadd" "GEN_VADD" $ GenSpec [ParamInt] "A1BIVadd" "vadd",
+    gen "BITensorGenZeros" "TENSOR.GEN_ZEROS" $ GenSpec [ParamIntList] "A1BITensorZeros" "Tensor.zeros",
+    gen "BITensorGenGrad" "TENSOR.GEN_GRAD" $ GenSpec [ParamIntList] "A1BITensorGrad" "Tensor.grad",
+    gen "BITensorGenZeroGrad" "TENSOR.GEN_ZERO_GRAD" $ GenSpec [ParamIntList] "A1BITensorZeroGrad" "Tensor.zero_grad",
+    gen "BITensorGenSubUpdate" "TENSOR.GEN_SUB_UPDATE" $ GenSpec [ParamIntList] "A1BITensorSubUpdate" "Tensor.sub_update",
+    gen "BITensorGenCountEqual" "TENSOR.GEN_COUNT_EQUAL" $ GenSpec [ParamIntList] "A1BITensorCountEqual" "Tensor.count_equal",
+    gen "BITensorGenDropout" "TENSOR.GEN_DROPOUT" $ GenSpec [ParamIntList] "A1BITensorDropout" "Tensor.dropout",
     versatile "BITupleFirst" "FST" $ VersatileSpec [] 1
       [| do
         (a0v11, _) <- validateTupleValue a0v1

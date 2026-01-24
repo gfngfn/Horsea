@@ -16,6 +16,7 @@ module Staged.BuiltIn.Core
     Ass0PartialBuiltInAppArity6 (..),
     Ass0PartialBuiltInAppArity7 (..),
     Ass0PartialBuiltInAppArity8 (..),
+    Foo (..), -- TODO: remove this
     Ass1BuiltIn (..),
     validateExternalName0,
     validateExternalName1,
