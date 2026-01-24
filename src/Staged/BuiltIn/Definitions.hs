@@ -230,6 +230,12 @@ definitions =
           forM_ a0vsIn (reduceBeta a0v1 >=> validateUnitLiteral)
           pure $ A0ValLiteral ALitUnit
         |],
+    versatile ["list"] "length" ForBothStages 1 $
+      [|
+        do
+          a0vs <- validateListValue a0v1
+          pure $ A0ValLiteral (ALitInt (length a0vs))
+        |],
     versatile ["device"] "cpu" ForStage1 0 $
       [|error "UNIMPLEMENTED: Device.cpu"|],
     versatile ["device"] "gen_cuda_if_available" ForStage0 1 $
@@ -239,6 +245,7 @@ definitions =
           pure $ A0ValBracket (A1ValLiteral ALitUnit) -- TODO: return a value of type `Device`
         |],
     gen ["tensor"] "zeros" [ParamIntList],
+    gen ["tensor"] "copy" [ParamIntList],
     gen ["tensor"] "add" [ParamIntList, ParamIntList],
     versatile ["tensor"] "add" (ForInternal [ParamIntList]) 2 $
       [|
@@ -271,6 +278,7 @@ definitions =
             Just mat -> pure $ A0ValLiteral (ALitMat mat)
             Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
         |],
+    gen ["tensor"] "add_update" [ParamIntList],
     gen ["tensor"] "sub_update" [ParamIntList],
     gen ["tensor"] "argmax" [ParamIntList, ParamInt],
     gen ["tensor"] "cross_entropy_for_logits" [ParamInt, ParamInt],
@@ -333,8 +341,16 @@ definitions =
       [|
         do
           let _varStore = a0v1
-          _r <- validateFloatLiteral a0v2
+          _learningRate <- validateFloatLiteral a0v2
           error "UNIMPLEMENTED: Optimizer.adam"
+        |],
+    versatile ["optimizer"] "sgd" ForStage1 3 $
+      [|
+        do
+          let _varStore = a0v1
+          _learningRate <- validateFloatLiteral a0v2
+          _momentum <- validateFloatLiteral a0v3
+          error "UNIMPLEMENTED: Optimizer.sgd"
         |],
     versatile ["optimizer"] "backward_step" ForStage1 2 $
       [|
@@ -345,7 +361,10 @@ definitions =
         |],
     gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded],
+    gen ["dataset_helper"] "batches_per_epoch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
+    gen ["dataset_helper"] "iter" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamDiscarded],
     gen ["dataset_helper"] "map" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamDiscarded],
+    gen ["dataset_helper"] "print_summary" [ParamInt, ParamInt, ParamIntList, ParamIntList],
     versatile ["mnist_helper"] "dataset" ForStage1 0 $
       [|error "UNIMPLEMENTED: MnistHelper.dataset"|],
     versatile ["mnist_helper"] "train_images" ForStage1 0 $
