@@ -238,8 +238,8 @@ validateExternalName0 = \case
   "list__cons" -> arity2 BIListCons
   "list__append" -> arity2 BIListAppend
   "list__iter" -> arity2 BIListIter
-  "tuple__first" -> arity1 BITupleFirst
-  "tuple__second" -> arity1 BITupleSecond
+  "tuple__first" -> arity1 BIFst
+  "tuple__second" -> arity1 BISnd
   "device__gen_cuda_if_available" -> arity1 BIDeviceGenCudaIfAvailable
   "layer__gen_forward" -> arity2 BILayerGenForward
   "layer__gen_conv2d_" -> arity8 BILayerGenConv2d

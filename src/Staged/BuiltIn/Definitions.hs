@@ -23,12 +23,15 @@ gen modules name params =
     constructorDisplay1 = intercalate "." $ map snakeToCamel modules ++ [name]
     genSpec = GenSpec {params, constructor1, constructorDisplay1}
 
-versatile :: String -> String -> VersatileSpec -> BuiltInSpec
-versatile constructor0 constructorDisplay0 versSpec =
+versatile :: [String] -> String -> VersatileSpec -> BuiltInSpec
+versatile modules name versSpec =
   BuiltInSpec
     { common = Common {constructor0, constructorDisplay0},
       main = Versatile versSpec
     }
+  where
+    constructor0 = "BI" ++ concatMap snakeToCamel (modules ++ [name])
+    constructorDisplay0 = intercalate "." $ map uppercase (modules ++ [name])
 
 definitions :: [BuiltInSpec]
 definitions =
@@ -39,19 +42,19 @@ definitions =
     gen ["tensor"] "sub_update" [ParamIntList],
     gen ["tensor"] "count_equal" [ParamIntList],
     gen ["tensor"] "dropout" [ParamIntList],
-    versatile "BITupleFirst" "FST" $ VersatileSpec [] 1
+    versatile [] "fst" $ VersatileSpec [] 1
       [| do
         (a0v11, _) <- validateTupleValue a0v1
         pure a0v11 |],
-    versatile "BITupleSecond" "SND" $ VersatileSpec [] 1
+    versatile [] "snd" $ VersatileSpec [] 1
       [| do
         (_, a0v12) <- validateTupleValue a0v1
         pure a0v12 |],
-    versatile "BIDeviceGenCudaIfAvailable" "DEVICE.GEN_CUDA_IF_AVAILABLE" $ VersatileSpec [] 1
+    versatile ["device"] "gen_cuda_if_available" $ VersatileSpec [] 1
       [| do
         () <- validateUnitLiteral a0v1
         pure $ A0ValBracket (A1ValLiteral ALitUnit) |], -- TODO: return a value of type `Device`
-    versatile "BIMtranspose" "MTRANSPOSE" $ VersatileSpec [ParamInt, ParamInt] 1
+    versatile [] "mtranspose" $ VersatileSpec [ParamInt, ParamInt] 1
       [| do
         mat1 <- validateMat0 a0v1
         case Matrix.transpose p1 p2 mat1 of
