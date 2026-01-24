@@ -16,6 +16,7 @@ where
 import Control.Monad.Extra (mapMaybeM)
 import Data.List (foldl')
 import Data.List.NonEmpty (nonEmpty)
+import Data.Text (Text)
 import Data.Maybe (mapMaybe)
 import Language.Haskell.TH qualified as TH
 import Safe.Exact (zipExactMay)
@@ -36,13 +37,16 @@ data BuiltInSpecMain
   | Versatile VersatileSpec
 
 data GenSpec = GenSpec
-  { params :: [ParamSpec],
+  { name0 :: String,
+    params :: [ParamSpec],
     constructor1 :: String,
     constructorDisplay1 :: String
   }
 
+-- TODO: refactor; non-null `fixedParams` implies that `name0` be `Nothing`.
 data VersatileSpec = VersatileSpec
-  { fixedParams :: [ParamSpec],
+  { name0 :: Maybe String,
+    fixedParams :: [ParamSpec],
     arity :: Int,
     bodyQ :: TH.Q TH.Exp
   }
@@ -66,11 +70,10 @@ makeAss1builtInConstructor s = TH.mkName $ "Bar" ++ s
 
 deriveDecs :: [BuiltInSpec] -> TH.Q [TH.Dec]
 deriveDecs allBiSpecs = do
-  let dec0s = map (deriveDecPerArity allBiSpecs) allArities
-  let dec1 = TH.DataD [] ass1builtInName [] Nothing (mapMaybe makeConstructor1 allBiSpecs) derivClauses
-  let decs = dec1 : dec0s
-  TH.runIO $ putStrLn $ "DECS: " ++ show decs
-  pure decs
+  let typeDec0s = map (deriveDecPerArity allBiSpecs) allArities
+  let typeDec1 = TH.DataD [] ass1builtInName [] Nothing (mapMaybe makeConstructor1 allBiSpecs) derivClauses
+  let nameValidationFunDec0s = deriveNameValidationFun0 allBiSpecs
+  pure $ typeDec0s ++ typeDec1 : nameValidationFunDec0s
   where
     derivClauses :: [TH.DerivClause]
     derivClauses = [TH.DerivClause (Just TH.StockStrategy) [TH.ConT ''Eq, TH.ConT ''Show]]
@@ -107,6 +110,49 @@ deriveDecPerArity allBiSpecs arity =
     makeConstructor0 (common, fixedParams) =
       TH.NormalC (TH.mkName common.constructor0) (map ((noBang,) . makeParam) fixedParams)
 
+deriveNameValidationFun0 :: [BuiltInSpec] -> [TH.Dec]
+deriveNameValidationFun0 allBiSpecs =
+  [ TH.SigD nameValidationFunName funType,
+    TH.ValD
+      (TH.VarP nameValidationFunName)
+      (TH.NormalB (TH.LamCaseE (mapMaybe makeBranch0 allBiSpecs ++ [otherwiseBranch0]))) []
+  ]
+  where
+    nameValidationFunName = TH.mkName "validateExternalName0"
+
+    funType :: TH.Type
+    funType = TH.ConT ''Text `arr` TH.AppT (TH.ConT ''Maybe) (TH.ConT (TH.mkName "BuiltIn"))
+
+    -- TODO: change this to `_ -> Nothing`
+    otherwiseBranch0 :: TH.Match
+    otherwiseBranch0 =
+      TH.Match (TH.VarP name) (TH.NormalB body) []
+      where
+        name = TH.mkName "s"
+        body =
+          TH.AppE (TH.ConE 'Just) $
+            TH.AppE (TH.ConE (TH.mkName "BuiltInOther")) $
+              TH.VarE name
+
+    makeBranch0 :: BuiltInSpec -> Maybe TH.Match
+    makeBranch0 BuiltInSpec {common, main} = do
+      name0 <-
+        case main of
+          Gen genSpec -> Just genSpec.name0
+          Versatile versSpec -> versSpec.name0
+      pure $ TH.Match (TH.LitP (TH.StringL name0)) (TH.NormalB body) []
+      where
+        body :: TH.Exp
+        body =
+          TH.AppE (TH.ConE 'Just) $
+            TH.AppE (TH.ConE (TH.mkName ("BuiltInArity" ++ show arity))) $
+              TH.ConE (TH.mkName common.constructor0)
+
+        arity =
+          case main of
+            Gen genSpec -> length genSpec.params
+            Versatile versSpec -> versSpec.arity
+
 noBang :: TH.Bang
 noBang = TH.Bang TH.NoSourceUnpackedness TH.NoSourceStrictness
 
@@ -138,6 +184,9 @@ filterVersatile =
 string :: String -> TH.Exp
 string = TH.LitE . TH.StringL
 
+arr :: TH.Type -> TH.Type -> TH.Type
+arr ty1 = TH.AppT (TH.AppT TH.ArrowT ty1)
+
 -- | Generates the delta-reduction function of the following signature for each arity `n`:
 -- ```
 -- reduceDeltaArity{n} :: BuiltInArity{n} -> Ass0Val -> ... -> Ass0Val -> M Ass0Val
@@ -155,9 +204,6 @@ deriveDeltaReductionPerArity allBiSpecs arity = do
       TH.FunD reduceDeltaArityFunName [TH.Clause (map TH.VarP (biName : argValNames)) (TH.NormalB body) []]
     ]
   where
-    arr :: TH.Type -> TH.Type -> TH.Type
-    arr ty1 = TH.AppT (TH.AppT TH.ArrowT ty1)
-
     funType n =
       if n <= 0
         then TH.AppT (TH.ConT (TH.mkName "M")) (TH.ConT ass0ValTypeName)

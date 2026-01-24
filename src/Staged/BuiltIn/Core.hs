@@ -168,6 +168,7 @@ unliftBuiltInName = \case
     arity1 = BuiltInArity1
     arity2 = BuiltInArity2
 
+{-
 validateExternalName0 :: Text -> Maybe BuiltIn
 validateExternalName0 = \case
   "int_add" -> arity2 BIAdd
@@ -218,6 +219,7 @@ validateExternalName0 = \case
     arity5 = pure . BuiltInArity5
     arity7 = pure . BuiltInArity7
     arity8 = pure . BuiltInArity8
+-}
 
 validateExternalName1 :: Text -> Maybe Ass1BuiltIn
 validateExternalName1 = \case

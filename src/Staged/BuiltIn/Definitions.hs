@@ -7,6 +7,7 @@ where
 
 import Data.List (intercalate)
 import Data.List qualified as List
+import Language.Haskell.TH qualified as TH
 import Staged.BuiltIn.CompileTime
 import Util.Matrix qualified as Matrix
 import Util.String (snakeToCamel, uppercase)
@@ -20,21 +21,29 @@ gen modules name params =
       main = Gen genSpec
     }
   where
+    genSpec = GenSpec {name0, params, constructor1, constructorDisplay1}
     constructor0 = "BI" ++ concat (map snakeToCamel modules ++ ["Gen" ++ snakeToCamel name])
     constructorDisplay0 = intercalate "." $ map uppercase (modules ++ [name])
     constructor1 = "A1BI" ++ concatMap snakeToCamel (modules ++ [name])
     constructorDisplay1 = intercalate "." $ map snakeToCamel modules ++ [name]
-    genSpec = GenSpec {params, constructor1, constructorDisplay1}
+    name0 = intercalate "__" $ modules ++ ["gen_" ++ name]
 
-versatile :: [String] -> String -> VersatileSpec -> BuiltInSpec
-versatile modules name versSpec =
+data Availability = ForStage0 | ForStage1 | ForBothStages
+
+versatile :: [String] -> String -> Availability -> [ParamSpec] -> Int -> TH.Q TH.Exp -> BuiltInSpec
+versatile modules name availability fixedParams arity bodyQ =
   BuiltInSpec
     { common = Common {constructor0, constructorDisplay0},
       main = Versatile versSpec
     }
   where
+    versSpec = VersatileSpec {name0, fixedParams, arity, bodyQ}
     constructor0 = "BI" ++ concatMap snakeToCamel (modules ++ [name])
     constructorDisplay0 = intercalate "." $ map uppercase (modules ++ [name])
+    name0 =
+      case availability of
+        ForStage1 -> Nothing
+        _ -> Just $ intercalate "__" $ modules ++ [name]
 
 definitions :: [BuiltInSpec]
 definitions =
@@ -46,26 +55,19 @@ definitions =
     gen ["tensor"] "sub_update" [ParamIntList],
     gen ["tensor"] "count_equal" [ParamIntList],
     gen ["tensor"] "dropout" [ParamIntList],
-    versatile [] "fst" $
-      VersatileSpec
-        []
-        1
+    versatile [] "fst" ForBothStages [] 1
         [|
           do
             (a0v11, _) <- validateTupleValue a0v1
             pure a0v11
-          |],
-    versatile [] "snd" $
-      VersatileSpec
-        []
-        1
+         |],
+    versatile [] "snd" ForBothStages [] 1
         [|
           do
             (_, a0v12) <- validateTupleValue a0v1
             pure a0v12
           |],
-    versatile ["device"] "gen_cuda_if_available" $
-      VersatileSpec
+    versatile ["device"] "gen_cuda_if_available" ForStage0
         []
         1
         [|
@@ -73,8 +75,8 @@ definitions =
             () <- validateUnitLiteral a0v1
             pure $ A0ValBracket (A1ValLiteral ALitUnit) -- TODO: return a value of type `Device`
           |],
-    versatile [] "mtranspose" $
-      VersatileSpec
+    versatile [] "mtranspose"
+        ForStage1
         [ParamInt, ParamInt]
         1
         [|
@@ -85,50 +87,23 @@ definitions =
               Nothing -> bug $ InconsistentAppBuiltInArity1 bi1 a0v1
           |],
     -- Arity 2:
-    versatile [] "add" $
-      VersatileSpec
-        []
-        2
+    versatile [] "add" ForBothStages [] 2
         [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 + n2))) a0v1 a0v2|],
-    versatile [] "sub" $
-      VersatileSpec
-        []
-        2
+    versatile [] "sub" ForBothStages [] 2
         [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 - n2))) a0v1 a0v2|],
-    versatile [] "mult" $
-      VersatileSpec
-        []
-        2
+    versatile [] "mult" ForBothStages [] 2
         [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 * n2))) a0v1 a0v2|],
-    versatile [] "div" $
-      VersatileSpec
-        []
-        2
+    versatile [] "div" ForBothStages [] 2
         [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 `div` n2))) a0v1 a0v2|],
-    versatile [] "mod" $
-      VersatileSpec
-        []
-        2
+    versatile [] "mod" ForBothStages [] 2
         [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 `mod` n2))) a0v1 a0v2|],
-    versatile [] "leq" $
-      VersatileSpec
-        []
-        2
+    versatile [] "leq" ForBothStages [] 2
         [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 <= n2))) a0v1 a0v2|],
-    versatile [] "equal" $
-      VersatileSpec
-        []
-        2
+    versatile [] "equal" ForBothStages [] 2
         [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 == n2))) a0v1 a0v2|],
-    versatile [] "and" $
-      VersatileSpec
-        []
-        2
+    versatile [] "and" ForBothStages [] 2
         [|logical (\b1 b2 -> A0ValLiteral (ALitBool (b1 && b2))) a0v1 a0v2|],
-    versatile ["list"] "map" $
-      VersatileSpec
-        []
-        2
+    versatile ["list"] "map" ForBothStages [] 2
         [|
           do
             a0vsIn <- validateListValue a0v2
@@ -138,10 +113,7 @@ definitions =
     gen [] "vconcat" [ParamInt, ParamInt],
     gen [] "mtranspose" [ParamInt, ParamInt],
     gen ["tensor"] "add" [ParamIntList, ParamIntList],
-    versatile [] "vadd" $
-      VersatileSpec
-        [ParamInt]
-        2
+    versatile [] "vadd" ForStage1 [ParamInt] 2
         [|
           do
             v1 <- validateVec0 a0v1
@@ -150,10 +122,7 @@ definitions =
               Just v -> pure $ A0ValLiteral (ALitVec v)
               Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
           |],
-    versatile [] "vconcat" $
-      VersatileSpec
-        [ParamInt, ParamInt]
-        2
+    versatile [] "vconcat" ForStage1 [ParamInt, ParamInt] 2
         [|
           do
             v1 <- validateVec0 a0v1
@@ -162,10 +131,7 @@ definitions =
               Just v -> pure $ A0ValLiteral (ALitVec v)
               Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
           |],
-    versatile [] "mconcat_vert" $
-      VersatileSpec
-        [ParamInt, ParamInt, ParamInt]
-        2
+    versatile [] "mconcat_vert" ForStage1 [ParamInt, ParamInt, ParamInt] 2
         [|
           do
             mat1 <- validateMat0 a0v1
@@ -174,20 +140,14 @@ definitions =
               Just mat -> pure $ A0ValLiteral (ALitMat mat)
               Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
           |],
-    versatile [] "drop_at" $
-      VersatileSpec
-        []
-        2
+    versatile [] "drop_at" ForStage0 [] 2
         [|
           do
             n1 <- validateIntLiteral a0v1
             a0vs2 <- validateListValue a0v2
             pure $ A0ValLiteral (ALitList (dropAt n1 a0vs2))
           |],
-    versatile [] "broadcastable" $
-      VersatileSpec
-        []
-        2
+    versatile [] "broadcastable" ForStage0 [] 2
         [|
           do
             ns1 <- validateIntListLiteral a0v1
@@ -195,10 +155,7 @@ definitions =
             let b = isJust (broadcast ns1 ns2)
             pure $ A0ValLiteral (ALitBool b)
           |],
-    versatile [] "broadcast" $
-      VersatileSpec
-        []
-        2
+    versatile [] "broadcast" ForStage0 [] 2
         [|
           do
             ns1 <- validateIntListLiteral a0v1
@@ -209,10 +166,7 @@ definitions =
                 Nothing -> bug $ BroadcastFailed ns1 ns2
             pure $ A0ValLiteral (ALitList (map (A0ValLiteral . ALitInt) ns))
           |],
-    versatile [] "reshapeable" $
-      VersatileSpec
-        []
-        2
+    versatile [] "reshapeable" ForStage0 [] 2
         [|
           do
             ns1 <- validateIntListLiteral a0v1
@@ -220,29 +174,20 @@ definitions =
             let b = List.foldl' (*) 1 ns1 == List.foldl' (*) 1 ns2
             pure $ A0ValLiteral (ALitBool b)
           |],
-    versatile ["list"] "cons" $
-      VersatileSpec
-        []
-        2
+    versatile ["list"] "cons" ForBothStages [] 2
         [|
           do
             a0vs2 <- validateListValue a0v2
             pure $ A0ValLiteral (ALitList (a0v1 : a0vs2))
           |],
-    versatile ["list"] "append" $
-      VersatileSpec
-        []
-        2
+    versatile ["list"] "append" ForBothStages [] 2
         [|
           do
             a0vs1 <- validateListValue a0v1
             a0vs2 <- validateListValue a0v2
             pure $ A0ValLiteral (ALitList (a0vs1 ++ a0vs2))
           |],
-    versatile ["list"] "iter" $
-      VersatileSpec
-        []
-        2
+    versatile ["list"] "iter" ForBothStages [] 2
         [|
           do
             a0vsIn <- validateListValue a0v2
@@ -252,10 +197,7 @@ definitions =
     gen ["tensor"] "mult" [ParamIntList, ParamIntList],
     gen ["tensor"] "argmax" [ParamIntList, ParamInt],
     gen ["tensor"] "cross_entropy_for_logits" [ParamInt, ParamInt],
-    versatile ["tensor"] "add" $
-      VersatileSpec
-        [ParamIntList]
-        2
+    versatile ["tensor"] "add" ForStage1 [ParamIntList] 2
         [|
           case p1 of
             [n] -> do
@@ -273,10 +215,7 @@ definitions =
             _ ->
               error "TODO: evalExpr0, BITadd, dimension >= 3"
           |],
-    versatile ["tensor"] "mm" $
-      VersatileSpec
-        [ParamInt, ParamInt, ParamInt]
-        2
+    versatile ["tensor"] "mm" ForStage1 [ParamInt, ParamInt, ParamInt] 2
         [|
           do
             mat1 <- validateMat0 a0v1
@@ -297,5 +236,5 @@ definitions =
     gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded],
     gen ["tensor"] "max_pool2d" [ParamInt, ParamInt, ParamInt, ParamInt, ParamIntPair, ParamIntPair, ParamIntPair],
     -- Arity 8:
-    gen ["layer"] "conv2d" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt]
+    gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt]
   ]

@@ -129,11 +129,13 @@ library
         DataKinds
         DerivingStrategies
         DerivingVia
+        DuplicateRecordFields
         FlexibleInstances
         FunctionalDependencies
         KindSignatures
         LambdaCase
         MultiParamTypeClasses
+        NoFieldSelectors
         NoImplicitPrelude
         OverloadedLabels
         OverloadedRecordDot
