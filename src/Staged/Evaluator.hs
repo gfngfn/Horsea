@@ -161,6 +161,7 @@ logical f a0v1 a0v2 = do
 
 $(deriveDeltaReduction definitions)
 
+{-
 reduceDeltaArity5 :: BuiltInArity5 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity5 bi5 a0v1 a0v2 a0v3 a0v4 a0v5 =
   case bi5 of
@@ -171,6 +172,7 @@ reduceDeltaArity5 bi5 a0v1 a0v2 a0v3 a0v4 a0v5 =
       labeldim <- validateIntListLiteral a0v4
       batchSize <- validateIntLiteral a0v5
       pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperTrainBatch ntrain ntest imgdim labeldim batchSize))
+-}
 
 reduceDeltaArity7 :: BuiltInArity7 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity7 bi7 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 =
@@ -275,12 +277,12 @@ reduceBeta a0vFun a0vArg =
     _ ->
       bug $ NotAClosure a0vFun
 
--- TODO: fix this
+-- TODO (enhance): fix this to handle polymorphism properly
 reduceTypeBeta0 :: Ass0Val -> Ass0TypeVal -> M Ass0Val
 reduceTypeBeta0 a0vTypeFun _a0tyvArg =
   pure a0vTypeFun
 
--- TODO: fix this
+-- TODO (enhance): fix this to handle polymorphism properly
 reduceTypeBeta1 :: Ass1Val -> Ass1TypeVal -> M Ass1Val
 reduceTypeBeta1 a1vTypeFun _a1tyvArg =
   pure a1vTypeFun

@@ -290,5 +290,7 @@ definitions =
     -- Arity 3:
     gen [] "mconcat_vert" [ParamInt, ParamInt, ParamInt],
     gen ["tensor"] "mm" [ParamInt, ParamInt, ParamInt],
-    gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt]
+    gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt],
+    -- Arity 5:
+    gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt]
   ]

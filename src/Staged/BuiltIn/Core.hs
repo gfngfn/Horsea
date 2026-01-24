@@ -42,9 +42,11 @@ data BuiltIn
   | BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
+{-
 data BuiltInArity5
   = BIDatasetHelperGenTrainBatch
   deriving stock (Eq, Show)
+-}
 
 data BuiltInArity7
   = BIDatasetHelperGenBatchAccuracy

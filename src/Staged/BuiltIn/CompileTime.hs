@@ -52,7 +52,7 @@ data ParamSpec
   | ParamIntList
 
 allArities :: [Int]
-allArities = [1, 2, 3]
+allArities = [1, 2, 3, 5]
 
 -- TODO: change "Foo" to "Ass1BuiltIn":
 ass1builtInName :: TH.Name

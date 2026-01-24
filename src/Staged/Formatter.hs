@@ -385,9 +385,11 @@ instance Disp (ArgForTypeF ann) where
 
 $(deriveDisp definitions)
 
+{-
 instance Disp BuiltInArity5 where
   dispGen _ = \case
     BIDatasetHelperGenTrainBatch -> "DATASET_HELPER.GEN_TRAIN_BATCH"
+-}
 
 instance Disp BuiltInArity7 where
   dispGen _ = \case
