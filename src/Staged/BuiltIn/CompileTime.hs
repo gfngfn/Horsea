@@ -50,9 +50,11 @@ data VersatileSpec = VersatileSpec
 data ParamSpec
   = ParamInt
   | ParamIntList
+  | ParamIntPair
+  | ParamDiscarded
 
 allArities :: [Int]
-allArities = [1, 2, 3, 5]
+allArities = [1, 2, 3, 5, 7]
 
 -- TODO: change "Foo" to "Ass1BuiltIn":
 ass1builtInName :: TH.Name
@@ -112,6 +114,8 @@ makeParam :: ParamSpec -> TH.Type
 makeParam = \case
   ParamInt -> TH.ConT ''Int
   ParamIntList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Int)
+  ParamIntPair -> TH.AppT (TH.AppT (TH.TupleT 2) (TH.ConT ''Int)) (TH.ConT ''Int)
+  ParamDiscarded -> TH.ConT ''()
 
 filterGen :: [BuiltInSpec] -> [(Common, GenSpec)]
 filterGen =
@@ -197,6 +201,8 @@ deriveDeltaReductionPerArity allBiSpecs arity = do
                   case paramSpec of
                     ParamInt -> "validateIntLiteral"
                     ParamIntList -> "validateIntListLiteral"
+                    ParamIntPair -> "validateIntPairLiteral"
+                    ParamDiscarded -> "discardValue"
 
         retVal :: TH.Exp
         retVal =
@@ -253,6 +259,8 @@ makeParamDisp (pName, paramSpec) =
       case paramSpec of
         ParamInt -> "disp"
         ParamIntList -> "dispListLiteral"
+        ParamIntPair -> "dispPairLiteral"
+        ParamDiscarded -> "dispDiscarded"
 
 -- | Generates the following two kinds of instances:
 -- * `instance Disp BuiltInArity{n} where ...` for each arity, and

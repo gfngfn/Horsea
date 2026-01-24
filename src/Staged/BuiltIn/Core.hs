@@ -46,12 +46,12 @@ data BuiltIn
 data BuiltInArity5
   = BIDatasetHelperGenTrainBatch
   deriving stock (Eq, Show)
--}
 
 data BuiltInArity7
   = BIDatasetHelperGenBatchAccuracy
   | BITensorGenMaxPool2d
   deriving stock (Eq, Show)
+-}
 
 data BuiltInArity8
   = BILayerGenConv2d
@@ -140,7 +140,7 @@ data Ass1BuiltIn
   | A1BITensorBackward
   | A1BITensorNoGrad
   | A1BITensorFloatValue
-  | A1BITensorMaxPool2d Int Int Int Int Int Int Int Int Int Int
+  | A1BITensorMaxPool2d Int Int Int Int (Int, Int) (Int, Int) (Int, Int)
   | A1BILayerActivationRelu
   | A1BILayerActivationNone
   | A1BILayerLinear [Int] Int Int
@@ -150,7 +150,7 @@ data Ass1BuiltIn
   | A1BIOptimizerAdam
   | A1BIOptimizerBackwardStep
   | A1BIDatasetHelperTrainBatch Int Int [Int] [Int] Int
-  | A1BIDatasetHelperBatchAccuracy Int Int [Int] [Int] Int Int
+  | A1BIDatasetHelperBatchAccuracy Int Int [Int] [Int] Int Int ()
   | A1BIMnistHelperTrainImages
   | A1BIMnistHelperTrainLabels
   | A1BIMnistHelperTestImages

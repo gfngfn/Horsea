@@ -280,6 +280,13 @@ dispListLiteral :: (Disp e) => [e] -> Doc Ann
 dispListLiteral es =
   "[" <> disps es <> "]"
 
+dispPairLiteral :: (Disp e) => (e, e) -> Doc Ann
+dispPairLiteral (e1, e2) =
+  "(" <> disp e1 <> "," <+> disp e2 <> ")"
+
+dispDiscarded :: () -> Doc Ann
+dispDiscarded () = "*"
+
 dispVectorLiteral :: [Int] -> Doc Ann
 dispVectorLiteral ns =
   encloseSep ("[|" <> space) (space <> "|]") (";" <> softline) (disp <$> ns)
@@ -389,12 +396,12 @@ $(deriveDisp definitions)
 instance Disp BuiltInArity5 where
   dispGen _ = \case
     BIDatasetHelperGenTrainBatch -> "DATASET_HELPER.GEN_TRAIN_BATCH"
--}
 
 instance Disp BuiltInArity7 where
   dispGen _ = \case
     BIDatasetHelperGenBatchAccuracy -> "DATASET_HELPER.GEN_BATCH_ACCURACY"
     BITensorGenMaxPool2d -> "TENSOR.GEN_MAX_POOL2D"
+-}
 
 instance Disp BuiltInArity8 where
   dispGen _ = \case
@@ -919,7 +926,7 @@ instance Disp Ass1BuiltIn where
     A1BITensorBackward -> "Tensor.backward"
     A1BITensorNoGrad -> "Tensor.no_grad"
     A1BITensorFloatValue -> "Tensor.float_value"
-    A1BITensorMaxPool2d k l m n padding1 padding2 ksize1 ksize2 stride1 stride2 -> "Tensor.max_pool2d" <> param (disps [k, l, m, n, padding1, padding2, ksize1, ksize2, stride1, stride2])
+    A1BITensorMaxPool2d k l m n (padding1, padding2) (ksize1, ksize2) (stride1, stride2) -> "Tensor.max_pool2d" <> param (disps [k, l, m, n, padding1, padding2, ksize1, ksize2, stride1, stride2])
     A1BILayerActivationRelu -> "Layer.Activation.relu"
     A1BILayerActivationNone -> "Layer.Activation.none"
     A1BILayerLinear ns input_dim output_dim -> "Layer.linear" <> param (dispListLiteral ns <> "," <+> disps [input_dim, output_dim])
@@ -929,7 +936,7 @@ instance Disp Ass1BuiltIn where
     A1BIOptimizerAdam -> "Optimizer.adam"
     A1BIOptimizerBackwardStep -> "Optimizer.backward_step"
     A1BIDatasetHelperTrainBatch ntrain ntest imgdim labeldim batchSize -> "Dataset_helper.train_batch" <> param (disp ntrain <> "," <+> disp ntest <> "," <+> dispListLiteral imgdim <> "," <+> dispListLiteral labeldim <> "," <+> disp batchSize)
-    A1BIDatasetHelperBatchAccuracy ntrain ntest imgdim labeldim n batchSize -> "Dataset_helper.batch_accuracy" <> param (disp ntrain <> "," <+> disp ntest <> "," <+> dispListLiteral imgdim <> "," <+> dispListLiteral labeldim <> "," <+> disp n <> "," <+> disp batchSize)
+    A1BIDatasetHelperBatchAccuracy ntrain ntest imgdim labeldim n batchSize () -> "Dataset_helper.batch_accuracy" <> param (disp ntrain <> "," <+> disp ntest <> "," <+> dispListLiteral imgdim <> "," <+> dispListLiteral labeldim <> "," <+> disp n <> "," <+> disp batchSize <> "," <+> dispDiscarded ())
     A1BIMnistHelperTrainImages -> "Mnist_helper.train_images"
     A1BIMnistHelperTrainLabels -> "Mnist_helper.train_labels"
     A1BIMnistHelperTestImages -> "Mnist_helper.test_images"

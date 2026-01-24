@@ -292,5 +292,8 @@ definitions =
     gen ["tensor"] "mm" [ParamInt, ParamInt, ParamInt],
     gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt],
     -- Arity 5:
-    gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt]
+    gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
+    -- Arity 7:
+    gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded],
+    gen ["tensor"] "max_pool2d" [ParamInt, ParamInt, ParamInt, ParamInt, ParamIntPair, ParamIntPair, ParamIntPair]
   ]

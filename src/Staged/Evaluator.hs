@@ -120,6 +120,9 @@ validateIntPairLiteral a0v = do
   n2 <- validateIntLiteral a0v2
   pure (n1, n2)
 
+discardValue :: Ass0Val -> M ()
+discardValue = const $ pure ()
+
 validateVec0 :: Ass0Val -> M Vector
 validateVec0 = \case
   A0ValLiteral (ALitVec v) -> pure v
@@ -172,7 +175,6 @@ reduceDeltaArity5 bi5 a0v1 a0v2 a0v3 a0v4 a0v5 =
       labeldim <- validateIntListLiteral a0v4
       batchSize <- validateIntLiteral a0v5
       pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperTrainBatch ntrain ntest imgdim labeldim batchSize))
--}
 
 reduceDeltaArity7 :: BuiltInArity7 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity7 bi7 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 =
@@ -195,6 +197,7 @@ reduceDeltaArity7 bi7 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 =
       (ksize1, ksize2) <- validateIntPairLiteral a0v6
       (stride1, stride2) <- validateIntPairLiteral a0v7
       pure $ A0ValBracket (A1ValConst (A1BITensorMaxPool2d k l m n padding1 padding2 ksize1 ksize2 stride1 stride2))
+-}
 
 reduceDeltaArity8 :: BuiltInArity8 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
 reduceDeltaArity8 bi8 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 a0v8 =
