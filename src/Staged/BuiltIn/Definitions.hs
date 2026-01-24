@@ -8,6 +8,12 @@ import Staged.BuiltIn.CompileTime
 import Util.Matrix qualified as Matrix
 import Prelude
 
+gen :: String -> GenSpec -> BuiltInSpec
+gen constructor0 genSpec = BuiltInSpec {constructor0, main = Gen genSpec}
+
+versatile :: String -> VersatileSpec -> BuiltInSpec
+versatile constructor0 versSpec = BuiltInSpec {constructor0, main = Versatile versSpec}
+
 definitions :: [BuiltInSpec]
 definitions =
   [ gen "BIGenVadd" $ GenSpec [ParamInt] "A1BIVadd",

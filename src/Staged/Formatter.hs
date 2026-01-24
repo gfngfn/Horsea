@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Staged.Formatter
   ( Disp (..),
     render,
@@ -14,7 +15,9 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Prettyprinter
 import Prettyprinter.Render.Terminal
+import Staged.BuiltIn.CompileTime (deriveDisp)
 import Staged.BuiltIn.Core
+import Staged.BuiltIn.Definitions (definitions)
 import Staged.EvalError
 import Staged.SrcSyntax
 import Staged.Syntax
@@ -379,19 +382,7 @@ instance Disp (ArgForTypeF ann) where
     ExprArgNormal e -> dispGen req e
     TypeArg tye -> dispGen req tye
 
-instance Disp BuiltInArity1 where
-  dispGen _ = \case
-    BIGenVadd -> "GEN_VADD"
-    BIMtranspose m n -> "MTRANSPOSE@{" <> disps [m, n] <> "}"
-    BIDeviceGenCudaIfAvailable -> "DEVICE.GEN_CUDA_IF_AVAILABLE"
-    BITensorGenZeros -> "TENSOR.GEN_ZEROS"
-    BITensorGenGrad -> "TENSOR.GEN_GRAD"
-    BITensorGenZeroGrad -> "TENSOR.GEN_ZERO_GRAD"
-    BITensorGenSubUpdate -> "TENSOR.GEN_SUB_UPDATE"
-    BITensorGenCountEqual -> "TENSOR.GEN_COUNT_EQUAL"
-    BITensorGenDropout -> "TENSOR.GEN_DROPOUT"
-    BITupleFirst -> "FST"
-    BITupleSecond -> "SND"
+$(deriveDisp definitions)
 
 instance Disp BuiltInArity2 where
   dispGen _ = \case

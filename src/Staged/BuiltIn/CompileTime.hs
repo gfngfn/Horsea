@@ -5,8 +5,6 @@ module Staged.BuiltIn.CompileTime
     GenSpec (..),
     VersatileSpec (..),
     ParamSpec (..),
-    gen,
-    versatile,
     deriveDecs,
     deriveDeltaReduction,
     deriveDisp,
@@ -44,12 +42,6 @@ data VersatileSpec = VersatileSpec
 data ParamSpec
   = ParamInt
   | ParamIntList
-
-gen :: String -> GenSpec -> BuiltInSpec
-gen constructor0 genSpec = BuiltInSpec {constructor0, main = Gen genSpec}
-
-versatile :: String -> VersatileSpec -> BuiltInSpec
-versatile constructor0 versSpec = BuiltInSpec {constructor0, main = Versatile versSpec}
 
 deriveDecs :: [BuiltInSpec] -> TH.Q [TH.Dec]
 deriveDecs allBiSpecs = do
@@ -214,6 +206,7 @@ deriveDeltaReductionPerArity allBiSpecs arity = do
         pat = TH.ConP (TH.mkName constructor0) [] (map TH.VarP fixedParamVars)
         fixedParamVars = map (\i -> TH.mkName ("p" ++ show i)) [1 .. length versSpec.fixedParams]
 
+-- | Generates `instance Disp BuiltInArity{n} where ...` for each arity.
 deriveDisp :: [BuiltInSpec] -> TH.Q [TH.Dec]
 deriveDisp allBiSpecs =
   mapM (deriveDispPerArity allBiSpecs) [1 .. 1]
