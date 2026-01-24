@@ -181,6 +181,7 @@ test-suite horsea-test
     other-modules:
         SyntaxUtil,
         MatrixSpec,
+        TokenSpec,
         ParserSpec,
         ConstraintSpec,
         SubstSpec

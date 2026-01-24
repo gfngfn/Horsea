@@ -14,6 +14,8 @@ val %( <= ) : Int -> Int -> Bool
   external (builtin = "int_leq", surface = "<=")
 val %( == ) : Int -> Int -> Bool
   external (builtin = "int_equal", surface = "==")
+val %( && ) : Bool -> Bool -> Bool
+  external (builtin = "and", surface = "&&")
 val ~( :: ) : forall 'a -> 'a -> List 'a -> List 'a
   external (builtin = "list__cons", surface = "::")
 val ~gen_vadd : {a : Nat} -> &(Vec %a -> Vec %a -> Vec %a)
