@@ -210,6 +210,8 @@ reduceDelta pba a0vArg =
                           reduceDeltaArity5 bi5 v5 v4 v3 v2 v1
                         PartialBuiltInAppArity5Cons pba6 v6 ->
                           case pba6 of
+                            PartialBuiltInAppArity6Nil bi6 ->
+                              reduceDeltaArity6 bi6 v6 v5 v4 v3 v2 v1
                             PartialBuiltInAppArity6Cons pba7 v7 ->
                               case pba7 of
                                 PartialBuiltInAppArity7Nil bi7 ->
@@ -258,6 +260,7 @@ evalExpr0 env = \case
         BuiltInArity2 bi2 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity2 (PartialBuiltInAppArity2Nil bi2))
         BuiltInArity3 bi3 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity3 (PartialBuiltInAppArity3Nil bi3))
         BuiltInArity5 bi5 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity5 (PartialBuiltInAppArity5Nil bi5))
+        BuiltInArity6 bi6 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity6 (PartialBuiltInAppArity6Nil bi6))
         BuiltInArity7 bi7 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity7 (PartialBuiltInAppArity7Nil bi7))
         BuiltInArity8 bi8 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity8 (PartialBuiltInAppArity8Nil bi8))
         BuiltInOther s -> error $ "BuiltInOther: " ++ Text.unpack s

@@ -59,7 +59,7 @@ data ParamSpec
   | ParamDiscarded
 
 allArities :: [Int]
-allArities = [1, 2, 3, 5, 7, 8]
+allArities = [1, 2, 3, 5, 6, 7, 8]
 
 ass1builtInTypeName :: TH.Name
 ass1builtInTypeName = TH.mkName "Ass1BuiltIn"
