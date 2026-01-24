@@ -93,6 +93,7 @@ library
       Util.Matrix,
       Util.Maybe1,
       Util.ParserUtil,
+      Util.String,
       Util.TokenUtil,
       Util.Vector
 

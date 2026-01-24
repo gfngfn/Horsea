@@ -130,12 +130,11 @@ filterVersatile =
 string :: String -> TH.Exp
 string = TH.LitE . TH.StringL
 
--- | Generates the delta-reduction function
+-- | Generates the delta-reduction function of the following signature for each arity `n`:
 -- ```
 -- reduceDeltaArity{n} :: BuiltInArity{n} -> Ass0Val -> ... -> Ass0Val -> M Ass0Val
 --                                           \_________ n times ________/
 -- ```
--- for each arity `n`.
 deriveDeltaReduction :: [BuiltInSpec] -> TH.Q [TH.Dec]
 deriveDeltaReduction allBiSpecs =
   concat <$> mapM (deriveDeltaReductionPerArity allBiSpecs) [1 .. 1]
@@ -167,7 +166,7 @@ deriveDeltaReductionPerArity allBiSpecs arity = do
     allGenPairs = filterGen allBiSpecs
     allVersPairs = filterVersatile allBiSpecs
 
-    -- The body of the function `reduceDeltaArity{N}`.
+    -- The body of the function `reduceDeltaArity{n}`.
     makeBody :: TH.Q TH.Exp
     makeBody = do
       TH.CaseE (TH.VarE biName) <$>
@@ -251,7 +250,9 @@ makeParamDisp (pName, paramSpec) =
         ParamInt -> "disp"
         ParamIntList -> "dispListLiteral"
 
--- | Generates `instance Disp BuiltInArity{n} where ...` for each arity.
+-- | Generates the following two kinds of instances:
+-- * `instance Disp BuiltInArity{n} where ...` for each arity, and
+-- * `instance Disp Ass1BuiltIn`.
 deriveDisp :: [BuiltInSpec] -> TH.Q [TH.Dec]
 deriveDisp allBiSpecs = do
   dec0s <- mapM (deriveDispPerArity allBiSpecs) [1 .. 1]
@@ -267,9 +268,10 @@ deriveDisp allBiSpecs = do
           Gen genSpec -> pure genSpec
           Versatile _ -> Nothing
       let paramVars =
-            map
-              (\(i, paramSpec) -> (TH.mkName ("p" ++ show i), paramSpec))
-              (zip [(1 :: Int) ..] params)
+            zipWith
+              (\i paramSpec -> (TH.mkName ("p" ++ show i), paramSpec))
+              [(1 :: Int) ..]
+              params
       let pat = TH.ConP (makeAss1builtInConstructor constructor1) [] (map (TH.VarP . fst) paramVars)
       let branchBody =
             case nonEmpty paramVars of
@@ -316,9 +318,10 @@ deriveDispPerArity allBiSpecs arity =
       where
         fixedParamVars :: [(TH.Name, ParamSpec)]
         fixedParamVars =
-          map
-            (\(i, paramSpec) -> (TH.mkName ("p" ++ show i), paramSpec))
-            (zip [(1 :: Int) ..] versSpec.fixedParams)
+          zipWith
+            (\i paramSpec -> (TH.mkName ("p" ++ show i), paramSpec))
+            [(1 :: Int) ..]
+            versSpec.fixedParams
 
         pat :: TH.Pat
         pat = TH.ConP (TH.mkName common.constructor0) [] (map (TH.VarP . fst) fixedParamVars)

@@ -4,16 +4,24 @@ module Staged.BuiltIn.Definitions
   )
 where
 
+import Data.List (intercalate)
 import Staged.BuiltIn.CompileTime
 import Util.Matrix qualified as Matrix
+import Util.String (snakeToCamel, uppercase)
 import Prelude
 
-gen :: String -> String -> GenSpec -> BuiltInSpec
-gen constructor0 constructorDisplay0 genSpec =
+gen :: [String] -> String -> [ParamSpec] -> BuiltInSpec
+gen modules name params =
   BuiltInSpec
     { common = Common {constructor0, constructorDisplay0},
       main = Gen genSpec
     }
+  where
+    constructor0 = "BI" ++ concat (map snakeToCamel modules ++ ["Gen" ++ snakeToCamel name])
+    constructorDisplay0 = intercalate "." $ map uppercase (modules ++ [name])
+    constructor1 = "A1BI" ++ concatMap snakeToCamel (modules ++ [name])
+    constructorDisplay1 = intercalate "." $ map snakeToCamel modules ++ [name]
+    genSpec = GenSpec {params, constructor1, constructorDisplay1}
 
 versatile :: String -> String -> VersatileSpec -> BuiltInSpec
 versatile constructor0 constructorDisplay0 versSpec =
@@ -24,13 +32,13 @@ versatile constructor0 constructorDisplay0 versSpec =
 
 definitions :: [BuiltInSpec]
 definitions =
-  [ gen "BIGenVadd" "GEN_VADD" $ GenSpec [ParamInt] "A1BIVadd" "vadd",
-    gen "BITensorGenZeros" "TENSOR.GEN_ZEROS" $ GenSpec [ParamIntList] "A1BITensorZeros" "Tensor.zeros",
-    gen "BITensorGenGrad" "TENSOR.GEN_GRAD" $ GenSpec [ParamIntList] "A1BITensorGrad" "Tensor.grad",
-    gen "BITensorGenZeroGrad" "TENSOR.GEN_ZERO_GRAD" $ GenSpec [ParamIntList] "A1BITensorZeroGrad" "Tensor.zero_grad",
-    gen "BITensorGenSubUpdate" "TENSOR.GEN_SUB_UPDATE" $ GenSpec [ParamIntList] "A1BITensorSubUpdate" "Tensor.sub_update",
-    gen "BITensorGenCountEqual" "TENSOR.GEN_COUNT_EQUAL" $ GenSpec [ParamIntList] "A1BITensorCountEqual" "Tensor.count_equal",
-    gen "BITensorGenDropout" "TENSOR.GEN_DROPOUT" $ GenSpec [ParamIntList] "A1BITensorDropout" "Tensor.dropout",
+  [ gen [] "vadd" [ParamInt],
+    gen ["tensor"] "zeros" [ParamIntList],
+    gen ["tensor"] "grad" [ParamIntList],
+    gen ["tensor"] "zero_grad" [ParamIntList],
+    gen ["tensor"] "sub_update" [ParamIntList],
+    gen ["tensor"] "count_equal" [ParamIntList],
+    gen ["tensor"] "dropout" [ParamIntList],
     versatile "BITupleFirst" "FST" $ VersatileSpec [] 1
       [| do
         (a0v11, _) <- validateTupleValue a0v1
