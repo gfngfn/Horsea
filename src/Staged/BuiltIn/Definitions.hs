@@ -343,33 +343,17 @@ definitions =
           let _tensor = a0v2
           error "TODO: Optimizer.backward_step"
         |],
-    -- TODO: built-in functions should be reordered henceforth:
-    versatile
-      ["mnist_helper"]
-      "train_images"
-      ForStage1
-      0
-      [|error "TODO: MnistHelper.train_images"|],
-    versatile
-      ["mnist_helper"]
-      "train_labels"
-      ForStage1
-      0
-      [|error "TODO: MnistHelper.train_labels"|],
-    versatile
-      ["mnist_helper"]
-      "test_images"
-      ForStage1
-      0
-      [|error "TODO: MnistHelper.test_images"|],
-    versatile
-      ["mnist_helper"]
-      "test_labels"
-      ForStage1
-      0
-      [|error "TODO: MnistHelper.test_labels"|],
-    -- Arity 5:
     gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
-    -- Arity 7:
-    gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded]
+    gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded],
+    gen ["dataset_helper"] "map" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamDiscarded],
+    versatile ["mnist_helper"] "dataset" ForStage1 0 $
+      [|error "TODO: MnistHelper.dataset"|],
+    versatile ["mnist_helper"] "train_images" ForStage1 0 $
+      [|error "TODO: MnistHelper.train_images"|],
+    versatile ["mnist_helper"] "train_labels" ForStage1 0 $
+      [|error "TODO: MnistHelper.train_labels"|],
+    versatile ["mnist_helper"] "test_images" ForStage1 0 $
+      [|error "TODO: MnistHelper.test_images"|],
+    versatile ["mnist_helper"] "test_labels" ForStage1 0 $
+      [|error "TODO: MnistHelper.test_labels"|]
   ]

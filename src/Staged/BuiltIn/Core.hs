@@ -6,6 +6,7 @@ module Staged.BuiltIn.Core
     BuiltInArity2 (..),
     BuiltInArity3 (..),
     BuiltInArity5 (..),
+    BuiltInArity6 (..),
     BuiltInArity7 (..),
     BuiltInArity8 (..),
     Ass0PartialBuiltInApp (..),
@@ -36,6 +37,7 @@ data BuiltIn
   | BuiltInArity2 BuiltInArity2
   | BuiltInArity3 BuiltInArity3
   | BuiltInArity5 BuiltInArity5
+  | BuiltInArity6 BuiltInArity6
   | BuiltInArity7 BuiltInArity7
   | BuiltInArity8 BuiltInArity8
   | BuiltInOther Text -- TODO: remove this
@@ -77,7 +79,8 @@ data Ass0PartialBuiltInAppArity5 val
   deriving stock (Eq, Show, Functor)
 
 data Ass0PartialBuiltInAppArity6 val
-  = PartialBuiltInAppArity6Cons (Ass0PartialBuiltInAppArity7 val) val
+  = PartialBuiltInAppArity6Nil BuiltInArity6
+  | PartialBuiltInAppArity6Cons (Ass0PartialBuiltInAppArity7 val) val
   deriving stock (Eq, Show, Functor)
 
 data Ass0PartialBuiltInAppArity7 val

@@ -398,6 +398,7 @@ instance Disp BuiltIn where
     BuiltInArity2 bi2 -> dispGen req bi2
     BuiltInArity3 bi3 -> dispGen req bi3
     BuiltInArity5 bi5 -> dispGen req bi5
+    BuiltInArity6 bi6 -> dispGen req bi6
     BuiltInArity7 bi7 -> dispGen req bi7
     BuiltInArity8 bi8 -> dispGen req bi8
     BuiltInOther s -> "OTHER '" <> disp s <> "'"
@@ -875,6 +876,7 @@ instance (Disp v) => Disp (Ass0PartialBuiltInAppArity5 v) where
 
 instance (Disp v) => Disp (Ass0PartialBuiltInAppArity6 v) where
   dispGen req = \case
+    PartialBuiltInAppArity6Nil bi6 -> disp bi6
     PartialBuiltInAppArity6Cons pba7 v -> f (disp pba7 <+> dispGen Atomic v)
     where
       f = deepenParenWhen (req <= Atomic)
