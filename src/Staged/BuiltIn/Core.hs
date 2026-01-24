@@ -51,11 +51,11 @@ data BuiltInArity7
   = BIDatasetHelperGenBatchAccuracy
   | BITensorGenMaxPool2d
   deriving stock (Eq, Show)
--}
 
 data BuiltInArity8
   = BILayerGenConv2d
   deriving stock (Eq, Show)
+-}
 
 data Ass0PartialBuiltInApp val
   = A0PartialBuiltInAppArity1 (Ass0PartialBuiltInAppArity1 val)
