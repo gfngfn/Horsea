@@ -126,6 +126,7 @@ unliftBuiltInName = \case
   A1BIListMap -> arity2 BIListMap
   A1BIListAppend -> arity2 BIListAppend
   A1BIListIter -> arity2 BIListIter
+  A1BIListLength -> arity1 BIListLength
   A1BITensorMm k m n -> arity2 (BITensorMm k m n)
   a1builtInName -> error $ "TODO: unliftBuiltInName, " ++ show a1builtInName
   where

@@ -328,7 +328,7 @@ definitions =
           let _varStore = a0v1
           error "UNIMPLEMENTED: VarStore.freeze"
         |],
-    gen ["tensor"] "all_vars" [ParamIntList],
+    gen ["var_store"] "all_vars" [ParamIntList],
     versatile ["layer", "activation"] "relu" ForStage1 0 $
       [|error "UNIMPLEMENTED: Layer.Activation.relu"|],
     versatile ["layer", "activation"] "none" ForStage1 0 $

@@ -473,8 +473,9 @@ extractConstraintsFromExprArgsForType trav btenv bt ann argsWithBityReq = do
   pairs <-
     mapM
       ( \(e, bityReq) -> do
+          let Expr ann' _ = e
           (e', bityGot, constraints') <- extractConstraintsFromExpr trav btenv e
-          constraintsEq <- makeConstraintsFromBITypeEquation trav ann bityGot bityReq
+          constraintsEq <- makeConstraintsFromBITypeEquation trav ann' bityGot bityReq
           pure (e', constraints' ++ constraintsEq)
       )
       argsWithBityReq
@@ -513,7 +514,7 @@ extractConstraintsFromTypeExpr trav btenv (TypeExpr ann typeExprMain) = do
           ("Dataset", [ExprArg e1, ExprArg e2, ExprArg e3, ExprArg e4]) -> do
             (exprArgs, cs) <-
               extractConstraintsFromExprArgsForType trav btenv bt ann $
-                [(e1, bityNatList), (e2, bityNatList), (e3, bityNat), (e4, bityNat)]
+                [(e1, bityNat), (e2, bityNat), (e3, bityNatList), (e4, bityNatList)]
             pure (map ExprArg exprArgs, [], cs)
           (_, _) ->
             analysisError trav $ UnknownTypeOrInvalidArgs spanInFile tyName args

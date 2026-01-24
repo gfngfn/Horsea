@@ -121,9 +121,14 @@ stageTypeExpr0 (TypeExpr (btc, ann) typeExprMain) =
 stageTypeExpr0Main :: BCTypeExprMainF ann -> Staged.TypeExprMainF ann
 stageTypeExpr0Main = \case
   TyName tyName args ->
-    case args of
-      [] -> Staged.TyName tyName []
-      _ : _ -> error "bug: stageTypeExpr0Main, non-empty `args`"
+    -- TODO: check that `ExprArg` only contains literals
+    Staged.TyName tyName $
+      map
+        ( \case
+            TypeArg tye -> Staged.TypeArg (stageTypeExpr0 tye)
+            ExprArg e -> Staged.ExprArgNormal (stageExpr0 e)
+        )
+        args
   TyArrow labelOpt (xOpt, tye1) tye2 ->
     Staged.TyArrow labelOpt (xOpt, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
   TyOptArrow (x, tye1) tye2 ->
