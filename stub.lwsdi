@@ -14,8 +14,36 @@ val %( <= ) : Int -> Int -> Bool
   external (builtin = "int_leq", surface = "<=")
 val %( == ) : Int -> Int -> Bool
   external (builtin = "int_equal", surface = "==")
-val ~( :: ) : forall 'a -> 'a -> List 'a -> List 'a
-  external (builtin = "list__cons", surface = "::")
+val %( && ) : Bool -> Bool -> Bool
+  external (builtin = "and", surface = "&&")
+val %( :: ) : forall 'a -> 'a -> List 'a -> List 'a
+  external (builtin = "cons", surface = "::")
+val %float : Int -> Float
+  external (builtin = "float", surface = "float")
+val %print_float : Float -> Unit
+  external (builtin = "print_float", surface = "print_float")
+val %print_string : String -> Unit
+  external (builtin = "print_string", surface = "print_string")
+val %range : Int -> Int -> List Int
+  external (builtin = "range", surface = "range")
+val %fst : forall 'a -> forall 'b -> 'a * 'b -> 'a
+  external (builtin = "fst", surface = "fst")
+val %snd : forall 'a -> forall 'b -> 'a * 'b -> 'b
+  external (builtin = "snd", surface = "snd")
+
+val ~lift_string : String -> &String
+  external (builtin = "lift_string", surface = "lift_string")
+
+val ~drop_at : Nat -> List Nat -> List Nat
+  external (builtin = "drop_at", surface = "drop_at")
+val ~broadcastable : List Nat -> List Nat -> Bool
+  external (builtin = "broadcastable", surface = "broadcastable")
+val ~broadcast : List Nat -> List Nat -> List Nat
+  external (builtin = "broadcast", surface = "broadcast")
+(* TODO: make `reshapeable` support `-1` *)
+val ~reshapeable : List Nat -> List Nat -> Bool
+  external (builtin = "reshapeable", surface = "reshapeable")
+
 val ~gen_vadd : {a : Nat} -> &(Vec %a -> Vec %a -> Vec %a)
   external (builtin = "gen_vadd", surface = "vadd")
 val ~gen_vconcat : {a : Nat} -> {b : Nat} -> &(Vec %a -> Vec %b -> Vec %(a + b))
@@ -27,31 +55,10 @@ val ~gen_mmult : {a : Nat} -> {b : Nat} -> {c : Nat} -> &(Mat %a %b -> Mat %b %c
     (* TODO: replace this with `Tensor.gen_mm` *)
 val ~gen_mconcat_vert : {a : Nat} -> {b : Nat} -> {c : Nat} -> &(Mat %a %c -> Mat %b %c -> Mat %(a + b) %c)
   external (builtin = "gen_mconcat_vert", surface = "mconcat_vert")
-val ~drop_at : Nat -> List Nat -> List Nat
-  external (builtin = "drop_at", surface = "drop_at")
-val ~broadcastable : List Nat -> List Nat -> Bool
-  external (builtin = "broadcastable", surface = "broadcastable")
-val ~broadcast : List Nat -> List Nat -> List Nat
-  external (builtin = "broadcast", surface = "broadcast")
-(* TODO: make `reshapeable` support `-1` *)
-val ~reshapeable : List Nat -> List Nat -> Bool
-  external (builtin = "reshapeable", surface = "reshapeable")
-val %float : Int -> Float
-  external (builtin = "float", surface = "float")
-val print_float : Float -> Unit
-  external (builtin = "print_float", surface = "print_float")
-val print_string : String -> Unit
-  external (builtin = "print_string", surface = "print_string")
-val %range : Int -> Int -> List Int
-  external (builtin = "range", surface = "range")
-val ~lift_string : String -> &String
-  external (builtin = "lift_string", surface = "lift_string")
-val %fst : forall 'a -> forall 'b -> 'a * 'b -> 'a
-  external (builtin = "tuple__first", surface = "fst")
-val %snd : forall 'a -> forall 'b -> 'a * 'b -> 'b
-  external (builtin = "tuple__second", surface = "snd")
 
 module List = struct
+  val %map : forall 'a -> forall 'b -> ('a -> 'b) -> List 'a -> List 'b
+    external (builtin = "list__map", surface = "map")
   val %append : forall 'a -> List 'a -> List 'a -> List 'a
     external (builtin = "list__append", surface = "append")
   val %iter : forall 'a -> ('a -> Unit) -> List 'a -> Unit

@@ -20,6 +20,7 @@ data BugF sv
   | NotAVector (Ass0ValF sv)
   | NotAMatrix (Ass0ValF sv)
   | NotABoolean (Ass0ValF sv)
+  | NotAFloat (Ass0ValF sv)
   | NotAUnit (Ass0ValF sv)
   | NotAString (Ass0ValF sv)
   | NotATuple (Ass0ValF sv)

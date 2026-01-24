@@ -1,0 +1,468 @@
+{-# LANGUAGE TemplateHaskell #-}
+
+module Staged.BuiltIn.CompileTime
+  ( BuiltInSpec (..),
+    Common (..),
+    BuiltInSpecMain (..),
+    GenSpec (..),
+    VersatileSpec (..),
+    ParamSpec (..),
+    deriveDecs,
+    deriveDeltaReduction,
+    deriveDisp,
+  )
+where
+
+import Control.Monad.Extra (mapMaybeM)
+import Data.List (foldl')
+import Data.List.NonEmpty (nonEmpty)
+import Data.Maybe (mapMaybe)
+import Data.Text (Text)
+import Language.Haskell.TH qualified as TH
+import Safe.Exact (zipExactMay)
+import Prelude
+
+data BuiltInSpec = BuiltInSpec
+  { common :: Common,
+    main :: BuiltInSpecMain
+  }
+
+data Common = Common
+  { constructor0 :: String,
+    constructorDisplay0 :: String
+  }
+
+data BuiltInSpecMain
+  = Gen GenSpec
+  | Versatile VersatileSpec
+
+data GenSpec = GenSpec
+  { name0 :: String,
+    params :: [ParamSpec],
+    constructor1 :: String,
+    constructorDisplay1 :: String
+  }
+
+-- TODO: refactor; non-null `fixedParams` implies that `name0` be `Nothing`.
+data VersatileSpec = VersatileSpec
+  { name0 :: Maybe String,
+    nameAndConstructor1 :: Maybe (String, String),
+    fixedParams :: [ParamSpec],
+    arity :: Int,
+    bodyQ :: TH.Q TH.Exp
+  }
+
+data ParamSpec
+  = ParamInt
+  | ParamIntList
+  | ParamIntPair
+  | ParamDiscarded
+
+allArities :: [Int]
+allArities = [1 .. 8]
+
+ass1builtInTypeName :: TH.Name
+ass1builtInTypeName = TH.mkName "Ass1BuiltIn"
+
+makeAss1builtInConstructor :: String -> TH.Name
+makeAss1builtInConstructor = TH.mkName
+
+deriveDecs :: [BuiltInSpec] -> TH.Q [TH.Dec]
+deriveDecs allBiSpecs = do
+  let typeDec0s = map (deriveDecPerArity allBiSpecs) allArities
+  let typeDec1 = TH.DataD [] ass1builtInTypeName [] Nothing (mapMaybe makeConstructor1 allBiSpecs ++ [other]) derivClauses
+  let nameValidationFunDec0s = deriveNameValidationFun0 allBiSpecs
+  let nameValidationFunDec1s = deriveNameValidationFun1 allBiSpecs
+  pure $ typeDec0s ++ typeDec1 : nameValidationFunDec0s ++ nameValidationFunDec1s
+  where
+    derivClauses :: [TH.DerivClause]
+    derivClauses = [TH.DerivClause (Just TH.StockStrategy) [TH.ConT ''Eq, TH.ConT ''Show]]
+
+    makeConstructor1 :: BuiltInSpec -> Maybe TH.Con
+    makeConstructor1 BuiltInSpec {main} =
+      case main of
+        Gen GenSpec {constructor1, params} ->
+          pure $ TH.NormalC (makeAss1builtInConstructor constructor1) (map ((noBang,) . makeParam) params)
+        Versatile VersatileSpec {nameAndConstructor1, fixedParams} -> do
+          (_, constructor1) <- nameAndConstructor1
+          pure $ TH.NormalC (makeAss1builtInConstructor constructor1) (map ((noBang,) . makeParam) fixedParams)
+
+    other :: TH.Con
+    other = TH.NormalC (TH.mkName "A1BuiltInOther") [(noBang, TH.ConT ''Text)]
+
+deriveDecPerArity :: [BuiltInSpec] -> Int -> TH.Dec
+deriveDecPerArity allBiSpecs arity =
+  TH.DataD [] builtInWithArityTypeName [] Nothing (map makeConstructor0 pairs) derivClauses
+  where
+    builtInWithArityTypeName = TH.mkName $ "BuiltInArity" ++ show arity
+
+    pairs =
+      mapMaybe
+        ( \BuiltInSpec {common, main} ->
+            case main of
+              Gen genSpec ->
+                if length genSpec.params == arity then Just (common, []) else Nothing
+              Versatile versSpec ->
+                if versSpec.arity == arity then Just (common, versSpec.fixedParams) else Nothing
+        )
+        allBiSpecs
+
+    derivClauses :: [TH.DerivClause]
+    derivClauses = [TH.DerivClause (Just TH.StockStrategy) [TH.ConT ''Eq, TH.ConT ''Show]]
+
+    makeConstructor0 :: (Common, [ParamSpec]) -> TH.Con
+    makeConstructor0 (common, fixedParams) =
+      TH.NormalC (TH.mkName common.constructor0) (map ((noBang,) . makeParam) fixedParams)
+
+deriveNameValidationFun0 :: [BuiltInSpec] -> [TH.Dec]
+deriveNameValidationFun0 allBiSpecs =
+  [ TH.SigD nameValidationFunName funType,
+    TH.ValD
+      (TH.VarP nameValidationFunName)
+      (TH.NormalB (TH.LamCaseE (mapMaybe makeBranch0 allBiSpecs ++ [otherwiseBranch0])))
+      []
+  ]
+  where
+    nameValidationFunName = TH.mkName "validateExternalName0"
+
+    funType :: TH.Type
+    funType = TH.ConT ''Text `arr` TH.AppT (TH.ConT ''Maybe) (TH.ConT (TH.mkName "BuiltIn"))
+
+    -- TODO: change this to `_ -> Nothing`
+    otherwiseBranch0 :: TH.Match
+    otherwiseBranch0 =
+      TH.Match (TH.VarP name) (TH.NormalB body) []
+      where
+        name = TH.mkName "s"
+        body =
+          TH.AppE (TH.ConE 'Just) $
+            TH.AppE (TH.ConE (TH.mkName "BuiltInOther")) $
+              TH.VarE name
+
+    makeBranch0 :: BuiltInSpec -> Maybe TH.Match
+    makeBranch0 BuiltInSpec {common, main} = do
+      name0 <-
+        case main of
+          Gen genSpec -> Just genSpec.name0
+          Versatile versSpec -> versSpec.name0
+      pure $ TH.Match (TH.LitP (TH.StringL name0)) (TH.NormalB body) []
+      where
+        body :: TH.Exp
+        body =
+          TH.AppE (TH.ConE 'Just) $
+            TH.AppE (TH.ConE (TH.mkName ("BuiltInArity" ++ show arity))) $
+              TH.ConE (TH.mkName common.constructor0)
+
+        arity =
+          case main of
+            Gen genSpec -> length genSpec.params
+            Versatile versSpec -> versSpec.arity
+
+deriveNameValidationFun1 :: [BuiltInSpec] -> [TH.Dec]
+deriveNameValidationFun1 allBiSpecs =
+  [ TH.SigD nameValidationFunName funType,
+    TH.ValD
+      (TH.VarP nameValidationFunName)
+      (TH.NormalB (TH.LamCaseE (mapMaybe makeBranch1 allBiSpecs ++ [otherwiseBranch0])))
+      []
+  ]
+  where
+    nameValidationFunName = TH.mkName "validateExternalName1"
+
+    funType :: TH.Type
+    funType = TH.ConT ''Text `arr` TH.AppT (TH.ConT ''Maybe) (TH.ConT (TH.mkName "Ass1BuiltIn"))
+
+    -- TODO: change this to `_ -> Nothing`
+    otherwiseBranch0 :: TH.Match
+    otherwiseBranch0 =
+      TH.Match (TH.VarP name) (TH.NormalB body) []
+      where
+        name = TH.mkName "s"
+        body =
+          TH.AppE (TH.ConE 'Just) $
+            TH.AppE (TH.ConE (TH.mkName "A1BuiltInOther")) $
+              TH.VarE name
+
+    makeBranch1 :: BuiltInSpec -> Maybe TH.Match
+    makeBranch1 BuiltInSpec {main} = do
+      (name1, constructor1) <-
+        case main of
+          Gen _genSpec -> Nothing
+          Versatile versSpec -> versSpec.nameAndConstructor1
+      let body = TH.AppE (TH.ConE 'Just) $ TH.ConE (TH.mkName constructor1)
+      pure $ TH.Match (TH.LitP (TH.StringL name1)) (TH.NormalB body) []
+
+noBang :: TH.Bang
+noBang = TH.Bang TH.NoSourceUnpackedness TH.NoSourceStrictness
+
+makeParam :: ParamSpec -> TH.Type
+makeParam = \case
+  ParamInt -> TH.ConT ''Int
+  ParamIntList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Int)
+  ParamIntPair -> TH.AppT (TH.AppT (TH.TupleT 2) (TH.ConT ''Int)) (TH.ConT ''Int)
+  ParamDiscarded -> TH.ConT ''()
+
+filterGen :: [BuiltInSpec] -> [(Common, GenSpec)]
+filterGen =
+  mapMaybe
+    ( \BuiltInSpec {common, main} ->
+        case main of
+          Gen genSpec -> Just (common, genSpec)
+          Versatile _ -> Nothing
+    )
+
+filterVersatile :: [BuiltInSpec] -> [(Common, VersatileSpec)]
+filterVersatile =
+  mapMaybe
+    ( \BuiltInSpec {common, main} ->
+        case main of
+          Gen _ -> Nothing
+          Versatile versSpec -> Just (common, versSpec)
+    )
+
+string :: String -> TH.Exp
+string = TH.LitE . TH.StringL
+
+arr :: TH.Type -> TH.Type -> TH.Type
+arr ty1 = TH.AppT (TH.AppT TH.ArrowT ty1)
+
+-- | Generates the delta-reduction function of the following signature for each arity `n`:
+-- ```
+-- reduceDeltaArity{n} :: BuiltInArity{n} -> Ass0Val -> ... -> Ass0Val -> M Ass0Val
+--                                           \_________ n times ________/
+-- ```
+deriveDeltaReduction :: [BuiltInSpec] -> TH.Q [TH.Dec]
+deriveDeltaReduction allBiSpecs =
+  concat <$> mapM (deriveDeltaReductionPerArity allBiSpecs) allArities
+
+deriveDeltaReductionPerArity :: [BuiltInSpec] -> Int -> TH.Q [TH.Dec]
+deriveDeltaReductionPerArity allBiSpecs arity = do
+  body <- makeBody
+  pure
+    [ TH.SigD reduceDeltaArityFunName (TH.ConT builtInWithArityTypeName `arr` funType arity),
+      TH.FunD reduceDeltaArityFunName [TH.Clause (map TH.VarP (biName : argValNames)) (TH.NormalB body) []]
+    ]
+  where
+    funType n =
+      if n <= 0
+        then TH.AppT (TH.ConT (TH.mkName "M")) (TH.ConT ass0ValTypeName)
+        else TH.ConT ass0ValTypeName `arr` funType (n - 1)
+
+    builtInWithArityTypeName = TH.mkName $ "BuiltInArity" ++ show arity
+    ass0ValTypeName = TH.mkName $ "Ass0Val"
+    reduceDeltaArityFunName = TH.mkName $ "reduceDeltaArity" ++ show arity
+    biName = TH.mkName $ "bi" ++ show arity
+    namePairs = map (\i -> (TH.mkName ("x" ++ show i), TH.mkName ("a0v" ++ show i))) [1 .. arity]
+    validatedValNames = map fst namePairs
+    argValNames = map snd namePairs
+
+    allGenPairs = filterGen allBiSpecs
+    allVersPairs = filterVersatile allBiSpecs
+
+    -- The body of the function `reduceDeltaArity{n}`.
+    makeBody :: TH.Q TH.Exp
+    makeBody = do
+      TH.CaseE (TH.VarE biName)
+        <$> ((mapMaybe makeGenBranch allGenPairs ++) <$> mapMaybeM makeVersatileBranch allVersPairs)
+
+    -- Constructs a branch for handling one *Gen-based* built-in function.
+    -- Returns `Nothing` for those of unwanted arities.
+    makeGenBranch :: (Common, GenSpec) -> Maybe TH.Match
+    makeGenBranch (common, genSpec) = do
+      zipped <- zipExactMay genSpec.params namePairs
+      let branchBody = TH.DoE Nothing (map makeStmt zipped ++ [TH.NoBindS (TH.AppE (TH.VarE 'pure) retVal)])
+      pure $ TH.Match pat (TH.NormalB branchBody) []
+      where
+        pat :: TH.Pat
+        pat = TH.ConP (TH.mkName common.constructor0) [] []
+
+        makeStmt :: (ParamSpec, (TH.Name, TH.Name)) -> TH.Stmt
+        makeStmt (paramSpec, (validatedValName, argValName)) =
+          TH.BindS (TH.VarP validatedValName) (TH.AppE validator (TH.VarE argValName))
+          where
+            validator =
+              TH.VarE $
+                TH.mkName $
+                  case paramSpec of
+                    ParamInt -> "validateIntLiteral"
+                    ParamIntList -> "validateIntListLiteral"
+                    ParamIntPair -> "validateIntPairLiteral"
+                    ParamDiscarded -> "discardValue"
+
+        retVal :: TH.Exp
+        retVal =
+          TH.AppE (TH.ConE (TH.mkName "A0ValBracket")) $
+            TH.AppE (TH.ConE (TH.mkName "A1ValConst")) $
+              foldl'
+                TH.AppE
+                (TH.ConE (TH.mkName genSpec.constructor1))
+                (map TH.VarE validatedValNames)
+
+    -- Constructs a branch for handling one *Versatile-based* built-in function.
+    -- Returns `Nothing` for those of unwanted arities.
+    -- Fixed parameters are handled by variable names `p1`, ..., `p{k}`.
+    makeVersatileBranch :: (Common, VersatileSpec) -> TH.Q (Maybe TH.Match)
+    makeVersatileBranch (common, versSpec) = do
+      if versSpec.arity /= arity
+        then
+          pure Nothing
+        else do
+          branchBody <- versSpec.bodyQ
+          pure . Just $ TH.Match pat (TH.NormalB branchBody) []
+      where
+        pat = TH.ConP (TH.mkName common.constructor0) [] (map TH.VarP fixedParamVars)
+        fixedParamVars = map (\i -> TH.mkName ("p" ++ show i)) [1 .. length versSpec.fixedParams]
+
+makeDispInstance :: TH.Type -> [TH.Match] -> TH.Dec
+makeDispInstance ty branches =
+  TH.InstanceD
+    Nothing
+    []
+    (TH.AppT (TH.ConT dispTypeClassName) ty)
+    [ TH.FunD
+        dispGenFunName
+        [ TH.Clause [TH.WildP] (TH.NormalB (TH.LamCaseE branches)) []
+        ]
+    ]
+  where
+    dispTypeClassName = TH.mkName "Disp"
+    dispGenFunName = TH.mkName "dispGen"
+
+joinDocsDirect :: TH.Exp -> TH.Exp -> TH.Exp
+joinDocsDirect e1 =
+  TH.AppE (TH.AppE (TH.VarE (TH.mkName "<>")) e1)
+
+joinDocsWithComma :: TH.Exp -> TH.Exp -> TH.Exp
+joinDocsWithComma e1 =
+  TH.AppE (TH.AppE (TH.VarE (TH.mkName "<+>")) (joinDocsDirect e1 (string ",")))
+
+makeParamDisp :: (TH.Name, ParamSpec) -> TH.Exp
+makeParamDisp (pName, paramSpec) =
+  TH.AppE (TH.VarE (TH.mkName dispFun)) (TH.VarE pName)
+  where
+    dispFun =
+      case paramSpec of
+        ParamInt -> "disp"
+        ParamIntList -> "dispListLiteral"
+        ParamIntPair -> "dispPairLiteral"
+        ParamDiscarded -> "dispDiscarded"
+
+-- | Generates the following two kinds of instances:
+-- * `instance Disp BuiltInArity{n} where ...` for each arity, and
+-- * `instance Disp Ass1BuiltIn`.
+deriveDisp :: [BuiltInSpec] -> TH.Q [TH.Dec]
+deriveDisp allBiSpecs = do
+  dec0s <- mapM (deriveDispPerArity allBiSpecs) allArities
+  let dec1 = makeDispInstance (TH.ConT ass1builtInTypeName) (mapMaybe makeBranch1 allBiSpecs ++ [other])
+  pure $ dec1 : dec0s
+  where
+    makeBranch1 :: BuiltInSpec -> Maybe TH.Match
+    makeBranch1 BuiltInSpec {common, main} =
+      case main of
+        Gen GenSpec {constructor1, constructorDisplay1, params} -> do
+          let paramVars =
+                zipWith
+                  (\i paramSpec -> (TH.mkName ("p" ++ show i), paramSpec))
+                  [(1 :: Int) ..]
+                  params
+          let pat = TH.ConP (makeAss1builtInConstructor constructor1) [] (map (TH.VarP . fst) paramVars)
+          let branchBody =
+                case nonEmpty paramVars of
+                  Nothing ->
+                    string constructorDisplay1
+                  Just paramVarsNonEmpty ->
+                    joinDocsDirect (string constructorDisplay1) $
+                      TH.AppE (TH.VarE (TH.mkName "stagingOperatorStyle")) $
+                        joinDocsDirect (joinDocsDirect (string "@{") paramDispE) (string "}")
+                    where
+                      paramDispE =
+                        foldl1 joinDocsWithComma (fmap makeParamDisp paramVarsNonEmpty)
+          pure $ TH.Match pat (TH.NormalB branchBody) []
+        Versatile VersatileSpec {nameAndConstructor1, fixedParams} -> do
+          let paramVars =
+                zipWith
+                  (\i paramSpec -> (TH.mkName ("p" ++ show i), paramSpec))
+                  [(1 :: Int) ..]
+                  fixedParams
+          (_, constructor1) <- nameAndConstructor1
+          let pat = TH.ConP (makeAss1builtInConstructor constructor1) [] (map (TH.VarP . fst) paramVars)
+          let branchBody =
+                case nonEmpty paramVars of
+                  Nothing ->
+                    string common.constructorDisplay0
+                  Just paramVarsNonEmpty ->
+                    joinDocsDirect (string common.constructorDisplay0) $
+                      TH.AppE (TH.VarE (TH.mkName "stagingOperatorStyle")) $
+                        joinDocsDirect (joinDocsDirect (string "@{") paramDispE) (string "}")
+                    where
+                      paramDispE =
+                        foldl1 joinDocsWithComma (fmap makeParamDisp paramVarsNonEmpty)
+          pure $ TH.Match pat (TH.NormalB branchBody) []
+
+    other :: TH.Match
+    other =
+      TH.Match pat (TH.NormalB body) []
+      where
+        pat :: TH.Pat
+        pat = TH.ConP (TH.mkName "A1BuiltInOther") [] [TH.VarP sName]
+
+        sName = TH.mkName "s"
+
+        body :: TH.Exp
+        body =
+          joinDocsDirect (string "OTHER '") $
+            joinDocsDirect (TH.AppE (TH.VarE (TH.mkName "disp")) (TH.VarE sName)) $
+              string "'"
+
+deriveDispPerArity :: [BuiltInSpec] -> Int -> TH.Q TH.Dec
+deriveDispPerArity allBiSpecs arity =
+  pure $ makeDispInstance (TH.ConT builtInWithArityTypeName) branches
+  where
+    builtInWithArityTypeName = TH.mkName $ "BuiltInArity" ++ show arity
+
+    allGenPairs = filterGen allBiSpecs
+    allVersPairs = filterVersatile allBiSpecs
+
+    branches :: [TH.Match]
+    branches = mapMaybe makeGenBranch allGenPairs ++ mapMaybe makeVersatileBranch allVersPairs
+
+    makeGenBranch :: (Common, GenSpec) -> Maybe TH.Match
+    makeGenBranch (common, genSpec) =
+      if length genSpec.params /= arity
+        then Nothing
+        else pure $ TH.Match pat (TH.NormalB branchBody) []
+      where
+        pat :: TH.Pat
+        pat = TH.ConP (TH.mkName common.constructor0) [] []
+
+        branchBody :: TH.Exp
+        branchBody = string common.constructorDisplay0
+
+    makeVersatileBranch :: (Common, VersatileSpec) -> Maybe TH.Match
+    makeVersatileBranch (common, versSpec) = do
+      if versSpec.arity /= arity
+        then Nothing
+        else pure $ TH.Match pat (TH.NormalB branchBody) []
+      where
+        fixedParamVars :: [(TH.Name, ParamSpec)]
+        fixedParamVars =
+          zipWith
+            (\i paramSpec -> (TH.mkName ("p" ++ show i), paramSpec))
+            [(1 :: Int) ..]
+            versSpec.fixedParams
+
+        pat :: TH.Pat
+        pat = TH.ConP (TH.mkName common.constructor0) [] (map (TH.VarP . fst) fixedParamVars)
+
+        branchBody :: TH.Exp
+        branchBody =
+          case nonEmpty fixedParamVars of
+            Nothing ->
+              string common.constructorDisplay0
+            Just fixedParamVarsNonEmpty ->
+              joinDocsDirect
+                (string common.constructorDisplay0)
+                (joinDocsDirect (joinDocsDirect (string "@{") paramDispE) (string "}"))
+              where
+                paramDispE =
+                  foldl1 joinDocsWithComma (fmap makeParamDisp fixedParamVarsNonEmpty)

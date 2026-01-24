@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Staged.Formatter
   ( Disp (..),
     render,
@@ -14,7 +16,9 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Prettyprinter
 import Prettyprinter.Render.Terminal
+import Staged.BuiltIn.CompileTime (deriveDisp)
 import Staged.BuiltIn.Core
+import Staged.BuiltIn.Definitions (definitions)
 import Staged.Core
 import Staged.EvalError
 import Staged.SrcSyntax
@@ -277,6 +281,13 @@ dispListLiteral :: (Disp e) => [e] -> Doc Ann
 dispListLiteral es =
   "[" <> disps es <> "]"
 
+dispPairLiteral :: (Disp e) => (e, e) -> Doc Ann
+dispPairLiteral (e1, e2) =
+  "(" <> disp e1 <> "," <+> disp e2 <> ")"
+
+dispDiscarded :: () -> Doc Ann
+dispDiscarded () = "*"
+
 dispVectorLiteral :: [Int] -> Doc Ann
 dispVectorLiteral ns =
   encloseSep ("[|" <> space) (space <> "|]") (";" <> softline) (disp <$> ns)
@@ -383,88 +394,7 @@ instance Disp (ArgForTypeF ann) where
     ExprArgNormal e -> dispGen req e
     TypeArg tye -> dispGen req tye
 
-instance Disp BuiltInArity1 where
-  dispGen _ = \case
-    BIGenVadd -> "GEN_VADD"
-    BIMtranspose m n -> "MTRANSPOSE@{" <> disps [m, n] <> "}"
-    BIDeviceGenCudaIfAvailable -> "DEVICE.GEN_CUDA_IF_AVAILABLE"
-    BITensorGenZeros -> "TENSOR.GEN_ZEROS"
-    BITensorGenGrad -> "TENSOR.GEN_GRAD"
-    BITensorGenZeroGrad -> "TENSOR.GEN_ZERO_GRAD"
-    BITensorGenSubUpdate -> "TENSOR.GEN_SUB_UPDATE"
-    BITensorGenCountEqual -> "TENSOR.GEN_COUNT_EQUAL"
-    BITensorGenDropout -> "TENSOR.GEN_DROPOUT"
-    BILiftString -> "LIFT_STRING"
-    BITupleFirst -> "FST"
-    BITupleSecond -> "SND"
-    BIListLength -> "LIST.LENGTH"
-    BITorchVisionImagenetClassesGenTop -> "TORCHVISION.IMAGENET.CLASSES.GEN_TOP"
-    BIModuleGenForward -> "MODULE.GEN_FORWARD"
-
-instance Disp BuiltInArity2 where
-  dispGen _ = \case
-    BIAdd -> "+"
-    BISub -> "-"
-    BIMult -> "*"
-    BIDiv -> "//"
-    BIMod -> "mod"
-    BILeq -> "<="
-    BIEqual -> "=="
-    BIAnd -> "&&"
-    BIListMap -> "LIST.MAP"
-    BIGenVconcat -> "GEN_VCONCAT"
-    BIGenMtranspose -> "GEN_MTRANSPOSE"
-    BIVadd n -> "VADD@{" <> disp n <> "}"
-    BIVconcat m n -> "VCONCAT@{" <> disps [m, n] <> "}"
-    BIMconcatVert m1 m2 n -> "MCONCAT_VERT@{" <> disps [m1, m2, n] <> "}"
-    BIDropAt -> "DROP_AT"
-    BIBroadcastable -> "BROADCASTABLE"
-    BIBroadcast -> "BROADCAST"
-    BIReshapeable -> "RESHAPEABLE"
-    BIListCons -> "::"
-    BIListAppend -> "LIST.APPEND"
-    BIListIter -> "LIST.ITER"
-    BITensorGenAdd -> "TENSOR.GEN_ADD"
-    BITensorGenMult -> "TENSOR.GEN_MULT"
-    BITensorGenArgmax -> "TENSOR.GEN_ARGMAX"
-    BITensorGenCrossEntropyForLogits -> "TENSOR.GEN_CROSS_ENTROPY_FOR_LOGITS"
-    BITensorAdd ns -> "TENSOR.ADD@{" <> dispListLiteral ns <> "}"
-    BITensorMm k m n -> "TENSOR.MM@{" <> disps [k, m, n] <> "}"
-    BITensorGenReshape -> "TENSOR.GEN_RESHAPE"
-    BITensorGenSoftmax -> "TENSOR.GEN_SOFTMAX"
-    BITorchVisionImagenetLoadImage -> "TORCHVISION.IMAGENET.LOAD_IMAGE"
-    BIModuleGenLoad -> "MODULE.GEN_LOAD"
-    BILayerGenForward -> "LAYER.GEN_FORWARD"
-    BISerializeGenLoadMulti -> "SERIALIZE.GEN_LOAD_MULTI_"
-
-instance Disp BuiltInArity3 where
-  dispGen _ = \case
-    BIGenMconcatVert -> "GEN_MCONCAT_VERT"
-    BITensorGenMm -> "TENSOR.GEN_MM"
-    BILayerGenLinear -> "LAYER.GEN_LINEAR"
-
-instance Disp BuiltInArity4 where
-  dispGen _ = \case
-    BIDatasetHelperGenPrintSummary -> "DATASET_HELPER.GEN_PRINT_SUMMARY"
-
-instance Disp BuiltInArity5 where
-  dispGen _ = \case
-    BIDatasetHelperGenTrainBatch -> "DATASET_HELPER.GEN_TRAIN_BATCH"
-    BIDatasetHelperGenBatchesPerEpoch -> "DATASET_HELPER.GEN_BATCHES_PER_EPOCH"
-
-instance Disp BuiltInArity6 where
-  dispGen _ = \case
-    BIDatasetHelperGenIter -> "DATASET_HELPER.GEN_ITER"
-    BIDatasetHelperGenMap -> "DATASET_HELPER.GEN_MAP"
-
-instance Disp BuiltInArity7 where
-  dispGen _ = \case
-    BIDatasetHelperGenBatchAccuracy -> "DATASET_HELPER.GEN_BATCH_ACCURACY"
-    BITensorGenMaxPool2d -> "TENSOR.GEN_MAX_POOL2D"
-
-instance Disp BuiltInArity8 where
-  dispGen _ = \case
-    BILayerGenConv2d -> "LAYER.GEN_CONV2D"
+$(deriveDisp definitions)
 
 instance Disp BuiltIn where
   dispGen req = \case
@@ -966,76 +896,7 @@ instance (Disp v) => Disp (Ass0PartialBuiltInAppArity7 v) where
 
 instance (Disp v) => Disp (Ass0PartialBuiltInAppArity8 v) where
   dispGen _req = \case
-    PartialBuiltInAppArity8Nil bi8 -> disp bi8
-
-instance Disp Ass1BuiltIn where
-  dispGen _ = \case
-    A1BIVadd n -> "vadd" <> param (disp n)
-    A1BIVconcat m n -> "vconcat" <> param (disps [m, n])
-    A1BIMtranspose m n -> "mtranspose" <> param (disps [m, n])
-    A1BIMconcatVert m1 m2 n -> "mconcat_vert" <> param (disps [m1, m2, n])
-    A1BITensorZeros ns1 -> "Tensor.zeros" <> param (dispListLiteral ns1)
-    A1BITensorMult ns1 ns2 -> "Tensor.mult" <> param (dispListLiteral ns1 <> "," <+> dispListLiteral ns2)
-    A1BITensorGrad ns1 -> "Tensor.grad" <> param (dispListLiteral ns1)
-    A1BITensorZeroGrad ns1 -> "Tensor.zero_grad" <> param (dispListLiteral ns1)
-    A1BITensorSubUpdate ns1 -> "Tensor.sub_update" <> param (dispListLiteral ns1)
-    A1BITensorArgmax ns1 n2 -> "Tensor.argmax" <> param (dispListLiteral ns1 <> "," <+> disp n2)
-    A1BITensorCrossEntropyForLogits n1 n2 -> "Tensor.cross_entropy_for_logits" <> param (disps [n1, n2])
-    A1BITensorCountEqual ns -> "Tensor.count_equal" <> param (dispListLiteral ns)
-    A1BITensorDropout shape -> "Tensor.dropout" <> param (dispListLiteral shape)
-    A1BITensorReshape shape1 shape2 -> "Tensor.reshape" <> param (dispListLiteral shape1 <> "," <+> dispListLiteral shape2)
-    A1BITensorAdd ns1 ns2 -> "Tensor.add" <> param (dispListLiteral ns1 <> "," <+> dispListLiteral ns2)
-    A1BITensorMm k m n -> "Tensor.mm" <> param (disps [k, m, n])
-    A1BIAdd -> "+"
-    A1BISub -> "-"
-    A1BIMult -> "*"
-    A1BIDiv -> "//"
-    A1BIFloatDiv -> "/"
-    A1BIMod -> "mod"
-    A1BILeq -> "<="
-    A1BIEqual -> "=="
-    A1BIFloat -> "float"
-    A1BIPrintFloat -> "print_float"
-    A1BIPrintString -> "print_string"
-    A1BIListCons -> "::"
-    A1BIListAppend -> "List.append"
-    A1BIListIter -> "List.iter"
-    A1BIListLength -> "List.length"
-    A1BITupleFirst -> "fst"
-    A1BITupleSecond -> "snd"
-    A1BIRange -> "range"
-    A1BITensorF -> "Tensor.f"
-    A1BITensorBackward -> "Tensor.backward"
-    A1BITensorNoGrad -> "Tensor.no_grad"
-    A1BITensorFloatValue -> "Tensor.float_value"
-    A1BITensorMaxPool2d k l m n padding1 padding2 ksize1 ksize2 stride1 stride2 -> "Tensor.max_pool2d" <> param (disps [k, l, m, n, padding1, padding2, ksize1, ksize2, stride1, stride2])
-    A1BITensorSoftmax ns dim -> "Tensor.softmax" <> param (dispListLiteral ns <> "," <+> disp dim)
-    A1BILayerActivationRelu -> "Layer.Activation.relu"
-    A1BILayerActivationNone -> "Layer.Activation.none"
-    A1BILayerLinear ns input_dim output_dim -> "Layer.linear" <> param (dispListLiteral ns <> "," <+> disps [input_dim, output_dim])
-    A1BILayerForward shape1 shape2 -> "Layber.forward" <> param (dispListLiteral shape1 <> "," <+> dispListLiteral shape2)
-    A1BILayerConv2d l m n ksize stride padding input_dim output_dim -> "Layer.conv2d" <> param (disps [l, m, n, ksize, stride, padding, input_dim, output_dim])
-    A1BIVarStoreCreate -> "Var_store.create"
-    A1BIOptimizerAdam -> "Optimizer.adam"
-    A1BIOptimizerBackwardStep -> "Optimizer.backward_step"
-    A1BITorchVisionImagenetLoadImage ns filename -> "TorchVision.Imagenet.load_image" <> param (dispListLiteral ns <> "," <+> dispStringLiteral filename)
-    A1BITorchVisionImagenetClassesTop n -> "TorchVision.Imagenet.Classes.top" <> param (disp n)
-    A1BIDatasetHelperTrainBatch dp batchSize -> "Dataset_helper.train_batch" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
-    A1BIDatasetHelperBatchAccuracy dp n batchSize -> "Dataset_helper.batch_accuracy" <> param (dispDatasetParam0 dp <> "," <+> disp n <> "," <+> disp batchSize)
-    A1BIDatasetHelperBatchesPerEpoch dp batchSize -> "Dataset_helper.batches_per_epoch" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
-    A1BIDatasetHelperIter dp batchSize -> "Dataset_helper.iter" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
-    A1BIDatasetHelperMap dp batchSize -> "Dataset_helper.map" <> param (dispDatasetParam0 dp <> "," <+> disp batchSize)
-    A1BIDatasetHelperPrintSummary dp -> "Dataset_helper.batch_accuracy" <> param (dispDatasetParam0 dp)
-    A1BIModuleLoad ns filename -> "Module.load" <> param (dispListLiteral ns <> "," <+> dispStringLiteral filename)
-    A1BIModuleForward ns -> "Module.forward" <> param (dispListLiteral ns)
-    A1BIMnistHelperTrainImages -> "Mnist_helper.train_images"
-    A1BIMnistHelperTrainLabels -> "Mnist_helper.train_labels"
-    A1BIMnistHelperTestImages -> "Mnist_helper.test_images"
-    A1BIMnistHelperTestLabels -> "Mnist_helper.test_labels"
-    A1BISerializeLoadMulti shape filename -> "Serialize.load_multi_" <> param (dispListLiteral shape <> "," <+> dispStringLiteral filename)
-    A1BuiltInOther s -> "OTHER '" <> disp s <> "'"
-    where
-      param doc = stagingOperatorStyle ("@{" <> doc <> "}")
+    PartialBuiltInAppArity8Nil pba8 -> disp pba8
 
 instance (Disp sv) => Disp (Ass1ValF sv) where
   dispGen req = \case
@@ -1137,6 +998,8 @@ instance (Disp sv) => Disp (BugF sv) where
       "Not a matrix:" <+> disp a0v
     NotABoolean a0v ->
       "Not a Boolean:" <+> disp a0v
+    NotAFloat a0v ->
+      "Not a float:" <+> disp a0v
     NotAUnit a0v ->
       "Not a unit:" <+> disp a0v
     NotAString a0v ->

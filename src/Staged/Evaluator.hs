@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Staged.Evaluator
   ( evalExpr0,
     evalExpr1,
@@ -13,20 +15,19 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Function ((&))
 import Data.Functor.Identity
-import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Staged.BuiltIn.CompileTime (deriveDeltaReduction)
 import Staged.BuiltIn.Core
+import Staged.BuiltIn.Definitions (definitions)
 import Staged.Core
 import Staged.EvalError
 import Staged.Syntax
 import Util.LocationInFile (SourceSpec, getSpanInFile)
 import Util.Matrix (Matrix)
-import Util.Matrix qualified as Matrix
 import Util.Vector (Vector)
-import Util.Vector qualified as Vector
 import Prelude
 
 data EvalState = EvalState
@@ -87,6 +88,11 @@ validateBoolLiteral = \case
   A0ValLiteral (ALitBool b) -> pure b
   a0v -> bug $ NotABoolean a0v
 
+validateFloatLiteral :: Ass0Val -> M Double
+validateFloatLiteral = \case
+  A0ValLiteral (ALitFloat r) -> pure r
+  a0v -> bug $ NotAFloat a0v
+
 validateUnitLiteral :: Ass0Val -> M ()
 validateUnitLiteral = \case
   A0ValLiteral ALitUnit -> pure ()
@@ -119,13 +125,8 @@ validateIntPairLiteral a0v = do
   n2 <- validateIntLiteral a0v2
   pure (n1, n2)
 
-validateDatasetParam :: Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M (DatasetParam [] Int)
-validateDatasetParam a0v1 a0v2 a0v3 a0v4 = do
-  numTrain <- validateIntLiteral a0v1
-  numTest <- validateIntLiteral a0v2
-  image <- validateIntListLiteral a0v3
-  label <- validateIntListLiteral a0v4
-  pure DatasetParam {numTrain, numTest, image, label}
+discardValue :: Ass0Val -> M ()
+discardValue = const $ pure ()
 
 validateVec0 :: Ass0Val -> M Vector
 validateVec0 = \case
@@ -154,294 +155,19 @@ broadcast ns1' ns2' = reverse <$> go (reverse ns1', reverse ns2')
       (n1 : ns1, n2 : ns2) | n1 == n2 -> (n1 :) <$> broadcast ns1 ns2
       _ -> Nothing
 
-reduceDeltaArity1 :: BuiltInArity1 -> Ass0Val -> M Ass0Val
-reduceDeltaArity1 bi1 a0v1 =
-  case bi1 of
-    BIGenVadd -> do
-      n1 <- validateIntLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BIVadd n1))
-    BIMtranspose m n -> do
-      mat1 <- validateMat0 a0v1
-      case Matrix.transpose m n mat1 of
-        Just mat -> pure $ A0ValLiteral (ALitMat mat)
-        Nothing -> bug $ InconsistentAppBuiltInArity1 bi1 a0v1
-    BIDeviceGenCudaIfAvailable -> do
-      () <- validateUnitLiteral a0v1
-      pure $ A0ValBracket (A1ValLiteral ALitUnit) -- TODO: return a value of type `Device`
-    BITensorGenZeros -> do
-      ns1 <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITensorZeros ns1))
-    BITensorGenGrad -> do
-      ns1 <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITensorGrad ns1))
-    BITensorGenZeroGrad -> do
-      ns1 <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITensorZeroGrad ns1))
-    BITensorGenSubUpdate -> do
-      ns1 <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITensorSubUpdate ns1))
-    BITensorGenCountEqual -> do
-      ns1 <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITensorCountEqual ns1))
-    BITensorGenDropout -> do
-      shape <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITensorDropout shape))
-    BIModuleGenForward -> do
-      shape <- validateIntListLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BIModuleForward shape))
-    BILiftString -> do
-      s <- validateStringLiteral a0v1
-      pure $ A0ValBracket (A1ValLiteral (ALitString s))
-    BITupleFirst -> do
-      (a0v11, _) <- validateTupleValue a0v1
-      pure a0v11
-    BITupleSecond -> do
-      (_, a0v12) <- validateTupleValue a0v1
-      pure a0v12
-    BIListLength -> do
-      a0vs1 <- validateListValue a0v1
-      pure $ A0ValLiteral (ALitInt (length a0vs1))
-    BITorchVisionImagenetClassesGenTop -> do
-      n <- validateIntLiteral a0v1
-      pure $ A0ValBracket (A1ValConst (A1BITorchVisionImagenetClassesTop n))
+arithmetic :: (Int -> Int -> Ass0Val) -> Ass0Val -> Ass0Val -> M Ass0Val
+arithmetic f a0v1 a0v2 = do
+  n1 <- validateIntLiteral a0v1
+  n2 <- validateIntLiteral a0v2
+  pure (f n1 n2)
 
-reduceDeltaArity2 :: BuiltInArity2 -> Ass0Val -> Ass0Val -> M Ass0Val
-reduceDeltaArity2 bi2 a0v1 a0v2 =
-  case bi2 of
-    BIAdd ->
-      arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 + n2)))
-    BISub ->
-      arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 - n2)))
-    BIMult ->
-      arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 * n2)))
-    BIDiv ->
-      arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 `div` n2)))
-    BIMod ->
-      arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 `mod` n2)))
-    BILeq ->
-      arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 <= n2)))
-    BIEqual ->
-      arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 == n2)))
-    BIAnd ->
-      logical (\b1 b2 -> A0ValLiteral (ALitBool (b1 && b2)))
-    BIListMap -> do
-      a0vsIn <- validateListValue a0v2
-      a0vsOut <- mapM (reduceBeta a0v1) a0vsIn
-      pure $ A0ValLiteral (ALitList a0vsOut)
-    BIGenVconcat ->
-      arithmetic (\n1 n2 -> A0ValBracket (A1ValConst (A1BIVconcat n1 n2)))
-    BIGenMtranspose ->
-      arithmetic (\n1 n2 -> A0ValBracket (A1ValConst (A1BIMtranspose n1 n2)))
-    BITensorGenAdd -> do
-      ns1 <- validateIntListLiteral a0v1
-      ns2 <- validateIntListLiteral a0v2
-      pure $ A0ValBracket (A1ValConst (A1BITensorAdd ns1 ns2))
-    BIVadd n -> do
-      v1 <- validateVec0 a0v1
-      v2 <- validateVec0 a0v2
-      case Vector.add n v1 v2 of
-        Just v -> pure $ A0ValLiteral (ALitVec v)
-        Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
-    BIVconcat m n -> do
-      v1 <- validateVec0 a0v1
-      v2 <- validateVec0 a0v2
-      case Vector.concat m n v1 v2 of
-        Just v -> pure $ A0ValLiteral (ALitVec v)
-        Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
-    BIMconcatVert m1 m2 n -> do
-      mat1 <- validateMat0 a0v1
-      mat2 <- validateMat0 a0v2
-      case Matrix.concatVert m1 m2 n mat1 mat2 of
-        Just mat -> pure $ A0ValLiteral (ALitMat mat)
-        Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
-    BIDropAt -> do
-      n1 <- validateIntLiteral a0v1
-      a0vs2 <- validateListValue a0v2
-      pure $ A0ValLiteral (ALitList (dropAt n1 a0vs2))
-    BIBroadcastable -> do
-      ns1 <- validateIntListLiteral a0v1
-      ns2 <- validateIntListLiteral a0v2
-      let b = isJust (broadcast ns1 ns2)
-      pure $ A0ValLiteral (ALitBool b)
-    BIBroadcast -> do
-      ns1 <- validateIntListLiteral a0v1
-      ns2 <- validateIntListLiteral a0v2
-      ns <-
-        case broadcast ns1 ns2 of
-          Just ns' -> pure ns'
-          Nothing -> bug $ BroadcastFailed ns1 ns2
-      pure $ A0ValLiteral (ALitList (map (A0ValLiteral . ALitInt) ns))
-    BIReshapeable -> do
-      ns1 <- validateIntListLiteral a0v1
-      ns2 <- validateIntListLiteral a0v2
-      let b = List.foldl' (*) 1 ns1 == List.foldl' (*) 1 ns2
-      pure $ A0ValLiteral (ALitBool b)
-    BIListCons -> do
-      a0vs2 <- validateListValue a0v2
-      pure $ A0ValLiteral (ALitList (a0v1 : a0vs2))
-    BIListAppend -> do
-      a0vs1 <- validateListValue a0v1
-      a0vs2 <- validateListValue a0v2
-      pure $ A0ValLiteral (ALitList (a0vs1 ++ a0vs2))
-    BIListIter -> do
-      a0vsIn <- validateListValue a0v2
-      forM_ a0vsIn (reduceBeta a0v1 >=> validateUnitLiteral)
-      pure $ A0ValLiteral ALitUnit
-    BITensorGenMult -> do
-      ns1 <- validateIntListLiteral a0v1
-      ns2 <- validateIntListLiteral a0v2
-      pure $ A0ValBracket (A1ValConst (A1BITensorMult ns1 ns2))
-    BITensorGenArgmax -> do
-      ns1 <- validateIntListLiteral a0v1
-      n2 <- validateIntLiteral a0v2
-      pure $ A0ValBracket (A1ValConst (A1BITensorArgmax ns1 n2))
-    BITensorGenCrossEntropyForLogits -> do
-      n1 <- validateIntLiteral a0v1
-      n2 <- validateIntLiteral a0v2
-      pure $ A0ValBracket (A1ValConst (A1BITensorCrossEntropyForLogits n1 n2))
-    BITensorAdd ns ->
-      case ns of
-        [n] -> do
-          v1 <- validateVec0 a0v1
-          v2 <- validateVec0 a0v2
-          case Vector.add n v1 v2 of
-            Just v -> pure $ A0ValLiteral (ALitVec v)
-            Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
-        [m, n] -> do
-          mat1 <- validateMat0 a0v1
-          mat2 <- validateMat0 a0v2
-          case Matrix.add m n mat1 mat2 of
-            Just mat -> pure $ A0ValLiteral (ALitMat mat)
-            Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
-        _ ->
-          error "TODO: evalExpr0, BITadd, dimension >= 3"
-    BITensorMm k m n -> do
-      mat1 <- validateMat0 a0v1
-      mat2 <- validateMat0 a0v2
-      case Matrix.mult k m n mat1 mat2 of
-        Just mat -> pure $ A0ValLiteral (ALitMat mat)
-        Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
-    BITensorGenReshape -> do
-      shape1 <- validateIntListLiteral a0v1
-      shape2 <- validateIntListLiteral a0v2
-      pure $ A0ValBracket (A1ValConst (A1BITensorReshape shape1 shape2))
-    BITensorGenSoftmax -> do
-      shape <- validateIntListLiteral a0v1
-      dim <- validateIntLiteral a0v2
-      pure $ A0ValBracket (A1ValConst (A1BITensorSoftmax shape dim))
-    BITorchVisionImagenetLoadImage -> do
-      shape <- validateIntListLiteral a0v1
-      filename <- validateStringLiteral a0v2
-      pure $ A0ValBracket (A1ValConst (A1BITorchVisionImagenetLoadImage shape filename))
-    BIModuleGenLoad -> do
-      shape <- validateIntListLiteral a0v1
-      filename <- validateStringLiteral a0v2
-      pure $ A0ValBracket (A1ValConst (A1BIModuleLoad shape filename))
-    BILayerGenForward -> do
-      shape1 <- validateIntListLiteral a0v1
-      shape2 <- validateIntListLiteral a0v2
-      pure $ A0ValBracket (A1ValConst (A1BILayerForward shape1 shape2))
-    BISerializeGenLoadMulti -> do
-      shape <- validateIntListLiteral a0v1
-      filename <- validateStringLiteral a0v2
-      pure $ A0ValBracket (A1ValConst (A1BISerializeLoadMulti shape filename))
-  where
-    arithmetic :: (Int -> Int -> Ass0Val) -> M Ass0Val
-    arithmetic f = do
-      n1 <- validateIntLiteral a0v1
-      n2 <- validateIntLiteral a0v2
-      pure (f n1 n2)
+logical :: (Bool -> Bool -> Ass0Val) -> Ass0Val -> Ass0Val -> M Ass0Val
+logical f a0v1 a0v2 = do
+  b1 <- validateBoolLiteral a0v1
+  b2 <- validateBoolLiteral a0v2
+  pure (f b1 b2)
 
-    logical :: (Bool -> Bool -> Ass0Val) -> M Ass0Val
-    logical f = do
-      b1 <- validateBoolLiteral a0v1
-      b2 <- validateBoolLiteral a0v2
-      pure (f b1 b2)
-
-reduceDeltaArity3 :: BuiltInArity3 -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
-reduceDeltaArity3 bi3 a0v1 a0v2 a0v3 =
-  case bi3 of
-    BIGenMconcatVert -> do
-      n1 <- validateIntLiteral a0v1
-      n2 <- validateIntLiteral a0v2
-      n3 <- validateIntLiteral a0v3
-      pure $ A0ValBracket (A1ValConst (A1BIMconcatVert n1 n2 n3))
-    BITensorGenMm -> do
-      n1 <- validateIntLiteral a0v1
-      n2 <- validateIntLiteral a0v2
-      n3 <- validateIntLiteral a0v3
-      pure $ A0ValBracket (A1ValConst (A1BITensorMm n1 n2 n3))
-    BILayerGenLinear -> do
-      ns <- validateIntListLiteral a0v1
-      input_dim <- validateIntLiteral a0v2
-      output_dim <- validateIntLiteral a0v3
-      pure $ A0ValBracket (A1ValConst (A1BILayerLinear ns input_dim output_dim))
-
-reduceDeltaArity4 :: BuiltInArity4 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
-reduceDeltaArity4 bi4 a0v1 a0v2 a0v3 a0v4 =
-  case bi4 of
-    BIDatasetHelperGenPrintSummary -> do
-      dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
-      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperPrintSummary dp))
-
-reduceDeltaArity5 :: BuiltInArity5 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
-reduceDeltaArity5 bi5 a0v1 a0v2 a0v3 a0v4 a0v5 =
-  case bi5 of
-    BIDatasetHelperGenTrainBatch -> do
-      dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
-      batchSize <- validateIntLiteral a0v5
-      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperTrainBatch dp batchSize))
-    BIDatasetHelperGenBatchesPerEpoch -> do
-      dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
-      batchSize <- validateIntLiteral a0v5
-      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperBatchesPerEpoch dp batchSize))
-
-reduceDeltaArity6 :: BuiltInArity6 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
-reduceDeltaArity6 bi6 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 =
-  case bi6 of
-    BIDatasetHelperGenIter -> do
-      dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
-      batchSize <- validateIntLiteral a0v5
-      let _f = a0v6
-      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperIter dp batchSize))
-    BIDatasetHelperGenMap -> do
-      dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
-      batchSize <- validateIntLiteral a0v5
-      let _f = a0v6
-      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperMap dp batchSize))
-
-reduceDeltaArity7 :: BuiltInArity7 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
-reduceDeltaArity7 bi7 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 =
-  case bi7 of
-    BIDatasetHelperGenBatchAccuracy -> do
-      dp <- validateDatasetParam a0v1 a0v2 a0v3 a0v4
-      n <- validateIntLiteral a0v5
-      batchSize <- validateIntLiteral a0v6
-      let _f = a0v7
-      pure $ A0ValBracket (A1ValConst (A1BIDatasetHelperBatchAccuracy dp n batchSize))
-    BITensorGenMaxPool2d -> do
-      k <- validateIntLiteral a0v1
-      l <- validateIntLiteral a0v2
-      m <- validateIntLiteral a0v3
-      n <- validateIntLiteral a0v4
-      (padding1, padding2) <- validateIntPairLiteral a0v5
-      (ksize1, ksize2) <- validateIntPairLiteral a0v6
-      (stride1, stride2) <- validateIntPairLiteral a0v7
-      pure $ A0ValBracket (A1ValConst (A1BITensorMaxPool2d k l m n padding1 padding2 ksize1 ksize2 stride1 stride2))
-
-reduceDeltaArity8 :: BuiltInArity8 -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> Ass0Val -> M Ass0Val
-reduceDeltaArity8 bi8 a0v1 a0v2 a0v3 a0v4 a0v5 a0v6 a0v7 a0v8 =
-  case bi8 of
-    BILayerGenConv2d -> do
-      l <- validateIntLiteral a0v1
-      m <- validateIntLiteral a0v2
-      n <- validateIntLiteral a0v3
-      ksize <- validateIntLiteral a0v4
-      stride <- validateIntLiteral a0v5
-      padding <- validateIntLiteral a0v6
-      input_dim <- validateIntLiteral a0v7
-      output_dim <- validateIntLiteral a0v8
-      pure $ A0ValBracket (A1ValConst (A1BILayerConv2d l m n ksize stride padding input_dim output_dim))
+$(deriveDeltaReduction definitions)
 
 reduceDelta :: Ass0PartialBuiltInApp Ass0Val -> Ass0Val -> M Ass0Val
 reduceDelta pba a0vArg =
@@ -514,12 +240,12 @@ reduceBeta a0vFun a0vArg =
     _ ->
       bug $ NotAClosure a0vFun
 
--- TODO: fix this
+-- TODO (enhance): fix this to handle polymorphism properly
 reduceTypeBeta0 :: Ass0Val -> Ass0TypeVal -> M Ass0Val
 reduceTypeBeta0 a0vTypeFun _a0tyvArg =
   pure a0vTypeFun
 
--- TODO: fix this
+-- TODO (enhance): fix this to handle polymorphism properly
 reduceTypeBeta1 :: Ass1Val -> Ass1TypeVal -> M Ass1Val
 reduceTypeBeta1 a1vTypeFun _a1tyvArg =
   pure a1vTypeFun

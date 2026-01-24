@@ -78,7 +78,7 @@ mat :: P (Located [[Int]])
 mat = genMat TokMatLeft TokMatRight TokSemicolon TokComma (noLoc int)
 
 operator :: P (Located Var)
-operator = compOp <|> addOp <|> multOp <|> consOp
+operator = andOp <|> compOp <|> addOp <|> multOp <|> consOp
 
 consOp :: P (Located Var)
 consOp = fmap (const "::") <$> expectToken (^? #_TokColonColon)
@@ -93,6 +93,9 @@ addOp = expectToken (^? #_TokOpAdd)
 
 compOp :: P (Located Var)
 compOp = expectToken (^? #_TokOpComp)
+
+andOp :: P (Located Var)
+andOp = expectToken (^? #_TokOpAnd)
 
 makeBinOpApp :: Expr -> Located Var -> Expr -> Expr
 makeBinOpApp e1@(Expr loc1 _) (Located locBinOp binOp) e2@(Expr loc2 _) =
@@ -185,8 +188,11 @@ exprAtom, expr :: P Expr
     comp :: P Expr
     comp = binSep makeBinOpApp compOp add
 
+    ands :: P Expr
+    ands = binSep makeBinOpApp andOp comp
+
     flipApp :: P Expr
-    flipApp = makeFlipApp <$> comp <*> many (token TokOpFlipApp *> comp)
+    flipApp = makeFlipApp <$> ands <*> many (token TokOpFlipApp *> ands)
       where
         makeFlipApp =
           List.foldl'
@@ -226,7 +232,7 @@ exprAtom, expr :: P Expr
     letin :: P Expr
     letin =
       (makeLet <$> token TokLet <*> letInMain)
-        <|> try (makeSequential <$> (comp <* token TokSemicolon) <*> letin)
+        <|> try (makeSequential <$> (ands <* token TokSemicolon) <*> letin)
         <|> lam
       where
         makeLet locFirst (eMain, locLast) =

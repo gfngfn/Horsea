@@ -60,7 +60,9 @@ library
     -- Modules exported by the library.
     exposed-modules:
       Staged.BuiltIn,
+      Staged.BuiltIn.CompileTime,
       Staged.BuiltIn.Core,
+      Staged.BuiltIn.Definitions,
       Staged.Core,
       Staged.Entrypoint,
       Staged.EvalError,
@@ -92,6 +94,7 @@ library
       Util.Matrix,
       Util.Maybe1,
       Util.ParserUtil,
+      Util.String,
       Util.TokenUtil,
       Util.Vector
 
@@ -115,7 +118,8 @@ library
         prettyprinter-ansi-terminal ^>= 1.1.3,
         safe,
         text ^>= 2.1,
-        transformers ^>= 0.5.6.2
+        transformers ^>= 0.5.6.2,
+        template-haskell
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -126,11 +130,13 @@ library
         DataKinds
         DerivingStrategies
         DerivingVia
+        DuplicateRecordFields
         FlexibleInstances
         FunctionalDependencies
         KindSignatures
         LambdaCase
         MultiParamTypeClasses
+        NoFieldSelectors
         NoImplicitPrelude
         OverloadedLabels
         OverloadedRecordDot
@@ -176,6 +182,7 @@ test-suite horsea-test
     other-modules:
         SyntaxUtil,
         MatrixSpec,
+        TokenSpec,
         ParserSpec,
         ConstraintSpec,
         SubstSpec

@@ -181,6 +181,9 @@ spec = do
     it "parses binary operators (8)" $
       parseExpr "2 <= f 3"
         `shouldBe` pure (app (app (var "<=") (litInt 2)) (app (var "f") (litInt 3)))
+    it "parses binary operators (9)" $
+      parseExpr "x == 1 && b"
+        `shouldBe` pure (app (app (var "&&") (app (app (var "==") (var "x")) (litInt 1))) (var "b"))
     it "parses upcasts" $
       parseExpr "[| |] as Vec %n"
         `shouldBe` pure (upcast (litVec []) (tyPersVec (var "n")))
