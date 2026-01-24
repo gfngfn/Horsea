@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+
 module Staged.BuiltIn.CompileTime
   ( BuiltInSpec (..),
     Common (..),
@@ -172,8 +173,8 @@ deriveDeltaReductionPerArity allBiSpecs arity = do
     -- The body of the function `reduceDeltaArity{n}`.
     makeBody :: TH.Q TH.Exp
     makeBody = do
-      TH.CaseE (TH.VarE biName) <$>
-        ((mapMaybe makeGenBranch allGenPairs ++) <$> mapMaybeM makeVersatileBranch allVersPairs)
+      TH.CaseE (TH.VarE biName)
+        <$> ((mapMaybe makeGenBranch allGenPairs ++) <$> mapMaybeM makeVersatileBranch allVersPairs)
 
     -- Constructs a branch for handling one *Gen-based* built-in function.
     -- Returns `Nothing` for those of unwanted arities.

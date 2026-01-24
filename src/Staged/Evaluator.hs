@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+
 module Staged.Evaluator
   ( evalExpr0,
     evalExpr1,

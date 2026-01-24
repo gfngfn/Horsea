@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+
 module Staged.BuiltIn.Core
   ( BuiltIn (..),
     BuiltInArity1 (..),

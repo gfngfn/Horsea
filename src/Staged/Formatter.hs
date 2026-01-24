@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+
 module Staged.Formatter
   ( Disp (..),
     render,
