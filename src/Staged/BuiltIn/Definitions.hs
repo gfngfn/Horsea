@@ -28,10 +28,14 @@ gen modules name params =
     constructorDisplay1 = intercalate "." $ map snakeToCamel modules ++ [name]
     name0 = intercalate "__" $ modules ++ ["gen_" ++ name]
 
-data Availability = ForStage0 | ForStage1 | ForBothStages | ForInternal
+data Availability
+  = ForStage0
+  | ForStage1
+  | ForBothStages
+  | ForInternal [ParamSpec]
 
-versatile :: [String] -> String -> Availability -> [ParamSpec] -> Int -> TH.Q TH.Exp -> BuiltInSpec
-versatile modules name availability fixedParams arity bodyQ =
+versatile :: [String] -> String -> Availability -> Int -> TH.Q TH.Exp -> BuiltInSpec
+versatile modules name availability arity bodyQ =
   BuiltInSpec
     { common = Common {constructor0, constructorDisplay0},
       main = Versatile versSpec
@@ -43,14 +47,18 @@ versatile modules name availability fixedParams arity bodyQ =
     constructorDisplay0 = intercalate "." $ map uppercase (modules ++ [name])
     name0 =
       case availability of
-        ForInternal -> Nothing
+        ForInternal _ -> Nothing
         ForStage1 -> Nothing
         _ -> Just $ intercalate "__" $ modules ++ [name]
     nameAndConstructor1 =
       case availability of
-        ForInternal -> Nothing
+        ForInternal _ -> Nothing
         ForStage0 -> Nothing
         _ -> Just (intercalate "__" (modules ++ [name]), "A1BI" ++ constructorSuffix)
+    fixedParams =
+      case availability of
+        ForInternal ps -> ps
+        _ -> []
 
 definitions :: [BuiltInSpec]
 definitions =
@@ -66,7 +74,6 @@ definitions =
       []
       "fst"
       ForBothStages
-      []
       1
       [|
         do
@@ -77,7 +84,6 @@ definitions =
       []
       "snd"
       ForBothStages
-      []
       1
       [|
         do
@@ -88,7 +94,6 @@ definitions =
       ["device"]
       "gen_cuda_if_available"
       ForStage0
-      []
       1
       [|
         do
@@ -98,8 +103,7 @@ definitions =
     versatile
       []
       "mtranspose"
-      ForInternal
-      [ParamInt, ParamInt]
+      (ForInternal [ParamInt, ParamInt])
       1
       [|
         do
@@ -113,63 +117,54 @@ definitions =
       []
       "int_add"
       ForBothStages
-      []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 + n2))) a0v1 a0v2|],
     versatile
       []
       "int_sub"
       ForBothStages
-      []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 - n2))) a0v1 a0v2|],
     versatile
       []
       "int_mult"
       ForBothStages
-      []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 * n2))) a0v1 a0v2|],
     versatile
       []
       "int_div"
       ForBothStages
-      []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 `div` n2))) a0v1 a0v2|],
     versatile
       []
       "int_mod"
       ForBothStages
-      []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 `mod` n2))) a0v1 a0v2|],
     versatile
       []
       "int_leq"
       ForBothStages
-      []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 <= n2))) a0v1 a0v2|],
     versatile
       []
       "int_equal"
       ForBothStages
-      []
       2
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 == n2))) a0v1 a0v2|],
     versatile
       []
       "and"
       ForBothStages
-      []
       2
       [|logical (\b1 b2 -> A0ValLiteral (ALitBool (b1 && b2))) a0v1 a0v2|],
     versatile
       []
       "float"
       ForBothStages
-      []
       1
       [|
         do
@@ -180,7 +175,6 @@ definitions =
       []
       "float_div"
       ForBothStages
-      []
       2
       [|
         do
@@ -192,7 +186,6 @@ definitions =
       []
       "print_string"
       ForBothStages
-      []
       1
       [|
         do
@@ -204,7 +197,6 @@ definitions =
       []
       "print_float"
       ForBothStages
-      []
       1
       [|
         do
@@ -216,7 +208,6 @@ definitions =
       []
       "range"
       ForBothStages
-      []
       2
       [|
         do
@@ -228,7 +219,6 @@ definitions =
       ["tensor"]
       "f"
       ForStage1
-      []
       1
       [|
         do
@@ -239,7 +229,6 @@ definitions =
       ["tensor"]
       "float_value"
       ForStage1
-      []
       1
       [|
         do
@@ -249,7 +238,6 @@ definitions =
       ["tensor"]
       "backward"
       ForStage1
-      []
       1
       [|
         do
@@ -260,7 +248,6 @@ definitions =
       ["tensor"]
       "no_grad"
       ForStage1
-      []
       1
       [|
         do
@@ -271,14 +258,12 @@ definitions =
       ["layer", "activation"]
       "relu"
       ForStage1
-      []
       0
       [|error "TODO: Layer.Activation.relu"|],
     versatile
       ["var_store"]
       "create"
       ForStage1
-      []
       4
       [|
         do
@@ -292,7 +277,6 @@ definitions =
       ["optimizer"]
       "adam"
       ForStage1
-      []
       2
       [|
         do
@@ -304,7 +288,6 @@ definitions =
       ["optimizer"]
       "backward_step"
       ForStage1
-      []
       2
       [|
         do
@@ -316,42 +299,36 @@ definitions =
       ["layer", "activation"]
       "none"
       ForStage1
-      []
       0
       [|error "TODO: Layer.Activation.none"|],
     versatile
       ["mnist_helper"]
       "train_images"
       ForStage1
-      []
       0
       [|error "TODO: MnistHelper.train_images"|],
     versatile
       ["mnist_helper"]
       "train_labels"
       ForStage1
-      []
       0
       [|error "TODO: MnistHelper.train_labels"|],
     versatile
       ["mnist_helper"]
       "test_images"
       ForStage1
-      []
       0
       [|error "TODO: MnistHelper.test_images"|],
     versatile
       ["mnist_helper"]
       "test_labels"
       ForStage1
-      []
       0
       [|error "TODO: MnistHelper.test_labels"|],
     versatile
       ["list"]
       "map"
       ForBothStages
-      []
       2
       [|
         do
@@ -365,8 +342,7 @@ definitions =
     versatile
       []
       "vadd"
-      ForInternal
-      [ParamInt]
+      (ForInternal [ParamInt])
       2
       [|
         do
@@ -379,8 +355,7 @@ definitions =
     versatile
       []
       "vconcat"
-      ForInternal
-      [ParamInt, ParamInt]
+      (ForInternal [ParamInt, ParamInt])
       2
       [|
         do
@@ -393,8 +368,7 @@ definitions =
     versatile
       []
       "mconcat_vert"
-      ForInternal
-      [ParamInt, ParamInt, ParamInt]
+      (ForInternal [ParamInt, ParamInt, ParamInt])
       2
       [|
         do
@@ -408,7 +382,6 @@ definitions =
       []
       "drop_at"
       ForStage0
-      []
       2
       [|
         do
@@ -420,7 +393,6 @@ definitions =
       []
       "broadcastable"
       ForStage0
-      []
       2
       [|
         do
@@ -433,7 +405,6 @@ definitions =
       []
       "broadcast"
       ForStage0
-      []
       2
       [|
         do
@@ -449,7 +420,6 @@ definitions =
       []
       "reshapeable"
       ForStage0
-      []
       2
       [|
         do
@@ -462,7 +432,6 @@ definitions =
       ["list"]
       "cons"
       ForBothStages
-      []
       2
       [|
         do
@@ -473,7 +442,6 @@ definitions =
       ["list"]
       "append"
       ForBothStages
-      []
       2
       [|
         do
@@ -485,7 +453,6 @@ definitions =
       ["list"]
       "iter"
       ForBothStages
-      []
       2
       [|
         do
@@ -499,8 +466,7 @@ definitions =
     versatile
       ["tensor"]
       "add"
-      ForInternal
-      [ParamIntList]
+      (ForInternal [ParamIntList])
       2
       [|
         case p1 of
@@ -522,8 +488,7 @@ definitions =
     versatile
       ["tensor"]
       "mm"
-      ForInternal
-      [ParamInt, ParamInt, ParamInt]
+      (ForInternal [ParamInt, ParamInt, ParamInt])
       2
       [|
         do
