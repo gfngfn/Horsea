@@ -172,38 +172,3 @@ unliftBuiltInName = \case
   where
     arity1 = BuiltInArity1
     arity2 = BuiltInArity2
-
-{-
-validateExternalName1 :: Text -> Maybe Ass1BuiltIn
-validateExternalName1 = \case
-  "int_add" -> pure A1BIAdd
-  "int_sub" -> pure A1BISub
-  "int_mult" -> pure A1BIMult
-  "int_div" -> pure A1BIDiv
-  "float_div" -> pure A1BIFloatDiv
-  "int_mod" -> pure A1BIMod
-  "int_leq" -> pure A1BILeq
-  "int_equal" -> pure A1BIEqual
-  "float" -> pure A1BIFloat
-  "print_float" -> pure A1BIPrintFloat
-  "print_string" -> pure A1BIPrintString
-  "range" -> pure A1BIRange
-  "list__append" -> pure A1BIListAppend
-  "list__iter" -> pure A1BIListIter
-  "tensor__f" -> pure A1BITensorF
-  "tensor__backward" -> pure A1BITensorBackward
-  "tensor__no_grad" -> pure A1BITensorNoGrad
-  "tensor__float_value" -> pure A1BITensorFloatValue
-  "layer__activation__relu" -> pure A1BILayerActivationRelu
-  "layer__activation__none" -> pure A1BILayerActivationNone
-  "var_store__create" -> pure A1BIVarStoreCreate
-  "optimizer__adam" -> pure A1BIOptimizerAdam
-  "optimizer__backward_step" -> pure A1BIOptimizerBackwardStep
-  "mnist_helper__train_images" -> pure A1BIMnistHelperTrainImages
-  "mnist_helper__train_labels" -> pure A1BIMnistHelperTrainLabels
-  "mnist_helper__test_images" -> pure A1BIMnistHelperTestImages
-  "mnist_helper__test_labels" -> pure A1BIMnistHelperTestLabels
-  s -> pure $ A1BuiltInOther s
-
--- _ -> Nothing
--}
