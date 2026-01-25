@@ -4,6 +4,8 @@ import Options.Applicative
 import Staged.Entrypoint qualified
 import Surface.Entrypoint qualified
 import System.Exit
+import Util.FailureReason (makeExitCode)
+import Prelude
 
 defaultDisplayWidth :: Int
 defaultDisplayWidth = 120
@@ -50,10 +52,10 @@ surfaceArgumentParser =
 main :: IO ()
 main = do
   arg <- execParser (info (argumentParser <**> helper) briefDesc)
-  wasSuccess <-
+  failureReasonOpt <-
     case arg of
       StagedArgument lwsdArg -> Staged.Entrypoint.handle lwsdArg
       SurfaceArgument surfaceArg -> Surface.Entrypoint.handle surfaceArg
-  if wasSuccess
-    then exitSuccess
-    else exitFailure
+  case failureReasonOpt of
+    Nothing -> exitSuccess
+    Just failureReason -> exitWith (ExitFailure (makeExitCode failureReason))
