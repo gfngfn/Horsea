@@ -1,8 +1,0 @@
-let rec aux (m : Nat) {n : Nat} (e : Vec n) : Vec (n * m) =
-  if m <= 0 then
-    [| |]
-  else
-    vconcat e (aux (m - 1) e)
-in
-let vrepeat (m : Nat) {n : Nat} (v : Vec n) = aux m v in
-vrepeat 5 [| 4; 6; 9 |]

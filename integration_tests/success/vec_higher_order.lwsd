@@ -1,8 +1,0 @@
-let concat_and_add {m : Nat} {n : Nat} (f : {p : Nat} -> &(Vec %p -> Vec %p -> Vec %p)) =
-  &(fun(u1 : Vec %m) -> fun(u2 : Vec %n) -> fun(v : Vec %(m + n)) ->
-    ~f (~gen_vconcat u1 u2) v
-  )
-in
-&(
-  ~(concat_and_add gen_vadd) [| 3 |] [| 1; 4 |] [| 1; 5; 9 |]
-)

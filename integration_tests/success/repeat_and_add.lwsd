@@ -1,5 +1,0 @@
-let repeat_and_add =
-  fun{n : Nat} -> &(fun(u : Vec %n) -> fun(v : Vec %(2 * n)) ->
-    ~gen_vadd (~gen_vconcat u u) v)
-in
-&(~repeat_and_add [| 10; 20; 30 |] [| 4; 5; 6; 7; 8; 9 |])

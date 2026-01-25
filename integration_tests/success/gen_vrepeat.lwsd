@@ -1,9 +1,0 @@
-let rec aux (m : Nat) {n : Nat} (e : &(Vec %n)) : &(Vec %(n * m)) =
-  if m <= 0 then
-    &[| |]
-  else
-    &(~gen_vconcat ~e ~(aux (m - 1) e))
-in
-let gen_vrepeat (m : Nat) {n : Nat} = &(fun(v : Vec %n) -> ~(aux m &v))
-in
-&(~(gen_vrepeat 5) [| 4; 6; 9 |])
