@@ -31,6 +31,8 @@ val %fst : forall 'a -> forall 'b -> 'a * 'b -> 'a
 val %snd : forall 'a -> forall 'b -> 'a * 'b -> 'b
   external (builtin = "snd", surface = "snd")
 
+val ~lift_int : Int -> &Int
+  external (builtin = "lift_int", surface = "lift_int")
 val ~lift_string : String -> &String
   external (builtin = "lift_string", surface = "lift_string")
 
@@ -298,13 +300,13 @@ end
 module MnistHelper = struct
   val ~image_dim = (28 * 28) as Nat
   val ~label_count = 10
+  val ~num_test_images = 10000 as Nat
   val dataset : Dataset %60000 %10000 %[image_dim] %[]
     external (builtin = "mnist_helper__dataset", surface = "dataset")
   val train_images : Tensor %[60000, image_dim]
     external (builtin = "mnist_helper__train_images", surface = "train_images")
   val train_labels : Tensor %[60000]
     external (builtin = "mnist_helper__train_labels", surface = "train_labels")
-  val num_test_images = 10000
   val test_images : Tensor %[10000, image_dim]
     external (builtin = "mnist_helper__test_images", surface = "test_images")
   val test_labels : Tensor %[10000]

@@ -130,6 +130,12 @@ definitions =
           (_, a0v12) <- validateTupleValue a0v1
           pure a0v12
         |],
+    versatile [] "lift_int" ForStage0 1 $
+      [|
+        do
+          n <- validateIntLiteral a0v1
+          pure $ A0ValBracket (A1ValLiteral (ALitInt n))
+        |],
     versatile [] "lift_string" ForStage0 1 $
       [|
         do

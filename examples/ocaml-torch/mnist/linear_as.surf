@@ -23,7 +23,7 @@ List.iter (fun(i : Int) ->
   let estimated = Tensor.argmax 1 got in
   let test_accuracy =
     let sum = Tensor.count_equal estimated MnistHelper.test_labels in
-    float sum / float MnistHelper.num_test_images
+    float sum / float (lift_int MnistHelper.num_test_images)
   in
   print_float test_accuracy
 ) (range 1 200)
