@@ -7,7 +7,6 @@ where
 import Control.Monad.Trans.Reader
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
-import Data.Text.IO qualified as TextIO
 import Staged.Entrypoint qualified
 import Staged.Formatter (Disp)
 import Staged.Formatter qualified as Formatter
@@ -18,6 +17,8 @@ import Staged.Typechecker (TypecheckState (..))
 import Surface.BindingTime qualified as BindingTime
 import Surface.BindingTime.Core
 import Surface.Parser qualified as Parser
+import Util.FailureReason (FailureReason (..))
+import Util.IO (readFileEither)
 import Util.LocationInFile (SourceSpec (SourceSpec))
 import Util.LocationInFile qualified as LocationInFile
 import Prelude
@@ -84,7 +85,7 @@ makeBindingTimeEnvFromStub =
     )
     Map.empty
 
-handle :: Argument -> IO Bool
+handle :: Argument -> IO (Maybe FailureReason)
 handle Argument {inputFilePath, stubFilePath, optimize, distributeIf, displayWidth, compileTimeOnly, fallBackToBindingTime0} = do
   putStrLn "Lightweight Dependent Types via Staging (Surface Language)"
   let lwArg =
@@ -96,52 +97,62 @@ handle Argument {inputFilePath, stubFilePath, optimize, distributeIf, displayWid
             Staged.Entrypoint.displayWidth = displayWidth,
             Staged.Entrypoint.compileTimeOnly = compileTimeOnly
           }
-  stub <- TextIO.readFile stubFilePath
-  let sourceSpecOfStub =
-        SourceSpec
-          { LocationInFile.source = stub,
-            LocationInFile.inputFilePath = stubFilePath
-          }
-  case StagedParser.parseBinds sourceSpecOfStub stub of
+  stub_ <- readFileEither stubFilePath
+  case stub_ of
     Left err -> do
-      putSectionLine "parse error of stub:"
-      putRenderedLines err
-      failure
-    Right declsInStub -> do
-      (r, stateAfterTraversingStub@TypecheckState {assVarDisplay}) <-
-        runReaderT (Staged.Entrypoint.typecheckStub sourceSpecOfStub declsInStub) lwArg
-      case r of
-        Left tyErr -> do
-          putSectionLine "type error of stub:"
-          putRenderedLines (fmap (Staged.Entrypoint.showVar assVarDisplay) tyErr)
-          failure
-        Right (tyEnvStub, sigr, abinds) -> do
-          let initialBindingTimeEnv = makeBindingTimeEnvFromStub sigr
-          source <- TextIO.readFile inputFilePath
-          let sourceSpecOfInput =
-                SourceSpec
-                  { LocationInFile.source = source,
-                    LocationInFile.inputFilePath = inputFilePath
-                  }
-          case Parser.parseExpr sourceSpecOfInput source of
-            Left err -> do
-              putSectionLine "parse error:"
-              putRenderedLines err
-              failure
-            Right e -> do
-              putSectionLine "parsed expression:"
-              putRenderedLines e
-              case BindingTime.analyze sourceSpecOfInput fallBackToBindingTime0 initialBindingTimeEnv e of
-                Left analyErr -> do
-                  putSectionLine "binding-time analysis error:"
-                  putRenderedLines analyErr
-                  failure
-                Right (bce, lwe) -> do
-                  putSectionLine "result of binding-time analysis:"
-                  putRenderedLines bce
-                  putSectionLine "result of staging:"
-                  putRenderedLinesAtStage0 lwe
-                  runReaderT (Staged.Entrypoint.typecheckAndEvalInput stateAfterTraversingStub sourceSpecOfInput tyEnvStub abinds lwe) lwArg
+      putStrLn $ "IO error: " ++ err
+      failure ExitByIOError
+    Right stub -> do
+      let sourceSpecOfStub =
+            SourceSpec
+              { LocationInFile.source = stub,
+                LocationInFile.inputFilePath = stubFilePath
+              }
+      case StagedParser.parseBinds sourceSpecOfStub stub of
+        Left err -> do
+          putSectionLine "parse error of stub:"
+          putRenderedLines err
+          failure ExitByParseError
+        Right declsInStub -> do
+          (r, stateAfterTraversingStub@TypecheckState {assVarDisplay}) <-
+            runReaderT (Staged.Entrypoint.typecheckStub sourceSpecOfStub declsInStub) lwArg
+          case r of
+            Left tyErr -> do
+              putSectionLine "type error of stub:"
+              putRenderedLines (fmap (Staged.Entrypoint.showVar assVarDisplay) tyErr)
+              failure ExitByTypeError
+            Right (tyEnvStub, sigr, abinds) -> do
+              let initialBindingTimeEnv = makeBindingTimeEnvFromStub sigr
+              source_ <- readFileEither inputFilePath
+              case source_ of
+                Left err -> do
+                  putStrLn $ "IO error: " ++ err
+                  failure ExitByIOError
+                Right source -> do
+                  let sourceSpecOfInput =
+                        SourceSpec
+                          { LocationInFile.source = source,
+                            LocationInFile.inputFilePath = inputFilePath
+                          }
+                  case Parser.parseExpr sourceSpecOfInput source of
+                    Left err -> do
+                      putSectionLine "parse error:"
+                      putRenderedLines err
+                      failure ExitByParseError
+                    Right e -> do
+                      putSectionLine "parsed expression:"
+                      putRenderedLines e
+                      case BindingTime.analyze sourceSpecOfInput fallBackToBindingTime0 initialBindingTimeEnv e of
+                        Left analyErr -> do
+                          putSectionLine "binding-time analysis error:"
+                          putRenderedLines analyErr
+                          failure ExitByAnalysisError
+                        Right (bce, lwe) -> do
+                          putSectionLine "result of binding-time analysis:"
+                          putRenderedLines bce
+                          putSectionLine "result of staging:"
+                          putRenderedLinesAtStage0 lwe
+                          runReaderT (Staged.Entrypoint.typecheckAndEvalInput stateAfterTraversingStub sourceSpecOfInput tyEnvStub abinds lwe) lwArg
   where
     putSectionLine :: String -> IO ()
     putSectionLine s = putStrLn ("-------- " ++ s ++ " --------")
@@ -152,4 +163,4 @@ handle Argument {inputFilePath, stubFilePath, optimize, distributeIf, displayWid
     putRenderedLinesAtStage0 :: (Disp a) => a -> IO ()
     putRenderedLinesAtStage0 = Formatter.putRenderedLinesAtStage0 displayWidth
 
-    failure = return False
+    failure = return . Just
