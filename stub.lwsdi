@@ -300,16 +300,17 @@ end
 module MnistHelper = struct
   val ~image_dim = (28 * 28) as Nat
   val ~label_count = 10
+  val ~num_train_images = 60000 as Nat
   val ~num_test_images = 10000 as Nat
-  val dataset : Dataset %60000 %10000 %[image_dim] %[]
+  val dataset : Dataset %num_train_images %num_test_images %[image_dim] %[]
     external (builtin = "mnist_helper__dataset", surface = "dataset")
-  val train_images : Tensor %[60000, image_dim]
+  val train_images : Tensor %[num_train_images, image_dim]
     external (builtin = "mnist_helper__train_images", surface = "train_images")
-  val train_labels : Tensor %[60000]
+  val train_labels : Tensor %[num_train_images]
     external (builtin = "mnist_helper__train_labels", surface = "train_labels")
-  val test_images : Tensor %[10000, image_dim]
+  val test_images : Tensor %[num_test_images, image_dim]
     external (builtin = "mnist_helper__test_images", surface = "test_images")
-  val test_labels : Tensor %[10000]
+  val test_labels : Tensor %[num_test_images]
     external (builtin = "mnist_helper__test_labels", surface = "test_labels")
 end
 
