@@ -24,6 +24,23 @@ TESTS_STAGED_COMPILE=(
     examples/ocaml-torch/mnist/linear.lwsd
     examples/ocaml-torch/mnist/linear_as.lwsd
 )
+TESTS_STAGED_FAILURE=(
+    examples/failure/error-bracket.lwsd
+    examples/failure/error-invalid-type-1.lwsd
+    examples/failure/error-not-code-typed.lwsd
+    examples/failure/error-scope-2.lwsd
+    examples/failure/error-dep-fun-at-stage-1.lwsd
+    examples/failure/error-list.lwsd
+    examples/failure/error-not-int-lit-arg.lwsd
+    examples/failure/error-scope.lwsd
+    examples/failure/error-escape.lwsd
+    examples/failure/error-nat.lwsd
+    examples/failure/error-not-int-typed-arg.lwsd
+    examples/failure/error-invalid-type-0.lwsd
+    examples/failure/error-normal-arg-at-stage-1.lwsd
+    examples/failure/error-persistent-arg-at-stage-0.lwsd
+    examples/failure/error-var-not-stage-0.lwsd
+)
 TESTS_SURFACE_RUN=(
     examples/gen_vrepeat.surf
     examples/gen_vrepeat_explicit.surf
@@ -42,6 +59,9 @@ TESTS_SURFACE_COMPILE=(
     examples/ocaml-torch/mnist/linear.surf
     examples/ocaml-torch/mnist/linear_as.surf
 )
+TESTS_SURFACE_FAILURE=(
+    examples/failure/error-stage.surf
+)
 
 ERRORS=()
 
@@ -59,10 +79,10 @@ for FILE in "${TESTS_STAGED_COMPILE[@]}"; do
         ERRORS+=("$FILE (should pass, compile-time only)")
     fi
 done
-for FILE in integration_tests/failure/*.lwsd; do
+for FILE in "${TESTS_STAGED_FAILURE[@]}"; do
     echo "======== $FILE (should be rejected) ========"
     cabal run horsea -- staged --optimize --distribute-if "$FILE"
-    if [ $? -eq 0 ]; then
+    if [ $? -le 1 ]; then
         ERRORS+=("$FILE (should be rejected)")
     fi
 done
@@ -81,10 +101,10 @@ for FILE in "${TESTS_SURFACE_COMPILE[@]}"; do
         ERRORS+=("$FILE (should pass, compile-time only)")
     fi
 done
-for FILE in integration_tests/failure/*.surf; do
+for FILE in "${TESTS_SURFACE_FAILURE[@]}"; do
     echo "======== $FILE (should be rejected) ========"
     cabal run horsea -- surface --optimize --distribute-if "$FILE"
-    if [ $? -eq 0 ]; then
+    if [ $? -le 1 ]; then
         ERRORS+=("$FILE (should be rejected)")
     fi
 done
