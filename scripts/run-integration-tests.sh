@@ -20,6 +20,10 @@ TESTS_STAGED_RUN=(
     examples/vec_higher_order.lwsd
     examples/vec_higher_order_explicit.lwsd
 )
+TESTS_STAGED_COMPILE=(
+    examples/ocaml-torch/mnist/linear.lwsd
+    examples/ocaml-torch/mnist/linear_as.lwsd
+)
 TESTS_SURFACE_RUN=(
     examples/gen_vrepeat.surf
     examples/gen_vrepeat_explicit.surf
@@ -33,6 +37,11 @@ TESTS_SURFACE_RUN=(
     examples/tensor_add.surf
     examples/tensor_add_mat.surf
 )
+TESTS_SURFACE_COMPILE=(
+    examples/ocaml-torch/mnist/conv.surf
+    examples/ocaml-torch/mnist/linear.surf
+    examples/ocaml-torch/mnist/linear_as.surf
+)
 
 ERRORS=()
 
@@ -43,7 +52,7 @@ for FILE in "${TESTS_STAGED_RUN[@]}"; do
         ERRORS+=("$FILE (should pass)")
     fi
 done
-for FILE in integration_tests/success_compile/*.lwsd; do
+for FILE in "${TESTS_STAGED_COMPILE[@]}"; do
     echo "======== $FILE (should pass, compile-time only) ========"
     cabal run horsea -- staged --optimize --distribute-if --compile-time-only "$FILE"
     if [ $? -ne 0 ]; then
@@ -65,7 +74,7 @@ for FILE in "${TEST_SURFACE_RUN[@]}"; do
         ERRORS+=("$FILE (should pass)")
     fi
 done
-for FILE in integration_tests/success_compile/*.surf; do
+for FILE in "${TESTS_SURFACE_COMPILE[@]}"; do
     echo "======== $FILE (should pass, compile-time only) ========"
     cabal run horsea -- surface --optimize --distribute-if --compile-time-only "$FILE"
     if [ $? -ne 0 ]; then
