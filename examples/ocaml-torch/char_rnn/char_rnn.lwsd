@@ -4,17 +4,15 @@
    It has been heavily inspired by https://github.com/karpathy/char-rnn
 *)
 
-let learning_rate = 0.01 in
 let hidden_size = 256 in
 let seq_len = 180 in
 let batch_size = 256 in
 let epochs = 100 in
-let sampling_length = 1024 in
 
 let gen_sample {labels : Nat} {input_size : Nat} {hidden_size : Nat} =
   &(fun #dataset (dataset : TextHelper %labels) ->
     fun #lstm (lstm : Lstm %input_size %hidden_size) ->
-    fun #linear (linear : Tensor %[1, hidden_size] -> Tensor %[624]) -> (* TODO *)
+    fun #linear (linear : Tensor %[1, hidden_size] -> Tensor %[624, 737]) -> (* TODO *)
     fun #device (device : Device) ->
       let (seq, dummy_state) =
         let zero_state = ~(Layer.Lstm.gen_zero_state #batch_size 1) lstm in
@@ -26,39 +24,48 @@ let gen_sample {labels : Nat} {input_size : Nat} {hidden_size : Nat} =
           else
             ( (* Gc.full_major (); *)
               let prev_y = ~(Tensor.gen_zeros [1, labels]) (* #device device *) in
-              Tensor.fill_float (Tensor.narrow prev_y #dim 1 #start prev_label #length 1) 1.0;
+              ~Tensor.gen_fill_float (~(Tensor.gen_narrow #dim 1 #length 1) #start prev_label prev_y) 1.0;
               let state = ~Layer.Lstm.gen_step lstm state prev_y in
               let (h, dummy) = state in
               let sampled_y =
                 ~Layer.gen_forward linear h
-                  |> Tensor.softmax #dim -1
-                  |> Tensor.multinomial #num_samples 1 #replacement false
+                  |> ~(Tensor.gen_softmax #dim -1)
+                  |> ~(Tensor.gen_multinomial {[624]} {737} #num_samples 1) #replacement false
               in
               let sampled_label =
-                Tensor.get (Tensor.get sampled_y 0) 0 |> Tensor.int_value
+                ~(Tensor.gen_get {1} {[] as List Nat})
+                  (~(Tensor.gen_get {624} {[1]}) sampled_y 0) 0
+                    |> Tensor.int_value
               in
               loop (sampled_label, seq) state (i - 1))
         in
-        loop (0, []) zero_state sampling_length
+        let sampling_length = 1024 in
+        loop (0, [] as List Int) zero_state sampling_length
       in
-      List.rev_map seq (fun (label : Int) -> TextHelper.char dataset #label label)
-        |> String.of_char_list
+      seq
+        |> List.rev_map (fun (label : Int) -> ~TextHelper.gen_char dataset #label label)
+        |> String.from_char_list
   )
 in
 
 let labels = 32 in (* TODO *)
 
-&(let device = Device.cuda_if_available () in
-  let dataset = TextHelper.create {labels} #filename "data/input.txt" in
-  let vs = VarStore.create #name "char-rnn" #device device () in
-  Stdio.printf
-    "Dataset loaded, length: %d, labels: %d"
-    (TextHelper.total_length dataset)
-    labels;
+&(let learning_rate = 0.01 in
+  let device = ~(Device.gen_cuda_if_available ()) in
+  let dataset = ~(TextHelper.gen_create {labels} #filename "data/input.txt") in
+  let vs = VarStore.create #frozen false #name "char-rnn" #device device () in
+  print_string "length:";
+  print_int (~TextHelper.gen_total_length dataset);
+  print_string "labels:";
+  print_int ~(lift_int labels);
   let lstm = ~(Layer.Lstm.gen_create #input_dim labels #hidden_size hidden_size) vs in
-  let linear = Layer.linear vs #input_dim hidden_size labels in
+  let linear =
+    ~(Layer.gen_linear {[1]} #input_dim hidden_size #output_dim labels) vs Layer.Activation.none
+  in
   let adam = Optimizer.adam vs #learning_rate learning_rate in
-  let batches_per_epoch = (TextHelper.total_length dataset - seq_len) / batch_size in
+  let batches_per_epoch =
+    (~TextHelper.gen_total_length dataset - ~(lift_int seq_len)) // ~(lift_int batch_size)
+  in
   Checkpointing.loop
     #start_index 1
     #end_index epochs
@@ -68,14 +75,14 @@ let labels = 32 in (* TODO *)
     (fun #index (epoch_idx : Int) ->
       Stdio.Out_channel.write_all
         (Printf.sprintf "out.txt.%d" epoch_idx)
-        #data (~gen_sample #lstm lstm #linear linear #dataset dataset #device device);
+        #data (~gen_sample #dataset dataset #lstm lstm #linear linear #device device);
       let start_time = Unix.gettimeofday () in
       let sum_loss = Tensor.f 0.0 in
       TextHelper.iter #device device dataset #batch_size batch_size #seq_len seq_len
         (fun (batch_idx : Int) -> fun #xs (xs : D) -> fun #ys (ys : E) ->
           Optimizer.zero_grad adam;
           let onehot =
-            let xs = Tensor.view xs #size [ batch_size; seq_len; 1 ] in
+            let xs = Tensor.view xs #size [batch_size, seq_len, 1] in
             let one = Tensor.ones (Tensor.size xs) #device device in
             Tensor.zeros [batch_size, seq_len, labels] #device device
             |> Tensor.scatter_ #dim 2 #src one #index xs

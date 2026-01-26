@@ -143,12 +143,18 @@ validateMat0 = \case
   A0ValLiteral (ALitMat mat) -> pure mat
   a0v -> bug $ NotAMatrix a0v
 
+-- The implementation of the built-in function `insert_at`.
+insertAt :: Int -> a -> [a] -> [a]
+insertAt n x vs | n <= 0 = x : vs
+insertAt _ x [] = [x]
+insertAt n x (v : vs) = v : insertAt (n - 1) x vs
+
 -- The implementation of the built-in function `drop_at`.
 dropAt :: Int -> [a] -> [a]
 dropAt _ [] = []
 dropAt n (v : vs) = if n <= 0 then vs else v : dropAt (n - 1) vs
 
--- The implementation of the built-in function `drop_at`.
+-- The implementation of the built-in function `broadcast`.
 broadcast :: [Int] -> [Int] -> Maybe [Int]
 broadcast ns1' ns2' = reverse <$> go (reverse ns1', reverse ns2')
   where

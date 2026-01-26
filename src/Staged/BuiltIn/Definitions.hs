@@ -142,6 +142,14 @@ definitions =
           s <- validateStringLiteral a0v1
           pure $ A0ValBracket (A1ValLiteral (ALitString s))
         |],
+    versatile [] "insert_at" ForStage0 3 $
+      [|
+        do
+          n <- validateIntLiteral a0v1
+          x <- validateIntLiteral a0v2
+          a0vs <- validateListValue a0v3
+          pure $ A0ValLiteral (ALitList (insertAt n (A0ValLiteral (ALitInt x)) a0vs))
+        |],
     versatile [] "drop_at" ForStage0 2 $
       [|
         do

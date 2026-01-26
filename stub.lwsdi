@@ -20,6 +20,8 @@ val %( :: ) : forall 'a -> 'a -> List 'a -> List 'a
   external (builtin = "cons", surface = "::")
 val %float : Int -> Float
   external (builtin = "float", surface = "float")
+val %print_int : Int -> Unit
+  external (builtin = "print_int", surface = "print_int")
 val %print_float : Float -> Unit
   external (builtin = "print_float", surface = "print_float")
 val %print_string : String -> Unit
@@ -36,6 +38,8 @@ val ~lift_int : Int -> &Int
 val ~lift_string : String -> &String
   external (builtin = "lift_string", surface = "lift_string")
 
+val ~insert_at : Nat -> Nat -> List Nat -> List Nat
+  external (builtin = "insert_at", surface = "insert_at")
 val ~drop_at : Nat -> List Nat -> List Nat
   external (builtin = "drop_at", surface = "drop_at")
 val ~broadcastable : List Nat -> List Nat -> Bool
@@ -58,9 +62,16 @@ val ~gen_mmult : {a : Nat} -> {b : Nat} -> {c : Nat} -> &(Mat %a %b -> Mat %b %c
 val ~gen_mconcat_vert : {a : Nat} -> {b : Nat} -> {c : Nat} -> &(Mat %a %c -> Mat %b %c -> Mat %(a + b) %c)
   external (builtin = "gen_mconcat_vert", surface = "mconcat_vert")
 
+module String = struct
+  val %from_char_list : List Char -> String
+    external (builtin = "string__from_char_list", surface = "from_char_list")
+end
+
 module List = struct
   val %map : forall 'a -> forall 'b -> ('a -> 'b) -> List 'a -> List 'b
     external (builtin = "list__map", surface = "map")
+  val %rev_map : forall 'a -> forall 'b -> ('a -> 'b) -> List 'a -> List 'b
+    external (builtin = "list__rev_map", surface = "rev_map")
   val %append : forall 'a -> List 'a -> List 'a -> List 'a
     external (builtin = "list__append", surface = "append")
   val %iter : forall 'a -> ('a -> Unit) -> List 'a -> Unit
@@ -105,6 +116,15 @@ module Tensor = struct
     {m : Nat} -> {n : Nat} ->
     &(Tensor %[m, n] -> Tensor %[m] -> Tensor %[])
     external (builtin = "tensor__gen_cross_entropy_for_logits", surface = "cross_entropy_for_logits")
+  val ~gen_multinomial :
+    {shape : List Nat} ->
+    {n : Nat} ->
+    #num_samples (num_samples : Nat) ->
+    &(#replacement Bool ->
+      Tensor %(List.append shape [n]) ->
+      Tensor %(List.append shape [num_samples])
+    )
+    external (builtin = "tensor__gen_multinomial", surface = "multinomial")
   val ~gen_count_equal : {shape : List Nat} -> &(Tensor %shape -> Tensor %shape -> Int)
     external (builtin = "tensor__gen_count_equal", surface = "count_equal")
   val f : Float -> Tensor %[]
@@ -115,6 +135,15 @@ module Tensor = struct
     external (builtin = "tensor__no_grad", surface = "no_grad")
   val float_value : Tensor %[] -> Float
     external (builtin = "tensor__float_value", surface = "float_value")
+  val int_value : Tensor %[] -> Int
+    external (builtin = "tensor__int_value", surface = "int_value")
+  val ~gen_get :
+    {n : Nat} ->
+    {shape : List Nat} ->
+    &(Tensor %(n :: shape) -> Int -> Tensor %shape)
+    external (builtin = "tensor__float_value", surface = "float_value")
+  val ~gen_fill_float : {shape : List Nat} -> &(Tensor %shape -> Float -> Unit)
+    external (builtin = "tensor__gen_fill_float", surface = "fill_float")
   val ~gen_dropout :
     {shape : List Nat} ->
     &(#p Float -> (* dropout prob *)
@@ -131,6 +160,12 @@ module Tensor = struct
       Tensor %shape2
     )
     external (builtin = "tensor__gen_reshape", surface = "reshape")
+  val ~gen_narrow :
+    {shape : List Nat} ->
+    #dim (dim : Nat) ->
+    #length (length : Nat) ->
+    &(#start Int -> Tensor %shape -> Tensor %(insert_at dim length (drop_at dim shape)))
+    external (builtin = "tensor__gen_narrow", surface = "narrow")
   val ~gen_max_pool2d :
     {k : Nat} ->
     {l : Nat} ->
