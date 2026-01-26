@@ -1,0 +1,100 @@
+(* This example uses the tinyshakespeare dataset which can be downloaded at:
+   https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt
+
+   It has been heavily inspired by https://github.com/karpathy/char-rnn
+*)
+
+let learning_rate = 0.01 in
+let hidden_size = 256 in
+let seq_len = 180 in
+let batch_size = 256 in
+let epochs = 100 in
+let sampling_length = 1024 in
+
+let sample #dataset (dataset : Dataset) #lstm (lstm : X) #linear (linear : Y) #device (derice : Device) =
+  let labels = TextHelper.labels dataset in
+  let (seq, dummy_state1) =
+    let zero_state = Layer.Lstm.zero_state lstm #batch_size 1 in
+    let rec loop (seq : List Int) (state : Z) (i : A) : B =
+      if i == 0 then
+        (seq, state)
+      else
+        ( (* Gc.full_major (); *)
+          let prev_label = List.hd_exn seq in
+          let prev_y = Tensor.zeros [1, labels] #device device in
+          Tensor.fill_float (Tensor.narrow prev_y #dim 1 #start prev_label #length 1) 1.0;
+          let state = Layer.Lstm.step lstm state prev_y in
+          let (h, dummy) = state in
+          let sampled_y =
+            Layer.forward linear h
+              |> Tensor.softmax #dim -1
+              |> Tensor.multinomial #num_samples 1 #replacement false
+          in
+          let sampled_label =
+            Tensor.get (Tensor.get sampled_y 0) 0 |> Tensor.int_value
+          in
+          loop (sampled_label :: seq) state (i - 1))
+    in
+    loop [0] zero_state sampling_length
+  in
+  List.rev_map seq (fun (label : C) -> TextHelper.char dataset #label label)
+    |> String.of_char_list
+in
+
+&(let device = Device.cuda_if_available () in
+  let dataset = TextHelper.create #filename "data/input.txt" in
+  let vs = Var_store.create #name "char-rnn" #device device () in
+  let labels = TextHelper.labels dataset in
+  Stdio.printf
+    "Dataset loaded, length: %d, labels: %d"
+    (TextHelper.total_length dataset)
+    labels;
+  let lstm = Layer.Lstm.create vs #input_dim labels #hidden_size hidden_size in
+  let linear = Layer.linear vs #input_dim hidden_size labels in
+  let adam = Optimizer.adam vs #learning_rate learning_rate in
+  let batches_per_epoch = (TextHelper.total_length dataset - seq_len) / batch_size in
+  Checkpointing.loop
+    #start_index 1
+    #end_index epochs
+    #var_stores [vs]
+    #checkpoint_base "char-rnn.ot"
+    #checkpoint_every (iters 1)
+    (fun #index (epoch_idx : Int) ->
+      Stdio.Out_channel.write_all
+        (Printf.sprintf "out.txt.%d" epoch_idx)
+        #data (sample #lstm lstm #linear linear #dataset dataset #device device);
+      let start_time = Unix.gettimeofday () in
+      let sum_loss = Tensor.f 0.0 in
+      TextHelper.iter #device device dataset #batch_size batch_size #seq_len seq_len
+        (fun (batch_idx : Int) -> fun #xs (xs : D) -> fun #ys (ys : E) ->
+          Optimizer.zero_grad adam;
+          let onehot =
+            let xs = Tensor.view xs #size [ batch_size; seq_len; 1 ] in
+            let one = Tensor.ones (Tensor.size xs) #device device in
+            Tensor.zeros [batch_size, seq_len, labels] #device device
+            |> Tensor.scatter_ #dim 2 #src one #index xs
+          in
+          let (lstm_out, dummy) = Layer.Lstm.seq lstm onehot #is_training true in
+          let logits = Layer.forward linear lstm_out in
+          (* Compute the cross-entropy loss. *)
+          let loss =
+            Tensor.cross_entropy_for_logits
+              (Tensor.view logits #size [batch_size * seq_len, labels])
+              #targets (Tensor.view ys #size [batch_size * seq_len])
+          in
+          (let open Tensor in sum_loss += loss);
+          Stdio.printf
+            "%d/%d %f"
+            batch_idx
+            batches_per_epoch
+            (Tensor.float_value sum_loss / float (1 + batch_idx));
+          Tensor.backward loss;
+          Optimizer.step #clip_grad (norm2 4.0) adam
+        );
+      Stdio.printf
+        "%d %.0fs %f"
+        epoch_idx
+        (Unix.gettimeofday () - start_time)
+        (Tensor.float_value sum_loss / float batches_per_epoch)
+    )
+)
