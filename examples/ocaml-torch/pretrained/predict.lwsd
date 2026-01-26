@@ -25,56 +25,54 @@ let weight_path = "path/to/weight" in
 let vars_shape = [314] in (* TODO *)
 
 let image_shape = [1, 3, image_height, image_width] in
+
 &(let image = ~(TorchVision.Imagenet.gen_load_image {image_shape} image_path) in
   let vs = VarStore.create #frozen false #name "rn" #device Device.cpu () in
-  ~(let gen_model {dim0 : Nat} {dim2 : Nat} {dim3 : Nat} =
-    (* : &(Tensor %[dim0, 3, dim2, dim3] -> #is_training Bool -> Tensor %[dim0, 1000]) *)
-      &(~(TorchVision.Vgg.gen_vgg11 {dim0} {dim2} {dim3} #num_classes 1000) vs)
+  let model = (* : Tensor %image_shape -> #is_training Bool -> Tensor %[1, 1000] *)
+    ~(TorchVision.Vgg.gen_vgg11 {1} {image_height} {image_width} #num_classes 1000) vs
 (* TODO: support case expressions *) (*
-      case basename weight_path of
-      | "vgg11.ot" -> Vgg.vgg11 vs #num_classes 1000
-      | "vgg13.ot" -> Vgg.vgg13 vs #num_classes 1000
-      | "vgg16.ot" -> Vgg.vgg16 vs #num_classes 1000
-      | "vgg19.ot" -> Vgg.vgg19 vs #num_classes 1000
-      | "squeezenet1_0.ot" -> Squeezenet.squeezenet1_0 vs #num_classes 1000
-      | "squeezenet1_1.ot" -> Squeezenet.squeezenet1_1 vs #num_classes 1000
-      | "densenet121.ot" -> Densenet.densenet121 vs #num_classes 1000
-      | "densenet161.ot" -> Densenet.densenet161 vs #num_classes 1000
-      | "densenet169.ot" -> Densenet.densenet169 vs #num_classes 1000
-      | "resnet34.ot" -> Resnet.resnet34 vs #num_classes 1000
-      | "resnet50.ot" -> Resnet.resnet50 vs #num_classes 1000
-      | "resnet101.ot" -> Resnet.resnet101 vs #num_classes 1000
-      | "resnet152.ot" -> Resnet.resnet152 vs #num_classes 1000
-      | "resnet18.ot" -> Resnet.resnet18 vs #num_classes 1000
-      | "mobilenet-v2.ot" -> Mobilenet.v2 vs #num_classes 1000
-      | "alexnet.ot" -> Alexnet.alexnet vs #num_classes 1000
-      | "inception-v3.ot" -> Inception.v3 vs #num_classes 1000
-      | "efficientnet-b0.ot" -> Efficientnet.b0 vs #num_classes 1000
-      | "efficientnet-b1.ot" -> Efficientnet.b1 vs #num_classes 1000
-      | "efficientnet-b2.ot" -> Efficientnet.b2 vs #num_classes 1000
-      | "efficientnet-b3.ot" -> Efficientnet.b3 vs #num_classes 1000
-      | "efficientnet-b4.ot" -> Efficientnet.b4 vs #num_classes 1000
-      | "efficientnet-b5.ot" -> Efficientnet.b5 vs #num_classes 1000
-      | "efficientnet-b6.ot" -> Efficientnet.b6 vs #num_classes 1000
-      | "efficientnet-b7.ot" -> Efficientnet.b7 vs #num_classes 1000
-      | otherwise -> abort "unsupported model"
-      end
+    case basename weight_path of
+    | "vgg11.ot" -> Vgg.vgg11 vs #num_classes 1000
+    | "vgg13.ot" -> Vgg.vgg13 vs #num_classes 1000
+    | "vgg16.ot" -> Vgg.vgg16 vs #num_classes 1000
+    | "vgg19.ot" -> Vgg.vgg19 vs #num_classes 1000
+    | "squeezenet1_0.ot" -> Squeezenet.squeezenet1_0 vs #num_classes 1000
+    | "squeezenet1_1.ot" -> Squeezenet.squeezenet1_1 vs #num_classes 1000
+    | "densenet121.ot" -> Densenet.densenet121 vs #num_classes 1000
+    | "densenet161.ot" -> Densenet.densenet161 vs #num_classes 1000
+    | "densenet169.ot" -> Densenet.densenet169 vs #num_classes 1000
+    | "resnet34.ot" -> Resnet.resnet34 vs #num_classes 1000
+    | "resnet50.ot" -> Resnet.resnet50 vs #num_classes 1000
+    | "resnet101.ot" -> Resnet.resnet101 vs #num_classes 1000
+    | "resnet152.ot" -> Resnet.resnet152 vs #num_classes 1000
+    | "resnet18.ot" -> Resnet.resnet18 vs #num_classes 1000
+    | "mobilenet-v2.ot" -> Mobilenet.v2 vs #num_classes 1000
+    | "alexnet.ot" -> Alexnet.alexnet vs #num_classes 1000
+    | "inception-v3.ot" -> Inception.v3 vs #num_classes 1000
+    | "efficientnet-b0.ot" -> Efficientnet.b0 vs #num_classes 1000
+    | "efficientnet-b1.ot" -> Efficientnet.b1 vs #num_classes 1000
+    | "efficientnet-b2.ot" -> Efficientnet.b2 vs #num_classes 1000
+    | "efficientnet-b3.ot" -> Efficientnet.b3 vs #num_classes 1000
+    | "efficientnet-b4.ot" -> Efficientnet.b4 vs #num_classes 1000
+    | "efficientnet-b5.ot" -> Efficientnet.b5 vs #num_classes 1000
+    | "efficientnet-b6.ot" -> Efficientnet.b6 vs #num_classes 1000
+    | "efficientnet-b7.ot" -> Efficientnet.b7 vs #num_classes 1000
+    | otherwise -> abort "unsupported model"
+    end
 *)
-    in
-    &(print_string "Loading weights from";
-      print_string ~(lift_string weight_path);
-      ~(Serialize.gen_load_multi_ #filename weight_path) #named_tensors (~(VarStore.gen_all_vars {vars_shape}) vs);
-      let probabilities =
-        ~Layer.gen_forward_ ~(gen_model {1} {image_height} {image_width}) image #is_training false (* TODO *)
-          |> ~(Tensor.gen_softmax #dim -1)
-      in
-      ~(TorchVision.Imagenet.Classes.gen_top #k 5) probabilities
-        |> List.iter (fun (entry : String * Float) ->
-          let (name, probability) = entry in
-          print_string name;
-          print_string ": ";
-          print_float probability
-        )
+  in
+  print_string "Loading weights from";
+  print_string ~(lift_string weight_path);
+  ~(Serialize.gen_load_multi_ #filename weight_path) #named_tensors (~(VarStore.gen_all_vars {vars_shape}) vs);
+  let probabilities =
+    ~Layer.gen_forward_ model image #is_training false (* TODO *)
+      |> ~(Tensor.gen_softmax #dim -1)
+  in
+  ~(TorchVision.Imagenet.Classes.gen_top #k 5) probabilities
+    |> List.iter (fun (entry : String * Float) ->
+      let (name, probability) = entry in
+      print_string name;
+      print_string ": ";
+      print_float probability
     )
-  )
 )

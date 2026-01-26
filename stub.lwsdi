@@ -324,14 +324,14 @@ end
 module TorchVision = struct
   module Resnet = struct
     val ~gen_resnet18 :
-      {dim0 : Nat} ->
-      {dim2 : Nat} ->
-      {dim3 : Nat} ->
+      {num_images : Nat} ->
+      {height : Nat} ->
+      {width : Nat} ->
       #num_classes (num_classes : Nat) -> (* default: 512 *)
       &(VarStore ->
-        Tensor %[dim0, 3, dim2, dim3] ->
+        Tensor %[num_images, 3, height, width] ->
         #is_training Bool ->
-        Tensor %[dim0, num_classes]
+        Tensor %[num_images, num_classes]
       )
       external (builtin = "torch_vision__resnet__gen_resnet18", surface = "resnet18")
   end
@@ -343,7 +343,7 @@ module TorchVision = struct
       #dir String ->
       #classes List String ->
       (* #with_cache String -> *)
-      &(Unit -> Dataset %ntrain %ntest %[imgdim] %[])
+      &(Unit -> Dataset %ntrain %ntest %[imgdim] %[]) (* TODO: generalize this type *)
       external (builtin = "torch_vision__imagenet__gen_load_dataset", surface = "load_dataset")
     val ~gen_load_image :
       {ns : List Nat} ->
@@ -364,14 +364,14 @@ module TorchVision = struct
   end
   module Vgg = struct
     val ~gen_vgg11 :
-      {dim0 : Nat} ->
-      {dim2 : Nat} ->
-      {dim3 : Nat} ->
+      {num_images : Nat} ->
+      {height : Nat} ->
+      {width : Nat} ->
       #num_classes (num_classes : Nat) ->
       &(VarStore ->
-        Tensor %[dim0, 3, dim2, dim3] ->
+        Tensor %[num_images, 3, height, width] ->
         #is_training Bool ->
-        Tensor %[dim0, num_classes]
+        Tensor %[num_images, num_classes]
       )
       external (builtin = "torch_vision__vgg__gen_vgg11", surface = "vgg11")
   end
