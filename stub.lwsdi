@@ -225,6 +225,8 @@ module Layer = struct
       )
       external (builtin = "layer__lstm__gen_zero_state", surface = "zero_state")
     val ~gen_step :
+      {input_size : Nat} ->
+      {hidden_size : Nat} ->
       {batch_size : Nat} ->
       &(Lstm %input_size %hidden_size ->
         Tensor %[batch_size, hidden_size] * Tensor %[batch_size, hidden_size] ->
@@ -233,6 +235,8 @@ module Layer = struct
       )
       external (builtin = "layer__lstm__gen_step", surface = "step")
     val ~gen_seq :
+      {input_size : Nat} ->
+      {hidden_size : Nat} ->
       {batch_size : Nat} ->
       {seq_len : Nat} ->
       &(Lstm %input_size %hidden_size ->

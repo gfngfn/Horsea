@@ -233,6 +233,7 @@ data Ass0PrimType
   = A0TyPrimBase AssPrimBaseType
   | A0TyTensor [Int]
   | A0TyDataset (DatasetParam [] Int)
+  | A0TyLstm Int Int
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type expressions.
@@ -249,6 +250,7 @@ data Ass1PrimTypeF sv
   = A1TyPrimBase AssPrimBaseType
   | A1TyTensor (Ass0ExprF sv)
   | A1TyDataset (DatasetParam Identity (Ass0ExprF sv))
+  | A1TyLstm (Ass0ExprF sv) (Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of types for persistent value items.
@@ -293,6 +295,8 @@ liftPrimType = \case
           image = Identity (liftIntList image),
           label = Identity (liftIntList label)
         }
+  A0TyLstm i h ->
+    A1TyLstm (liftInt i) (liftInt h)
   where
     liftInt = A0Literal . ALitInt
     liftIntList = A0Literal . ALitList . map liftInt
@@ -369,6 +373,7 @@ data Type1PrimEquationF sv
   = TyEq1PrimBase AssPrimBaseType
   | TyEq1Tensor (ListEquationF sv)
   | TyEq1Dataset (DatasetParamEquationF sv)
+  | TyEq1Lstm (Ass0ExprF sv, Ass0ExprF sv) (Ass0ExprF sv, Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data ListEquationF sv
@@ -466,6 +471,8 @@ decomposeType1Equation = \case
                   label = Identity label2
                 }
          in (A1TyPrim (A1TyDataset datasetParam1), A1TyPrim (A1TyDataset datasetParam2))
+      TyEq1Lstm (inputSize1, inputSize2) (hiddenSize1, hiddenSize2) ->
+        (A1TyPrim (A1TyLstm inputSize1 hiddenSize1), A1TyPrim (A1TyLstm inputSize2 hiddenSize2))
   TyEq1List ty1eqElem ->
     let (a1tye1elem, a1tye2elem) = decomposeType1Equation ty1eqElem
      in (A1TyList a1tye1elem, A1TyList a1tye2elem)

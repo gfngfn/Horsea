@@ -541,6 +541,7 @@ instance Disp Ass0PrimType where
     A0TyTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
     A0TyDataset datasetParam -> dispNameWithArgs req "Dataset" dispDatasetParam0 [datasetParam]
+    A0TyLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
 
 instance (Disp sv) => Disp (Ass0TypeExprF sv) where
   dispGen req = \case
@@ -578,6 +579,8 @@ instance (Disp sv) => Disp (Ass1PrimTypeF sv) where
         _ -> dispNameWithArgs req "Tensor" dispPersistent [a0eList]
     A1TyDataset datasetParam ->
       dispNameWithArgs req "Dataset" (dispDatasetParam disp (disp . runIdentity)) [datasetParam]
+    A1TyLstm a0eInputSize a0eHiddenSize ->
+      dispNameWithArgs req "Dataset" disp [a0eInputSize, a0eHiddenSize]
 
 instance (Disp sv) => Disp (Ass1TypeExprF sv) where
   dispGen req = \case

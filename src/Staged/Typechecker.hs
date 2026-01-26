@@ -198,15 +198,19 @@ makeAssertiveCast trav loc =
             case (a0tyPrim1, a0tyPrim2) of
               (A0TyPrimBase tyPrimBase1, A0TyPrimBase tyPrimBase2) ->
                 if tyPrimBase1 == tyPrimBase2
-                  then castOrIdentityLam maybePred2 (A0TyPrim (A0TyPrimBase tyPrimBase1) maybePred1)
+                  then castOrIdentityLam maybePred2 (A0TyPrim a0tyPrim1 maybePred1)
                   else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
               (A0TyTensor ns1, A0TyTensor ns2) ->
                 if ns1 == ns2
-                  then castOrIdentityLam maybePred2 (A0TyPrim (A0TyTensor ns1) maybePred1)
+                  then castOrIdentityLam maybePred2 (A0TyPrim a0tyPrim1 maybePred1)
                   else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
               (A0TyDataset datasetParam1, A0TyDataset datasetParam2) ->
                 if datasetParam1 == datasetParam2
-                  then castOrIdentityLam maybePred2 (A0TyPrim (A0TyDataset datasetParam1) maybePred1)
+                  then castOrIdentityLam maybePred2 (A0TyPrim a0tyPrim1 maybePred1)
+                  else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
+              (A0TyLstm i1 h1, A0TyLstm i2 h2) ->
+                if i1 == i2 && h1 == h2
+                  then castOrIdentityLam maybePred2 (A0TyPrim a0tyPrim1 maybePred1)
                   else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
               (_, _) ->
                 typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
@@ -456,6 +460,35 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
                   solAcc4,
                   Map.empty
                 )
+            (A1TyLstm a0eInputSize1 a0eHiddenSize1, A1TyLstm a0eInputSize2 a0eHiddenSize2) -> do
+              let (trivialOnInputSize, inputSize2', varSolutionByInputSize) =
+                    checkExprArgs
+                      varsToInfer
+                      (a0eInputSize1, BuiltIn.tyNat)
+                      a0eInputSize2
+              let solAcc1 = varSolutionByInputSize
+              let varsToInferAcc1 = varsToInfer \\ Map.keysSet varSolutionByInputSize
+
+              let (trivialOnHiddenSize, hiddenSize2', varSolutionByHiddenSize) =
+                    checkExprArgs
+                      varsToInferAcc1
+                      (applyVarSolution varSolutionByInputSize a0eHiddenSize1, BuiltIn.tyNat)
+                      a0eHiddenSize2
+              let solAcc2 = Map.union solAcc1 varSolutionByHiddenSize
+
+              let finalize :: forall af. (HasVar StaticVar af) => af StaticVar -> af StaticVar
+                  finalize = applyVarSolution solAcc2
+
+              pure
+                ( trivialOnInputSize && trivialOnHiddenSize,
+                  TyEq1Prim
+                    ( TyEq1Lstm
+                        (finalize a0eInputSize1, finalize inputSize2')
+                        (finalize a0eHiddenSize1, finalize hiddenSize2')
+                    ),
+                  solAcc2,
+                  Map.empty
+                )
             (_, _) ->
               Left ()
         (A1TyList a1tye1elem, A1TyList a1tye2elem) -> do
@@ -616,6 +649,8 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                       image = Identity (a0branch (runIdentity dp1.image) (runIdentity dp2.image)),
                       label = Identity (a0branch (runIdentity dp1.label) (runIdentity dp2.label))
                     }
+              (A1TyLstm a0eInputSize1 a0eHiddenSize1, A1TyLstm a0eInputSize2 a0eHiddenSize2) ->
+                pure $ A1TyLstm (a0branch a0eInputSize1 a0eInputSize2) (a0branch a0eHiddenSize1 a0eHiddenSize2)
               _ ->
                 typeError trav $ CannotMerge1 a1tye1 a1tye2
         (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) ->
@@ -1567,6 +1602,12 @@ typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
           label <- validateIntListLiteral trav loc4 a0e4
           let datasetParam = DatasetParam {numTrain, numTest, image, label}
           pure $ A0TyPrim (A0TyDataset datasetParam) Nothing
+        ("Lstm", [arg1@(_, loc1), arg2@(_, loc2)]) -> do
+          a0e1 <- validateExprArg0 trav arg1
+          a0e2 <- validateExprArg0 trav arg2
+          inputSize <- validateIntLiteral trav loc1 a0e1
+          hiddenSize <- validateIntLiteral trav loc2 a0e2
+          pure $ A0TyPrim (A0TyLstm inputSize hiddenSize) Nothing
         _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName (List.length results)
     TyVar tyvar -> do
@@ -1715,6 +1756,12 @@ typecheckTypeExpr1 trav tyEnv (TypeExpr loc tyeMain) = do
                     label = Identity a0e4
                   }
           pure $ A1TyPrim (A1TyDataset datasetParam)
+        ("Lstm", [arg1, arg2]) -> do
+          e1 <- validatePersistentExprArg1 trav arg1
+          e2 <- validatePersistentExprArg1 trav arg2
+          a0eInputSize <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
+          a0eHiddenSize <- forceExpr0 trav tyEnv BuiltIn.tyNat e2
+          pure $ A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize)
         _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (List.length args)
     TyVar _tyvar ->

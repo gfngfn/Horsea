@@ -11,35 +11,36 @@ let batch_size = 256 in
 let epochs = 100 in
 let sampling_length = 1024 in
 
-let gen_sample {ntrain : Nat} {ntest : Nat} {imgdim : List Nat} {labeldim : List Nat} {input_size : Nat} {hidden_size : Nat} =
-  &(fun #dataset (dataset : Dataset %ntrain %ntest %imgdim %labeldim) ->
+let gen_sample {input_size : Nat} {hidden_size : Nat} =
+  &(fun #dataset (dataset : TextHelper) ->
     fun #lstm (lstm : Lstm %input_size %hidden_size) ->
-    fun #linear (linear : Y) ->
-    fun #device (derice : Device) ->
+    fun #linear (linear : Tensor %[1, hidden_size] -> Tensor %[624]) -> (* TODO *)
+    fun #device (device : Device) ->
       let labels = TextHelper.labels dataset in
       let (seq, dummy_state) =
         let zero_state = ~(Layer.Lstm.gen_zero_state #batch_size 1) lstm in
-        let rec loop (seq : List Int) (state : Tensor %[1, hidden_size] * Tensor %[1, hidden_size]) (i : A) : B =
+        let rec loop (non_empty_seq : Int * List Int) (state : Tensor %[1, hidden_size] * Tensor %[1, hidden_size]) (i : Int) : List Int * (Tensor %[1, hidden_size] * Tensor %[1, hidden_size]) =
+          let (prev_label, seq_tail) = non_empty_seq in
+          let seq = prev_label :: seq_tail in
           if i == 0 then
             (seq, state)
           else
             ( (* Gc.full_major (); *)
-              let prev_label = List.hd_exn seq in
-              let prev_y = Tensor.zeros [1, labels] #device device in
+              let prev_y = ~(Tensor.gen_zeros [1, labels]) (* #device device *) in
               Tensor.fill_float (Tensor.narrow prev_y #dim 1 #start prev_label #length 1) 1.0;
               let state = ~Layer.Lstm.gen_step lstm state prev_y in
               let (h, dummy) = state in
               let sampled_y =
-                Layer.forward linear h
+                ~Layer.gen_forward linear h
                   |> Tensor.softmax #dim -1
                   |> Tensor.multinomial #num_samples 1 #replacement false
               in
               let sampled_label =
                 Tensor.get (Tensor.get sampled_y 0) 0 |> Tensor.int_value
               in
-              loop (sampled_label :: seq) state (i - 1))
+              loop (sampled_label, seq) state (i - 1))
         in
-        loop [0] zero_state sampling_length
+        loop (0, []) zero_state sampling_length
       in
       List.rev_map seq (fun (label : Int) -> TextHelper.char dataset #label label)
         |> String.of_char_list

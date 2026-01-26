@@ -116,6 +116,8 @@ instance HasTypeVar Ass1PrimTypeF where
             image = Identity (go (runIdentity dp.image)),
             label = Identity (go (runIdentity dp.label))
           }
+    A1TyLstm a0e1 a0e2 ->
+      A1TyLstm (go a0e1) (go a0e2)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
