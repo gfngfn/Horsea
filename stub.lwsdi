@@ -169,7 +169,7 @@ module Layer = struct
   module Activation = struct
     val relu : Activation
       external (builtin = "layer__activation__relu", surface = "relu")
-    val none : Activation
+    val none : Activation (* TODO: remove this and use `Maybe` *)
       external (builtin = "layer__activation__none", surface = "none")
   end
   val ~gen_forward :
@@ -210,6 +210,39 @@ module Layer = struct
       Tensor %(List.append ns [output_dim])
     )
     external (builtin = "layer__gen_linear", surface = "linear")
+  module Lstm = struct
+    val ~gen_create :
+      #input_dim (input_size : Nat) ->
+      #hidden_size (hidden_size : Nat) ->
+      &(VarStore -> Lstm %input_size %hidden_size)
+      external (builtin = "layer__lstm__gen_create", surface = "create")
+    val ~gen_zero_state :
+      {input_size : Nat} ->
+      {hidden_size : Nat} ->
+      #batch_size (batch_size : Nat) ->
+      &(Lstm %input_size %hidden_size ->
+        Tensor %[batch_size, hidden_size] * Tensor %[batch_size, hidden_size]
+      )
+      external (builtin = "layer__lstm__gen_zero_state", surface = "zero_state")
+    val ~gen_step :
+      {batch_size : Nat} ->
+      &(Lstm %input_size %hidden_size ->
+        Tensor %[batch_size, hidden_size] * Tensor %[batch_size, hidden_size] ->
+        Tensor %[batch_size, input_size] ->
+        Tensor %[batch_size, hidden_size] * Tensor %[batch_size, hidden_size]
+      )
+      external (builtin = "layer__lstm__gen_step", surface = "step")
+    val ~gen_seq :
+      {batch_size : Nat} ->
+      {seq_len : Nat} ->
+      &(Lstm %input_size %hidden_size ->
+        Tensor %[batch_size, seq_len, input_size] ->
+        #is_training Bool ->
+        Tensor %[batch_size, seq_len, hidden_size]
+          * (Tensor %[1, batch_size, hidden_size] * Tensor %[1, batch_size, hidden_size])
+      )
+      external (builtin = "layer__lstm__gen_seq", surface = "seq")
+  end
 end
 
 module Optimizer = struct
@@ -319,6 +352,23 @@ module Module = struct
     external (builtin = "module__gen_load", surface = "load")
   val ~gen_forward : {ns : List Nat} -> &((List (Tensor %ns) -> Tensor %ns) -> List (Tensor %ns) -> Tensor %ns)
     external (builtin = "module__gen_forward", surface = "forward")
+end
+
+module TextHelper = struct
+  val create : #filename String -> TextHelper
+    external (builtin = "text_helper__create", surface = "create")
+  val char : TextHelper -> #label Int -> Char
+    external (builtin = "text_helper__char", surface = "char")
+  val total_length : TextHelper -> Int
+    external (builtin = "text_helper__total_length", surface = "total_length")
+  val labels : TextHelper -> Int
+    external (builtin = "text_helper__labels", surface = "labels")
+  val ~gen_iter :
+    #seq_len (seq_len : Nat) ->
+    #batch_size (batch_size : Nat) ->
+    (Nat -> &(#xs Tensor %[batch_size, seq_len] -> #ys Tensor %[batch_size, seq_len] -> Unit)) ->
+    &(#device Device -> TextHelper -> Unit)
+    external (builtin = "text_helper__gen_iter", surface = "iter")
 end
 
 module TorchVision = struct

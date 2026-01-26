@@ -210,6 +210,8 @@ data AssPrimBaseType
   | ATyPrimActivation
   | ATyPrimVarStore
   | ATyPrimOptimizer
+  | ATyPrimChar
+  | ATyPrimTextHelper
   deriving stock (Eq, Show)
 
 validatePrimBaseType :: Text -> Maybe AssPrimBaseType
@@ -223,6 +225,8 @@ validatePrimBaseType = \case
   "Activation" -> Just ATyPrimActivation
   "VarStore" -> Just ATyPrimVarStore
   "Optimizer" -> Just ATyPrimOptimizer
+  "Char" -> Just ATyPrimChar
+  "TextHelper" -> Just ATyPrimTextHelper
   _ -> Nothing
 
 data Ass0PrimType

@@ -531,6 +531,8 @@ instance Disp AssPrimBaseType where
     ATyPrimActivation -> "Activation"
     ATyPrimVarStore -> "VarStore"
     ATyPrimOptimizer -> "Optimizer"
+    ATyPrimChar -> "Char"
+    ATyPrimTextHelper -> "TextHelper"
 
 instance Disp Ass0PrimType where
   dispGen req = \case
