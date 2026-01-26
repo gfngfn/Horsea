@@ -25,6 +25,7 @@ TESTS_STAGED_COMPILE=(
     examples/ocaml-torch/mnist/linear.lwsd
     examples/ocaml-torch/mnist/linear_as.lwsd
     examples/ocaml-torch/pretrained/finetuning.lwsd
+    examples/ocaml-torch/pretrained/predict.lwsd
 )
 TESTS_STAGED_FAILURE=(
     examples/failure/error-bracket.lwsd
