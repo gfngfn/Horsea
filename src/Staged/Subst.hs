@@ -432,6 +432,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
             ]
         A1TyLstm a0e1 a0e2 ->
           unionPairs [frees a0e1, frees a0e2]
+        A1TyTextHelper a0e ->
+          frees a0e
     A1TyList a1tye1 ->
       frees a1tye1
     A1TyVar _atyvar ->
@@ -450,6 +452,7 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
         A1TyTensor a0eList -> A1TyTensor (go a0eList)
         A1TyDataset datasetParam -> A1TyDataset (fmap go datasetParam)
         A1TyLstm a0e1 a0e2 -> A1TyLstm (go a0e1) (go a0e2)
+        A1TyTextHelper a0e -> A1TyTextHelper (go a0e)
     A1TyList a1tye1 ->
       A1TyList (go a1tye1)
     A1TyVar atyvar ->
@@ -569,6 +572,7 @@ instance (Ord sv) => HasVar sv Type1EquationF where
         TyEq1Tensor listEq -> frees listEq
         TyEq1Dataset datasetParamEq -> frees datasetParamEq
         TyEq1Lstm (i1, i2) (h1, h2) -> unionPairs [frees i1, frees i2, frees h1, frees h2]
+        TyEq1TextHelper (labels1, labels2) -> unionPairs [frees labels1, frees labels2]
     TyEq1List ty1eqElem ->
       frees ty1eqElem
     TyEq1Arrow _labelOpt ty1eqDom ty1eqCod ->
@@ -584,6 +588,7 @@ instance (Ord sv) => HasVar sv Type1EquationF where
           TyEq1Tensor listEq -> TyEq1Tensor (go listEq)
           TyEq1Dataset dpEq -> TyEq1Dataset (go dpEq)
           TyEq1Lstm (i1, i2) (h1, h2) -> TyEq1Lstm (go i1, go i2) (go h1, go h2)
+          TyEq1TextHelper (labels1, labels2) -> TyEq1TextHelper (go labels1, go labels2)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
     TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->

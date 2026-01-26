@@ -195,25 +195,9 @@ makeAssertiveCast trav loc =
                   then Nothing
                   else maybePred2'
           cast <-
-            case (a0tyPrim1, a0tyPrim2) of
-              (A0TyPrimBase tyPrimBase1, A0TyPrimBase tyPrimBase2) ->
-                if tyPrimBase1 == tyPrimBase2
-                  then castOrIdentityLam maybePred2 (A0TyPrim a0tyPrim1 maybePred1)
-                  else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-              (A0TyTensor ns1, A0TyTensor ns2) ->
-                if ns1 == ns2
-                  then castOrIdentityLam maybePred2 (A0TyPrim a0tyPrim1 maybePred1)
-                  else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-              (A0TyDataset datasetParam1, A0TyDataset datasetParam2) ->
-                if datasetParam1 == datasetParam2
-                  then castOrIdentityLam maybePred2 (A0TyPrim a0tyPrim1 maybePred1)
-                  else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-              (A0TyLstm i1 h1, A0TyLstm i2 h2) ->
-                if i1 == i2 && h1 == h2
-                  then castOrIdentityLam maybePred2 (A0TyPrim a0tyPrim1 maybePred1)
-                  else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-              (_, _) ->
-                typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
+            if a0tyPrim1 == a0tyPrim2
+              then castOrIdentityLam maybePred2 (A0TyPrim a0tyPrim1 maybePred1)
+              else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
           pure (cast, Map.empty, Map.empty)
         (A0TyList a0tye1' maybePred1, A0TyList a0tye2' maybePred2') -> do
           (castForElem, varSolution, tyvar0Solution) <- go varsToInfer tyvars0ToInfer a0tye1' a0tye2'
@@ -489,6 +473,9 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
                   solAcc2,
                   Map.empty
                 )
+            (A1TyTextHelper a0e1, A1TyTextHelper a0e2) -> do
+              let (trivial, a0e2', varSolution) = checkExprArgs varsToInfer (a0e1, BuiltIn.tyNat) a0e2
+              pure (trivial, TyEq1Prim (TyEq1TextHelper (a0e1, a0e2')), varSolution, Map.empty)
             (_, _) ->
               Left ()
         (A1TyList a1tye1elem, A1TyList a1tye2elem) -> do
@@ -651,6 +638,8 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                     }
               (A1TyLstm a0eInputSize1 a0eHiddenSize1, A1TyLstm a0eInputSize2 a0eHiddenSize2) ->
                 pure $ A1TyLstm (a0branch a0eInputSize1 a0eInputSize2) (a0branch a0eHiddenSize1 a0eHiddenSize2)
+              (A1TyTextHelper a0eLabels1, A1TyTextHelper a0eLabels2) ->
+                pure $ A1TyTextHelper (a0branch a0eLabels1 a0eLabels2)
               _ ->
                 typeError trav $ CannotMerge1 a1tye1 a1tye2
         (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) ->
@@ -1608,6 +1597,10 @@ typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
           inputSize <- validateIntLiteral trav loc1 a0e1
           hiddenSize <- validateIntLiteral trav loc2 a0e2
           pure $ A0TyPrim (A0TyLstm inputSize hiddenSize) Nothing
+        ("TextHelper", [arg1@(_, loc1)]) -> do
+          a0e1 <- validateExprArg0 trav arg1
+          labels <- validateIntLiteral trav loc1 a0e1
+          pure $ A0TyPrim (A0TyTextHelper labels) Nothing
         _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName (List.length results)
     TyVar tyvar -> do
@@ -1762,6 +1755,10 @@ typecheckTypeExpr1 trav tyEnv (TypeExpr loc tyeMain) = do
           a0eInputSize <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
           a0eHiddenSize <- forceExpr0 trav tyEnv BuiltIn.tyNat e2
           pure $ A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize)
+        ("TextHelper", [arg1]) -> do
+          e1 <- validatePersistentExprArg1 trav arg1
+          a0eLabels <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
+          pure $ A1TyPrim (A1TyTextHelper a0eLabels)
         _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (List.length args)
     TyVar _tyvar ->

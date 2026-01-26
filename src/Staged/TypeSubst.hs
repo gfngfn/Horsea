@@ -118,6 +118,8 @@ instance HasTypeVar Ass1PrimTypeF where
           }
     A1TyLstm a0e1 a0e2 ->
       A1TyLstm (go a0e1) (go a0e2)
+    A1TyTextHelper a0e ->
+      A1TyTextHelper (go a0e)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s

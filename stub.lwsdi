@@ -359,19 +359,18 @@ module Module = struct
 end
 
 module TextHelper = struct
-  val create : #filename String -> TextHelper
+  val ~gen_create : {labels : Nat} -> #filename String -> &(TextHelper %labels)
     external (builtin = "text_helper__create", surface = "create")
-  val char : TextHelper -> #label Int -> Char
+  val ~gen_char : {labels : Nat} -> &(TextHelper %labels -> #label Int -> Char)
     external (builtin = "text_helper__char", surface = "char")
-  val total_length : TextHelper -> Int
+  val ~gen_total_length : {labels : Nat} -> &(TextHelper %labels -> Int)
     external (builtin = "text_helper__total_length", surface = "total_length")
-  val labels : TextHelper -> Int
-    external (builtin = "text_helper__labels", surface = "labels")
   val ~gen_iter :
+    {labels : Nat} ->
     #seq_len (seq_len : Nat) ->
     #batch_size (batch_size : Nat) ->
     (Nat -> &(#xs Tensor %[batch_size, seq_len] -> #ys Tensor %[batch_size, seq_len] -> Unit)) ->
-    &(#device Device -> TextHelper -> Unit)
+    &(#device Device -> TextHelper %labels -> Unit)
     external (builtin = "text_helper__gen_iter", surface = "iter")
 end
 

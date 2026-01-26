@@ -532,7 +532,6 @@ instance Disp AssPrimBaseType where
     ATyPrimVarStore -> "VarStore"
     ATyPrimOptimizer -> "Optimizer"
     ATyPrimChar -> "Char"
-    ATyPrimTextHelper -> "TextHelper"
 
 instance Disp Ass0PrimType where
   dispGen req = \case
@@ -542,6 +541,7 @@ instance Disp Ass0PrimType where
     A0TyTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
     A0TyDataset datasetParam -> dispNameWithArgs req "Dataset" dispDatasetParam0 [datasetParam]
     A0TyLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
+    A0TyTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
 instance (Disp sv) => Disp (Ass0TypeExprF sv) where
   dispGen req = \case
@@ -580,7 +580,9 @@ instance (Disp sv) => Disp (Ass1PrimTypeF sv) where
     A1TyDataset datasetParam ->
       dispNameWithArgs req "Dataset" (dispDatasetParam disp (disp . runIdentity)) [datasetParam]
     A1TyLstm a0eInputSize a0eHiddenSize ->
-      dispNameWithArgs req "Dataset" disp [a0eInputSize, a0eHiddenSize]
+      dispNameWithArgs req "Lstm" disp [a0eInputSize, a0eHiddenSize]
+    A1TyTextHelper a0eLabels ->
+      dispNameWithArgs req "TextHelper" disp [a0eLabels]
 
 instance (Disp sv) => Disp (Ass1TypeExprF sv) where
   dispGen req = \case
@@ -950,6 +952,8 @@ instance Disp Ass0PrimTypeVal where
     A0TyValTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyValTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
     A0TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
+    A0TyValLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
+    A0TyValTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
 instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case

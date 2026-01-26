@@ -211,7 +211,6 @@ data AssPrimBaseType
   | ATyPrimVarStore
   | ATyPrimOptimizer
   | ATyPrimChar
-  | ATyPrimTextHelper
   deriving stock (Eq, Show)
 
 validatePrimBaseType :: Text -> Maybe AssPrimBaseType
@@ -226,7 +225,6 @@ validatePrimBaseType = \case
   "VarStore" -> Just ATyPrimVarStore
   "Optimizer" -> Just ATyPrimOptimizer
   "Char" -> Just ATyPrimChar
-  "TextHelper" -> Just ATyPrimTextHelper
   _ -> Nothing
 
 data Ass0PrimType
@@ -234,6 +232,7 @@ data Ass0PrimType
   | A0TyTensor [Int]
   | A0TyDataset (DatasetParam [] Int)
   | A0TyLstm Int Int
+  | A0TyTextHelper Int
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type expressions.
@@ -251,6 +250,7 @@ data Ass1PrimTypeF sv
   | A1TyTensor (Ass0ExprF sv)
   | A1TyDataset (DatasetParam Identity (Ass0ExprF sv))
   | A1TyLstm (Ass0ExprF sv) (Ass0ExprF sv)
+  | A1TyTextHelper (Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of types for persistent value items.
@@ -297,6 +297,8 @@ liftPrimType = \case
         }
   A0TyLstm i h ->
     A1TyLstm (liftInt i) (liftInt h)
+  A0TyTextHelper labels ->
+    A1TyTextHelper (liftInt labels)
   where
     liftInt = A0Literal . ALitInt
     liftIntList = A0Literal . ALitList . map liftInt
@@ -343,6 +345,8 @@ data Ass0PrimTypeVal
   = A0TyValPrimBase AssPrimBaseType
   | A0TyValTensor [Int]
   | A0TyValDataset (DatasetParam [] Int)
+  | A0TyValLstm Int Int
+  | A0TyValTextHelper Int
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type values.
@@ -374,6 +378,7 @@ data Type1PrimEquationF sv
   | TyEq1Tensor (ListEquationF sv)
   | TyEq1Dataset (DatasetParamEquationF sv)
   | TyEq1Lstm (Ass0ExprF sv, Ass0ExprF sv) (Ass0ExprF sv, Ass0ExprF sv)
+  | TyEq1TextHelper (Ass0ExprF sv, Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data ListEquationF sv
@@ -473,6 +478,8 @@ decomposeType1Equation = \case
          in (A1TyPrim (A1TyDataset datasetParam1), A1TyPrim (A1TyDataset datasetParam2))
       TyEq1Lstm (inputSize1, inputSize2) (hiddenSize1, hiddenSize2) ->
         (A1TyPrim (A1TyLstm inputSize1 hiddenSize1), A1TyPrim (A1TyLstm inputSize2 hiddenSize2))
+      TyEq1TextHelper (a0e1, a0e2) ->
+        (A1TyPrim (A1TyTextHelper a0e1), A1TyPrim (A1TyTextHelper a0e2))
   TyEq1List ty1eqElem ->
     let (a1tye1elem, a1tye2elem) = decomposeType1Equation ty1eqElem
      in (A1TyList a1tye1elem, A1TyList a1tye2elem)
