@@ -28,7 +28,7 @@ let image_shape = [1, 3, image_height, image_width] in
 
 &(let image = ~(TorchVision.Imagenet.gen_load_image {image_shape} image_path) in
   let vs = VarStore.create #frozen false #name "rn" #device Device.cpu () in
-  let model = (* : Tensor %image_shape -> #is_training Bool -> Tensor %[1, 1000] *)
+  let model =
     ~(TorchVision.Vgg.gen_vgg11 {1} {image_height} {image_width} #num_classes 1000) vs
 (* TODO: support case expressions *) (*
     case basename weight_path of
@@ -65,7 +65,7 @@ let image_shape = [1, 3, image_height, image_width] in
   print_string ~(lift_string weight_path);
   ~(Serialize.gen_load_multi_ #filename weight_path) #named_tensors (~(VarStore.gen_all_vars {vars_shape}) vs);
   let probabilities =
-    ~Layer.gen_forward_ model image #is_training false (* TODO *)
+    ~Layer.gen_forward_ model image #is_training false
       |> ~(Tensor.gen_softmax #dim -1)
   in
   ~(TorchVision.Imagenet.Classes.gen_top #k 5) probabilities
