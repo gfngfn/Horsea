@@ -387,6 +387,7 @@ definitions =
     gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamInt, ParamString, ParamStringList],
     gen ["torch_vision", "imagenet"] "load_image" [ParamIntList, ParamString],
     -- TODO: support `TorchVision.Imagenet.Classes.names`
-    gen ["torch_vision", "imagenet", "classes"] "top" [ParamInt],
+    gen ["torch_vision", "imagenet", "classes"] "top" [ParamIntList, ParamInt],
+    gen ["torch_vision", "vgg"] "vgg11" [ParamInt, ParamInt, ParamInt, ParamInt],
     gen ["serialize"] "load_multi_" [ParamIntList, ParamString]
   ]
