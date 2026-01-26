@@ -21,8 +21,10 @@ TESTS_STAGED_RUN=(
     examples/vec_higher_order_explicit.lwsd
 )
 TESTS_STAGED_COMPILE=(
+    examples/ocaml-torch/jit/load_and_run.lwsd
     examples/ocaml-torch/mnist/linear.lwsd
     examples/ocaml-torch/mnist/linear_as.lwsd
+    examples/ocaml-torch/pretrained/finetuning.lwsd
 )
 TESTS_STAGED_FAILURE=(
     examples/failure/error-bracket.lwsd
@@ -55,9 +57,11 @@ TESTS_SURFACE_RUN=(
     examples/tensor_add_mat.surf
 )
 TESTS_SURFACE_COMPILE=(
+    examples/ocaml-torch/jit/load_and_run.surf
     examples/ocaml-torch/mnist/conv.surf
     examples/ocaml-torch/mnist/linear.surf
     examples/ocaml-torch/mnist/linear_as.surf
+    examples/ocaml-torch/pretrained/finetuning.surf
 )
 TESTS_SURFACE_FAILURE=(
     examples/failure/error-stage.surf
