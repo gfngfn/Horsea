@@ -65,6 +65,7 @@ TESTS_SURFACE_COMPILE=(
     examples/ocaml-torch/mnist/linear_as.surf
     examples/ocaml-torch/pretrained/finetuning.surf
     examples/ocaml-torch/pretrained/predict.surf
+    examples/ocaml-torch/char_rnn/char_rnn.surf
 )
 TESTS_SURFACE_FAILURE=(
     examples/failure/error-stage.surf
