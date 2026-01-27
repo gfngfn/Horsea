@@ -26,13 +26,13 @@ type BCTypeExprMainF ann = TypeExprMainF (BindingTimeConst, ann)
 
 type BCArgForTypeF ann = ArgForTypeF (BindingTimeConst, ann)
 
-stageExpr0 :: BCExprF ann -> Staged.ExprF ann
+stageExpr0 :: (Show ann) => BCExprF ann -> Staged.ExprF ann
 stageExpr0 (Expr (btc, ann) exprMain) =
   case btc of
     BT0 -> Staged.Expr ann (stageExpr0Main exprMain)
     BT1 -> Staged.Expr ann (Staged.Bracket (Staged.Expr ann (stageExpr1Main exprMain)))
 
-stageExpr0Main :: BCExprMainF ann -> Staged.ExprMainF ann
+stageExpr0Main :: (Show ann) => BCExprMainF ann -> Staged.ExprMainF ann
 stageExpr0Main = \case
   Literal lit ->
     Staged.Literal (convertLiteral stageExpr0 lit)
@@ -69,13 +69,13 @@ stageExpr0Main = \case
   AppOptOmitted e1 ->
     Staged.AppOptOmitted (stageExpr0 e1)
 
-stageExpr1 :: BCExprF ann -> Staged.ExprF ann
+stageExpr1 :: (Show ann) => BCExprF ann -> Staged.ExprF ann
 stageExpr1 (Expr (btc, ann) exprMain) =
   case btc of
     BT0 -> Staged.Expr ann (Staged.Escape (Staged.Expr ann (stageExpr0Main exprMain)))
     BT1 -> Staged.Expr ann (stageExpr1Main exprMain)
 
-stageExpr1Main :: BCExprMainF ann -> Staged.ExprMainF ann
+stageExpr1Main :: (Show ann) => BCExprMainF ann -> Staged.ExprMainF ann
 stageExpr1Main = \case
   Literal lit ->
     Staged.Literal (convertLiteral stageExpr1 lit)
@@ -112,13 +112,13 @@ stageExpr1Main = \case
   AppOptOmitted _e1 ->
     error "bug: stageExpr1Main, AppOptOmitted"
 
-stageTypeExpr0 :: BCTypeExprF ann -> Staged.TypeExprF ann
+stageTypeExpr0 :: (Show ann) => BCTypeExprF ann -> Staged.TypeExprF ann
 stageTypeExpr0 (TypeExpr (btc, ann) typeExprMain) =
   case btc of
     BT1 -> Staged.TypeExpr ann (Staged.TyCode (Staged.TypeExpr ann (stageTypeExpr1Main typeExprMain)))
     BT0 -> Staged.TypeExpr ann (stageTypeExpr0Main typeExprMain)
 
-stageTypeExpr0Main :: BCTypeExprMainF ann -> Staged.TypeExprMainF ann
+stageTypeExpr0Main :: (Show ann) => BCTypeExprMainF ann -> Staged.TypeExprMainF ann
 stageTypeExpr0Main = \case
   TyName tyName args ->
     -- TODO: check that `ExprArg` only contains literals
@@ -136,20 +136,20 @@ stageTypeExpr0Main = \case
   TyProduct tye1 tye2 ->
     Staged.TyProduct (stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
 
-stageTypeExpr1 :: BCTypeExprF ann -> Staged.TypeExprF ann
+stageTypeExpr1 :: (Show ann) => BCTypeExprF ann -> Staged.TypeExprF ann
 stageTypeExpr1 (TypeExpr (btc, ann) typeExprMain) =
   case btc of
-    BT0 -> error "bug: stageTypeExpr1, BT0"
+    BT0 -> error $ "bug: stageTypeExpr1, BT0; " ++ show typeExprMain
     BT1 -> Staged.TypeExpr ann (stageTypeExpr1Main typeExprMain)
 
-stageTypeExpr1Main :: BCTypeExprMainF ann -> Staged.TypeExprMainF ann
+stageTypeExpr1Main :: (Show ann) => BCTypeExprMainF ann -> Staged.TypeExprMainF ann
 stageTypeExpr1Main = \case
   TyName tyName args -> Staged.TyName tyName (map stageArgForType1 args)
   TyArrow labelOpt (_xOpt, tye1) tye2 -> Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
   TyOptArrow (_x, _tye1) _tye2 -> error "bug: stageTypeExpr1Main, TyOptArrow"
   TyProduct tye1 tye2 -> Staged.TyProduct (stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
 
-stageArgForType1 :: BCArgForTypeF ann -> Staged.ArgForTypeF ann
+stageArgForType1 :: (Show ann) => BCArgForTypeF ann -> Staged.ArgForTypeF ann
 stageArgForType1 = \case
   ExprArg e -> Staged.ExprArgPersistent (stageExpr0 e)
   TypeArg tye -> Staged.TypeArg (stageTypeExpr1 tye)
