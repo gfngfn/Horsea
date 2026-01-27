@@ -971,6 +971,8 @@ instance Disp Ass1PrimTypeVal where
     A1TyValTensor [m, n] -> dispNameWithArgs req "Mat" dispPersistent [m, n]
     A1TyValTensor ns -> dispNameWithArgs req "Tensor" dispPersistentListLiteral [ns]
     A1TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
+    A1TyValLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
+    A1TyValTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
 instance Disp LocationInFile where
   dispGen _ (LocationInFile l c) =

@@ -408,6 +408,7 @@ evalTypeExpr0 env = \case
             A0TyTensor n -> A0TyValTensor n
             A0TyDataset dsParam -> A0TyValDataset dsParam
             A0TyLstm i h -> A0TyValLstm i h
+            A0TyTextHelper labels -> A0TyValTextHelper labels
     maybeVPred <- mapM (evalExpr0 env) maybePred
     pure $ A0TyValPrim a0tyValPrim maybeVPred
   SA0TyVar atyvar ->
@@ -447,6 +448,16 @@ evalTypeExpr1 env = \case
           image <- validateIntListLiteral =<< evalExpr0 env (runIdentity datasetParam.image)
           label <- validateIntListLiteral =<< evalExpr0 env (runIdentity datasetParam.label)
           pure $ A1TyValDataset DatasetParam {numTrain, numTest, image, label}
+        A1TyLstm a0eInputSize a0eHiddenSize -> do
+          a0vInputSize <- evalExpr0 env a0eInputSize
+          a0vHiddenSize <- evalExpr0 env a0eHiddenSize
+          inputSize <- validateIntLiteral a0vInputSize
+          hiddenSize <- validateIntLiteral a0vHiddenSize
+          pure $ A1TyValLstm inputSize hiddenSize
+        A1TyTextHelper a0eLabels -> do
+          a0v <- evalExpr0 env a0eLabels
+          labels <- validateIntLiteral a0v
+          pure $ A1TyValTextHelper labels
   A1TyList a1tye -> do
     a1tyv <- evalTypeExpr1 env a1tye
     pure $ A1TyValList a1tyv
@@ -497,6 +508,8 @@ unliftTypeVal = \case
             A1TyValPrimBase tyPrimBase -> A0TyPrimBase tyPrimBase
             A1TyValTensor ns -> A0TyTensor ns
             A1TyValDataset datasetParam -> A0TyDataset datasetParam
+            A1TyValLstm i h -> A0TyLstm i h
+            A1TyValTextHelper labels -> A0TyTextHelper labels
      in SA0TyPrim a0tyPrim Nothing
   A1TyValList a1tyv ->
     SA0TyList (unliftTypeVal a1tyv) Nothing

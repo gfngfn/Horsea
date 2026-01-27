@@ -363,6 +363,8 @@ data Ass1PrimTypeVal
   = A1TyValPrimBase AssPrimBaseType
   | A1TyValTensor [Int]
   | A1TyValDataset (DatasetParam [] Int)
+  | A1TyValLstm Int Int
+  | A1TyValTextHelper Int
   deriving stock (Eq, Show)
 
 -- | The type of well-formed type equations for assertion.
