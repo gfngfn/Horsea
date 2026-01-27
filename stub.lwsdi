@@ -32,6 +32,10 @@ val %fst : forall 'a -> forall 'b -> 'a * 'b -> 'a
   external (builtin = "fst", surface = "fst")
 val %snd : forall 'a -> forall 'b -> 'a * 'b -> 'b
   external (builtin = "snd", surface = "snd")
+val %( ++ ) : String -> String -> String
+  external (builtin = "string_append", surface = "++")
+val %show_int : Int -> String
+  external (builtin = "show_int", surface = "show_int")
 
 val ~lift_int : Int -> &Int
   external (builtin = "lift_int", surface = "lift_int")
@@ -80,6 +84,16 @@ module List = struct
     external (builtin = "list__length", surface = "length")
 end
 
+module IO = struct
+  val write_all : String -> #data String -> Unit
+    external (builtin = "io__write_all", surface = "write_all")
+end
+
+module Unix = struct
+  val gettimeofday : Unit -> Int
+    external (builtin = "unix___gettimeofday", surface = "gettimeofday")
+end
+
 module Device = struct
   val cpu : Device
     external (builtin = "device__cpu", surface = "cpu")
@@ -90,6 +104,8 @@ end
 module Tensor = struct
   val ~gen_zeros : (shape : List Nat) -> &(Tensor %shape)
     external (builtin = "tensor__gen_zeros", surface = "zeros")
+  val ~gen_ones : (shape : List Nat) -> &(Tensor %shape)
+    external (builtin = "tensor__gen_ones", surface = "ones")
   val ~gen_copy : {shape : List Nat} -> &(Tensor %shape -> Tensor %shape)
     external (builtin = "tensor__gen_copy", surface = "copy")
   val ~gen_add :
@@ -110,11 +126,22 @@ module Tensor = struct
     external (builtin = "tensor__gen_add_update", surface = "+=")
   val ~gen_sub_update : {shape : List Nat} -> &(Tensor %shape -> Tensor %shape -> Unit)
     external (builtin = "tensor__gen_sub_update", surface = "-=")
+  val ~gen_scatter_ :
+    {src_shape : List Nat} ->
+    {index_shape : List Nat} ->
+    {shape : List Nat} ->
+    #dim Int ->
+    &(#src Tensor %src_shape ->
+      #index Tensor %index_shape ->
+      Tensor %shape ->
+      Tensor %shape
+    )
+    external (builtin = "tensor__gen_scatter_", surface = "scatter_")
   val ~gen_argmax : {shape : List Nat} -> (dim : Nat) -> &(Tensor %shape -> Tensor %(drop_at dim shape))
     external (builtin = "tensor__gen_argmax", surface = "argmax")
   val ~gen_cross_entropy_for_logits :
     {m : Nat} -> {n : Nat} ->
-    &(Tensor %[m, n] -> Tensor %[m] -> Tensor %[])
+    &(Tensor %[m, n] -> #targets Tensor %[m] -> Tensor %[])
     external (builtin = "tensor__gen_cross_entropy_for_logits", surface = "cross_entropy_for_logits")
   val ~gen_multinomial :
     {shape : List Nat} ->
@@ -155,11 +182,14 @@ module Tensor = struct
   (* TODO: make `gen_reshape` support `-1` *)
   val ~gen_reshape :
     {shape1 : List Nat} ->
-    (shape2 : {sh : List Nat | reshapeable shape1 sh}) ->
-    &(Tensor %shape1 ->
-      Tensor %shape2
-    )
+    #shape (shape2 : {sh : List Nat | reshapeable shape1 sh}) ->
+    &(Tensor %shape1 -> Tensor %shape2)
     external (builtin = "tensor__gen_reshape", surface = "reshape")
+  val ~gen_view :
+    {shape1 : List Nat} ->
+    #size (shape2 : {sh : List Nat | reshapeable shape1 sh}) ->
+    &(Tensor %shape1 -> Tensor %shape2)
+    external (builtin = "tensor__gen_view", surface = "view")
   val ~gen_narrow :
     {shape : List Nat} ->
     #dim (dim : Nat) ->
@@ -296,6 +326,10 @@ module Optimizer = struct
     #momentum Float ->
     Optimizer
     external (builtin = "optimizer__sgd", surface = "sgd")
+  val zero_grad :
+    Optimizer ->
+    Unit
+    external (builtin = "optimizer__zero_grad", surface = "zero_grad")
   val backward_step :
     Optimizer ->
     #loss Tensor %[] ->

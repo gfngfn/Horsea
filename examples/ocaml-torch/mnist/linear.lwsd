@@ -11,7 +11,7 @@
     let loss =
       ~(Tensor.gen_cross_entropy_for_logits _ {MnistHelper.label_count})
         (~gen_model MnistHelper.train_images)
-        MnistHelper.train_labels
+        #targets MnistHelper.train_labels
     in
     Tensor.backward loss;
     Tensor.no_grad (fun(u : Unit) ->

@@ -9,7 +9,7 @@ List.iter (fun(i : Int) ->
   let loss =
     Tensor.cross_entropy_for_logits _ {MnistHelper.label_count}
       (model MnistHelper.train_images)
-      MnistHelper.train_labels
+      #targets MnistHelper.train_labels
   in
   Tensor.backward loss;
   Tensor.no_grad (fun(u : Unit) ->

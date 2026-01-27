@@ -42,12 +42,12 @@ let linear2 {size : Nat} =
 in
 let adam = Optimizer.adam vs #learning_rate learning_rate in
 let model (size : Nat) #is_training (is_training : Bool) (xs : Tensor [size, MnistHelper.image_dim]) =
-  Tensor.reshape [size, 1, 28, 28] xs
+  Tensor.reshape #shape [size, 1, 28, 28] xs
   |> Layer.forward (conv2d1 {size})
   |> Tensor.max_pool2d #padding (0, 0) #ksize (2, 2) #stride (2, 2)
   |> Layer.forward (conv2d2 {size})
   |> Tensor.max_pool2d #padding (0, 0) #ksize (2, 2) #stride (2, 2)
-  |> Tensor.reshape [size, 1024]
+  |> Tensor.reshape #shape [size, 1024]
   |> Layer.forward (linear1 {size})
   |> Tensor.dropout #p 0.5 #is_training is_training
   |> Layer.forward (linear2 {size})
@@ -65,7 +65,8 @@ let test_model (size : Nat) = model size #is_training false in
   let loss =
     Tensor.cross_entropy_for_logits
       {batch_size} {MnistHelper.label_count}
-      (train_model batch_size batch_images) batch_labels
+      (train_model batch_size batch_images)
+      #targets batch_labels
   in
   Optimizer.backward_step adam #loss loss;
   if mod batch_idx 50 == 0 then

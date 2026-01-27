@@ -70,7 +70,7 @@ let model_path = "path/to/model" in
                   let loss =
                     ~(Tensor.gen_cross_entropy_for_logits {904} {1105}) (* TODO *)
                       predicted
-                      batch_labels (* targets *)
+                      #targets batch_labels
                   in
                   ~Tensor.gen_add_update sum_loss loss;
                   Optimizer.backward_step sgd #loss loss

@@ -73,37 +73,41 @@ let labels = 32 in (* TODO *)
     #checkpoint_base "char-rnn.ot"
     #checkpoint_every (iters 1)
     (fun #index (epoch_idx : Int) ->
-      Stdio.Out_channel.write_all
-        (Printf.sprintf "out.txt.%d" epoch_idx)
+      IO.write_all
+        ("out.txt." ++ show_int epoch_idx)
         #data (~gen_sample #dataset dataset #lstm lstm #linear linear #device device);
       let start_time = Unix.gettimeofday () in
       let sum_loss = Tensor.f 0.0 in
-      TextHelper.iter #device device dataset #batch_size batch_size #seq_len seq_len
-        (fun (batch_idx : Int) -> fun #xs (xs : D) -> fun #ys (ys : E) ->
-          Optimizer.zero_grad adam;
-          let onehot =
-            let xs = Tensor.view xs #size [batch_size, seq_len, 1] in
-            let one = Tensor.ones (Tensor.size xs) #device device in
-            Tensor.zeros [batch_size, seq_len, labels] #device device
-            |> Tensor.scatter_ #dim 2 #src one #index xs
-          in
-          let (lstm_out, dummy) = ~Layer.Lstm.gen_seq lstm onehot #is_training true in
-          let logits = Layer.forward linear lstm_out in
-          (* Compute the cross-entropy loss. *)
-          let loss =
-            Tensor.cross_entropy_for_logits
-              (Tensor.view logits #size [batch_size * seq_len, labels])
-              #targets (Tensor.view ys #size [batch_size * seq_len])
-          in
-          (let open Tensor in sum_loss += loss);
-          Stdio.printf
-            "%d/%d %f"
-            batch_idx
-            batches_per_epoch
-            (Tensor.float_value sum_loss / float (1 + batch_idx));
-          Tensor.backward loss;
-          Optimizer.step #clip_grad (norm2 4.0) adam
-        );
+      ~(TextHelper.gen_iter #batch_size batch_size #seq_len seq_len
+          (fun (batch_idx : Int) ->
+            &(fun #xs (xs : Tensor %[batch_size, seq_len]) ->
+              fun #ys (ys : Tensor %[batch_size, seq_len]) ->
+              Optimizer.zero_grad adam;
+              let onehot =
+                let xs = ~(Tensor.gen_view #size [batch_size, seq_len, 1]) xs in
+                let one = ~(Tensor.gen_ones [batch_size, seq_len, 1]) (* #device device *) in
+                ~(Tensor.gen_zeros [batch_size, seq_len, labels]) (* #device device *)
+                |> ~(Tensor.gen_scatter_ #dim 2) #src one #index xs
+              in
+              let (lstm_out, dummy) = ~Layer.Lstm.gen_seq lstm onehot #is_training true in
+              let logits = ~Layer.gen_forward linear lstm_out in
+              (* Compute the cross-entropy loss. *)
+              let loss =
+                ~Tensor.gen_cross_entropy_for_logits
+                  (~(Tensor.gen_view #size [batch_size * seq_len, labels]) logits)
+                  #targets (~(Tensor.gen_view #size [batch_size * seq_len]) ys)
+              in
+              ~Tensor.gen_add_update sum_loss loss;
+              print_int ~(lift_int batch_idx);
+              print_int batches_per_epoch;
+              print_float (Tensor.float_value sum_loss / float (1 + ~(lift_int batch_idx)));
+              Tensor.backward loss;
+              Optimizer.step #clip_grad (norm2 4.0) adam
+            )
+          )
+      )
+        #device device
+        dataset;
       Stdio.printf
         "%d %.0fs %f"
         epoch_idx
