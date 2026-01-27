@@ -238,7 +238,7 @@ definitions =
             Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
         |],
     versatile ["string"] "from_char_list" ForBothStages 1 $
-      [|error "TODO: String.from_char_list"|],
+      [|error "UNIMPLEMENTED: String.from_char_list"|],
     versatile ["list"] "map" ForBothStages 2 $
       [|
         do
@@ -273,9 +273,9 @@ definitions =
           pure $ A0ValBracket (A1ValLiteral ALitUnit)
         |],
     versatile ["io"] "write_all" ForStage1 2 $
-      [|error "TODO: IO.write_all"|],
+      [|error "UNIMPLEMENTED: IO.write_all"|],
     versatile ["unix"] "gettimeofday" ForStage1 1 $
-      [|error "TODO: Unix.gettimeofday"|],
+      [|error "UNIMPLEMENTED: Unix.gettimeofday"|],
     versatile ["device"] "cpu" ForStage1 0 $
       [|error "UNIMPLEMENTED: Device.cpu"|],
     versatile ["device"] "gen_cuda_if_available" ForStage0 1 $
@@ -406,13 +406,13 @@ definitions =
           error "UNIMPLEMENTED: Optimizer.sgd"
         |],
     versatile ["optimizer", "clip_grad"] "norm2" ForStage1 0 $
-      [| error "TODO: Optimizer.ClipGrad.norm2"|],
+      [| error "UNIMPLEMENTED: Optimizer.ClipGrad.norm2"|],
     versatile ["optimizer", "clip_grad"] "value" ForStage1 0 $
-      [| error "TODO: Optimizer.ClipGrad.value"|],
+      [| error "UNIMPLEMENTED: Optimizer.ClipGrad.value"|],
     versatile ["optimizer"] "step" ForStage1 2 $
-      [| error "TODO: Optimizer.step"|],
+      [| error "UNIMPLEMENTED: Optimizer.step"|],
     versatile ["optimizer"] "zero_grad" ForStage1 1 $
-      [| error "TODO: Optimizer.zero_grad"|],
+      [| error "UNIMPLEMENTED: Optimizer.zero_grad"|],
     versatile ["optimizer"] "backward_step" ForStage1 2 $
       [|
         do
@@ -421,7 +421,7 @@ definitions =
           error "UNIMPLEMENTED: Optimizer.backward_step"
         |],
     versatile ["checkpointing"] "loop" ForStage1 6 $
-      [| error "TODO: Checkpointing.loop"|],
+      [| error "UNIMPLEMENTED: Checkpointing.loop"|],
     gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded],
     gen ["dataset_helper"] "batches_per_epoch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
