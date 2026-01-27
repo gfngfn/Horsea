@@ -7,6 +7,7 @@ where
 
 import Data.List (intercalate)
 import Data.List qualified as List
+import Data.Text qualified as Text
 import Language.Haskell.TH qualified as TH
 import Staged.BuiltIn.CompileTime
 import Util.Matrix qualified as Matrix
@@ -130,6 +131,19 @@ definitions =
           (_, a0v12) <- validateTupleValue a0v1
           pure a0v12
         |],
+    versatile [] "string_append" ForBothStages 2 $
+      [|
+        do
+          s1 <- validateStringLiteral a0v1
+          s2 <- validateStringLiteral a0v2
+          pure $ A0ValLiteral (ALitString (s1 <> s2))
+        |],
+    versatile [] "show_int" ForBothStages 1 $
+      [|
+        do
+          n <- validateIntLiteral a0v1
+          pure $ A0ValLiteral (ALitString (Text.show n))
+        |],
     versatile [] "lift_int" ForStage0 1 $
       [|
         do
@@ -223,6 +237,8 @@ definitions =
             Just mat -> pure $ A0ValLiteral (ALitMat mat)
             Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
         |],
+    versatile ["string"] "from_char_list" ForBothStages 1 $
+      [|error "TODO: String.from_char_list"|],
     versatile ["list"] "map" ForBothStages 2 $
       [|
         do
@@ -250,6 +266,16 @@ definitions =
           a0vs <- validateListValue a0v1
           pure $ A0ValLiteral (ALitInt (length a0vs))
         |],
+    versatile ["gc"] "full_major" ForStage1 1 $
+      [|
+        do
+          () <- validateUnitLiteral a0v1
+          pure $ A0ValBracket (A1ValLiteral ALitUnit)
+        |],
+    versatile ["io"] "write_all" ForStage1 2 $
+      [|error "TODO: IO.write_all"|],
+    versatile ["unix"] "gettimeofday" ForStage1 1 $
+      [|error "TODO: Unix.gettimeofday"|],
     versatile ["device"] "cpu" ForStage1 0 $
       [|error "UNIMPLEMENTED: Device.cpu"|],
     versatile ["device"] "gen_cuda_if_available" ForStage0 1 $
@@ -259,6 +285,7 @@ definitions =
           pure $ A0ValBracket (A1ValLiteral ALitUnit) -- TODO: return a value of type `Device`
         |],
     gen ["tensor"] "zeros" [ParamIntList],
+    gen ["tensor"] "ones" [ParamIntList],
     gen ["tensor"] "copy" [ParamIntList],
     gen ["tensor"] "add" [ParamIntList, ParamIntList],
     versatile ["tensor"] "add" (ForInternal [ParamIntList]) 2 $
@@ -294,8 +321,10 @@ definitions =
         |],
     gen ["tensor"] "add_update" [ParamIntList],
     gen ["tensor"] "sub_update" [ParamIntList],
+    gen ["tensor"] "scatter_" [ParamIntList, ParamIntList, ParamIntList, ParamInt],
     gen ["tensor"] "argmax" [ParamIntList, ParamInt],
     gen ["tensor"] "cross_entropy_for_logits" [ParamInt, ParamInt],
+    gen ["tensor"] "multinomial" [ParamIntList, ParamInt, ParamInt],
     gen ["tensor"] "count_equal" [ParamIntList],
     versatile ["tensor"] "f" ForStage1 1 $
       [|
@@ -317,8 +346,14 @@ definitions =
         |],
     versatile ["tensor"] "float_value" ForStage1 1 $
       [|error "UNIMPLEMENTED: Tensor.float_value"|],
+    versatile ["tensor"] "int_value" ForStage1 1 $
+      [|error "UNIMPLEMENTED: Tensor.int_value"|],
+    gen ["tensor"] "get" [ParamInt, ParamIntList],
+    gen ["tensor"] "fill_float" [ParamIntList],
     gen ["tensor"] "dropout" [ParamIntList],
     gen ["tensor"] "reshape" [ParamIntList, ParamIntList],
+    gen ["tensor"] "view" [ParamIntList, ParamIntList],
+    gen ["tensor"] "narrow" [ParamIntList, ParamInt, ParamInt],
     gen ["tensor"] "max_pool2d" [ParamInt, ParamInt, ParamInt, ParamInt, ParamIntPair, ParamIntPair, ParamIntPair],
     gen ["tensor"] "softmax" [ParamIntList, ParamInt],
     versatile ["var_store"] "create" ForStage1 4 $
@@ -351,6 +386,10 @@ definitions =
     gen ["layer"] "forward_" [ParamIntList, ParamIntList],
     gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt],
     gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt],
+    gen ["layer", "lstm"] "create" [ParamInt, ParamInt],
+    gen ["layer", "lstm"] "zero_state" [ParamInt, ParamInt, ParamInt],
+    gen ["layer", "lstm"] "step" [ParamInt, ParamInt, ParamInt],
+    gen ["layer", "lstm"] "seq" [ParamInt, ParamInt, ParamInt, ParamInt],
     versatile ["optimizer"] "adam" ForStage1 2 $
       [|
         do
@@ -366,6 +405,14 @@ definitions =
           _momentum <- validateFloatLiteral a0v3
           error "UNIMPLEMENTED: Optimizer.sgd"
         |],
+    versatile ["optimizer", "clip_grad"] "norm2" ForStage1 0 $
+      [| error "TODO: Optimizer.ClipGrad.norm2"|],
+    versatile ["optimizer", "clip_grad"] "value" ForStage1 0 $
+      [| error "TODO: Optimizer.ClipGrad.value"|],
+    versatile ["optimizer"] "step" ForStage1 2 $
+      [| error "TODO: Optimizer.step"|],
+    versatile ["optimizer"] "zero_grad" ForStage1 1 $
+      [| error "TODO: Optimizer.zero_grad"|],
     versatile ["optimizer"] "backward_step" ForStage1 2 $
       [|
         do
@@ -373,6 +420,8 @@ definitions =
           let _tensor = a0v2
           error "UNIMPLEMENTED: Optimizer.backward_step"
         |],
+    versatile ["checkpointing"] "loop" ForStage1 6 $
+      [| error "TODO: Checkpointing.loop"|],
     gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded],
     gen ["dataset_helper"] "batches_per_epoch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
@@ -391,6 +440,10 @@ definitions =
       [|error "UNIMPLEMENTED: MnistHelper.test_labels"|],
     gen ["module"] "load" [ParamIntList, ParamString],
     gen ["module"] "forward" [ParamIntList],
+    gen ["text_helper"] "create" [ParamInt, ParamString],
+    gen ["text_helper"] "char" [ParamInt],
+    gen ["text_helper"] "total_length" [ParamInt],
+    gen ["text_helper"] "iter" [ParamInt, ParamInt, ParamInt, ParamDiscarded],
     gen ["torch_vision", "resnet"] "resnet18" [ParamInt, ParamInt, ParamInt, ParamInt],
     gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamInt, ParamString, ParamStringList],
     gen ["torch_vision", "imagenet"] "load_image" [ParamIntList, ParamString],

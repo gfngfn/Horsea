@@ -7,7 +7,6 @@
 let hidden_size = 256 in
 let seq_len = 180 in
 let batch_size = 256 in
-let epochs = 100 in
 
 let gen_sample {labels : Nat} {input_size : Nat} {hidden_size : Nat} =
   &(fun #dataset (dataset : TextHelper %labels) ->
@@ -22,7 +21,7 @@ let gen_sample {labels : Nat} {input_size : Nat} {hidden_size : Nat} =
           if i == 0 then
             (seq, state)
           else
-            ( (* Gc.full_major (); *)
+            ( Gc.full_major ();
               let prev_y = ~(Tensor.gen_zeros [1, labels]) (* #device device *) in
               ~Tensor.gen_fill_float (~(Tensor.gen_narrow #dim 1 #length 1) #start prev_label prev_y) 1.0;
               let state = ~Layer.Lstm.gen_step lstm state prev_y in
@@ -37,7 +36,8 @@ let gen_sample {labels : Nat} {input_size : Nat} {hidden_size : Nat} =
                   (~(Tensor.gen_get {624} {[1]}) sampled_y 0) 0
                     |> Tensor.int_value
               in
-              loop (sampled_label, seq) state (i - 1))
+              loop (sampled_label, seq) state (i - 1)
+            )
         in
         let sampling_length = 1024 in
         loop (0, [] as List Int) zero_state sampling_length
@@ -51,6 +51,7 @@ in
 let labels = 32 in (* TODO *)
 
 &(let learning_rate = 0.01 in
+  let epochs = 100 in
   let device = ~(Device.gen_cuda_if_available ()) in
   let dataset = ~(TextHelper.gen_create {labels} #filename "data/input.txt") in
   let vs = VarStore.create #frozen false #name "char-rnn" #device device () in
@@ -71,14 +72,14 @@ let labels = 32 in (* TODO *)
     #end_index epochs
     #var_stores [vs]
     #checkpoint_base "char-rnn.ot"
-    #checkpoint_every (iters 1)
+    #checkpoint_every_iters 1
     (fun #index (epoch_idx : Int) ->
       IO.write_all
         ("out.txt." ++ show_int epoch_idx)
         #data (~gen_sample #dataset dataset #lstm lstm #linear linear #device device);
       let start_time = Unix.gettimeofday () in
       let sum_loss = Tensor.f 0.0 in
-      ~(TextHelper.gen_iter #batch_size batch_size #seq_len seq_len
+      ~(TextHelper.gen_iter #seq_len seq_len #batch_size batch_size
           (fun (batch_idx : Int) ->
             &(fun #xs (xs : Tensor %[batch_size, seq_len]) ->
               fun #ys (ys : Tensor %[batch_size, seq_len]) ->
@@ -102,16 +103,14 @@ let labels = 32 in (* TODO *)
               print_int batches_per_epoch;
               print_float (Tensor.float_value sum_loss / float (1 + ~(lift_int batch_idx)));
               Tensor.backward loss;
-              Optimizer.step #clip_grad (norm2 4.0) adam
+              Optimizer.step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam
             )
           )
       )
         #device device
         dataset;
-      Stdio.printf
-        "%d %.0fs %f"
-        epoch_idx
-        (Unix.gettimeofday () - start_time)
-        (Tensor.float_value sum_loss / float batches_per_epoch)
+      print_int epoch_idx;
+      print_int (Unix.gettimeofday () - start_time);
+      print_float (Tensor.float_value sum_loss / float batches_per_epoch)
     )
 )

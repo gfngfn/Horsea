@@ -173,7 +173,7 @@ module Tensor = struct
     {n : Nat} ->
     {shape : List Nat} ->
     &(Tensor %(n :: shape) -> Int -> Tensor %shape)
-    external (builtin = "tensor__float_value", surface = "float_value")
+    external (builtin = "tensor__gen_get", surface = "get")
   val ~gen_fill_float : {shape : List Nat} -> &(Tensor %shape -> Float -> Unit)
     external (builtin = "tensor__gen_fill_float", surface = "fill_float")
   val ~gen_dropout :
@@ -353,6 +353,19 @@ module Optimizer = struct
     external (builtin = "optimizer__backward_step", surface = "backward_step")
 end
 
+module Checkpointing = struct
+  val loop :
+    #start_index Int ->
+    #end_index Int ->
+    #var_stores List VarStore ->
+    #checkpoint_base String ->
+    (* #only_keep Int -> *)
+    #checkpoint_every_iters Int -> (* [ `iters of int | `seconds of float ]. default : `seconds 600 *)
+    (#index Int -> Unit) ->
+    Unit
+    external (builtin = "checkpointing__loop", surface = "loop")
+end
+
 module DatasetHelper = struct
   val ~gen_train_batch :
     {ntrain : Nat} ->
@@ -445,11 +458,11 @@ end
 
 module TextHelper = struct
   val ~gen_create : {labels : Nat} -> #filename String -> &(TextHelper %labels)
-    external (builtin = "text_helper__create", surface = "create")
+    external (builtin = "text_helper__gen_create", surface = "create")
   val ~gen_char : {labels : Nat} -> &(TextHelper %labels -> #label Int -> Char)
-    external (builtin = "text_helper__char", surface = "char")
+    external (builtin = "text_helper__gen_char", surface = "char")
   val ~gen_total_length : {labels : Nat} -> &(TextHelper %labels -> Int)
-    external (builtin = "text_helper__total_length", surface = "total_length")
+    external (builtin = "text_helper__gen_total_length", surface = "total_length")
   val ~gen_iter :
     {labels : Nat} ->
     #seq_len (seq_len : Nat) ->
