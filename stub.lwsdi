@@ -84,6 +84,11 @@ module List = struct
     external (builtin = "list__length", surface = "length")
 end
 
+module Gc = struct
+  val full_major : Unit -> Unit
+    external (builtin = "gc__full_major", surface = "full_major")
+end
+
 module IO = struct
   val write_all : String -> #data String -> Unit
     external (builtin = "io__write_all", surface = "write_all")
@@ -326,6 +331,17 @@ module Optimizer = struct
     #momentum Float ->
     Optimizer
     external (builtin = "optimizer__sgd", surface = "sgd")
+  module ClipGrad = struct
+    val norm2 : Float -> ClipGrad
+      external (builtin = "optimizer__clip_grad__norm2", surface = "norm2")
+    val value : Float -> ClipGrad
+      external (builtin = "optimizer__clip_grad__value", surface = "value")
+  end
+  val step :
+    #clip_grad ClipGrad ->
+    Optimizer ->
+    Unit
+    external (builtin = "optimizer__step", surface = "step")
   val zero_grad :
     Optimizer ->
     Unit
