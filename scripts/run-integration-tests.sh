@@ -22,6 +22,7 @@ TESTS_STAGED_RUN=(
 )
 TESTS_STAGED_COMPILE=(
     examples/ocaml-torch/jit/load_and_run.lwsd
+    examples/ocaml-torch/mnist/conv.lwsd
     examples/ocaml-torch/mnist/linear.lwsd
     examples/ocaml-torch/mnist/linear_as.lwsd
     examples/ocaml-torch/pretrained/finetuning.lwsd
