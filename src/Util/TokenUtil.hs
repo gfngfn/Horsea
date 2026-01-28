@@ -123,6 +123,7 @@ charInStringLiteral =
   choice
     [ '"' <$ Mp.chunk "\\\"",
       '\\' <$ Mp.chunk "\\\\",
+      '\n' <$ Mp.chunk "\\n",
       Mp.satisfy (\c -> c /= '"' && c /= '\\')
     ]
 
