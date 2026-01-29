@@ -56,20 +56,12 @@ let gen_bce {shape : List Nat} =
     fun(model_values : Tensor %shape) ->
       let epsilon = 0.0000001 in
       let open Tensor in
-      ~gen_sub
-        ~(gen_zeros ([] as List Nat))
-        ( ~gen_add
-            ( ~gen_mult
-                (f labels)
-                (~gen_log (~gen_add model_values (f epsilon)))
-            )
-            ( ~gen_mult
-              (f (1.0 -. labels))
-              (~gen_log (~gen_sub (f (1.0 +. epsilon)) model_values))
-            )
-        )
-        |> ~Tensor.gen_mean
+      ( ~gen_sub
+          (~gen_mult (f (1.0 -. labels)) (~gen_log (~gen_sub (f (1.0 +. epsilon)) model_values)))
+          (~gen_mult (f labels) (~gen_log (~gen_add model_values (f epsilon))))
       )
+        |> ~Tensor.gen_mean
+  )
 in
 
 &(let device = Device.cpu in

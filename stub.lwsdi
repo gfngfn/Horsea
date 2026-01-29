@@ -160,6 +160,9 @@ module Tensor = struct
   val ~gen_log :
     {shape : List Nat} -> &(Tensor %shape -> Tensor %shape)
     external (builtin = "tensor__gen_log", surface = "log")
+  val ~gen_square :
+    {shape : List Nat} -> &(Tensor %shape -> Tensor %shape)
+    external (builtin = "tensor__gen_square", surface = "square")
   val ~gen_cat_ :
     #dim (dim : Int) ->
     {shape1 : {s : List Nat | List.length s > dim}} ->

@@ -405,6 +405,7 @@ definitions =
     gen ["tensor"] "sub" [ParamIntList, ParamIntList],
     gen ["tensor"] "mult" [ParamIntList, ParamIntList],
     gen ["tensor"] "log" [ParamIntList],
+    gen ["tensor"] "square" [ParamIntList],
     gen ["tensor"] "cat_" [ParamInt, ParamIntList, ParamIntList],
     gen ["tensor"] "mean" [ParamIntList],
     gen ["tensor"] "rand" [ParamIntList],
@@ -454,11 +455,14 @@ definitions =
     gen ["tensor"] "get_float2_unsafe" [ParamIntList],
     gen ["tensor"] "fill_float" [ParamIntList],
     gen ["tensor"] "dropout" [ParamIntList],
+    gen ["tensor"] "relu" [ParamIntList],
+    gen ["tensor"] "leaky_relu" [ParamIntList],
     gen ["tensor"] "reshape" [ParamIntList, ParamIntList],
     gen ["tensor"] "view" [ParamIntList, ParamIntList],
     gen ["tensor"] "narrow" [ParamIntList, ParamInt, ParamInt],
     gen ["tensor"] "max_pool2d" [ParamInt, ParamInt, ParamInt, ParamInt, ParamIntPair, ParamIntPair, ParamIntPair],
     gen ["tensor"] "softmax" [ParamIntList, ParamInt],
+    gen ["tensor"] "const_batch_norm" [ParamIntList],
     versatile ["var_store"] "create" ForStage1 4 $
       [|
         do
@@ -498,6 +502,7 @@ definitions =
     gen ["layer"] "forward" [ParamIntList, ParamIntList],
     gen ["layer"] "forward_" [ParamIntList, ParamIntList],
     gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt],
+    gen ["layer"] "conv_transpose2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamIntList],
     gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt],
     gen ["layer", "lstm"] "create" [ParamInt, ParamInt],
     gen ["layer", "lstm"] "zero_state" [ParamInt, ParamInt, ParamInt],

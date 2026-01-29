@@ -61,20 +61,12 @@ let gen_bce {shape : List Nat} =
     fun(model_values : Tensor %shape) ->
       let epsilon = 0.0000001 in
       let open Tensor in
-      ~gen_sub
-        ~(gen_zeros ([] as List Nat))
-        ( ~gen_add
-            ( ~gen_mult
-                (f labels)
-                (~gen_log (~gen_add model_values (f epsilon)))
-            )
-            ( ~gen_mult
-              (f (1.0 -. labels))
-              (~gen_log (~gen_sub (f (1.0 +. epsilon)) model_values))
-            )
-        )
-        |> ~Tensor.gen_mean
+      ( ~gen_sub
+          (~gen_mult (f (1.0 -. labels)) (~gen_log (~gen_sub (f (1.0 +. epsilon)) model_values)))
+          (~gen_mult (f labels) (~gen_log (~gen_add model_values (f epsilon))))
       )
+        |> ~Tensor.gen_mean
+  )
 in
 
 &(let device = Device.cpu in
@@ -83,9 +75,7 @@ in
 
   let random (u : Unit) =
     let open Tensor in
-    ~gen_sub
-      (~gen_mult (f 2.0) ~(gen_rand [batch_size, latent_dim]))
-      (f 1.0)
+    ~gen_sub (~gen_mult (f 2.0) ~(gen_rand [batch_size, latent_dim])) (f 1.0)
   in
   let end_line_by (s : String) = "  [" ++ s ++ "],\n" in
   let write_samples (samples : Tensor %[batch_size, image_dim + label_count]) #filename (filename : String) =
@@ -136,13 +126,7 @@ in
     let real_input =
       let open Tensor in
       ~(gen_cat_ #dim 1)
-        ( ~gen_sub
-            ( ~gen_mult
-                (f 2.0)
-                batch_images
-            )
-            (f 1.0)
-        )
+        (~gen_sub (~gen_mult (f 2.0) batch_images) (f 1.0))
         onehot_labels
     in
     let discriminator_loss =

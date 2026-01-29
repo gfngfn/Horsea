@@ -52,11 +52,8 @@ in
 let bce {shape : List Nat} #labels (labels : Float) (model_values : Tensor shape) =
   let epsilon = 0.0000001 in
   let open Tensor in
-  ( zeros ([] as List Nat)
-      - (f labels * log (model_values + f epsilon)
-        + f (1.0 -. labels) * log (f (1.0 +. epsilon) - model_values))
-  )
-    |> Tensor.mean
+  f (1.0 -. labels) * log (f (1.0 +. epsilon) - model_values) - f labels * log (model_values + f epsilon)
+    |> mean
 in
 
 let device = Device.cpu in
