@@ -251,11 +251,12 @@ typeExpr = fun
   where
     atom :: P TypeExpr
     atom =
-      -- TODO: support refinement types
       (makeNamed <$> upper)
+        <|> try (makeRefinement <$> brace ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (fun <* token TokBar) <*> expr))
         <|> (makeEnclosed <$> paren fun)
       where
         makeNamed (Located loc t) = TypeExpr loc (TyName t [])
+        makeRefinement (Located loc (x, tye, e)) = TypeExpr loc (TyRefinement x tye e)
         makeEnclosed (Located loc (TypeExpr _ tyeMain)) = TypeExpr loc tyeMain
 
     app :: P TypeExpr

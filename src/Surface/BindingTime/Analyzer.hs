@@ -552,6 +552,13 @@ extractConstraintsFromTypeExpr trav btenv (TypeExpr ann typeExprMain) = do
       let constraints = [CEqual ann bt (BTConst BT0)]
       let tye' = TypeExpr (bt, ann) (TyOptArrow (x1, tye1') tye2')
       pure (tye', BIType bt (BITyOptArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
+    TyRefinement x tye1 e2 -> do
+      (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
+      (e2', BIType bt2 _, constraints2) <-
+        extractConstraintsFromExpr trav (Map.insert x (EntryLocallyBound bt bity1) btenv) e2
+      let constraints = [CEqual ann bt (BTConst BT0), CEqual ann bt1 (BTConst BT0), CEqual ann bt2 (BTConst BT0)]
+      let tye' = TypeExpr (bt, ann) (TyRefinement x tye1' e2')
+      pure (tye', bity1, constraints1 ++ constraints2 ++ constraints)
     TyProduct tye1 tye2 -> do
       (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
       (tye2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromTypeExpr trav btenv tye2

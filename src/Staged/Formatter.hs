@@ -273,6 +273,10 @@ dispOptArrowType req x tye1 tye2 =
   where
     docDom = "{" <> disp x <+> ":" <+> disp tye1 <> "}"
 
+dispRefinementType :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> expr -> Doc Ann
+dispRefinementType _req x tye eProp =
+  "{" <> disp x <+> ":" <+> disp tye <+> "|" <+> disp eProp <> "}"
+
 dispInternalRefinementType :: (Disp ty, Disp expr) => Associativity -> ty -> expr -> Doc Ann
 dispInternalRefinementType _req tye ePred =
   "{" <> disp tye <+> "|" <+> disp ePred <> "}"
@@ -466,6 +470,7 @@ instance Disp Surface.TypeExprMain where
     Surface.TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
     Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     Surface.TyOptArrow (x, tye1) tye2 -> dispOptArrowType req x tye1 tye2
+    Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Surface.TyProduct tye1 tye2 -> dispProductType req tye1 tye2
 
 instance Disp Surface.ArgForType where
@@ -1176,6 +1181,7 @@ instance Disp (Bta.BCTypeExprMainF ann) where
     Surface.TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
     Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     Surface.TyOptArrow (x, tye1) tye2 -> dispOptArrowType req x tye1 tye2
+    Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Surface.TyProduct tye1 tye2 -> dispProductType req tye1 tye2
 
 instance Disp (Bta.BCArgForTypeF ann) where

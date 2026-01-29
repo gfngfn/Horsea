@@ -133,6 +133,8 @@ stageTypeExpr0Main = \case
     Staged.TyArrow labelOpt (xOpt, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
   TyOptArrow (x, tye1) tye2 ->
     Staged.TyOptArrow (x, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
+  TyRefinement x tye1 e2 ->
+    Staged.TyRefinement x (stageTypeExpr0 tye1) (stageExpr0 e2)
   TyProduct tye1 tye2 ->
     Staged.TyProduct (stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
 
@@ -147,6 +149,7 @@ stageTypeExpr1Main = \case
   TyName tyName args -> Staged.TyName tyName (map stageArgForType1 args)
   TyArrow labelOpt (_xOpt, tye1) tye2 -> Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
   TyOptArrow (_x, _tye1) _tye2 -> error "bug: stageTypeExpr1Main, TyOptArrow"
+  TyRefinement _x _tye _e -> error "bug: stageTypeExpr1Main, TyRefinement"
   TyProduct tye1 tye2 -> Staged.TyProduct (stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
 
 stageArgForType1 :: (Show ann) => BCArgForTypeF ann -> Staged.ArgForTypeF ann

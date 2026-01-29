@@ -32,6 +32,7 @@ data Token
   | TokSemicolon
   | TokUnderscore
   | TokOpFlipApp
+  | TokBar
   | TokProd
   | TokVecLeft
   | TokVecRight
@@ -82,6 +83,7 @@ showToken = \case
   TokSemicolon -> ";"
   TokUnderscore -> "_"
   TokOpFlipApp -> "|>"
+  TokBar -> "|"
   TokProd -> "*"
   TokVecLeft -> "[|"
   TokVecRight -> "|]"
@@ -112,7 +114,7 @@ showToken = \case
   TokOpOr op -> Text.unpack op
 
 instance Mp.TraversableStream [Located Token] where
-  reachOffset _n posState = (Nothing, posState)
+  reachOffset _n posState = (Nothing, posState) -- TODO
 
 keywordMap :: Map Text Token
 keywordMap =
@@ -151,10 +153,11 @@ token =
       Mp.try (TokOpComp <$> operatorLong '='),
       TokEqual <$ Mp.single '=',
       TokOpAnd <$> operatorLong '&',
-      TokOpOr <$> operatorLong '|',
       TokSemicolon <$ Mp.single ';',
       TokUnderscore <$ Mp.single '_',
       TokOpFlipApp <$ Mp.chunk "|>",
+      Mp.try (TokOpOr <$> operatorLong '|'),
+      TokBar <$ Mp.single '|',
       TokVecLeft <$ Mp.chunk "[|",
       TokVecRight <$ Mp.chunk "|]",
       TokMatLeft <$ Mp.chunk "[#",
