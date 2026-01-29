@@ -80,14 +80,14 @@ in
   let learning_rate = 0.0001 in
   let batches = 100000000 in
 
-  let rand (u : Unit) =
+  let random (u : Unit) =
     let open Tensor in
     ~gen_sub
       (~gen_mult (f 2.0) ~(gen_rand [batch_size, latent_dim]))
       (f 1.0)
   in
   let end_line_by (s : String) = "  [" ++ s ++ "],\n" in
-  let write_samples (samples : Tensor %[batch_size, (* latent_dim + label_count * 2, *) image_dim + label_count]) #filename (filename : String) =
+  let write_samples (samples : Tensor %[batch_size, image_dim + label_count]) #filename (filename : String) =
     IO.OutChannel.with_file filename (fun (channel : OutChannel) ->
       IO.OutChannel.output_string channel "data_ = [\n";
       (range 0 99) |> List.iter (fun(sample_index : Int) ->
@@ -106,7 +106,7 @@ in
   let opt_g = Optimizer.adam generator_vs #learning_rate learning_rate in
   let discriminator_vs = VarStore.create #frozen false #name "disc" #device device () in
   let opt_d = Optimizer.adam discriminator_vs #learning_rate learning_rate in
-  let fixed_noise = rand () in
+  let fixed_noise = random () in
   let fake_labels =
     (* Generate some regular one-hot encoded labels. *)
     ~(List.initialize (batch_size * label_count) (fun (i : Int) ->
@@ -147,11 +147,11 @@ in
     let discriminator_loss =
       ~Tensor.gen_add
         (~gen_bce #labels 0.9 (~gen_create_discriminator discriminator_vs real_input))
-        (~gen_bce #labels 0.0 (rand () |> generator |> ~gen_create_discriminator discriminator_vs))
+        (~gen_bce #labels 0.0 (random () |> generator |> ~gen_create_discriminator discriminator_vs))
     in
     Optimizer.backward_step opt_d #loss discriminator_loss;
     let generator_loss =
-      ~gen_bce #labels 1.0 (rand () |> generator |> ~gen_create_discriminator discriminator_vs)
+      ~gen_bce #labels 1.0 (random () |> generator |> ~gen_create_discriminator discriminator_vs)
     in
     Optimizer.backward_step opt_g #loss generator_loss;
     if mod batch_idx 100 == 0 then

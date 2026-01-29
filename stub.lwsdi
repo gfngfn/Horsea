@@ -242,7 +242,7 @@ module Tensor = struct
   val ~gen_get_float2_unsafe :
     {shape : {s : List Nat | List.length s == 2}} ->
     &(Tensor %shape -> Int -> Int -> Float)
-    external (builtin = "tensor__gen_get_float2_unsafe", surface = "get_float2")
+    external (builtin = "tensor__gen_get_float2_unsafe", surface = "get_float2_unsafe")
   val ~gen_fill_float : {shape : List Nat} -> &(Tensor %shape -> Float -> Unit)
     external (builtin = "tensor__gen_fill_float", surface = "fill_float")
   val ~gen_dropout :
