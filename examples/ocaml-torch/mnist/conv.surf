@@ -12,6 +12,7 @@ let conv2d1 {size : Nat} (t : Tensor [size, 1, 28, 28]) =
     #input_dim 1
     #output_dim 32
     vs
+    Layer.Activation.none
     t
 in
 let conv2d2 {size : Nat} (t : Tensor [size, 32, 12, 12]) =
@@ -22,6 +23,7 @@ let conv2d2 {size : Nat} (t : Tensor [size, 32, 12, 12]) =
     #input_dim 32
     #output_dim 64
     vs
+    Layer.Activation.none
     t
 in
 let linear1 {size : Nat} =

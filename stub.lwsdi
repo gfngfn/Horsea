@@ -253,6 +253,12 @@ module Tensor = struct
       Tensor %shape
     )
     external (builtin = "tensor__gen_dropout", surface = "dropout")
+  val ~gen_relu :
+    {shape : List Nat} ->
+    &(Tensor %shape ->
+      Tensor %shape
+    )
+    external (builtin = "tensor__gen_relu", surface = "relu")
   (* TODO: make `gen_reshape` support `-1` *)
   val ~gen_reshape :
     {shape1 : List Nat} ->
@@ -287,6 +293,14 @@ module Tensor = struct
     #dim Int ->
     &(Tensor %ns -> Tensor %ns)
     external (builtin = "tensor__gen_softmax", surface = "softmax")
+  val ~gen_const_batch_norm :
+    {shape : List Nat} ->
+    (* #momentum Float -> *)
+    (* #eps float -> *)
+    &(Tensor %shape ->
+      Tensor %shape
+    )
+    external (builtin = "tensor__gen_const_batch_norm", surface = "const_batch_norm")
 end
 
 module VarStore = struct
@@ -346,10 +360,33 @@ module Layer = struct
     #input_dim (input_dim : Nat) ->
     #output_dim (output_dim : Nat) ->
     &(VarStore ->
+      Activation ->
       Tensor %[l, input_dim, m, n] ->
       Tensor %[l, output_dim, (m + 2 * padding - ksize) // stride + 1, (n + 2 * padding - ksize) // stride + 1]
     )
     external (builtin = "layer__gen_conv2d_", surface = "conv2d_")
+  val ~gen_conv_transpose2d_ :
+    #ksize (ksize : Nat) ->
+    #stride (stride : Nat) ->
+    (* #use_bias Bool -> *) (* default: true *)
+    (* #w_init VarStore.Init -> *)
+    #padding (padding : Nat) ->
+    #output_padding (output_padding : Nat) -> (* default: 0 *)
+    (* #groups Nat -> *)
+    #input_dim (input_dim : Nat) ->
+    #output_dim (output_dim : Nat) ->
+    {shape : {s : List Nat | List.length s == 4 && List.nth 1 s == input_dim}} ->
+    &(VarStore ->
+      Activation ->
+      Tensor %shape ->
+      Tensor %[
+        List.nth 0 shape,
+        output_dim,
+        (List.nth 2 shape - 1) * stride - 2 * padding + ksize + output_padding,
+        (List.nth 3 shape - 1) * stride - 2 * padding + ksize + output_padding
+      ]
+    )
+    external (builtin = "layer__gen_conv_transpose2d_", surface = "conv_transpose2d_")
   val ~gen_linear :
     {ns : List Nat} ->
     #input_dim (input_dim : Nat) ->
@@ -513,6 +550,8 @@ module DatasetHelper = struct
 end
 
 module MnistHelper = struct
+  val ~image_height = 28 as Nat
+  val ~image_width = 28 as Nat
   val ~image_dim = (28 * 28) as Nat
   val ~label_count = 10
   val ~num_train_images = 60000 as Nat
