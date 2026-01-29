@@ -267,6 +267,13 @@ definitions =
             Just mat -> pure $ A0ValLiteral (ALitMat mat)
             Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
         |],
+    versatile ["string"] "concat" ForBothStages 2 $
+      [|
+        do
+          sep <- validateStringLiteral a0v1
+          strs <- validateStringListLiteral a0v2
+          pure $ A0ValLiteral (ALitString (Text.intercalate sep strs))
+        |],
     versatile ["string"] "from_char_list" ForBothStages 1 $
       [|error "UNIMPLEMENTED: String.from_char_list"|],
     versatile ["list"] "map" ForBothStages 2 $
@@ -359,6 +366,10 @@ definitions =
         |],
     versatile ["io"] "write_all" ForStage1 2 $
       [|error "UNIMPLEMENTED: IO.write_all"|],
+    versatile ["io", "out_channel"] "with_file" ForStage1 2 $
+      [|error "UNIMPLEMENTED: IO.OutChannel.with_file"|],
+    versatile ["io", "out_channel"] "output_string" ForStage1 2 $
+      [|error "UNIMPLEMENTED: IO.OutChannel.output_string"|],
     versatile ["unix"] "gettimeofday" ForStage1 1 $
       [|error "UNIMPLEMENTED: Unix.gettimeofday"|],
     versatile ["device"] "cpu" ForStage1 0 $
@@ -472,6 +483,16 @@ definitions =
     gen ["var_store"] "all_vars" [ParamIntList],
     versatile ["layer", "activation"] "relu" ForStage1 0 $
       [|error "UNIMPLEMENTED: Layer.Activation.relu"|],
+    versatile ["layer", "activation"] "softmax" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Layer.Activation.softmax"|],
+    versatile ["layer", "activation"] "log_softmax" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Layer.Activation.log_softmax"|],
+    versatile ["layer", "activation"] "tanh" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Layer.Activation.tanh"|],
+    versatile ["layer", "activation"] "leaky_relu" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Layer.Activation.leaky_relu"|],
+    versatile ["layer", "activation"] "sigmoid" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Layer.Activation.sigmoid"|],
     versatile ["layer", "activation"] "none" ForStage1 0 $
       [|error "UNIMPLEMENTED: Layer.Activation.none"|],
     gen ["layer"] "forward" [ParamIntList, ParamIntList],
