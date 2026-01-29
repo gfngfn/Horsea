@@ -1,17 +1,17 @@
-(* Conditional Generative Adversarial Nets trained on the MNIST dataset. *)
+(* Generative Adversarial Networks trained on the MNIST dataset. *)
 
 let image_dim = MnistHelper.image_dim in
-let label_count = MnistHelper.label_count in
 let latent_dim = 100 in
 let generator_hidden_nodes = 128 in
 let discriminator_hidden_nodes = 128 in
-let batch_size = 256 in
+let batch_size = 128 in
 
-(* The generator receives as input both some noise and a one-hot encoding of labels. *)
-let create_generator {shape : {s : List Nat | List.length s > 0}} (vs : VarStore) =
+let create_generator
+    {shape : {s : List Nat | List.length s > 0 && List.last s == latent_dim}}
+    (vs : VarStore) =
   let linear1 =
     Layer.linear {List.init shape}
-      #input_dim (latent_dim + label_count)
+      #input_dim latent_dim
       #output_dim generator_hidden_nodes
       vs
       Layer.Activation.leaky_relu
@@ -27,13 +27,12 @@ let create_generator {shape : {s : List Nat | List.length s > 0}} (vs : VarStore
     Layer.forward linear1 rand_input |> Layer.forward linear2
 in
 
-(* The discriminator receives as input both an image and a one-hot encoding of labels. *)
 let create_discriminator
-    {shape : {s : List Nat | List.length s > 0 && List.last s == image_dim + label_count}}
+    {shape : {s : List Nat | List.length s > 0 && List.last s == image_dim}}
     (vs : VarStore) =
   let linear1 =
     Layer.linear {List.init shape}
-      #input_dim (image_dim + label_count)
+      #input_dim image_dim
       #output_dim discriminator_hidden_nodes
       vs
       Layer.Activation.leaky_relu
@@ -68,7 +67,7 @@ let random (u : Unit) =
   f 2.0 * rand [batch_size, latent_dim] - f 1.0
 in
 let end_line_by (s : String) = "  [" ++ s ++ "],\n" in
-let write_samples (samples : Tensor [batch_size, image_dim + label_count]) #filename (filename : String) =
+let write_samples (samples : Tensor [batch_size, image_dim]) #filename (filename : String) = (* TODO *)
   IO.OutChannel.with_file filename (fun (channel : OutChannel) ->
     IO.OutChannel.output_string channel "data_ = [\n";
     (range 0 99) |> List.iter (fun(sample_index : Int) ->
@@ -87,45 +86,35 @@ let generator_vs = VarStore.create #frozen false #name "gen" #device device () i
 let opt_g = Optimizer.adam generator_vs #learning_rate learning_rate in
 let discriminator_vs = VarStore.create #frozen false #name "disc" #device device () in
 let opt_d = Optimizer.adam discriminator_vs #learning_rate learning_rate in
+
 let fixed_noise = random () in
-let fake_labels =
-  (* Generate some regular one-hot encoded labels. *)
-  List.initialize (batch_size * label_count) (fun (i : Int) ->
-    if mod i label_count == mod (i // label_count) label_count then 1.0 else 0.0
-  )
-    |> Tensor.float_vec
-    |> Tensor.reshape #shape [batch_size, label_count]
-in
-let generator (xs : Tensor [batch_size, latent_dim]) =
-  let ys = Tensor.cat_ #dim 1 xs fake_labels |> create_generator generator_vs in
-  Tensor.cat_ #dim 1 ys fake_labels
-in
-let one = Tensor.ones ([] as List Nat) in
 (range 1 batches) |> List.iter (fun (batch_idx : Int) ->
-  let (batch_images, batch_labels) =
+  let (batch_images, dummy) =
     DatasetHelper.train_batch #batch_size batch_size
       device
       mnist
       batch_idx
   in
-  let onehot_labels =
-    Tensor.zeros [batch_size, label_count]
-      |> Tensor.scatter_ #dim 1 #src one #index batch_labels
-  in
-  let real_input =
-    let open Tensor in
-    cat_ #dim 1
-      (f 2.0 * batch_images - f 1.0)
-      onehot_labels
-  in
   let discriminator_loss =
     let open Tensor in
-    bce #labels 0.9 (create_discriminator discriminator_vs real_input)
-      + bce #labels 0.0 (random () |> generator |> create_discriminator discriminator_vs)
+    ( bce
+        #labels 0.9
+        ( create_discriminator
+            discriminator_vs
+            (f 2.0 * batch_images - f 1.0)
+        )
+    )
+      +
+        ( bce
+            #labels 0.0
+            (random () |> create_generator generator_vs |> create_discriminator discriminator_vs)
+        )
   in
   Optimizer.backward_step opt_d #loss discriminator_loss;
   let generator_loss =
-    bce #labels 1.0 (random () |> generator |> create_discriminator discriminator_vs)
+    bce
+      #labels 1.0
+      (random () |> create_generator generator_vs |> create_discriminator discriminator_vs)
   in
   Optimizer.backward_step opt_g #loss generator_loss;
   if mod batch_idx 100 == 0 then
@@ -139,10 +128,9 @@ let one = Tensor.ones ([] as List Nat) in
   else
     ();
   Gc.full_major ();
-  if mod batch_idx 25000 == 0 || (batch_idx < 100000 && mod batch_idx 5000 == 0)
-  then
+  if mod batch_idx 100000 == 0 || (batch_idx < 100000 && mod batch_idx 25000 == 0) then
     write_samples
-      (generator fixed_noise)
+      (create_generator generator_vs fixed_noise)
       #filename ("out" ++ show_int batch_idx ++ ".txt")
   else
     ()

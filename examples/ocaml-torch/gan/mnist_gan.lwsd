@@ -17,11 +17,11 @@ let gen_create_generator {shape : {s : List Nat | List.length s > 0 && List.last
       in
       let linear2 =
         ~(Layer.gen_linear {List.init shape}
-          #input_dim generator_hidden_nodes
-          #output_dim image_dim
-        )
-        vs
-        Layer.Activation.tanh
+            #input_dim generator_hidden_nodes
+            #output_dim image_dim
+          )
+          vs
+          Layer.Activation.tanh
       in
       fun (rand_input : Tensor %shape) ->
         ~Layer.gen_forward linear1 rand_input |> ~Layer.gen_forward linear2

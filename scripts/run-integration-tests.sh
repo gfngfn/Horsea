@@ -29,6 +29,7 @@ TESTS_STAGED_COMPILE=(
     examples/ocaml-torch/pretrained/predict.lwsd
     examples/ocaml-torch/char_rnn/char_rnn.lwsd
     examples/ocaml-torch/gan/mnist_cgan.lwsd
+    examples/ocaml-torch/gan/mnist_gan.lwsd
 )
 TESTS_STAGED_FAILURE=(
     examples/failure/error-bracket.lwsd
@@ -69,6 +70,7 @@ TESTS_SURFACE_COMPILE=(
     examples/ocaml-torch/pretrained/predict.surf
     examples/ocaml-torch/char_rnn/char_rnn.surf
     examples/ocaml-torch/gan/mnist_cgan.surf
+    examples/ocaml-torch/gan/mnist_gan.surf
 )
 TESTS_SURFACE_FAILURE=(
     examples/failure/error-stage.surf
