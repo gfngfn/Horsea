@@ -142,41 +142,57 @@ lowerIdentOrKeyword = do
 token :: Tokenizer Token
 token =
   choice
-    [ TokLeftParen <$ Mp.single '(',
+    [ -- `(`, `)`, `{`, and `}`:
+      TokLeftParen <$ Mp.single '(',
       TokRightParen <$ Mp.single ')',
       TokLeftBrace <$ Mp.single '{',
       TokRightBrace <$ Mp.single '}',
-      TokArrow <$ Mp.chunk "->",
+      -- `[`:
+      TokVecLeft <$ Mp.chunk "[|",
+      TokMatLeft <$ Mp.chunk "[#",
+      TokLeftSquare <$ Mp.single '[',
+      -- `]`:
+      TokRightSquare <$ Mp.single ']',
+      -- `:`:
       TokColonColon <$ Mp.chunk "::",
       TokColon <$ Mp.single ':',
+      -- `,` and `;`:
       TokComma <$ Mp.single ',',
+      TokSemicolon <$ Mp.single ';',
+      -- `=`:
       Mp.try (TokOpComp <$> operatorLong '='),
       TokEqual <$ Mp.single '=',
+      -- `&`:
       TokOpAnd <$> operatorLong '&',
-      TokSemicolon <$ Mp.single ';',
-      TokUnderscore <$ Mp.single '_',
+      -- `|`:
       TokOpFlipApp <$ Mp.chunk "|>",
+      TokVecRight <$ Mp.chunk "|]",
       Mp.try (TokOpOr <$> operatorLong '|'),
       TokBar <$ Mp.single '|',
-      TokVecLeft <$ Mp.chunk "[|",
-      TokVecRight <$ Mp.chunk "|]",
-      TokMatLeft <$ Mp.chunk "[#",
+      -- `#`:
       Mp.try (TokLabel <$> (Mp.single '#' *> lowerIdent)),
       TokMatRight <$ Mp.chunk "#]",
-      TokLeftSquare <$ Mp.single '[',
-      TokRightSquare <$ Mp.single ']',
-      TokOpAdd <$> operator '+',
+      -- `*`:
       Mp.try (TokOpMult <$> operatorLong '*'),
       TokProd <$ Mp.single '*',
+      -- `+`, `/`, `<`, and `>`:
+      TokOpAdd <$> operator '+',
       TokOpMult <$> operator '/',
       TokOpComp <$> operator '<',
       TokOpComp <$> operator '>',
+      -- `_`:
+      TokUnderscore <$ Mp.single '_',
+      -- identifiers:
       lowerIdentOrKeyword,
       Mp.try (TokLongLower <$> longLowerIdent),
       TokUpper <$> upperIdent,
+      -- numeric literals (possibly starting with `-`):
       Mp.try (TokFloat <$> floatLiteral),
       Mp.try (TokInt <$> integerLiteral),
+      -- `-`:
+      TokArrow <$ Mp.chunk "->",
       TokOpAdd <$> operator '-',
+      -- `"`:
       TokString <$> stringLiteral
     ]
 
