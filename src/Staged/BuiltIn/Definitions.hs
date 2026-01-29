@@ -323,8 +323,8 @@ definitions =
               Nothing ->
                 pure False
               Just zipped -> do
-                and <$>
-                  mapM
+                and
+                  <$> mapM
                     ( \(a0vA, a0vB) -> do
                         a0vPartial <- reduceBeta a0v1 a0vA
                         a0vResult <- reduceBeta a0vPartial a0vB
