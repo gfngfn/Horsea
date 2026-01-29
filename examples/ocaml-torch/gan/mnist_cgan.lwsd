@@ -6,14 +6,12 @@ let latent_dim = 100 in
 let generator_hidden_nodes = 128 in
 let discriminator_hidden_nodes = 128 in
 let batch_size = 256 in
-let learning_rate = 0.0001 in
-let batches = 100000000 in
 
 (* The generator receives as input both some noise and a one-hot encoding of labels. *)
-let gen_create_generator {shape : List Nat} =
+let gen_create_generator {shape : {s : List Nat | List.length s > 0}} =
   &(fun(vs : VarStore) ->
       let linear1 =
-        ~(Layer.gen_linear {shape}
+        ~(Layer.gen_linear {List.init shape}
             #input_dim (latent_dim + label_count)
             #output_dim generator_hidden_nodes
           )
@@ -21,22 +19,24 @@ let gen_create_generator {shape : List Nat} =
           Layer.Activation.leaky_relu
       in
       let linear2 =
-        ~(Layer.gen_linear {shape}
+        ~(Layer.gen_linear {List.init shape}
             #input_dim generator_hidden_nodes
             #output_dim image_dim
           )
           vs
           Layer.Activation.tanh
       in
-      fun (rand_input : Tensor %shape) -> ~Layer.gen_forward linear1 rand_input |> ~Layer.gen_forward linear2
+      fun (rand_input : Tensor %shape) ->
+        ~Layer.gen_forward linear1 rand_input |> ~Layer.gen_forward linear2
    )
 in
 
 (* The discriminator receives as input both an image and a one-hot encoding of labels. *)
-let gen_create_discriminator {shape : List Nat} =
+let gen_create_discriminator
+    {shape : {s : List Nat | List.length s > 0 && List.last s == image_dim + label_count}} =
   &(fun(vs : VarStore) ->
       let linear1 =
-        ~(Layer.gen_linear {shape}
+        ~(Layer.gen_linear {List.init shape}
             #input_dim (image_dim + label_count)
             #output_dim discriminator_hidden_nodes
           )
@@ -44,103 +44,124 @@ let gen_create_discriminator {shape : List Nat} =
           Layer.Activation.leaky_relu
       in
       let linear2 =
-        ~(Layer.gen_linear {shape}
+        ~(Layer.gen_linear {List.init shape}
             #input_dim discriminator_hidden_nodes
             #output_dim 1
           )
           vs
           Layer.Activation.sigmoid
       in
-      fun (xs : Tensor %shape) -> ~Layer.gen_forward linear1 xs |> ~Layer.gen_forward linear2
+      fun (xs : Tensor %shape) ->
+        ~Layer.gen_forward linear1 xs |> ~Layer.gen_forward linear2
   )
 in
+let gen_bce {shape : List Nat} =
+  &(fun #labels (labels : Float) ->
+    fun(model_values : Tensor %shape) ->
+      let epsilon = 0.0000001 in
+        let open Tensor in
+          ~gen_sub
+            ~(gen_zeros ([] as List Nat))
+            ( ~gen_add
+                ( ~gen_mult
+                    (f labels)
+                    (~gen_log (~gen_add model_values (f epsilon)))
+                )
+                ( ~gen_mult
+                  (f (1.0 -. labels))
+                  (~gen_log (~gen_sub (f (1.0 +. epsilon)) model_values))
+                )
+            )
+        |> ~Tensor.gen_mean
+      )
+in
 
-&(let bce #labels (labels : Float) (model_values : Tensor %[]) =
-    let epsilon = 0.0000001 in
-    let open Tensor in
-      ~gen_sub
-        ~(gen_zeros ([] as List Nat))
-        ( ~gen_add
-            ( ~gen_mult
-                (f labels)
-                (~gen_log (~gen_add model_values (f epsilon)))
-            )
-            ( ~gen_mult
-              (f (1.0 -. labels))
-              (~gen_log (~gen_sub (f (1.0 +. epsilon)) model_values))
-            )
-        )
-    |> ~Tensor.gen_mean
-  in
+&(let device = Device.cpu in
+  let learning_rate = 0.0001 in
+  let batches = 100000000 in
+
   let rand (u : Unit) =
     let open Tensor in
     ~gen_sub
       (~gen_mult (f 2.0) ~(gen_rand [batch_size, latent_dim]))
       (f 1.0)
   in
-  let write_samples (samples : Z) #filename (filename : String) =
+  let end_line_by (s : String) = "  [" ++ s ++ "],\n" in
+  let write_samples (samples : Tensor %[batch_size, (* latent_dim + label_count * 2, *) image_dim + label_count]) #filename (filename : String) =
     IO.OutChannel.with_file filename (fun (channel : OutChannel) ->
       IO.OutChannel.output_string channel "data_ = [\n";
       (range 0 99) |> List.iter (fun(sample_index : Int) ->
-        List.init image_dim (fun (pixel_index : Int) ->
-          Tensor.get_float2 samples sample_index pixel_index |> Printf.sprintf "%.2f"
+        List.initialize ~(lift_int image_dim) (fun (pixel_index : Int) ->
+          ~Tensor.gen_get_float2_unsafe samples sample_index pixel_index |> show_float
         )
           |> String.concat #sep ", "
-          |> Printf.sprintf "  [%s],\n"
+          |> end_line_by
           |> IO.OutChannel.output_string channel
       );
       IO.OutChannel.output_string channel "]\n"
     )
   in
-  let mnist = MnistHelper.read_files () in
-  let generator_vs = VarStore.create #name "gen" () in
-  let generator = create_generator generator_vs in
+  let mnist = MnistHelper.dataset in
+  let generator_vs = VarStore.create #frozen false #name "gen" #device device () in
   let opt_g = Optimizer.adam generator_vs #learning_rate learning_rate in
-  let discriminator_vs = VarStore.create #name "disc" () in
-  let discriminator = create_discriminator discriminator_vs in
+  let discriminator_vs = VarStore.create #frozen false #name "disc" #device device () in
   let opt_d = Optimizer.adam discriminator_vs #learning_rate learning_rate in
   let fixed_noise = rand () in
   let fake_labels =
     (* Generate some regular one-hot encoded labels. *)
-    List.init ~(lift_int (batch_size * label_count)) (fun (i : Int) ->
-      if mod i label_count == mod (i / label_count) label_count then 1.0 else 0.0
+    ~(List.initialize (batch_size * label_count) (fun (i : Int) ->
+        if mod i label_count == mod (i // label_count) label_count then 1.0 else 0.0
+      )
+        |> Tensor.gen_float_vec
     )
-      |> Tensor.float_vec
       |> ~(Tensor.gen_reshape #shape [batch_size, label_count])
   in
-  let generator (xs : A) =
-    (* EDIT: Use 2-ary cat *)
-    let ys = Tensor.cat_ xs fake_labels #dim 1 |> generator in
-    Tensor.cat_ ys fake_labels #dim 1
+  let generator (xs : Tensor %[batch_size, latent_dim]) =
+    let ys = ~(Tensor.gen_cat_ #dim 1) xs fake_labels |> ~gen_create_generator generator_vs in
+    ~(Tensor.gen_cat_ #dim 1) ys fake_labels
   in
-  let one = ~(Tensor.gen_ones []) in
+  let one = ~(Tensor.gen_ones ([] as List Nat)) in
   (range 1 batches) |> List.iter (fun (batch_idx : Int) ->
     let (batch_images, batch_labels) =
-      DatasetHelper.train_batch mnist #batch_size batch_size #batch_idx batch_idx
+      ~(DatasetHelper.gen_train_batch #batch_size batch_size)
+        device
+        mnist
+        batch_idx
     in
     let onehot_labels =
       ~(Tensor.gen_zeros [batch_size, label_count])
-        |> Tensor.scatter_ #dim 1 #src one #index batch_labels
+        |> ~(Tensor.gen_scatter_ #dim 1) #src one #index batch_labels
     in
     let real_input =
-      (* EDIT: Use 2-ary cat *)
       let open Tensor in
-      (cat_ ((f 2.0 * batch_images) - f 1.0) onehot_labels) #dim 1
+      ~(gen_cat_ #dim 1)
+        ( ~gen_sub
+            ( ~gen_mult
+                (f 2.0)
+                batch_images
+            )
+            (f 1.0)
+        )
+        onehot_labels
     in
     let discriminator_loss =
       ~Tensor.gen_add
-        (bce #labels 0.9 (discriminator real_input))
-        (bce #labels 0.0 (rand () |> generator |> discriminator))
+        (~gen_bce #labels 0.9 (~gen_create_discriminator discriminator_vs real_input))
+        (~gen_bce #labels 0.0 (rand () |> generator |> ~gen_create_discriminator discriminator_vs))
     in
-    Optimizer.backward_step #loss discriminator_loss opt_d;
-    let generator_loss = bce #labels 1.0 (rand () |> generator |> discriminator) in
-    Optimizer.backward_step #loss generator_loss opt_g;
+    Optimizer.backward_step opt_d #loss discriminator_loss;
+    let generator_loss =
+      ~gen_bce #labels 1.0 (rand () |> generator |> ~gen_create_discriminator discriminator_vs)
+    in
+    Optimizer.backward_step opt_g #loss generator_loss;
     if mod batch_idx 100 == 0 then
-      Stdio.printf
-        "batch %4d    d-loss: %12.6f    g-loss: %12.6f\n%!"
-        batch_idx
-        (Tensor.float_value discriminator_loss)
-        (Tensor.float_value generator_loss)
+      ( print_string "batch";
+        print_int batch_idx;
+        print_string "d-loss:";
+        print_float (Tensor.float_value discriminator_loss);
+        print_string "g-loss";
+        print_float (Tensor.float_value generator_loss)
+      )
     else
       ();
     Gc.full_major ();
@@ -148,7 +169,7 @@ in
     then
       write_samples
         (generator fixed_noise)
-        #filename (Printf.sprintf "out%d.txt" batch_idx)
+        #filename ("out" ++ show_int batch_idx ++ ".txt")
     else
       ()
   )

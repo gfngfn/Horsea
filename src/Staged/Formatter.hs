@@ -334,6 +334,9 @@ instance Disp String where
 instance Disp Int where
   dispGen _ = pretty
 
+instance Disp Double where
+  dispGen _ = pretty
+
 instance (Disp sv) => Disp (AssVarF sv) where
   dispGen _ (AssVarStatic x) = disp x
   dispGen _ (AssVarDynamic n) = "#S" <> disp n
@@ -533,6 +536,7 @@ instance Disp AssPrimBaseType where
     ATyPrimOptimizer -> "Optimizer"
     ATyPrimChar -> "Char"
     ATyPrimClipGrad -> "ClipGrad"
+    ATyPrimOutChannel -> "OutChannel"
 
 instance Disp Ass0PrimType where
   dispGen req = \case

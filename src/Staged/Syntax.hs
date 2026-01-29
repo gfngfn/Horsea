@@ -212,6 +212,7 @@ data AssPrimBaseType
   | ATyPrimOptimizer
   | ATyPrimChar
   | ATyPrimClipGrad
+  | ATyPrimOutChannel
   deriving stock (Eq, Show)
 
 validatePrimBaseType :: Text -> Maybe AssPrimBaseType
@@ -227,6 +228,7 @@ validatePrimBaseType = \case
   "Optimizer" -> Just ATyPrimOptimizer
   "Char" -> Just ATyPrimChar
   "ClipGrad" -> Just ATyPrimClipGrad
+  "OutChannel" -> Just ATyPrimOutChannel
   _ -> Nothing
 
 data Ass0PrimType

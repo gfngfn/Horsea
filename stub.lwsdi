@@ -16,6 +16,12 @@ val %mod : Int -> Int -> Int
   external (builtin = "int_mod", surface = "mod")
 val %( <= ) : Int -> Int -> Bool
   external (builtin = "int_leq", surface = "<=")
+val %( >= ) : Int -> Int -> Bool
+  external (builtin = "int_geq", surface = ">=")
+val %( < ) : Int -> Int -> Bool
+  external (builtin = "int_lt", surface = "<")
+val %( > ) : Int -> Int -> Bool
+  external (builtin = "int_gt", surface = ">")
 val %( == ) : Int -> Int -> Bool
   external (builtin = "int_equal", surface = "==")
 val %( && ) : Bool -> Bool -> Bool
@@ -42,6 +48,8 @@ val %( ++ ) : String -> String -> String
   external (builtin = "string_append", surface = "++")
 val %show_int : Int -> String
   external (builtin = "show_int", surface = "show_int")
+val %show_float : Float -> String
+  external (builtin = "show_float", surface = "show_float")
 
 val ~lift_int : Int -> &Int
   external (builtin = "lift_int", surface = "lift_int")
@@ -73,6 +81,8 @@ val ~gen_mconcat_vert : {a : Nat} -> {b : Nat} -> {c : Nat} -> &(Mat %a %c -> Ma
   external (builtin = "gen_mconcat_vert", surface = "mconcat_vert")
 
 module String = struct
+  val %concat : #sep String -> List String -> String
+    external (builtin = "string__concat", surface = "concat")
   val %from_char_list : List Char -> String
     external (builtin = "string__from_char_list", surface = "from_char_list")
 end
@@ -88,6 +98,16 @@ module List = struct
     external (builtin = "list__iter", surface = "iter")
   val %length : forall 'a -> List 'a -> Int
     external (builtin = "list__length", surface = "length")
+  val %initialize : forall 'a -> Int -> (Int -> 'a) -> List 'a
+    external (builtin = "list__initialize", surface = "initialize")
+  val %equal : forall 'a -> ('a -> 'a -> Bool) -> List 'a -> List 'a -> Bool
+    external (builtin = "list__equal", surface = "equal")
+  val ~init : forall 'a -> List 'a -> List 'a
+    external (builtin = "list__init", surface = "init")
+  val ~last : forall 'a -> List 'a -> 'a
+    external (builtin = "list__last", surface = "last")
+  val ~nth : forall 'a -> Nat -> List 'a -> 'a
+    external (builtin = "list__nth", surface = "nth")
 end
 
 module Gc = struct
@@ -98,6 +118,12 @@ end
 module IO = struct
   val write_all : String -> #data String -> Unit
     external (builtin = "io__write_all", surface = "write_all")
+  module OutChannel = struct
+    val with_file : String -> (OutChannel -> Unit) -> Unit
+      external (builtin = "io__out_channel__with_file", surface = "with_file")
+    val output_string : OutChannel -> String -> Unit
+      external (builtin = "io__out_channel__output_string", surface = "output_string")
+  end
 end
 
 module Unix = struct
@@ -134,6 +160,15 @@ module Tensor = struct
   val ~gen_log :
     {shape : List Nat} -> &(Tensor %shape -> Tensor %shape)
     external (builtin = "tensor__gen_log", surface = "log")
+  val ~gen_cat_ :
+    #dim (dim : Int) ->
+    {shape1 : {s : List Nat | List.length s > dim}} ->
+    {shape2 : {s : List Nat | List.length s > dim && List.equal (==) (drop_at dim s) (drop_at dim shape1)}} ->
+    &(Tensor %shape1 ->
+      Tensor %shape2 ->
+      Tensor %(insert_at dim (List.nth dim shape1 + List.nth dim shape2) (drop_at dim shape1))
+    )
+    external (builtin = "tensor__gen_cat_", surface = "cat_")
   val ~gen_mean :
     {shape : List Nat} -> &(Tensor %shape -> Tensor %[])
     external (builtin = "tensor__gen_mean", surface = "mean")
@@ -143,9 +178,13 @@ module Tensor = struct
     (* #device Device -> *)
     (* #scale Float -> *) (* default: 1.0 *)
     (shape : List Nat) ->
-    &(Tensor %(shape))
+    &(Tensor %shape)
     external (builtin = "tensor__gen_rand", surface = "rand")
-
+  val ~gen_float_vec :
+    (* #kind Kind -> *)
+    (* #device Device -> *)
+    (floats : List Float) -> &(Tensor %[List.length floats])
+    external (builtin = "tensor__gen_float_vec", surface = "float_vec")
   val ~gen_grad : {shape : List Nat} -> &(Tensor %shape -> Tensor %shape)
     external (builtin = "tensor__gen_grad", surface = "grad")
   val ~gen_zero_grad : {shape : List Nat} -> &(Tensor %shape -> Unit)
@@ -199,6 +238,11 @@ module Tensor = struct
     {shape : List Nat} ->
     &(Tensor %(n :: shape) -> Int -> Tensor %shape)
     external (builtin = "tensor__gen_get", surface = "get")
+  (* Note: MAY FAIL AT RUNTIME DUE TO INDICES OUT OF BOUNDS!: *)
+  val ~gen_get_float2_unsafe :
+    {shape : {s : List Nat | List.length s == 2}} ->
+    &(Tensor %shape -> Int -> Int -> Float)
+    external (builtin = "tensor__gen_get_float2_unsafe", surface = "get_float2")
   val ~gen_fill_float : {shape : List Nat} -> &(Tensor %shape -> Float -> Unit)
     external (builtin = "tensor__gen_fill_float", surface = "fill_float")
   val ~gen_dropout :

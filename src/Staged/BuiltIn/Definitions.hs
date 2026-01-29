@@ -9,6 +9,8 @@ import Data.List (intercalate)
 import Data.List qualified as List
 import Data.Text qualified as Text
 import Language.Haskell.TH qualified as TH
+import Safe (atMay, initMay, lastMay)
+import Safe.Exact (zipExactMay)
 import Staged.BuiltIn.CompileTime
 import Util.Matrix qualified as Matrix
 import Util.String (snakeToCamel, uppercase)
@@ -71,6 +73,20 @@ definitions =
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 * n2))) a0v1 a0v2|],
     versatile [] "int_div" ForBothStages 2 $
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 `div` n2))) a0v1 a0v2|],
+    versatile [] "float_add" ForBothStages 2 $
+      [|
+        do
+          r1 <- validateFloatLiteral a0v1
+          r2 <- validateFloatLiteral a0v2
+          pure $ A0ValLiteral (ALitFloat (r1 + r2))
+        |],
+    versatile [] "float_sub" ForBothStages 2 $
+      [|
+        do
+          r1 <- validateFloatLiteral a0v1
+          r2 <- validateFloatLiteral a0v2
+          pure $ A0ValLiteral (ALitFloat (r1 - r2))
+        |],
     versatile [] "float_div" ForBothStages 2 $
       [|
         do
@@ -82,10 +98,18 @@ definitions =
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 `mod` n2))) a0v1 a0v2|],
     versatile [] "int_leq" ForBothStages 2 $
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 <= n2))) a0v1 a0v2|],
+    versatile [] "int_geq" ForBothStages 2 $
+      [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 >= n2))) a0v1 a0v2|],
+    versatile [] "int_lt" ForBothStages 2 $
+      [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 < n2))) a0v1 a0v2|],
+    versatile [] "int_gt" ForBothStages 2 $
+      [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 > n2))) a0v1 a0v2|],
     versatile [] "int_equal" ForBothStages 2 $
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 == n2))) a0v1 a0v2|],
     versatile [] "and" ForBothStages 2 $
       [|logical (\b1 b2 -> A0ValLiteral (ALitBool (b1 && b2))) a0v1 a0v2|],
+    versatile [] "or" ForBothStages 2 $
+      [|logical (\b1 b2 -> A0ValLiteral (ALitBool (b1 || b2))) a0v1 a0v2|],
     versatile [] "cons" ForBothStages 2 $
       [|
         do
@@ -143,6 +167,12 @@ definitions =
         do
           n <- validateIntLiteral a0v1
           pure $ A0ValLiteral (ALitString (Text.show n))
+        |],
+    versatile [] "show_float" ForBothStages 1 $
+      [|
+        do
+          r <- validateFloatLiteral a0v1
+          pure $ A0ValLiteral (ALitString (Text.show r))
         |],
     versatile [] "lift_int" ForStage0 1 $
       [|
@@ -266,6 +296,61 @@ definitions =
           a0vs <- validateListValue a0v1
           pure $ A0ValLiteral (ALitInt (length a0vs))
         |],
+    versatile ["list"] "initialize" ForBothStages 2 $
+      [|
+        do
+          n <- validateIntLiteral a0v1
+          results <-
+            mapM
+              (reduceBeta a0v2 . A0ValLiteral . ALitInt)
+              [0 .. (n - 1)]
+          pure $ A0ValLiteral (ALitList results)
+        |],
+    versatile ["list"] "equal" ForBothStages 3 $
+      [|
+        do
+          a0vsA <- validateListValue a0v2
+          a0vsB <- validateListValue a0v3
+          b <-
+            case zipExactMay a0vsA a0vsB of
+              Nothing ->
+                pure False
+              Just zipped -> do
+                and <$>
+                  mapM
+                    ( \(a0vA, a0vB) -> do
+                        a0vPartial <- reduceBeta a0v1 a0vA
+                        a0vResult <- reduceBeta a0vPartial a0vB
+                        validateBoolLiteral a0vResult
+                    )
+                    zipped
+          pure $ A0ValLiteral (ALitBool b)
+        |],
+    versatile ["list"] "init" ForStage0 1 $
+      [|
+        do
+          a0vs <- validateListValue a0v1
+          case initMay a0vs of
+            Nothing -> error "TODO (error): List.init, empty list"
+            Just a0vs' -> pure $ A0ValLiteral (ALitList a0vs')
+        |],
+    versatile ["list"] "last" ForStage0 1 $
+      [|
+        do
+          a0vs <- validateListValue a0v1
+          case lastMay a0vs of
+            Nothing -> error "TODO (error): List.init, empty list"
+            Just a0v -> pure a0v
+        |],
+    versatile ["list"] "nth" ForStage0 2 $
+      [|
+        do
+          n <- validateIntLiteral a0v1
+          a0vs <- validateListValue a0v2
+          case atMay a0vs n of
+            Nothing -> error "TODO (error): List.nth, index out of bounds"
+            Just a0v -> pure a0v
+        |],
     versatile ["gc"] "full_major" ForStage1 1 $
       [|
         do
@@ -306,7 +391,13 @@ definitions =
           _ ->
             error "UNIMPLEMENTED: evalExpr0, BITadd, dimension >= 3"
         |],
+    gen ["tensor"] "sub" [ParamIntList, ParamIntList],
     gen ["tensor"] "mult" [ParamIntList, ParamIntList],
+    gen ["tensor"] "log" [ParamIntList],
+    gen ["tensor"] "cat_" [ParamInt, ParamIntList, ParamIntList],
+    gen ["tensor"] "mean" [ParamIntList],
+    gen ["tensor"] "rand" [ParamIntList],
+    gen ["tensor"] "float_vec" [ParamFloatList],
     gen ["tensor"] "grad" [ParamIntList],
     gen ["tensor"] "zero_grad" [ParamIntList],
     gen ["tensor"] "mm" [ParamInt, ParamInt, ParamInt],
@@ -349,6 +440,7 @@ definitions =
     versatile ["tensor"] "int_value" ForStage1 1 $
       [|error "UNIMPLEMENTED: Tensor.int_value"|],
     gen ["tensor"] "get" [ParamInt, ParamIntList],
+    gen ["tensor"] "get_float2_unsafe" [ParamIntList],
     gen ["tensor"] "fill_float" [ParamIntList],
     gen ["tensor"] "dropout" [ParamIntList],
     gen ["tensor"] "reshape" [ParamIntList, ParamIntList],

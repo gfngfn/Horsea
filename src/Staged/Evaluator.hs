@@ -118,6 +118,11 @@ validateIntListLiteral a0v = do
   a0vs <- validateListValue a0v
   mapM validateIntLiteral a0vs
 
+validateFloatListLiteral :: Ass0Val -> M [Double]
+validateFloatListLiteral a0v = do
+  a0vs <- validateListValue a0v
+  mapM validateFloatLiteral a0vs
+
 validateStringListLiteral :: Ass0Val -> M [Text]
 validateStringListLiteral a0v = do
   a0vs <- validateListValue a0v
