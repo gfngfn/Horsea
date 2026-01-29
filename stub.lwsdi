@@ -6,6 +6,10 @@ val %( * ) : Int -> Int -> Int
   external (builtin = "int_mult", surface = "*")
 val %( // ) : Int -> Int -> Int
   external (builtin = "int_div", surface = "//")
+val %( +. ) : Float -> Float -> Float
+  external (builtin = "float_add", surface = "+.")
+val %( -. ) : Float -> Float -> Float
+  external (builtin = "float_sub", surface = "-.")
 val %( / ) : Float -> Float -> Float
   external (builtin = "float_div", surface = "/")
 val %mod : Int -> Int -> Int
@@ -119,10 +123,29 @@ module Tensor = struct
     {shape1 : List Nat} -> {shape2 : {s : List Nat | broadcastable shape1 s}} ->
     &(Tensor %shape1 -> Tensor %shape2 -> Tensor %(broadcast shape1 shape2))
     external (builtin = "tensor__gen_add", surface = "+")
+  val ~gen_sub :
+    {shape1 : List Nat} -> {shape2 : {s : List Nat | broadcastable shape1 s}} ->
+    &(Tensor %shape1 -> Tensor %shape2 -> Tensor %(broadcast shape1 shape2))
+    external (builtin = "tensor__gen_sub", surface = "-")
   val ~gen_mult :
     {shape1 : List Nat} -> {shape2 : {s : List Nat | broadcastable shape1 s}} ->
     &(Tensor %shape1 -> Tensor %shape2 -> Tensor %(broadcast shape1 shape2))
     external (builtin = "tensor__gen_mult", surface = "*")
+  val ~gen_log :
+    {shape : List Nat} -> &(Tensor %shape -> Tensor %shape)
+    external (builtin = "tensor__gen_log", surface = "log")
+  val ~gen_mean :
+    {shape : List Nat} -> &(Tensor %shape -> Tensor %[])
+    external (builtin = "tensor__gen_mean", surface = "mean")
+  val ~gen_rand :
+    (* #requires_grad Bool -> *) (* default: false *)
+    (* #kind Kind -> *)
+    (* #device Device -> *)
+    (* #scale Float -> *) (* default: 1.0 *)
+    (shape : List Nat) ->
+    &(Tensor %(shape))
+    external (builtin = "tensor__gen_rand", surface = "rand")
+
   val ~gen_grad : {shape : List Nat} -> &(Tensor %shape -> Tensor %shape)
     external (builtin = "tensor__gen_grad", surface = "grad")
   val ~gen_zero_grad : {shape : List Nat} -> &(Tensor %shape -> Unit)
@@ -238,9 +261,20 @@ module VarStore = struct
 end
 
 module Layer = struct
+  (* TODO: define `Activation` as an ADT *)
   module Activation = struct
     val relu : Activation
       external (builtin = "layer__activation__relu", surface = "relu")
+    val softmax : Activation
+      external (builtin = "layer__activation__softmax", surface = "softmax")
+    val log_softmax : Activation
+      external (builtin = "layer__activation__log_softmax", surface = "log_softmax")
+    val tanh : Activation
+      external (builtin = "layer__activation__tanh", surface = "tanh")
+    val leaky_relu : Activation
+      external (builtin = "layer__activation__leaky_relu", surface = "leaky_relu")
+    val sigmoid : Activation
+      external (builtin = "layer__activation__sigmoid", surface = "sigmoid")
     val none : Activation (* TODO: remove this and use `Maybe` *)
       external (builtin = "layer__activation__none", surface = "none")
   end

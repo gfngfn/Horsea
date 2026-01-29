@@ -77,7 +77,7 @@ longLowerIdent =
 
 opRestCharSet :: Set Char
 opRestCharSet =
-  Set.fromList ['+', '-', '*', '/', '=', '<', '>', '&', '|']
+  Set.fromList ['+', '-', '*', '/', '=', '<', '>', '&', '|', '.']
 
 opRestChar :: Tokenizer Char
 opRestChar =
