@@ -406,13 +406,13 @@ definitions =
           error "UNIMPLEMENTED: Optimizer.sgd"
         |],
     versatile ["optimizer", "clip_grad"] "norm2" ForStage1 0 $
-      [| error "UNIMPLEMENTED: Optimizer.ClipGrad.norm2"|],
+      [|error "UNIMPLEMENTED: Optimizer.ClipGrad.norm2"|],
     versatile ["optimizer", "clip_grad"] "value" ForStage1 0 $
-      [| error "UNIMPLEMENTED: Optimizer.ClipGrad.value"|],
+      [|error "UNIMPLEMENTED: Optimizer.ClipGrad.value"|],
     versatile ["optimizer"] "step" ForStage1 2 $
-      [| error "UNIMPLEMENTED: Optimizer.step"|],
+      [|error "UNIMPLEMENTED: Optimizer.step"|],
     versatile ["optimizer"] "zero_grad" ForStage1 1 $
-      [| error "UNIMPLEMENTED: Optimizer.zero_grad"|],
+      [|error "UNIMPLEMENTED: Optimizer.zero_grad"|],
     versatile ["optimizer"] "backward_step" ForStage1 2 $
       [|
         do
@@ -421,7 +421,7 @@ definitions =
           error "UNIMPLEMENTED: Optimizer.backward_step"
         |],
     versatile ["checkpointing"] "loop" ForStage1 6 $
-      [| error "UNIMPLEMENTED: Checkpointing.loop"|],
+      [|error "UNIMPLEMENTED: Checkpointing.loop"|],
     gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded],
     gen ["dataset_helper"] "batches_per_epoch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
