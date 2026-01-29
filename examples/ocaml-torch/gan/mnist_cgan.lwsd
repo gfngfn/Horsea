@@ -1,7 +1,7 @@
 (* Conditional Generative Adversarial Nets trained on the MNIST dataset. *)
 
-let image_dim = Mnist_helper.image_dim in
-let label_count = Mnist_helper.label_count in
+let image_dim = MnistHelper.image_dim in
+let label_count = MnistHelper.label_count in
 let latent_dim = 100 in
 let generator_hidden_nodes = 128 in
 let discriminator_hidden_nodes = 128 in
@@ -60,7 +60,6 @@ let batches = 100000000 in
     let open Tensor in
     (f 2.0 * ~(gen_rand [batch_size, latent_dim])) - f 1.0
   in
-(*
   let write_samples (samples : Z) #filename (filename : String) =
     IO.OutChannel.with_file filename (fun (channel : OutChannel) ->
       IO.OutChannel.output_string channel "data_ = [\n";
@@ -75,7 +74,6 @@ let batches = 100000000 in
       IO.OutChannel.output_string channel "]\n"
     )
   in
-*)
   let mnist = Mnist_helper.read_files () in
   let generator_vs = Var_store.create #name "gen" () in
   let generator = create_generator generator_vs in
@@ -116,27 +114,24 @@ let batches = 100000000 in
         (bce #labels 0.9 (discriminator real_input))
         (bce #labels 0.0 (rand () |> generator |> discriminator))
     in
-(*
     Optimizer.backward_step #loss discriminator_loss opt_d;
-*)
     let generator_loss = bce #labels 1.0 (rand () |> generator |> discriminator) in
-(*
     Optimizer.backward_step #loss generator_loss opt_g;
-*)
-(*
-    if mod batch_idx 100 == 0
-    then
+    if mod batch_idx 100 == 0 then
       Stdio.printf
         "batch %4d    d-loss: %12.6f    g-loss: %12.6f\n%!"
         batch_idx
         (Tensor.float_value discriminator_loss)
-        (Tensor.float_value generator_loss);
+        (Tensor.float_value generator_loss)
+    else
+      ();
     Caml.Gc.full_major ();
-*)
     if mod batch_idx 25000 == 0 || (batch_idx < 100000 && mod batch_idx 5000 == 0)
     then
       write_samples
         (generator fixed_noise)
         #filename (Printf.sprintf "out%d.txt" batch_idx)
+    else
+      ()
   )
 )
