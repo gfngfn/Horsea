@@ -70,6 +70,7 @@ data Token
   | TokOpMult Text
   | TokOpComp Text
   | TokOpAnd Text
+  | TokOpOr Text
   deriving stock (Ord, Eq, Show, Generic)
 
 instance Mp.VisualStream [Located Token] where
@@ -130,6 +131,7 @@ showToken = \case
   TokOpMult op -> Text.unpack op
   TokOpComp op -> Text.unpack op
   TokOpAnd op -> Text.unpack op
+  TokOpOr op -> Text.unpack op
 
 instance Mp.TraversableStream [Located Token] where
   reachOffset _n posState = (Nothing, posState) -- TODO
@@ -190,6 +192,7 @@ token =
       TokMatRight <$ Mp.chunk "#]",
       TokLeftSquare <$ Mp.single '[',
       TokRightSquare <$ Mp.single ']',
+      Mp.try (TokOpOr <$> operatorLong '|'),
       TokBar <$ Mp.single '|',
       TokOpAdd <$> operator '+',
       Mp.try (TokOpMult <$> operatorLong '*'),

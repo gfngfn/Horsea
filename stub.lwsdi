@@ -16,6 +16,8 @@ val %( == ) : Int -> Int -> Bool
   external (builtin = "int_equal", surface = "==")
 val %( && ) : Bool -> Bool -> Bool
   external (builtin = "and", surface = "&&")
+val %( || ) : Bool -> Bool -> Bool
+  external (builtin = "or", surface = "||")
 val %( :: ) : forall 'a -> 'a -> List 'a -> List 'a
   external (builtin = "cons", surface = "::")
 val %float : Int -> Float
