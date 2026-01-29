@@ -11,8 +11,6 @@ let latent_dim = 100 in
    see https://ajolicoeur.wordpress.com/RelativisticGAN/) *)
 let use_sandard_gan = true in
 let batch_size = 128 in
-let learning_rate = 0.0001 in
-let batches = 100000000 in
 
 let gen_create_generator {shape : List Nat} =
   &(fun(vs : VarStore) ->
@@ -79,7 +77,7 @@ let gen_create_discriminator {shape : List Nat} =
           Layer.Activation.none
       in
       let conv3 =
-        ~(Layer.gen_conv2d_
+        ~(Layer.gen_conv2d_ {501} {602} {703} (* TODO *)
             #ksize 7 #stride 1 #padding 0
             #input_dim 64
             #output_dim 1
@@ -89,10 +87,10 @@ let gen_create_discriminator {shape : List Nat} =
       in
       fun (xs : Tensor %shape) ->
         ~Layer.gen_forward conv1 xs
-          |> Tensor.leaky_relu
+          |> ~Tensor.gen_leaky_relu
           |> ~Layer.gen_forward conv2
-          |> Tensor.const_batch_norm
-          |> Tensor.leaky_relu
+          |> ~Tensor.gen_const_batch_norm
+          |> ~Tensor.gen_leaky_relu
           |> ~Layer.gen_forward conv3
   )
 in
@@ -119,31 +117,34 @@ let gen_bce {shape : List Nat} =
 in
 
 &(let device = Device.cpu in
+  let learning_rate = 0.0001 in
+  let batches = 100000000 in
   let random (u : Unit) =
     let open Tensor in
-    f 2.0 * ~(gen_rand [batch_size, latent_dim, 1, 1]) - f 1.0
+    ~gen_sub
+      (~gen_mult (f 2.0) ~(gen_rand [batch_size, latent_dim, 1, 1]))
+      (f 1.0)
   in
   let end_line_by (s : String) = "  [" ++ s ++ "],\n" in
   let write_samples (samples : Tensor %[4423]) #filename (filename : String) = (* TODO *)
-    Stdio.Out_channel.with_file filename (fun (channel : OutChannel) ->
-      Stdio.Out_channel.output_string channel "data_ = [\n";
+    IO.OutChannel.with_file filename (fun (channel : OutChannel) ->
+      IO.OutChannel.output_string channel "data_ = [\n";
       (range 0 99) |> List.iter (fun(sample_index : Int) ->
-        List.init image_dim (fun (pixel_index : Int) ->
+        List.initialize ~(lift_int image_dim) (fun (pixel_index : Int) ->
           ~Tensor.gen_get_float2_unsafe samples sample_index pixel_index |> show_float
         )
           |> String.concat #sep ", "
           |> end_line_by
-          |> Stdio.Out_channel.output_string channel
+          |> IO.OutChannel.output_string channel
       );
-      Stdio.Out_channel.output_string channel "]\n"
+      IO.OutChannel.output_string channel "]\n"
     )
   in
-  let mnist = MnistHelper.datasets in
-  let generator_vs = Var_store.create #frozen false #name "gen" #device device () in
-  let generator = create_generator generator_vs in
+  let mnist = MnistHelper.dataset in
+  let generator_vs = VarStore.create #frozen false #name "gen" #device device () in
   let opt_g = Optimizer.adam generator_vs #learning_rate learning_rate in
-  let discriminator_vs = Var_store.create #name "disc" () in
-  let discriminator = create_discriminator discriminator_vs in
+  let discriminator_vs = VarStore.create #frozen false #name "disc" #device device () in
+  let discriminator = ~gen_create_discriminator discriminator_vs in
   let opt_d = Optimizer.adam discriminator_vs #learning_rate learning_rate in
   let fixed_noise = rand () in
   (range 1 batches) |> List.iter (fun(batch_idx : Int) ->
@@ -158,11 +159,11 @@ in
       ~(if use_standard_gan then
           &(~Tensor.gen_add
               (~gen_bce #labels 0.9 (discriminator (let open Tensor in f 2.0 * batch_images - f 1.0)))
-              (~gen_bce #labels 0.0 (random () |> generator |> discriminator))
+              (~gen_bce #labels 0.0 (random () |> ~gen_create_generator generator_vs |> discriminator))
           )
         else
           &(let y_pred = discriminator (let open Tensor in (f 2.0 * batch_images) - f 1.0) in
-            let y_pred_fake = random () |> generator |> discriminator in
+            let y_pred_fake = random () |> ~gen_create_generator generator_vs |> discriminator in
             let open Tensor in
             ~gen_add
               (y_pred - mean y_pred_fake - f 1.0 |> square |> mean)
@@ -173,10 +174,10 @@ in
     Optimizer.backward_step opt_d #loss discriminator_loss;
     let generator_loss =
       ~(if use_standard_gan then
-          bce #labels 1.0 (random () |> generator |> discriminator)
+          bce #labels 1.0 (random () |> ~gen_create_generator generator_vs |> discriminator)
         else
           let y_pred = discriminator (let open Tensor in f 2.0 * batch_images - f 1.0) in
-          let y_pred_fake = random () |> generator |> discriminator in
+          let y_pred_fake = random () |> ~gen_create_generator generator_vs |> discriminator in
           let open Tensor in
           ~gen_add
             (y_pred - mean y_pred_fake + f 1.0 |> square |> mean)

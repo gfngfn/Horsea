@@ -259,6 +259,12 @@ module Tensor = struct
       Tensor %shape
     )
     external (builtin = "tensor__gen_relu", surface = "relu")
+  val ~gen_leaky_relu :
+    {shape : List Nat} ->
+    &(Tensor %shape ->
+      Tensor %shape
+    )
+    external (builtin = "tensor__gen_leaky_relu", surface = "leaky_relu")
   (* TODO: make `gen_reshape` support `-1` *)
   val ~gen_reshape :
     {shape1 : List Nat} ->
