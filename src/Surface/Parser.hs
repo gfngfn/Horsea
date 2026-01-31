@@ -225,14 +225,14 @@ exprAtom, expr :: P Expr
     letin :: P Expr
     letin =
       (makeLet <$> token TokLet <*> letInMain)
-        <|> try (makeSequential <$> (lam <* token TokSemicolon) <*> letin)
-        <|> lam
+        <|> (makeSequential <$> lam <*> optional (token TokSemicolon *> letin))
       where
         makeLet locFirst (eMain, locLast) =
           Expr (mergeSpan locFirst locLast) eMain
 
-        makeSequential e1@(Expr locFirst _) e2@(Expr locLast _) =
-          Expr (mergeSpan locFirst locLast) (Sequential e1 e2)
+        makeSequential e1@(Expr loc1 _) = \case
+          Nothing -> e1
+          Just e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (Sequential e1 e2)
 
     letInMain :: P (ExprMain, Span)
     letInMain =
