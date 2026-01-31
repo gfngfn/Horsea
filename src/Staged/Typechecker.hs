@@ -904,7 +904,7 @@ typecheckExpr0Single trav tyEnv e@(Expr loc _) = do
 typecheckExpr0 :: trav -> TypeEnv -> AppContext -> Expr -> M trav (Result0, Ass0Expr)
 typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
-  completeInferredOptional
+  completeInferredImplicit
     <$> case eMain of
       Literal lit ->
         case appCtx of
@@ -1048,7 +1048,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           case params of
             MandatoryBinder Nothing (x0', tyeParam0') : paramsRest' -> pure (x0', tyeParam0', paramsRest')
             MandatoryBinder (Just _) _ : _ -> error "TODO (error): rec param with a label"
-            ImplicitBinder _ : _ -> typeError trav $ LetRecParamsCannotStartWithOptional spanInFile
+            ImplicitBinder _ : _ -> typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             [] -> typeError trav $ LetRecRequiresNonEmptyParams spanInFile
         svFInner <- generateFreshVar (Just f)
         let afInner = AssVarStatic svFInner
@@ -1146,12 +1146,12 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
       Escape _ ->
         typeError trav $ CannotUseEscapeAtStage0 spanInFile
   where
-    completeInferredOptional pair@(result, a0e) =
+    completeInferredImplicit pair@(result, a0e) =
       case result of
         InsertInferred0 a0eInferred result' ->
-          completeInferredOptional (result', A0App a0e a0eInferred)
+          completeInferredImplicit (result', A0App a0e a0eInferred)
         InsertInferredType0 a0tyeInferred result' ->
-          completeInferredOptional (result', A0AppType a0e (strictify a0tyeInferred))
+          completeInferredImplicit (result', A0AppType a0e (strictify a0tyeInferred))
         _ ->
           pair
 
@@ -1214,7 +1214,7 @@ typecheckExpr1Single trav tyEnv e@(Expr loc _) = do
 typecheckExpr1 :: trav -> TypeEnv -> AppContext -> Expr -> M trav (Result1, Ass1Expr)
 typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
-  completeInferredOptional
+  completeInferredImplicit
     <$> case eMain of
       Literal lit ->
         case appCtx of
@@ -1340,7 +1340,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           case params of
             MandatoryBinder Nothing (x0', tyeParam0') : paramsRest' -> pure (x0', tyeParam0', paramsRest')
             MandatoryBinder (Just _) _ : _ -> error "TODO (error): rec param with a label"
-            ImplicitBinder _ : _ -> typeError trav $ LetRecParamsCannotStartWithOptional spanInFile
+            ImplicitBinder _ : _ -> typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             [] -> typeError trav $ LetRecRequiresNonEmptyParams spanInFile
         svFInner <- generateFreshVar (Just f)
         let afInner = AssVarStatic svFInner
@@ -1457,10 +1457,10 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             result1
         pure (result, A1Escape a0e1)
   where
-    completeInferredOptional pair@(result, a1e) =
+    completeInferredImplicit pair@(result, a1e) =
       case result of
         InsertType1 a1tyeInferred result' ->
-          completeInferredOptional (result', A1AppType a1e a1tyeInferred)
+          completeInferredImplicit (result', A1AppType a1e a1tyeInferred)
         _ ->
           pair
 

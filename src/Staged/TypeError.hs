@@ -64,7 +64,7 @@ data TypeErrorF sv
   | CannotApplyTuple SpanInFile
   | NotATupleAtStage0 SpanInFile (Ass0TypeExprF sv)
   | NotATupleAtStage1 SpanInFile (Ass1TypeExprF sv)
-  | LetRecParamsCannotStartWithOptional SpanInFile
+  | LetRecParamsCannotStartWithImplicit SpanInFile
   | LetRecRequiresNonEmptyParams SpanInFile
   | CannotSynthesizeTypeFromExpr SpanInFile
   | CannotForceType SpanInFile (Ass0TypeExprF sv)

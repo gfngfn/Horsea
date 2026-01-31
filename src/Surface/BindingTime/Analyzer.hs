@@ -254,7 +254,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       pure (e', bitySynth, constraintsRec ++ constraints1 ++ constraints2 ++ constraintsEq ++ constraints)
     App e1 labelOpt e2 -> do
       (e1WithoutOpts, bity1WithoutOpts, constraints1) <- extractConstraintsFromExpr trav btenv e1
-      let (e1', bity1@(BIType bt1 bityMain1)) = appendOmittedOptionalArguments e1WithoutOpts bity1WithoutOpts
+      let (e1', bity1@(BIType bt1 bityMain1)) = appendOmittedImplicitArguments e1WithoutOpts bity1WithoutOpts
       (e2', bity2, constraints2) <- extractConstraintsFromExpr trav btenv e2
       (bity, constraints) <-
         case bityMain1 of
@@ -375,12 +375,12 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
             analysisError trav $ NotAnOptFunction spanInFile1 bity1
       pure (Expr (bt, ann) (AppImpOmitted e1'), bity, constraints)
 
-appendOmittedOptionalArguments :: BExpr -> BIType -> (BExpr, BIType)
-appendOmittedOptionalArguments e@(Expr (_, ann) _) bity@(BIType _bt bityMain) =
+appendOmittedImplicitArguments :: BExpr -> BIType -> (BExpr, BIType)
+appendOmittedImplicitArguments e@(Expr (_, ann) _) bity@(BIType _bt bityMain) =
   case bityMain of
     BITyImpArrow _bity1 bity2 ->
       -- TODO (enhance): give better location than `ann`
-      appendOmittedOptionalArguments (Expr (BTConst BT0, ann) (AppImpOmitted e)) bity2
+      appendOmittedImplicitArguments (Expr (BTConst BT0, ann) (AppImpOmitted e)) bity2
     _ ->
       (e, bity)
 

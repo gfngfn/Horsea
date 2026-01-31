@@ -800,7 +800,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <+> disp spanInFile
         <> hardline
         <+> stage1Style (disp a1tye)
-    LetRecParamsCannotStartWithOptional spanInFile ->
+    LetRecParamsCannotStartWithImplicit spanInFile ->
       "Recursive function definitions cannot have an implicit parameter as the first one" <+> disp spanInFile
     LetRecRequiresNonEmptyParams spanInFile ->
       "Recursive function definitions require at least one parameter" <+> disp spanInFile
