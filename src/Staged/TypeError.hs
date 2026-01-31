@@ -35,9 +35,9 @@ data TypeErrorF sv
   | NotACodeType SpanInFile (Ass0TypeExprF sv)
   | CannotUseEscapeAtStage0 SpanInFile
   | CannotUseBracketAtStage1 SpanInFile
-  | CannotUseLamOptAtStage1 SpanInFile
-  | CannotUseAppOptGivenAtStage1 SpanInFile
-  | CannotUseAppOptOmittedAtStage1 SpanInFile
+  | CannotUseLamImpAtStage1 SpanInFile
+  | CannotUseAppImpGivenAtStage1 SpanInFile
+  | CannotUseAppImpOmittedAtStage1 SpanInFile
   | FunctionTypeCannotBeDependentAtStage1 SpanInFile Var
   | CannotUseCodeTypeAtStage1 SpanInFile
   | CannotUseOptArrowTypeAtStage1 SpanInFile

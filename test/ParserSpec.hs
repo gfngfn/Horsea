@@ -374,14 +374,14 @@ spec = do
                   App (exprLoc 31 32 (short "x")) Nothing (exprLoc 33 34 (short "y"))
       parseExprWithLoc "fun (x : (n : Int) -> Bool) -> x y"
         `shouldBe` pure e
-    it "parses optional applications (1)" $
+    it "parses applications for implicit parameters (1)" $
       parseExprWithLoc "x {y}"
-        `shouldBe` pure (exprLoc 0 5 $ AppOptGiven (exprLoc 0 1 $ short "x") (exprLoc 3 4 $ short "y"))
-    it "parses optional applications (2)" $ do
+        `shouldBe` pure (exprLoc 0 5 $ AppImpGiven (exprLoc 0 1 $ short "x") (exprLoc 3 4 $ short "y"))
+    it "parses applications for implicit parameters (2)" $ do
       let e =
             exprLoc 0 9 $
-              AppOptGiven
-                (exprLoc 0 5 $ AppOptGiven (exprLoc 0 1 $ short "x") (exprLoc 3 4 $ short "y"))
+              AppImpGiven
+                (exprLoc 0 5 $ AppImpGiven (exprLoc 0 1 $ short "x") (exprLoc 3 4 $ short "y"))
                 (exprLoc 7 8 $ short "z")
       parseExprWithLoc "x {y} {z}"
         `shouldBe` pure e

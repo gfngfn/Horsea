@@ -1002,7 +1002,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A0App a0e1 (applyCast cast a0e2))
           _ -> do
             bug "stage-0, App, fun"
-      LamOpt (x1, tye1) e2 -> do
+      LamImp (x1, tye1) e2 -> do
         svX1 <- generateFreshVar (Just x1)
         let ax1 = AssVarStatic svX1
         case appCtx of
@@ -1015,7 +1015,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             pure (Pure (A0TyOptArrow (ax1, a0tye1) a0tye2), A0Lam Nothing (ax1, sa0tye1) a0e2)
           _ : _ ->
             error "TODO: stage-0, LamOpt, non-empty AppContext"
-      AppOptGiven e1 e2 -> do
+      AppImpGiven e1 e2 -> do
         (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgOptGiven0 a0e2 a0tye2 : appCtx) e1
         case result1 of
@@ -1023,7 +1023,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A0App a0e1 (applyCast cast a0e2))
           _ -> do
             bug "stage-0, AppOptGiven, not a CastGiven0"
-      AppOptOmitted e1 -> do
+      AppImpOmitted e1 -> do
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgOptOmitted0 : appCtx) e1
         case result1 of
           FillInferred0 a0eInferred result -> do
@@ -1177,7 +1177,7 @@ constructFunTypeExpr1 trav loc params tyeBody = do
     ( \param tyeAcc ->
         case param of
           MandatoryBinder labelOpt (_x, tye) -> pure $ TypeExpr loc (TyArrow labelOpt (Nothing, tye) tyeAcc)
-          ImplicitBinder (_x, _tye) -> typeError trav $ CannotUseLamOptAtStage1 spanInFile
+          ImplicitBinder (_x, _tye) -> typeError trav $ CannotUseLamImpAtStage1 spanInFile
     )
     tyeBody
     params
@@ -1318,12 +1318,12 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A1App a1e1 (applyCast1 cast a1e2))
           _ ->
             bug "stage-1, App, fun, not a Cast1"
-      LamOpt _ _ ->
-        typeError trav $ CannotUseLamOptAtStage1 spanInFile
-      AppOptGiven _ _ ->
-        typeError trav $ CannotUseAppOptGivenAtStage1 spanInFile
-      AppOptOmitted _ ->
-        typeError trav $ CannotUseAppOptOmittedAtStage1 spanInFile
+      LamImp _ _ ->
+        typeError trav $ CannotUseLamImpAtStage1 spanInFile
+      AppImpGiven _ _ ->
+        typeError trav $ CannotUseAppImpGivenAtStage1 spanInFile
+      AppImpOmitted _ ->
+        typeError trav $ CannotUseAppImpOmittedAtStage1 spanInFile
       LetIn x params eBody e2 -> do
         svX <- generateFreshVar (Just x)
         (a1tye1, a1e1) <- typecheckLetInBody1 trav tyEnv params eBody
@@ -1479,7 +1479,7 @@ typecheckLetInBody1 trav tyEnv params e1 =
     ImplicitBinder (_x, tye) : _params' -> do
       let TypeExpr loc _ = tye -- TODO (enhance): give a better code position
       spanInFile <- askSpanInFile loc
-      typeError trav $ CannotUseLamOptAtStage1 spanInFile
+      typeError trav $ CannotUseLamImpAtStage1 spanInFile
 
 mapMPure :: (af StaticVar -> M trav (bf StaticVar)) -> ResultF af StaticVar -> M trav (ResultF bf StaticVar)
 mapMPure f = go

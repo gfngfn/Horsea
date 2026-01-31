@@ -65,9 +65,9 @@ data ExprMainF ann
   | As (ExprF ann) (TypeExprF ann)
   | Bracket (ExprF ann)
   | Escape (ExprF ann)
-  | LamOpt (Var, TypeExprF ann) (ExprF ann)
-  | AppOptGiven (ExprF ann) (ExprF ann)
-  | AppOptOmitted (ExprF ann)
+  | LamImp (Var, TypeExprF ann) (ExprF ann)
+  | AppImpGiven (ExprF ann) (ExprF ann)
+  | AppImpOmitted (ExprF ann)
   | LetOpenIn Var (ExprF ann)
   | Sequential (ExprF ann) (ExprF ann)
   | Tuple (ExprF ann) (ExprF ann) -- TODO: generalize tuples

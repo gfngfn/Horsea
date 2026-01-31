@@ -128,8 +128,8 @@ dispRecLam req f tyeRec labelOpt x tye1 e2 =
         Nothing -> "λ" <> disp x
         Just label -> "λ" <+> "#" <> disp label <+> disp x
 
-dispLamOpt :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> expr -> Doc Ann
-dispLamOpt req x tye1 e2 =
+dispLamImp :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> expr -> Doc Ann
+dispLamImp req x tye1 e2 =
   deepenParenWhen (req <= FunDomain) $
     group ("λ{" <> disp x <+> ":" <+> disp tye1 <> "}." <> nest 2 (line <> disp e2))
 
@@ -144,13 +144,13 @@ dispApp req e1 labelOpt e2 =
     doc1 = dispGen FunDomain e1
     doc2 = dispGen Atomic e2
 
-dispAppOptGiven :: (Disp expr) => Associativity -> expr -> expr -> Doc Ann
-dispAppOptGiven req e1 e2 =
+dispAppImpGiven :: (Disp expr) => Associativity -> expr -> expr -> Doc Ann
+dispAppImpGiven req e1 e2 =
   deepenParenWhen (req <= Atomic) $
     group (dispGen FunDomain e1 <> nest 2 (line <> "{" <> disp e2 <> "}"))
 
-dispAppOptOmitted :: (Disp expr) => Associativity -> expr -> Doc Ann
-dispAppOptOmitted req e1 =
+dispAppImpOmitted :: (Disp expr) => Associativity -> expr -> Doc Ann
+dispAppImpOmitted req e1 =
   deepenParenWhen (req <= Atomic) $
     group (dispGen FunDomain e1 <> nest 2 (line <> "_"))
 
@@ -369,9 +369,9 @@ instance Disp (ExprMainF ann) where
     Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
     App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
-    LamOpt (x, tye1) e2 -> dispLamOpt req x tye1 e2
-    AppOptGiven e1 e2 -> dispAppOptGiven req e1 e2
-    AppOptOmitted e1 -> dispAppOptOmitted req e1
+    LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
+    AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
+    AppImpOmitted e1 -> dispAppImpOmitted req e1
     LetIn x params e1 e2 -> dispLetIn req x params e1 e2
     LetRecIn x params tye e1 e2 -> dispLetRecIn req x params tye e1 e2
     LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2
@@ -452,9 +452,9 @@ instance Disp Surface.ExprMain where
     Surface.Tuple e1 e2 -> dispTuple e1 e2
     Surface.IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Surface.As e1 tye2 -> dispAs req e1 tye2
-    Surface.LamOpt (x, tye1) e2 -> dispLamOpt req x tye1 e2
-    Surface.AppOptGiven e1 e2 -> dispAppOptGiven req e1 e2
-    Surface.AppOptOmitted e1 -> dispAppOptOmitted req e1
+    Surface.LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
+    Surface.AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
+    Surface.AppImpOmitted e1 -> dispAppImpOmitted req e1
 
 instance Disp Surface.LamBinder where
   dispGen _ = \case
@@ -685,11 +685,11 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Cannot use Escape (~) at stage 0" <+> disp spanInFile
     CannotUseBracketAtStage1 spanInFile ->
       "Cannot use Bracket (&) at stage 1" <+> disp spanInFile
-    CannotUseLamOptAtStage1 spanInFile ->
+    CannotUseLamImpAtStage1 spanInFile ->
       "Cannot use function with implicit parameters (fun{...} ->) at stage 1" <+> disp spanInFile
-    CannotUseAppOptGivenAtStage1 spanInFile ->
+    CannotUseAppImpGivenAtStage1 spanInFile ->
       "Cannot use application for implicit parameters (... {...}) at stage 1" <+> disp spanInFile
-    CannotUseAppOptOmittedAtStage1 spanInFile ->
+    CannotUseAppImpOmittedAtStage1 spanInFile ->
       "Cannot use application for implicit parameters (... _) at stage 1" <+> disp spanInFile
     FunctionTypeCannotBeDependentAtStage1 spanInFile x ->
       "Function types cannot be dependent at stage 1:" <+> disp x <+> disp spanInFile
@@ -1155,9 +1155,9 @@ instance Disp (Bta.BCExprMainF ann) where
     Surface.Tuple e1 e2 -> dispTuple e1 e2
     Surface.IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Surface.As e1 tye2 -> dispAs req e1 tye2
-    Surface.LamOpt (x, tye1) e2 -> dispLamOpt req x tye1 e2
-    Surface.AppOptGiven e1 e2 -> dispAppOptGiven req e1 e2
-    Surface.AppOptOmitted e1 -> dispAppOptOmitted req e1
+    Surface.LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
+    Surface.AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
+    Surface.AppImpOmitted e1 -> dispAppImpOmitted req e1
 
 instance Disp (Bta.BCLamBinderF ann) where
   dispGen _ = \case
