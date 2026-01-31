@@ -1,0 +1,4 @@
+let apply_to_a_list (f : List Int -> Int) =
+  f [3, 1, 4]
+in
+lift_int (apply_to_a_list List.length)
