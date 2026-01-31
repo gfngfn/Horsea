@@ -32,7 +32,7 @@ stagedArgumentParser :: Parser Staged.Entrypoint.Argument
 stagedArgumentParser =
   Staged.Entrypoint.Argument
     <$> strArgument (metavar "INPUT-FILE-PATH")
-    <*> option auto (short 's' <> long "stub" <> value "stub.lwsdi" <> help helpStub)
+    <*> option auto (short 's' <> long "stub" <> value "stub.lbam" <> help helpStub)
     <*> switch (short 'O' <> long "optimize" <> help helpOptimize)
     <*> switch (short 'D' <> long "distribute-if" <> help helpDistributeIf)
     <*> option auto (short 'w' <> long "display-width" <> value defaultDisplayWidth <> help helpDisplayWidth)
@@ -42,7 +42,7 @@ surfaceArgumentParser :: Parser Surface.Entrypoint.Argument
 surfaceArgumentParser =
   Surface.Entrypoint.Argument
     <$> strArgument (metavar "INPUT-FILE-PATH")
-    <*> option auto (short 's' <> long "stub" <> value "stub.lwsdi" <> help helpStub)
+    <*> option auto (short 's' <> long "stub" <> value "stub.lbam" <> help helpStub)
     <*> switch (short 'O' <> long "optimize" <> help helpOptimize)
     <*> switch (short 'D' <> long "distribute-if" <> help helpDistributeIf)
     <*> option auto (short 'w' <> long "display-width" <> value defaultDisplayWidth <> help helpDisplayWidth)
