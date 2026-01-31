@@ -19,6 +19,7 @@ import Prettyprinter.Render.Terminal
 import Staged.BuiltIn.CompileTime (deriveDisp)
 import Staged.BuiltIn.Core
 import Staged.BuiltIn.Definitions (definitions)
+import Staged.Core
 import Staged.EvalError
 import Staged.SrcSyntax
 import Staged.Syntax
@@ -95,8 +96,12 @@ commaSep :: [Doc Ann] -> Doc Ann
 commaSep = sep . punctuate comma
 
 disps :: (Disp a) => [a] -> Doc Ann
-disps [] = mempty
-disps (first : rest) = List.foldl' (\doc x -> doc <> "," <+> disp x) (disp first) rest
+disps = disps' disp
+
+disps' :: (a -> Doc Ann) -> [a] -> Doc Ann
+disps' f = \case
+  [] -> mempty
+  first : rest -> List.foldl' (\doc x -> doc <> "," <+> f x) (f first) rest
 
 deepenParenWhen :: Bool -> Doc Ann -> Doc Ann
 deepenParenWhen b doc = if b then "(" <> nest 2 doc <> ")" else doc
@@ -268,17 +273,25 @@ dispOptArrowType req x tye1 tye2 =
   where
     docDom = "{" <> disp x <+> ":" <+> disp tye1 <> "}"
 
+dispRefinementType :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> expr -> Doc Ann
+dispRefinementType _req x tye eProp =
+  "{" <> disp x <+> ":" <+> disp tye <+> "|" <+> disp eProp <> "}"
+
 dispInternalRefinementType :: (Disp ty, Disp expr) => Associativity -> ty -> expr -> Doc Ann
 dispInternalRefinementType _req tye ePred =
-  "(" <> disp tye <+> "|" <+> disp ePred <> ")"
+  "{" <> disp tye <+> "|" <+> disp ePred <> "}"
 
 dispInternalRefinementListType :: (Disp ty, Disp expr) => Associativity -> ty -> expr -> Doc Ann
 dispInternalRefinementListType _req tye ePred =
-  "(" <> dispListType Outermost tye <+> "|" <+> disp ePred <> ")"
+  "{" <> dispListType Outermost tye <+> "|" <+> disp ePred <> "}"
 
 dispListLiteral :: (Disp e) => [e] -> Doc Ann
 dispListLiteral es =
   "[" <> disps es <> "]"
+
+dispStringListLiteral :: [Text] -> Doc Ann
+dispStringListLiteral es =
+  "[" <> disps' dispStringLiteral es <> "]"
 
 dispPairLiteral :: (Disp e) => (e, e) -> Doc Ann
 dispPairLiteral (e1, e2) =
@@ -309,6 +322,9 @@ dispDatasetParam :: (a -> Doc Ann) -> (f a -> Doc Ann) -> DatasetParam f a -> Do
 dispDatasetParam dispElem dispList DatasetParam {numTrain, numTest, image, label} =
   dispElem numTrain <> " " <> dispElem numTest <> " " <> dispList image <> " " <> dispList label
 
+dispDatasetParam0 :: DatasetParam [] Int -> Doc Ann
+dispDatasetParam0 = dispDatasetParam disp dispListLiteral
+
 dispLongName :: (Disp var) => [var] -> var -> Doc Ann
 dispLongName ms x =
   foldr (\m doc -> disp m <> "." <> doc) (disp x) ms
@@ -320,6 +336,9 @@ instance Disp String where
   dispGen _ = pretty
 
 instance Disp Int where
+  dispGen _ = pretty
+
+instance Disp Double where
   dispGen _ = pretty
 
 instance (Disp sv) => Disp (AssVarF sv) where
@@ -397,6 +416,7 @@ instance Disp BuiltIn where
     BuiltInArity1 bi1 -> dispGen req bi1
     BuiltInArity2 bi2 -> dispGen req bi2
     BuiltInArity3 bi3 -> dispGen req bi3
+    BuiltInArity4 bi4 -> dispGen req bi4
     BuiltInArity5 bi5 -> dispGen req bi5
     BuiltInArity6 bi6 -> dispGen req bi6
     BuiltInArity7 bi7 -> dispGen req bi7
@@ -450,6 +470,7 @@ instance Disp Surface.TypeExprMain where
     Surface.TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
     Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     Surface.TyOptArrow (x, tye1) tye2 -> dispOptArrowType req x tye1 tye2
+    Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Surface.TyProduct tye1 tye2 -> dispProductType req tye1 tye2
 
 instance Disp Surface.ArgForType where
@@ -518,6 +539,9 @@ instance Disp AssPrimBaseType where
     ATyPrimActivation -> "Activation"
     ATyPrimVarStore -> "VarStore"
     ATyPrimOptimizer -> "Optimizer"
+    ATyPrimChar -> "Char"
+    ATyPrimClipGrad -> "ClipGrad"
+    ATyPrimOutChannel -> "OutChannel"
 
 instance Disp Ass0PrimType where
   dispGen req = \case
@@ -525,7 +549,9 @@ instance Disp Ass0PrimType where
     A0TyTensor [n] -> dispNameWithArgs req "Vec" disp [n]
     A0TyTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
-    A0TyDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
+    A0TyDataset datasetParam -> dispNameWithArgs req "Dataset" dispDatasetParam0 [datasetParam]
+    A0TyLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
+    A0TyTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
 instance (Disp sv) => Disp (Ass0TypeExprF sv) where
   dispGen req = \case
@@ -563,6 +589,10 @@ instance (Disp sv) => Disp (Ass1PrimTypeF sv) where
         _ -> dispNameWithArgs req "Tensor" dispPersistent [a0eList]
     A1TyDataset datasetParam ->
       dispNameWithArgs req "Dataset" (dispDatasetParam disp (disp . runIdentity)) [datasetParam]
+    A1TyLstm a0eInputSize a0eHiddenSize ->
+      dispNameWithArgs req "Lstm" disp [a0eInputSize, a0eHiddenSize]
+    A1TyTextHelper a0eLabels ->
+      dispNameWithArgs req "TextHelper" disp [a0eLabels]
 
 instance (Disp sv) => Disp (Ass1TypeExprF sv) where
   dispGen req = \case
@@ -863,6 +893,7 @@ instance (Disp v) => Disp (Ass0PartialBuiltInAppArity3 v) where
 
 instance (Disp v) => Disp (Ass0PartialBuiltInAppArity4 v) where
   dispGen req = \case
+    PartialBuiltInAppArity4Nil bi4 -> disp bi4
     PartialBuiltInAppArity4Cons pba5 v -> f (disp pba5 <+> dispGen Atomic v)
     where
       f = deepenParenWhen (req <= Atomic)
@@ -931,6 +962,8 @@ instance Disp Ass0PrimTypeVal where
     A0TyValTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyValTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
     A0TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
+    A0TyValLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
+    A0TyValTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
 instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case
@@ -948,6 +981,8 @@ instance Disp Ass1PrimTypeVal where
     A1TyValTensor [m, n] -> dispNameWithArgs req "Mat" dispPersistent [m, n]
     A1TyValTensor ns -> dispNameWithArgs req "Tensor" dispPersistentListLiteral [ns]
     A1TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
+    A1TyValLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
+    A1TyValTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
 instance Disp LocationInFile where
   dispGen _ (LocationInFile l c) =
@@ -1146,6 +1181,7 @@ instance Disp (Bta.BCTypeExprMainF ann) where
     Surface.TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
     Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     Surface.TyOptArrow (x, tye1) tye2 -> dispOptArrowType req x tye1 tye2
+    Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Surface.TyProduct tye1 tye2 -> dispProductType req tye1 tye2
 
 instance Disp (Bta.BCArgForTypeF ann) where

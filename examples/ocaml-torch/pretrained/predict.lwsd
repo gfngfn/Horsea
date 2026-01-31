@@ -1,0 +1,78 @@
+(* Evaluation using a pre-trained ResNet model.
+   The pre-trained weight file can be found at:
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/resnet18.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/resnet34.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/densenet121.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/vgg13.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/vgg16.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/vgg19.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/squeezenet1_0.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/squeezenet1_1.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/alexnet.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/inception-v3.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/mobilenet-v2.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/efficientnet-b0.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/efficientnet-b1.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/efficientnet-b2.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/efficientnet-b3.ot
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/efficientnet-b4.ot
+*)
+
+let image_width = 768 in
+let image_height = 1024 in
+let image_path = "path/to/image" in
+let weight_path = "path/to/weight" in
+let vars_shape = [314] in (* TODO *)
+
+let image_shape = [1, 3, image_height, image_width] in
+
+&(let image = ~(TorchVision.Imagenet.gen_load_image {image_shape} image_path) in
+  let vs = VarStore.create #frozen false #name "rn" #device Device.cpu () in
+  let model =
+    ~(TorchVision.Vgg.gen_vgg11 {1} {image_height} {image_width} #num_classes 1000) vs
+(* TODO: support case expressions *) (*
+    case basename weight_path of
+    | "vgg11.ot" -> Vgg.vgg11 vs #num_classes 1000
+    | "vgg13.ot" -> Vgg.vgg13 vs #num_classes 1000
+    | "vgg16.ot" -> Vgg.vgg16 vs #num_classes 1000
+    | "vgg19.ot" -> Vgg.vgg19 vs #num_classes 1000
+    | "squeezenet1_0.ot" -> Squeezenet.squeezenet1_0 vs #num_classes 1000
+    | "squeezenet1_1.ot" -> Squeezenet.squeezenet1_1 vs #num_classes 1000
+    | "densenet121.ot" -> Densenet.densenet121 vs #num_classes 1000
+    | "densenet161.ot" -> Densenet.densenet161 vs #num_classes 1000
+    | "densenet169.ot" -> Densenet.densenet169 vs #num_classes 1000
+    | "resnet34.ot" -> Resnet.resnet34 vs #num_classes 1000
+    | "resnet50.ot" -> Resnet.resnet50 vs #num_classes 1000
+    | "resnet101.ot" -> Resnet.resnet101 vs #num_classes 1000
+    | "resnet152.ot" -> Resnet.resnet152 vs #num_classes 1000
+    | "resnet18.ot" -> Resnet.resnet18 vs #num_classes 1000
+    | "mobilenet-v2.ot" -> Mobilenet.v2 vs #num_classes 1000
+    | "alexnet.ot" -> Alexnet.alexnet vs #num_classes 1000
+    | "inception-v3.ot" -> Inception.v3 vs #num_classes 1000
+    | "efficientnet-b0.ot" -> Efficientnet.b0 vs #num_classes 1000
+    | "efficientnet-b1.ot" -> Efficientnet.b1 vs #num_classes 1000
+    | "efficientnet-b2.ot" -> Efficientnet.b2 vs #num_classes 1000
+    | "efficientnet-b3.ot" -> Efficientnet.b3 vs #num_classes 1000
+    | "efficientnet-b4.ot" -> Efficientnet.b4 vs #num_classes 1000
+    | "efficientnet-b5.ot" -> Efficientnet.b5 vs #num_classes 1000
+    | "efficientnet-b6.ot" -> Efficientnet.b6 vs #num_classes 1000
+    | "efficientnet-b7.ot" -> Efficientnet.b7 vs #num_classes 1000
+    | otherwise -> abort "unsupported model"
+    end
+*)
+  in
+  print_string "Loading weights from";
+  print_string ~(lift_string weight_path);
+  ~(Serialize.gen_load_multi_ #filename weight_path) #named_tensors (~(VarStore.gen_all_vars {vars_shape}) vs);
+  let probabilities =
+    ~Layer.gen_forward_ model image #is_training false
+      |> ~(Tensor.gen_softmax #dim -1)
+  in
+  ~(TorchVision.Imagenet.Classes.gen_top #k 5) probabilities
+    |> List.iter (fun (entry : String * Float) ->
+      let (name, probability) = entry in
+      print_string name;
+      print_string ": ";
+      print_float probability
+    )
+)

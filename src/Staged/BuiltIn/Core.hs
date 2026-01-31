@@ -5,6 +5,7 @@ module Staged.BuiltIn.Core
     BuiltInArity1 (..),
     BuiltInArity2 (..),
     BuiltInArity3 (..),
+    BuiltInArity4 (..),
     BuiltInArity5 (..),
     BuiltInArity6 (..),
     BuiltInArity7 (..),
@@ -36,6 +37,7 @@ data BuiltIn
   = BuiltInArity1 BuiltInArity1
   | BuiltInArity2 BuiltInArity2
   | BuiltInArity3 BuiltInArity3
+  | BuiltInArity4 BuiltInArity4
   | BuiltInArity5 BuiltInArity5
   | BuiltInArity6 BuiltInArity6
   | BuiltInArity7 BuiltInArity7
@@ -70,7 +72,8 @@ data Ass0PartialBuiltInAppArity3 val
   deriving stock (Eq, Show, Functor)
 
 data Ass0PartialBuiltInAppArity4 val
-  = PartialBuiltInAppArity4Cons (Ass0PartialBuiltInAppArity5 val) val
+  = PartialBuiltInAppArity4Nil BuiltInArity4
+  | PartialBuiltInAppArity4Cons (Ass0PartialBuiltInAppArity5 val) val
   deriving stock (Eq, Show, Functor)
 
 data Ass0PartialBuiltInAppArity5 val
@@ -103,6 +106,9 @@ unliftBuiltInName = \case
   A1BIFloatDiv -> arity2 BIFloatDiv
   A1BIIntMod -> arity2 BIIntMod
   A1BIIntLeq -> arity2 BIIntLeq
+  A1BIIntGeq -> arity2 BIIntGeq
+  A1BIIntLt -> arity2 BIIntLt
+  A1BIIntGt -> arity2 BIIntGt
   A1BIIntEqual -> arity2 BIIntEqual
   A1BIAnd -> arity2 BIAnd
   A1BICons -> arity2 BICons
@@ -123,8 +129,12 @@ unliftBuiltInName = \case
   A1BIListMap -> arity2 BIListMap
   A1BIListAppend -> arity2 BIListAppend
   A1BIListIter -> arity2 BIListIter
+  A1BIListLength -> arity1 BIListLength
+  A1BIListInitialize -> arity2 BIListInitialize
+  A1BIListEqual -> arity3 BIListEqual
   A1BITensorMm k m n -> arity2 (BITensorMm k m n)
   a1builtInName -> error $ "TODO: unliftBuiltInName, " ++ show a1builtInName
   where
     arity1 = BuiltInArity1
     arity2 = BuiltInArity2
+    arity3 = BuiltInArity3

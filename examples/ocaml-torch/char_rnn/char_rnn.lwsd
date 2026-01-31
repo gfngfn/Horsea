@@ -1,0 +1,115 @@
+(* This example uses the tinyshakespeare dataset which can be downloaded at:
+   https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt
+
+   It has been heavily inspired by https://github.com/karpathy/char-rnn
+*)
+
+let hidden_size = 256 in
+let seq_len = 180 in
+let batch_size = 256 in
+let labels = 32 in (* TODO *)
+
+let gen_sample {labels : Nat} {input_size : Nat} {hidden_size : Nat} =
+  &(fun #dataset (dataset : TextHelper %labels) ->
+    fun #lstm (lstm : Lstm %input_size %hidden_size) ->
+    fun #linear (linear : Tensor %[1, hidden_size] -> Tensor %[1, labels]) ->
+    fun #device (device : Device) ->
+      let (seq, dummy_state) =
+        let zero_state = ~(Layer.Lstm.gen_zero_state #batch_size 1) lstm in
+        let rec loop (non_empty_seq : Int * List Int) (state : Tensor %[1, hidden_size] * Tensor %[1, hidden_size]) (i : Int) : List Int * (Tensor %[1, hidden_size] * Tensor %[1, hidden_size]) =
+          let (prev_label, seq_tail) = non_empty_seq in
+          let seq = prev_label :: seq_tail in
+          if i == 0 then
+            (seq, state)
+          else
+            ( Gc.full_major ();
+              let prev_y = ~(Tensor.gen_zeros [1, labels]) (* #device device *) in
+              ~Tensor.gen_fill_float (~(Tensor.gen_narrow #dim 1 #length 1) #start prev_label prev_y) 1.0;
+              let state = ~Layer.Lstm.gen_step lstm state prev_y in
+              let (h, dummy) = state in
+              let sampled_y =
+                ~Layer.gen_forward linear h
+                  |> ~(Tensor.gen_softmax #dim -1)
+                  |> ~(Tensor.gen_multinomial {[1]} {labels} #num_samples 1) #replacement false
+              in
+              let sampled_label =
+                ~(Tensor.gen_get {1} {[] as List Nat})
+                  (~(Tensor.gen_get {1} {[1]}) sampled_y 0) 0
+                    |> Tensor.int_value
+              in
+              loop (sampled_label, seq) state (i - 1)
+            )
+        in
+        let sampling_length = 1024 in
+        loop (0, [] as List Int) zero_state sampling_length
+      in
+      seq
+        |> List.rev_map (fun (label : Int) -> ~TextHelper.gen_char dataset #label label)
+        |> String.from_char_list
+  )
+in
+
+&(let learning_rate = 0.01 in
+  let epochs = 100 in
+  let device = ~(Device.gen_cuda_if_available ()) in
+  let dataset = ~(TextHelper.gen_create {labels} #filename "data/input.txt") in
+  let vs = VarStore.create #frozen false #name "char-rnn" #device device () in
+  print_string "length:";
+  print_int (~TextHelper.gen_total_length dataset);
+  print_string "labels:";
+  print_int ~(lift_int labels);
+  let lstm = ~(Layer.Lstm.gen_create #input_dim labels #hidden_size hidden_size) vs in
+  let linear =
+    ~(Layer.gen_linear {[1]} #input_dim hidden_size #output_dim labels) vs Layer.Activation.none
+  in
+  let adam = Optimizer.adam vs #learning_rate learning_rate in
+  let batches_per_epoch =
+    (~TextHelper.gen_total_length dataset - ~(lift_int seq_len)) // ~(lift_int batch_size)
+  in
+  Checkpointing.loop
+    #start_index 1
+    #end_index epochs
+    #var_stores [vs]
+    #checkpoint_base "char-rnn.ot"
+    #checkpoint_every_iters 1
+    (fun #index (epoch_idx : Int) ->
+      IO.write_all
+        ("out.txt." ++ show_int epoch_idx)
+        #data (~gen_sample #dataset dataset #lstm lstm #linear linear #device device);
+      let start_time = Unix.gettimeofday () in
+      let sum_loss = Tensor.f 0.0 in
+      ~(TextHelper.gen_iter #seq_len seq_len #batch_size batch_size
+          (fun (batch_idx : Int) ->
+            &(fun #xs (xs : Tensor %[batch_size, seq_len]) ->
+              fun #ys (ys : Tensor %[batch_size, seq_len]) ->
+              Optimizer.zero_grad adam;
+              let onehot =
+                let xs = ~(Tensor.gen_view #size [batch_size, seq_len, 1]) xs in
+                let one = ~(Tensor.gen_ones [batch_size, seq_len, 1]) (* #device device *) in
+                ~(Tensor.gen_zeros [batch_size, seq_len, labels]) (* #device device *)
+                |> ~(Tensor.gen_scatter_ #dim 2) #src one #index xs
+              in
+              let (lstm_out, dummy) = ~Layer.Lstm.gen_seq lstm onehot #is_training true in
+              let logits = ~Layer.gen_forward linear lstm_out in
+              (* Compute the cross-entropy loss. *)
+              let loss =
+                ~Tensor.gen_cross_entropy_for_logits
+                  (~(Tensor.gen_view #size [batch_size * seq_len, labels]) logits)
+                  #targets (~(Tensor.gen_view #size [batch_size * seq_len]) ys)
+              in
+              ~Tensor.gen_add_update sum_loss loss;
+              print_int ~(lift_int batch_idx);
+              print_int batches_per_epoch;
+              print_float (Tensor.float_value sum_loss / float (1 + ~(lift_int batch_idx)));
+              Tensor.backward loss;
+              Optimizer.step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam
+            )
+          )
+      )
+        #device device
+        dataset;
+      print_int epoch_idx;
+      print_int (Unix.gettimeofday () - start_time);
+      print_float (Tensor.float_value sum_loss / float batches_per_epoch)
+    )
+)

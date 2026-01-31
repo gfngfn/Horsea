@@ -70,6 +70,7 @@ data Token
   | TokOpMult Text
   | TokOpComp Text
   | TokOpAnd Text
+  | TokOpOr Text
   deriving stock (Ord, Eq, Show, Generic)
 
 instance Mp.VisualStream [Located Token] where
@@ -130,6 +131,7 @@ showToken = \case
   TokOpMult op -> Text.unpack op
   TokOpComp op -> Text.unpack op
   TokOpAnd op -> Text.unpack op
+  TokOpOr op -> Text.unpack op
 
 instance Mp.TraversableStream [Located Token] where
   reachOffset _n posState = (Nothing, posState) -- TODO
@@ -166,44 +168,63 @@ lowerIdentOrKeyword = do
 token :: Tokenizer Token
 token =
   choice
-    [ TokLeftParen <$ Mp.single '(',
+    [ -- `(`, `)`, `{`, and `}`:
+      TokLeftParen <$ Mp.single '(',
       TokRightParen <$ Mp.single ')',
       TokLeftBrace <$ Mp.single '{',
       TokRightBrace <$ Mp.single '}',
-      TokArrow <$ Mp.chunk "->",
+      -- `[`:
+      TokVecLeft <$ Mp.chunk "[|",
+      TokMatLeft <$ Mp.chunk "[#",
+      TokLeftSquare <$ Mp.single '[',
+      -- `]`:
+      TokRightSquare <$ Mp.single ']',
+      -- `:`:
       TokColonColon <$ Mp.chunk "::",
       TokColon <$ Mp.single ':',
+      -- `,` and `:`:
       TokComma <$ Mp.single ',',
+      TokSemicolon <$ Mp.single ';',
+      -- `=`:
       Mp.try (TokOpComp <$> operatorLong '='),
       TokEqual <$ Mp.single '=',
+      -- `&`:
       Mp.try (TokOpAnd <$> operatorLong '&'),
       TokBracket <$ Mp.single '&',
+      -- `~` and `%`:
       TokEscape <$ Mp.single '~',
       TokPersistent <$ Mp.single '%',
-      TokSemicolon <$ Mp.single ';',
-      TokUnderscore <$ Mp.single '_',
+      -- `|`:
       TokOpFlipApp <$ Mp.chunk "|>",
-      TokVecLeft <$ Mp.chunk "[|",
       TokVecRight <$ Mp.chunk "|]",
-      TokMatLeft <$ Mp.chunk "[#",
+      Mp.try (TokOpOr <$> operatorLong '|'),
+      TokBar <$ Mp.single '|',
+      -- `#`:
       Mp.try (TokLabel <$> (Mp.single '#' *> lowerIdent)),
       TokMatRight <$ Mp.chunk "#]",
-      TokLeftSquare <$ Mp.single '[',
-      TokRightSquare <$ Mp.single ']',
-      TokBar <$ Mp.single '|',
-      TokOpAdd <$> operator '+',
+      -- `*`:
       Mp.try (TokOpMult <$> operatorLong '*'),
       TokProd <$ Mp.single '*',
+      -- `+`, `/`, `<`, and `>`:
+      TokOpAdd <$> operator '+',
       TokOpMult <$> operator '/',
       TokOpComp <$> operator '<',
       TokOpComp <$> operator '>',
+      -- `_`:
+      TokUnderscore <$ Mp.single '_',
+      -- `'`:
       TokTypeVar <$> (Mp.single '\'' *> lowerIdent),
+      -- identifiers:
       lowerIdentOrKeyword,
       Mp.try (TokLongLower <$> longLowerIdent),
       TokUpper <$> upperIdent,
+      -- numeric literals (possibly starting with `-`):
       Mp.try (TokFloat <$> floatLiteral),
       Mp.try (TokInt <$> integerLiteral),
+      -- `-`:
+      TokArrow <$ Mp.chunk "->",
       TokOpAdd <$> operator '-',
+      -- "`:
       TokString <$> stringLiteral
     ]
 

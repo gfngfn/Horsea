@@ -77,7 +77,7 @@ longLowerIdent =
 
 opRestCharSet :: Set Char
 opRestCharSet =
-  Set.fromList ['+', '-', '*', '/', '=', '<', '>', '&']
+  Set.fromList ['+', '-', '*', '/', '=', '<', '>', '&', '|', '.']
 
 opRestChar :: Tokenizer Char
 opRestChar =
@@ -123,6 +123,7 @@ charInStringLiteral =
   choice
     [ '"' <$ Mp.chunk "\\\"",
       '\\' <$ Mp.chunk "\\\\",
+      '\n' <$ Mp.chunk "\\n",
       Mp.satisfy (\c -> c /= '"' && c /= '\\')
     ]
 

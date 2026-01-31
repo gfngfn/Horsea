@@ -7,6 +7,7 @@ module Staged.TypeError
 where
 
 import Data.Text (Text)
+import Staged.Core
 import Staged.SrcSyntax
 import Staged.Syntax
 import Util.LocationInFile (SpanInFile)

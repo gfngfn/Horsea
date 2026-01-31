@@ -56,10 +56,13 @@ data ParamSpec
   = ParamInt
   | ParamIntList
   | ParamIntPair
+  | ParamString
+  | ParamStringList
+  | ParamFloatList
   | ParamDiscarded
 
 allArities :: [Int]
-allArities = [1, 2, 3, 5, 6, 7, 8]
+allArities = [1 .. 8]
 
 ass1builtInTypeName :: TH.Name
 ass1builtInTypeName = TH.mkName "Ass1BuiltIn"
@@ -200,6 +203,9 @@ makeParam = \case
   ParamInt -> TH.ConT ''Int
   ParamIntList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Int)
   ParamIntPair -> TH.AppT (TH.AppT (TH.TupleT 2) (TH.ConT ''Int)) (TH.ConT ''Int)
+  ParamString -> TH.ConT ''Text
+  ParamStringList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Text)
+  ParamFloatList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Double)
   ParamDiscarded -> TH.ConT ''()
 
 filterGen :: [BuiltInSpec] -> [(Common, GenSpec)]
@@ -287,6 +293,9 @@ deriveDeltaReductionPerArity allBiSpecs arity = do
                     ParamInt -> "validateIntLiteral"
                     ParamIntList -> "validateIntListLiteral"
                     ParamIntPair -> "validateIntPairLiteral"
+                    ParamString -> "validateStringLiteral"
+                    ParamStringList -> "validateStringListLiteral"
+                    ParamFloatList -> "validateFloatListLiteral"
                     ParamDiscarded -> "discardValue"
 
         retVal :: TH.Exp
@@ -345,6 +354,9 @@ makeParamDisp (pName, paramSpec) =
         ParamInt -> "disp"
         ParamIntList -> "dispListLiteral"
         ParamIntPair -> "dispPairLiteral"
+        ParamString -> "dispStringLiteral"
+        ParamStringList -> "dispStringListLiteral"
+        ParamFloatList -> "dispListLiteral"
         ParamDiscarded -> "dispDiscarded"
 
 -- | Generates the following two kinds of instances:

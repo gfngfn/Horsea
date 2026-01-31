@@ -24,7 +24,7 @@ Options:
 * `-w`, `--display-width`: Sets the length of the terminal width for displaying texts. Default: `80`
 
 
-### The non-staged surface language (`surface`)
+#### The non-staged surface language (`surface`)
 
 ```console
 $ cabal run horsea -- surface examples/mat.surf
@@ -40,7 +40,7 @@ Options:
 
 ## Memos for Development
 
-### How to test
+### How to run tests
 
 ```console
 $ cabal test
@@ -86,6 +86,6 @@ $ cabal run -O1 ormolu -- --mode inplace $(git ls-files '*.hs')
 - [ ] Transpilation to Python or OCaml
 - [ ] ADTs and pattern matching
 - [ ] The `run`-primitive
-- [ ] Binding of type names like `type Nat = ( n : Int | n >= 0 )`
+- [ ] Binding of type names like `type Nat = { n : Int | n >= 0 }`
 - [ ] `let`-expressions for persistent values
 - [ ] Some evaluation during type-checking

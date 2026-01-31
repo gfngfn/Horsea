@@ -74,7 +74,7 @@ mat :: P (Located [[Int]])
 mat = genMat TokMatLeft TokMatRight TokSemicolon TokComma (noLoc int)
 
 operator :: P (Located Var)
-operator = andOp <|> compOp <|> addOp <|> multOp <|> consOp
+operator = orOp <|> andOp <|> compOp <|> addOp <|> multOp <|> consOp
 
 consOp :: P (Located Var)
 consOp = fmap (const "::") <$> expectToken (^? #_TokColonColon)
@@ -92,6 +92,9 @@ compOp = expectToken (^? #_TokOpComp)
 
 andOp :: P (Located Var)
 andOp = expectToken (^? #_TokOpAnd)
+
+orOp :: P (Located Var)
+orOp = expectToken (^? #_TokOpOr)
 
 makeBinOpApp :: Expr -> Located Var -> Expr -> Expr
 makeBinOpApp e1@(Expr loc1 _) (Located locBinOp binOp) e2@(Expr loc2 _) =
@@ -178,8 +181,11 @@ exprAtom, expr :: P Expr
     ands :: P Expr
     ands = binSep makeBinOpApp andOp comp
 
+    ors :: P Expr
+    ors = binSep makeBinOpApp orOp ands
+
     flipApp :: P Expr
-    flipApp = makeFlipApp <$> ands <*> many (token TokOpFlipApp *> ands)
+    flipApp = makeFlipApp <$> ors <*> many (token TokOpFlipApp *> ors)
       where
         makeFlipApp =
           List.foldl'
@@ -219,7 +225,7 @@ exprAtom, expr :: P Expr
     letin :: P Expr
     letin =
       (makeLet <$> token TokLet <*> letInMain)
-        <|> try (makeSequential <$> (ands <* token TokSemicolon) <*> letin)
+        <|> try (makeSequential <$> (lam <* token TokSemicolon) <*> letin)
         <|> lam
       where
         makeLet locFirst (eMain, locLast) =
@@ -245,11 +251,12 @@ typeExpr = fun
   where
     atom :: P TypeExpr
     atom =
-      -- TODO: support refinement types
       (makeNamed <$> upper)
+        <|> try (makeRefinement <$> brace ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (fun <* token TokBar) <*> expr))
         <|> (makeEnclosed <$> paren fun)
       where
         makeNamed (Located loc t) = TypeExpr loc (TyName t [])
+        makeRefinement (Located loc (x, tye, e)) = TypeExpr loc (TyRefinement x tye e)
         makeEnclosed (Located loc (TypeExpr _ tyeMain)) = TypeExpr loc tyeMain
 
     app :: P TypeExpr

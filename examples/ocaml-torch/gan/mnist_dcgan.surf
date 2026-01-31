@@ -1,0 +1,192 @@
+(* Deep Convolutional Generative Adversarial Networks trained on the MNIST dataset.
+   https://arxiv.org/abs/1511.06434
+*)
+
+let image_w = MnistHelper.image_width in
+let image_h = MnistHelper.image_height in
+let image_dim = MnistHelper.image_dim in
+let latent_dim = 100 in
+
+(* use the standard GAN or RaLSGAN (i.e., Relativistic average LSGAN;
+   see https://ajolicoeur.wordpress.com/RelativisticGAN/) *)
+let use_standard_gan = true in
+let batch_size = 128 in
+
+let create_generator
+    {shape : {s : List Nat | List.length s == 4 && List.nth 1 s == 100}}
+    (vs : VarStore) (rand_input : Tensor shape) =
+  rand_input
+    |> Layer.forward
+      ( Layer.conv_transpose2d_
+          #ksize 7 #stride 1 #padding 0 #output_padding 0
+          #input_dim 100
+          #output_dim 64
+          {shape}
+          vs
+          Layer.Activation.none
+      )
+    |> Tensor.const_batch_norm
+    |> Tensor.relu
+    |> Layer.forward
+      ( Layer.conv_transpose2d_
+          #ksize 4 #stride 2 #padding 1 #output_padding 0
+          #input_dim 64
+          #output_dim 32
+          {[List.nth 0 shape, 64, List.nth 2 shape + 6, List.nth 3 shape + 6]}
+          vs
+          Layer.Activation.none
+      )
+    |> Tensor.const_batch_norm
+    |> Tensor.relu
+    |> Layer.forward
+      ( Layer.conv_transpose2d_
+          #ksize 4 #stride 2 #padding 1 #output_padding 0
+          #input_dim 32
+          #output_dim 1
+          {[List.nth 0 shape, 32, (List.nth 2 shape + 6) * 2, (List.nth 3 shape + 6) * 2]}
+          vs
+          Layer.Activation.tanh
+      )
+in
+
+let create_discriminator {shape : List Nat} (vs : VarStore) =
+  let conv1 =
+    Layer.conv2d_ {List.nth 0 shape} {List.nth 2 shape} {List.nth 3 shape}
+      #ksize 4 #stride 2 #padding 1
+      #input_dim 1
+      #output_dim 32
+      vs
+      Layer.Activation.none
+  in
+  let conv2 =
+    Layer.conv2d_ {List.nth 0 shape} {List.nth 2 shape // 2} {List.nth 3 shape // 2}
+      #ksize 4 #stride 2 #padding 1
+      #input_dim 32
+      #output_dim 64
+      vs
+      Layer.Activation.none
+  in
+  let conv3 =
+    Layer.conv2d_ {List.nth 0 shape} {List.nth 2 shape // 4} {List.nth 3 shape // 4}
+      #ksize 7 #stride 1 #padding 0
+      #input_dim 64
+      #output_dim 1
+      vs
+      Layer.Activation.sigmoid
+  in
+  fun (xs : Tensor shape) ->
+    xs
+      |> Layer.forward conv1
+      |> Tensor.leaky_relu
+      |> Layer.forward conv2
+      |> Tensor.const_batch_norm
+      |> Tensor.leaky_relu
+      |> Layer.forward conv3
+in
+
+let bce {shape : List Nat} #labels (labels : Float) (model_values : Tensor shape) =
+  let epsilon = 0.0000001 in
+  let open Tensor in
+  f (1.0 -. labels) * log (f (1.0 +. epsilon) - model_values)
+    - f labels * log (model_values + f epsilon)
+    |> mean
+in
+
+let device = Device.cpu in
+let learning_rate = 0.0001 in
+let batches = 100000000 in
+let random (u : Unit) =
+  let open Tensor in
+  f 2.0 * rand [batch_size, latent_dim, 1, 1] - f 1.0
+in
+let end_line_by (s : String) = "  [" ++ s ++ "],\n" in
+let write_samples (samples : Tensor [batch_size, image_dim]) #filename (filename : String) =
+  IO.OutChannel.with_file filename (fun (channel : OutChannel) ->
+    IO.OutChannel.output_string channel "data_ = [\n";
+    (range 0 99) |> List.iter (fun(sample_index : Int) ->
+      List.initialize (lift_int image_dim) (fun (pixel_index : Int) ->
+        Tensor.get_float2_unsafe samples sample_index pixel_index |> show_float
+      )
+        |> String.concat #sep ", "
+        |> end_line_by
+        |> IO.OutChannel.output_string channel
+    );
+    IO.OutChannel.output_string channel "]\n"
+  )
+in
+let mnist = MnistHelper.dataset in
+let generator_vs = VarStore.create #frozen false #name "gen" #device device () in
+let opt_g = Optimizer.adam generator_vs #learning_rate learning_rate in
+let discriminator_vs = VarStore.create #frozen false #name "disc" #device device () in
+let opt_d = Optimizer.adam discriminator_vs #learning_rate learning_rate in
+let fixed_noise = random () in
+(range 1 batches) |> List.iter (fun(batch_idx : Int) ->
+  let (batch_images, dummy) =
+    DatasetHelper.train_batch #batch_size batch_size
+      device
+      mnist
+      batch_idx
+  in
+  let batch_images =
+    Tensor.reshape #shape [batch_size, 1, image_w, image_h] batch_images
+  in
+  let discriminator_loss =
+    if use_standard_gan then
+      let open Tensor in
+      ( bce
+          #labels 0.9
+          (create_discriminator discriminator_vs (f 2.0 * batch_images - f 1.0))
+      )
+        +
+          ( bce
+              #labels 0.0
+              (random () |> create_generator generator_vs |> create_discriminator discriminator_vs)
+          )
+    else
+      let open Tensor in
+      let y_pred =
+        create_discriminator discriminator_vs
+          (f 2.0 * batch_images - f 1.0)
+      in
+      let y_pred_fake =
+        random () |> create_generator generator_vs |> create_discriminator discriminator_vs
+      in
+      (y_pred - mean y_pred_fake - f 1.0 |> square |> mean)
+        + (y_pred_fake - mean y_pred + f 1.0 |> square |> mean)
+  in
+  Optimizer.backward_step opt_d #loss discriminator_loss;
+  let generator_loss =
+    if use_standard_gan then
+      bce #labels 1.0
+        (random () |> create_generator generator_vs |> create_discriminator discriminator_vs)
+    else
+      let y_pred =
+        create_discriminator discriminator_vs
+          (let open Tensor in f 2.0 * batch_images - f 1.0)
+      in
+      let y_pred_fake =
+        random () |> create_generator generator_vs |> create_discriminator discriminator_vs
+      in
+      let open Tensor in
+      (y_pred - mean y_pred_fake + f 1.0 |> square |> mean)
+        + (y_pred_fake - mean y_pred - f 1.0 |> square |> mean)
+  in
+  Optimizer.backward_step opt_g #loss generator_loss;
+  if mod batch_idx 100 == 0 then
+    ( print_string "batch";
+      print_int batch_idx;
+      print_string "d-loss:";
+      print_float (Tensor.float_value discriminator_loss);
+      print_string "g-loss";
+      print_float (Tensor.float_value generator_loss)
+    )
+  else
+    ();
+  Gc.full_major ();
+  if mod batch_idx 25000 == 0 || (batch_idx < 100000 && mod batch_idx 5000 == 0) then
+    write_samples
+      (create_generator generator_vs fixed_noise |> Tensor.reshape #shape [batch_size, image_dim])
+      #filename ("out" ++ show_int batch_idx ++ ".txt")
+  else
+    ()
+)

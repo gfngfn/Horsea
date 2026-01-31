@@ -1,7 +1,5 @@
 module Staged.Syntax
-  ( Label,
-    DatasetParam (..),
-    StaticVar (..),
+  ( StaticVar (..),
     AssVarF (..),
     Symbol (..),
     symbolToVar,
@@ -71,20 +69,11 @@ import Data.Functor.Identity
 import Data.Map (Map)
 import Data.Text (Text)
 import Staged.BuiltIn.Core
+import Staged.Core
 import Util.Matrix (Matrix)
 import Util.TokenUtil (Span)
 import Util.Vector (Vector)
 import Prelude
-
-type Label = Text
-
-data DatasetParam f a = DatasetParam
-  { numTrain :: a,
-    numTest :: a,
-    image :: f a,
-    label :: f a
-  }
-  deriving stock (Eq, Show, Functor)
 
 newtype StaticVar = StaticVar Int
   deriving newtype (Eq, Ord, Show)
@@ -221,6 +210,9 @@ data AssPrimBaseType
   | ATyPrimActivation
   | ATyPrimVarStore
   | ATyPrimOptimizer
+  | ATyPrimChar
+  | ATyPrimClipGrad
+  | ATyPrimOutChannel
   deriving stock (Eq, Show)
 
 validatePrimBaseType :: Text -> Maybe AssPrimBaseType
@@ -234,12 +226,17 @@ validatePrimBaseType = \case
   "Activation" -> Just ATyPrimActivation
   "VarStore" -> Just ATyPrimVarStore
   "Optimizer" -> Just ATyPrimOptimizer
+  "Char" -> Just ATyPrimChar
+  "ClipGrad" -> Just ATyPrimClipGrad
+  "OutChannel" -> Just ATyPrimOutChannel
   _ -> Nothing
 
 data Ass0PrimType
   = A0TyPrimBase AssPrimBaseType
   | A0TyTensor [Int]
   | A0TyDataset (DatasetParam [] Int)
+  | A0TyLstm Int Int
+  | A0TyTextHelper Int
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type expressions.
@@ -256,6 +253,8 @@ data Ass1PrimTypeF sv
   = A1TyPrimBase AssPrimBaseType
   | A1TyTensor (Ass0ExprF sv)
   | A1TyDataset (DatasetParam Identity (Ass0ExprF sv))
+  | A1TyLstm (Ass0ExprF sv) (Ass0ExprF sv)
+  | A1TyTextHelper (Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of types for persistent value items.
@@ -300,6 +299,10 @@ liftPrimType = \case
           image = Identity (liftIntList image),
           label = Identity (liftIntList label)
         }
+  A0TyLstm i h ->
+    A1TyLstm (liftInt i) (liftInt h)
+  A0TyTextHelper labels ->
+    A1TyTextHelper (liftInt labels)
   where
     liftInt = A0Literal . ALitInt
     liftIntList = A0Literal . ALitList . map liftInt
@@ -346,6 +349,8 @@ data Ass0PrimTypeVal
   = A0TyValPrimBase AssPrimBaseType
   | A0TyValTensor [Int]
   | A0TyValDataset (DatasetParam [] Int)
+  | A0TyValLstm Int Int
+  | A0TyValTextHelper Int
   deriving stock (Eq, Show)
 
 -- | The type of stage-1 type values.
@@ -362,6 +367,8 @@ data Ass1PrimTypeVal
   = A1TyValPrimBase AssPrimBaseType
   | A1TyValTensor [Int]
   | A1TyValDataset (DatasetParam [] Int)
+  | A1TyValLstm Int Int
+  | A1TyValTextHelper Int
   deriving stock (Eq, Show)
 
 -- | The type of well-formed type equations for assertion.
@@ -376,6 +383,8 @@ data Type1PrimEquationF sv
   = TyEq1PrimBase AssPrimBaseType
   | TyEq1Tensor (ListEquationF sv)
   | TyEq1Dataset (DatasetParamEquationF sv)
+  | TyEq1Lstm (Ass0ExprF sv, Ass0ExprF sv) (Ass0ExprF sv, Ass0ExprF sv)
+  | TyEq1TextHelper (Ass0ExprF sv, Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data ListEquationF sv
@@ -473,6 +482,10 @@ decomposeType1Equation = \case
                   label = Identity label2
                 }
          in (A1TyPrim (A1TyDataset datasetParam1), A1TyPrim (A1TyDataset datasetParam2))
+      TyEq1Lstm (inputSize1, inputSize2) (hiddenSize1, hiddenSize2) ->
+        (A1TyPrim (A1TyLstm inputSize1 hiddenSize1), A1TyPrim (A1TyLstm inputSize2 hiddenSize2))
+      TyEq1TextHelper (a0e1, a0e2) ->
+        (A1TyPrim (A1TyTextHelper a0e1), A1TyPrim (A1TyTextHelper a0e2))
   TyEq1List ty1eqElem ->
     let (a1tye1elem, a1tye2elem) = decomposeType1Equation ty1eqElem
      in (A1TyList a1tye1elem, A1TyList a1tye2elem)

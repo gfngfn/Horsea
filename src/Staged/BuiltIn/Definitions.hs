@@ -7,7 +7,10 @@ where
 
 import Data.List (intercalate)
 import Data.List qualified as List
+import Data.Text qualified as Text
 import Language.Haskell.TH qualified as TH
+import Safe (atMay, initMay, lastMay)
+import Safe.Exact (zipExactMay)
 import Staged.BuiltIn.CompileTime
 import Util.Matrix qualified as Matrix
 import Util.String (snakeToCamel, uppercase)
@@ -70,6 +73,20 @@ definitions =
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 * n2))) a0v1 a0v2|],
     versatile [] "int_div" ForBothStages 2 $
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 `div` n2))) a0v1 a0v2|],
+    versatile [] "float_add" ForBothStages 2 $
+      [|
+        do
+          r1 <- validateFloatLiteral a0v1
+          r2 <- validateFloatLiteral a0v2
+          pure $ A0ValLiteral (ALitFloat (r1 + r2))
+        |],
+    versatile [] "float_sub" ForBothStages 2 $
+      [|
+        do
+          r1 <- validateFloatLiteral a0v1
+          r2 <- validateFloatLiteral a0v2
+          pure $ A0ValLiteral (ALitFloat (r1 - r2))
+        |],
     versatile [] "float_div" ForBothStages 2 $
       [|
         do
@@ -81,10 +98,18 @@ definitions =
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (n1 `mod` n2))) a0v1 a0v2|],
     versatile [] "int_leq" ForBothStages 2 $
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 <= n2))) a0v1 a0v2|],
+    versatile [] "int_geq" ForBothStages 2 $
+      [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 >= n2))) a0v1 a0v2|],
+    versatile [] "int_lt" ForBothStages 2 $
+      [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 < n2))) a0v1 a0v2|],
+    versatile [] "int_gt" ForBothStages 2 $
+      [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 > n2))) a0v1 a0v2|],
     versatile [] "int_equal" ForBothStages 2 $
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 == n2))) a0v1 a0v2|],
     versatile [] "and" ForBothStages 2 $
       [|logical (\b1 b2 -> A0ValLiteral (ALitBool (b1 && b2))) a0v1 a0v2|],
+    versatile [] "or" ForBothStages 2 $
+      [|logical (\b1 b2 -> A0ValLiteral (ALitBool (b1 || b2))) a0v1 a0v2|],
     versatile [] "cons" ForBothStages 2 $
       [|
         do
@@ -130,11 +155,44 @@ definitions =
           (_, a0v12) <- validateTupleValue a0v1
           pure a0v12
         |],
+    versatile [] "string_append" ForBothStages 2 $
+      [|
+        do
+          s1 <- validateStringLiteral a0v1
+          s2 <- validateStringLiteral a0v2
+          pure $ A0ValLiteral (ALitString (s1 <> s2))
+        |],
+    versatile [] "show_int" ForBothStages 1 $
+      [|
+        do
+          n <- validateIntLiteral a0v1
+          pure $ A0ValLiteral (ALitString (Text.show n))
+        |],
+    versatile [] "show_float" ForBothStages 1 $
+      [|
+        do
+          r <- validateFloatLiteral a0v1
+          pure $ A0ValLiteral (ALitString (Text.show r))
+        |],
+    versatile [] "lift_int" ForStage0 1 $
+      [|
+        do
+          n <- validateIntLiteral a0v1
+          pure $ A0ValBracket (A1ValLiteral (ALitInt n))
+        |],
     versatile [] "lift_string" ForStage0 1 $
       [|
         do
           s <- validateStringLiteral a0v1
           pure $ A0ValBracket (A1ValLiteral (ALitString s))
+        |],
+    versatile [] "insert_at" ForStage0 3 $
+      [|
+        do
+          n <- validateIntLiteral a0v1
+          x <- validateIntLiteral a0v2
+          a0vs <- validateListValue a0v3
+          pure $ A0ValLiteral (ALitList (insertAt n (A0ValLiteral (ALitInt x)) a0vs))
         |],
     versatile [] "drop_at" ForStage0 2 $
       [|
@@ -209,6 +267,15 @@ definitions =
             Just mat -> pure $ A0ValLiteral (ALitMat mat)
             Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
         |],
+    versatile ["string"] "concat" ForBothStages 2 $
+      [|
+        do
+          sep <- validateStringLiteral a0v1
+          strs <- validateStringListLiteral a0v2
+          pure $ A0ValLiteral (ALitString (Text.intercalate sep strs))
+        |],
+    versatile ["string"] "from_char_list" ForBothStages 1 $
+      [|error "UNIMPLEMENTED: String.from_char_list"|],
     versatile ["list"] "map" ForBothStages 2 $
       [|
         do
@@ -230,6 +297,81 @@ definitions =
           forM_ a0vsIn (reduceBeta a0v1 >=> validateUnitLiteral)
           pure $ A0ValLiteral ALitUnit
         |],
+    versatile ["list"] "length" ForBothStages 1 $
+      [|
+        do
+          a0vs <- validateListValue a0v1
+          pure $ A0ValLiteral (ALitInt (length a0vs))
+        |],
+    versatile ["list"] "initialize" ForBothStages 2 $
+      [|
+        do
+          n <- validateIntLiteral a0v1
+          results <-
+            mapM
+              (reduceBeta a0v2 . A0ValLiteral . ALitInt)
+              [0 .. (n - 1)]
+          pure $ A0ValLiteral (ALitList results)
+        |],
+    versatile ["list"] "equal" ForBothStages 3 $
+      [|
+        do
+          a0vsA <- validateListValue a0v2
+          a0vsB <- validateListValue a0v3
+          b <-
+            case zipExactMay a0vsA a0vsB of
+              Nothing ->
+                pure False
+              Just zipped -> do
+                and
+                  <$> mapM
+                    ( \(a0vA, a0vB) -> do
+                        a0vPartial <- reduceBeta a0v1 a0vA
+                        a0vResult <- reduceBeta a0vPartial a0vB
+                        validateBoolLiteral a0vResult
+                    )
+                    zipped
+          pure $ A0ValLiteral (ALitBool b)
+        |],
+    versatile ["list"] "init" ForStage0 1 $
+      [|
+        do
+          a0vs <- validateListValue a0v1
+          case initMay a0vs of
+            Nothing -> error "TODO (error): List.init, empty list"
+            Just a0vs' -> pure $ A0ValLiteral (ALitList a0vs')
+        |],
+    versatile ["list"] "last" ForStage0 1 $
+      [|
+        do
+          a0vs <- validateListValue a0v1
+          case lastMay a0vs of
+            Nothing -> error "TODO (error): List.init, empty list"
+            Just a0v -> pure a0v
+        |],
+    versatile ["list"] "nth" ForStage0 2 $
+      [|
+        do
+          n <- validateIntLiteral a0v1
+          a0vs <- validateListValue a0v2
+          case atMay a0vs n of
+            Nothing -> error "TODO (error): List.nth, index out of bounds"
+            Just a0v -> pure a0v
+        |],
+    versatile ["gc"] "full_major" ForStage1 1 $
+      [|
+        do
+          () <- validateUnitLiteral a0v1
+          pure $ A0ValBracket (A1ValLiteral ALitUnit)
+        |],
+    versatile ["io"] "write_all" ForStage1 2 $
+      [|error "UNIMPLEMENTED: IO.write_all"|],
+    versatile ["io", "out_channel"] "with_file" ForStage1 2 $
+      [|error "UNIMPLEMENTED: IO.OutChannel.with_file"|],
+    versatile ["io", "out_channel"] "output_string" ForStage1 2 $
+      [|error "UNIMPLEMENTED: IO.OutChannel.output_string"|],
+    versatile ["unix"] "gettimeofday" ForStage1 1 $
+      [|error "UNIMPLEMENTED: Unix.gettimeofday"|],
     versatile ["device"] "cpu" ForStage1 0 $
       [|error "UNIMPLEMENTED: Device.cpu"|],
     versatile ["device"] "gen_cuda_if_available" ForStage0 1 $
@@ -239,6 +381,8 @@ definitions =
           pure $ A0ValBracket (A1ValLiteral ALitUnit) -- TODO: return a value of type `Device`
         |],
     gen ["tensor"] "zeros" [ParamIntList],
+    gen ["tensor"] "ones" [ParamIntList],
+    gen ["tensor"] "copy" [ParamIntList],
     gen ["tensor"] "add" [ParamIntList, ParamIntList],
     versatile ["tensor"] "add" (ForInternal [ParamIntList]) 2 $
       [|
@@ -258,7 +402,14 @@ definitions =
           _ ->
             error "UNIMPLEMENTED: evalExpr0, BITadd, dimension >= 3"
         |],
+    gen ["tensor"] "sub" [ParamIntList, ParamIntList],
     gen ["tensor"] "mult" [ParamIntList, ParamIntList],
+    gen ["tensor"] "log" [ParamIntList],
+    gen ["tensor"] "square" [ParamIntList],
+    gen ["tensor"] "cat_" [ParamInt, ParamIntList, ParamIntList],
+    gen ["tensor"] "mean" [ParamIntList],
+    gen ["tensor"] "rand" [ParamIntList],
+    gen ["tensor"] "float_vec" [ParamFloatList],
     gen ["tensor"] "grad" [ParamIntList],
     gen ["tensor"] "zero_grad" [ParamIntList],
     gen ["tensor"] "mm" [ParamInt, ParamInt, ParamInt],
@@ -271,9 +422,12 @@ definitions =
             Just mat -> pure $ A0ValLiteral (ALitMat mat)
             Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
         |],
+    gen ["tensor"] "add_update" [ParamIntList],
     gen ["tensor"] "sub_update" [ParamIntList],
+    gen ["tensor"] "scatter_" [ParamIntList, ParamIntList, ParamIntList, ParamInt],
     gen ["tensor"] "argmax" [ParamIntList, ParamInt],
     gen ["tensor"] "cross_entropy_for_logits" [ParamInt, ParamInt],
+    gen ["tensor"] "multinomial" [ParamIntList, ParamInt, ParamInt],
     gen ["tensor"] "count_equal" [ParamIntList],
     versatile ["tensor"] "f" ForStage1 1 $
       [|
@@ -295,10 +449,20 @@ definitions =
         |],
     versatile ["tensor"] "float_value" ForStage1 1 $
       [|error "UNIMPLEMENTED: Tensor.float_value"|],
+    versatile ["tensor"] "int_value" ForStage1 1 $
+      [|error "UNIMPLEMENTED: Tensor.int_value"|],
+    gen ["tensor"] "get" [ParamInt, ParamIntList],
+    gen ["tensor"] "get_float2_unsafe" [ParamIntList],
+    gen ["tensor"] "fill_float" [ParamIntList],
     gen ["tensor"] "dropout" [ParamIntList],
+    gen ["tensor"] "relu" [ParamIntList],
+    gen ["tensor"] "leaky_relu" [ParamIntList],
     gen ["tensor"] "reshape" [ParamIntList, ParamIntList],
+    gen ["tensor"] "view" [ParamIntList, ParamIntList],
+    gen ["tensor"] "narrow" [ParamIntList, ParamInt, ParamInt],
     gen ["tensor"] "max_pool2d" [ParamInt, ParamInt, ParamInt, ParamInt, ParamIntPair, ParamIntPair, ParamIntPair],
     gen ["tensor"] "softmax" [ParamIntList, ParamInt],
+    gen ["tensor"] "const_batch_norm" [ParamIntList],
     versatile ["var_store"] "create" ForStage1 4 $
       [|
         do
@@ -320,22 +484,53 @@ definitions =
           let _varStore = a0v1
           error "UNIMPLEMENTED: VarStore.freeze"
         |],
-    gen ["tensor"] "all_vars" [ParamIntList],
+    gen ["var_store"] "all_vars" [ParamIntList],
     versatile ["layer", "activation"] "relu" ForStage1 0 $
       [|error "UNIMPLEMENTED: Layer.Activation.relu"|],
+    versatile ["layer", "activation"] "softmax" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Layer.Activation.softmax"|],
+    versatile ["layer", "activation"] "log_softmax" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Layer.Activation.log_softmax"|],
+    versatile ["layer", "activation"] "tanh" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Layer.Activation.tanh"|],
+    versatile ["layer", "activation"] "leaky_relu" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Layer.Activation.leaky_relu"|],
+    versatile ["layer", "activation"] "sigmoid" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Layer.Activation.sigmoid"|],
     versatile ["layer", "activation"] "none" ForStage1 0 $
       [|error "UNIMPLEMENTED: Layer.Activation.none"|],
     gen ["layer"] "forward" [ParamIntList, ParamIntList],
     gen ["layer"] "forward_" [ParamIntList, ParamIntList],
     gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt],
+    gen ["layer"] "conv_transpose2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamIntList],
     gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt],
+    gen ["layer", "lstm"] "create" [ParamInt, ParamInt],
+    gen ["layer", "lstm"] "zero_state" [ParamInt, ParamInt, ParamInt],
+    gen ["layer", "lstm"] "step" [ParamInt, ParamInt, ParamInt],
+    gen ["layer", "lstm"] "seq" [ParamInt, ParamInt, ParamInt, ParamInt],
     versatile ["optimizer"] "adam" ForStage1 2 $
       [|
         do
           let _varStore = a0v1
-          _r <- validateFloatLiteral a0v2
+          _learningRate <- validateFloatLiteral a0v2
           error "UNIMPLEMENTED: Optimizer.adam"
         |],
+    versatile ["optimizer"] "sgd" ForStage1 3 $
+      [|
+        do
+          let _varStore = a0v1
+          _learningRate <- validateFloatLiteral a0v2
+          _momentum <- validateFloatLiteral a0v3
+          error "UNIMPLEMENTED: Optimizer.sgd"
+        |],
+    versatile ["optimizer", "clip_grad"] "norm2" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Optimizer.ClipGrad.norm2"|],
+    versatile ["optimizer", "clip_grad"] "value" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Optimizer.ClipGrad.value"|],
+    versatile ["optimizer"] "step" ForStage1 2 $
+      [|error "UNIMPLEMENTED: Optimizer.step"|],
+    versatile ["optimizer"] "zero_grad" ForStage1 1 $
+      [|error "UNIMPLEMENTED: Optimizer.zero_grad"|],
     versatile ["optimizer"] "backward_step" ForStage1 2 $
       [|
         do
@@ -343,9 +538,14 @@ definitions =
           let _tensor = a0v2
           error "UNIMPLEMENTED: Optimizer.backward_step"
         |],
+    versatile ["checkpointing"] "loop" ForStage1 6 $
+      [|error "UNIMPLEMENTED: Checkpointing.loop"|],
     gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded],
+    gen ["dataset_helper"] "batches_per_epoch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
+    gen ["dataset_helper"] "iter" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamDiscarded],
     gen ["dataset_helper"] "map" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamDiscarded],
+    gen ["dataset_helper"] "print_summary" [ParamInt, ParamInt, ParamIntList, ParamIntList],
     versatile ["mnist_helper"] "dataset" ForStage1 0 $
       [|error "UNIMPLEMENTED: MnistHelper.dataset"|],
     versatile ["mnist_helper"] "train_images" ForStage1 0 $
@@ -355,5 +555,18 @@ definitions =
     versatile ["mnist_helper"] "test_images" ForStage1 0 $
       [|error "UNIMPLEMENTED: MnistHelper.test_images"|],
     versatile ["mnist_helper"] "test_labels" ForStage1 0 $
-      [|error "UNIMPLEMENTED: MnistHelper.test_labels"|]
+      [|error "UNIMPLEMENTED: MnistHelper.test_labels"|],
+    gen ["module"] "load" [ParamIntList, ParamString],
+    gen ["module"] "forward" [ParamIntList],
+    gen ["text_helper"] "create" [ParamInt, ParamString],
+    gen ["text_helper"] "char" [ParamInt],
+    gen ["text_helper"] "total_length" [ParamInt],
+    gen ["text_helper"] "iter" [ParamInt, ParamInt, ParamInt, ParamDiscarded],
+    gen ["torch_vision", "resnet"] "resnet18" [ParamInt, ParamInt, ParamInt, ParamInt],
+    gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamInt, ParamString, ParamStringList],
+    gen ["torch_vision", "imagenet"] "load_image" [ParamIntList, ParamString],
+    -- TODO: support `TorchVision.Imagenet.Classes.names`
+    gen ["torch_vision", "imagenet", "classes"] "top" [ParamIntList, ParamInt],
+    gen ["torch_vision", "vgg"] "vgg11" [ParamInt, ParamInt, ParamInt, ParamInt],
+    gen ["serialize"] "load_multi_" [ParamIntList, ParamString]
   ]

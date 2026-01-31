@@ -19,7 +19,7 @@ module Surface.Syntax
 where
 
 import Data.Text (Text)
-import Staged.Syntax (Label)
+import Staged.Core
 import Util.TokenUtil (Span)
 import Prelude
 
@@ -77,6 +77,7 @@ data TypeExprMainF ann
   = TyName TypeName [ArgForTypeF ann]
   | TyArrow (Maybe Label) (Maybe Var, TypeExprF ann) (TypeExprF ann)
   | TyOptArrow (Var, TypeExprF ann) (TypeExprF ann)
+  | TyRefinement Var (TypeExprF ann) (ExprF ann)
   | TyProduct (TypeExprF ann) (TypeExprF ann)
   deriving stock (Show, Functor)
 

@@ -1,0 +1,145 @@
+(* Generative Adversarial Networks trained on the MNIST dataset. *)
+
+let image_dim = MnistHelper.image_dim in
+let latent_dim = 100 in
+let generator_hidden_nodes = 128 in
+let discriminator_hidden_nodes = 128 in
+let batch_size = 128 in
+let gen_create_generator {shape : {s : List Nat | List.length s > 0 && List.last s == latent_dim}} =
+  &(fun(vs : VarStore) ->
+      let linear1 =
+        ~(Layer.gen_linear {List.init shape}
+            #input_dim latent_dim
+            #output_dim generator_hidden_nodes
+          )
+          vs
+          Layer.Activation.leaky_relu
+      in
+      let linear2 =
+        ~(Layer.gen_linear {List.init shape}
+            #input_dim generator_hidden_nodes
+            #output_dim image_dim
+          )
+          vs
+          Layer.Activation.tanh
+      in
+      fun (rand_input : Tensor %shape) ->
+        ~Layer.gen_forward linear1 rand_input |> ~Layer.gen_forward linear2
+  )
+in
+
+let gen_create_discriminator {shape : {s : List Nat | List.length s > 0 && List.last s == image_dim}} =
+  &(fun(vs : VarStore) ->
+      let linear1 =
+        ~(Layer.gen_linear {List.init shape}
+            #input_dim image_dim
+            #output_dim discriminator_hidden_nodes
+          )
+          vs
+          Layer.Activation.leaky_relu
+      in
+      let linear2 =
+        ~(Layer.gen_linear {List.init shape}
+            #input_dim discriminator_hidden_nodes
+            #output_dim 1
+          )
+          vs
+          Layer.Activation.sigmoid
+      in
+      fun (xs : Tensor %shape) ->
+        ~Layer.gen_forward linear1 xs |> ~Layer.gen_forward linear2
+  )
+in
+
+let gen_bce {shape : List Nat} =
+  &(fun #labels (labels : Float) ->
+    fun(model_values : Tensor %shape) ->
+      let epsilon = 0.0000001 in
+      let open Tensor in
+      ( ~gen_sub
+          (~gen_mult (f (1.0 -. labels)) (~gen_log (~gen_sub (f (1.0 +. epsilon)) model_values)))
+          (~gen_mult (f labels) (~gen_log (~gen_add model_values (f epsilon))))
+      )
+        |> ~Tensor.gen_mean
+  )
+in
+
+&(let device = Device.cpu in
+  let learning_rate = 0.0001 in
+  let batches = 100000000 in
+
+  let random (u : Unit) =
+    let open Tensor in
+    ~gen_sub
+      (~gen_mult (f 2.0) ~(gen_rand [batch_size, latent_dim]))
+      (f 1.0)
+  in
+  let end_line_by (s : String) = "  [" ++ s ++ "],\n" in
+  let write_samples (samples : Tensor %[batch_size, image_dim]) #filename (filename : String) = (* TODO *)
+    IO.OutChannel.with_file filename (fun (channel : OutChannel) ->
+      IO.OutChannel.output_string channel "data_ = [\n";
+      (range 0 99) |> List.iter (fun(sample_index : Int) ->
+        List.initialize ~(lift_int image_dim) (fun (pixel_index : Int) ->
+          ~Tensor.gen_get_float2_unsafe samples sample_index pixel_index |> show_float
+        )
+          |> String.concat #sep ", "
+          |> end_line_by
+          |> IO.OutChannel.output_string channel
+      );
+      IO.OutChannel.output_string channel "]\n"
+    )
+  in
+  let mnist = MnistHelper.dataset in
+  let generator_vs = VarStore.create #frozen false #name "gen" #device device () in
+  let opt_g = Optimizer.adam generator_vs #learning_rate learning_rate in
+  let discriminator_vs = VarStore.create #frozen false #name "disc" #device device () in
+  let opt_d = Optimizer.adam discriminator_vs #learning_rate learning_rate in
+
+  let fixed_noise = random () in
+  (range 1 batches) |> List.iter (fun (batch_idx : Int) ->
+    let (batch_images, dummy) =
+      ~(DatasetHelper.gen_train_batch #batch_size batch_size)
+        device
+        mnist
+        batch_idx
+    in
+    let discriminator_loss =
+      ~Tensor.gen_add
+        ( ~gen_bce
+            #labels 0.9
+            ( ~gen_create_discriminator
+                discriminator_vs
+                (let open Tensor in ~gen_sub (~gen_mult (f 2.0) batch_images) (f 1.0))
+            )
+        )
+        ( ~gen_bce
+            #labels 0.0
+            (random () |> ~gen_create_generator generator_vs |> ~gen_create_discriminator discriminator_vs)
+        )
+    in
+    Optimizer.backward_step opt_d #loss discriminator_loss;
+    let generator_loss =
+      ~gen_bce
+        #labels 1.0
+        (random () |> ~gen_create_generator generator_vs |> ~gen_create_discriminator discriminator_vs)
+    in
+    Optimizer.backward_step opt_g #loss generator_loss;
+    if mod batch_idx 100 == 0 then
+      ( print_string "batch";
+        print_int batch_idx;
+        print_string "d-loss:";
+        print_float (Tensor.float_value discriminator_loss);
+        print_string "g-loss";
+        print_float (Tensor.float_value generator_loss)
+      )
+    else
+      ();
+    Gc.full_major ();
+    if mod batch_idx 100000 == 0 || (batch_idx < 100000 && mod batch_idx 25000 == 0) then
+      write_samples
+        (~gen_create_generator generator_vs fixed_noise)
+        #filename ("out" ++ show_int batch_idx ++ ".txt")
+    else
+      ()
+  )
+)

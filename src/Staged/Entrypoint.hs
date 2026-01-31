@@ -169,7 +169,7 @@ typecheckAndEval sourceSpecOfStub bindsInStub sourceSpecOfInput e = do
 handle' :: M (Maybe FailureReason)
 handle' = do
   Argument {inputFilePath, stubFilePath} <- ask
-  lift $ putStrLn "Lightweight Dependent Types via Staging"
+  lift $ putStrLn "Staged Shape-Dependent Types"
   stub_ <- lift $ readFileEither stubFilePath
   case stub_ of
     Left err -> do

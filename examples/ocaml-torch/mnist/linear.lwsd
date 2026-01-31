@@ -11,7 +11,7 @@
     let loss =
       ~(Tensor.gen_cross_entropy_for_logits _ {MnistHelper.label_count})
         (~gen_model MnistHelper.train_images)
-        MnistHelper.train_labels
+        #targets MnistHelper.train_labels
     in
     Tensor.backward loss;
     Tensor.no_grad (fun(u : Unit) ->
@@ -25,7 +25,7 @@
     let estimated = ~(Tensor.gen_argmax 1) got in
     let test_accuracy =
       let sum = ~Tensor.gen_count_equal estimated MnistHelper.test_labels in
-      float sum / float MnistHelper.num_test_images
+      float sum / float ~(lift_int MnistHelper.num_test_images)
     in
     print_float test_accuracy
   ) (range 1 200)

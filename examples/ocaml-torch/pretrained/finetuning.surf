@@ -1,0 +1,86 @@
+let batch_size = 8 in
+let classes = ["ants", "bees"] in
+
+(* Precompute the last layer of the pre-trained model on the whole dataset. *)
+let precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (model_path : String) (dataset0 : Dataset ntrain ntest [imgdim] []) =
+  let dataset1 =
+    let frozen_vs = VarStore.create #frozen true #name "rn" #device Device.cpu () in
+    let pretrained_model =
+      TorchVision.Resnet.resnet18 {2} {imgdim} {4} #num_classes 512 frozen_vs (* TODO *)
+    in
+    print_string "Loading weights from";
+    print_string (lift_string model_path);
+    Serialize.load_multi_ #filename model_path
+      #named_tensors (VarStore.all_vars {[13]} frozen_vs); (* TODO *)
+    print_string "Precomputing activations, this can take a minute...";
+    DatasetHelper.map
+      #batch_size 4
+      (fun(actual_batch_size : Nat) ->
+        fun(batch_images : Tensor [actual_batch_size, imgdim, 107, 203]) -> (* TODO *)
+          fun(batch_labels : Tensor [actual_batch_size]) ->
+            let activations =
+              Layer.forward_ pretrained_model batch_images #is_training false
+            in
+            (Tensor.copy activations, batch_labels)
+      )
+      Device.cpu
+      dataset0
+  in
+  DatasetHelper.print_summary dataset1;
+  dataset1
+in
+
+let dataset_dir = "path/to/dataset/" in
+let model_path = "path/to/model" in
+
+let dataset =
+  TorchVision.Imagenet.load_dataset
+    {306} {407} {508} (* TODO *)
+    #dir dataset_dir #classes classes
+    ()
+  in
+  DatasetHelper.print_summary dataset;
+  let dataset = precompute_activations model_path dataset in
+  let train_vs = VarStore.create #frozen false #name "rn-vs" #device Device.cpu () in
+  let model {ns : List Nat} (xs : Tensor ns) =
+    Layer.forward
+      (Layer.linear {ns} #input_dim 512 #output_dim (List.length classes) train_vs Layer.Activation.none)
+      xs
+  in
+  let sgd = Optimizer.sgd train_vs #learning_rate 0.001 #momentum 0.9 in
+  List.iter (fun(epoch_idx : Int) ->
+    let sum_loss = Tensor.f 0.0 in
+    DatasetHelper.iter
+      #batch_size batch_size
+      (fun(actual_batch_size : Nat) ->
+        fun(batch_images : Tensor (batch_size :: [601, 702, 803])) -> (* TODO *)
+          fun(batch_labels : Tensor [batch_size]) ->
+            let predicted = model batch_images in
+            (* Compute the cross-entropy loss. *)
+            let loss =
+              Tensor.cross_entropy_for_logits {904} {1105} (* TODO *)
+                predicted
+                #targets batch_labels
+            in
+            (let open Tensor in sum_loss += loss);
+            Optimizer.backward_step sgd #loss loss
+      )
+      Device.cpu
+      dataset;
+    (* Compute the validation error. *)
+    let test_accuracy =
+      DatasetHelper.batch_accuracy
+        _ _ _ _ {1408} (* TODO *)
+        #batch_size batch_size
+        (* `test *)
+        #predict (fun(actual_batch_size : Nat) -> model {[1206, 1307]}) (* TODO *)
+        Device.cpu
+        dataset
+    in
+    print_string "train loss:";
+    print_float
+      (Tensor.float_value sum_loss /
+        float (DatasetHelper.batches_per_epoch #batch_size batch_size dataset));
+    print_string "test accuracy:";
+    print_float test_accuracy
+  ) (range 1 20)

@@ -22,6 +22,7 @@ import Data.Text qualified as Text
 import Staged.BuiltIn.CompileTime (deriveDeltaReduction)
 import Staged.BuiltIn.Core
 import Staged.BuiltIn.Definitions (definitions)
+import Staged.Core
 import Staged.EvalError
 import Staged.Syntax
 import Util.LocationInFile (SourceSpec, getSpanInFile)
@@ -117,6 +118,16 @@ validateIntListLiteral a0v = do
   a0vs <- validateListValue a0v
   mapM validateIntLiteral a0vs
 
+validateFloatListLiteral :: Ass0Val -> M [Double]
+validateFloatListLiteral a0v = do
+  a0vs <- validateListValue a0v
+  mapM validateFloatLiteral a0vs
+
+validateStringListLiteral :: Ass0Val -> M [Text]
+validateStringListLiteral a0v = do
+  a0vs <- validateListValue a0v
+  mapM validateStringLiteral a0vs
+
 validateIntPairLiteral :: Ass0Val -> M (Int, Int)
 validateIntPairLiteral a0v = do
   (a0v1, a0v2) <- validateTupleValue a0v
@@ -137,12 +148,18 @@ validateMat0 = \case
   A0ValLiteral (ALitMat mat) -> pure mat
   a0v -> bug $ NotAMatrix a0v
 
+-- The implementation of the built-in function `insert_at`.
+insertAt :: Int -> a -> [a] -> [a]
+insertAt n x vs | n <= 0 = x : vs
+insertAt _ x [] = [x]
+insertAt n x (v : vs) = v : insertAt (n - 1) x vs
+
 -- The implementation of the built-in function `drop_at`.
 dropAt :: Int -> [a] -> [a]
 dropAt _ [] = []
 dropAt n (v : vs) = if n <= 0 then vs else v : dropAt (n - 1) vs
 
--- The implementation of the built-in function `drop_at`.
+-- The implementation of the built-in function `broadcast`.
 broadcast :: [Int] -> [Int] -> Maybe [Int]
 broadcast ns1' ns2' = reverse <$> go (reverse ns1', reverse ns2')
   where
@@ -204,6 +221,8 @@ reduceDelta pba a0vArg =
                   reduceDeltaArity3 bi3 v3 v2 v1
                 PartialBuiltInAppArity3Cons pba4 v4 ->
                   case pba4 of
+                    PartialBuiltInAppArity4Nil bi4 ->
+                      reduceDeltaArity4 bi4 v4 v3 v2 v1
                     PartialBuiltInAppArity4Cons pba5 v5 ->
                       case pba5 of
                         PartialBuiltInAppArity5Nil bi5 ->
@@ -259,6 +278,7 @@ evalExpr0 env = \case
         BuiltInArity1 bi1 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity1 (PartialBuiltInAppArity1Nil bi1))
         BuiltInArity2 bi2 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity2 (PartialBuiltInAppArity2Nil bi2))
         BuiltInArity3 bi3 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity3 (PartialBuiltInAppArity3Nil bi3))
+        BuiltInArity4 bi4 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity4 (PartialBuiltInAppArity4Nil bi4))
         BuiltInArity5 bi5 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity5 (PartialBuiltInAppArity5Nil bi5))
         BuiltInArity6 bi6 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity6 (PartialBuiltInAppArity6Nil bi6))
         BuiltInArity7 bi7 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity7 (PartialBuiltInAppArity7Nil bi7))
@@ -392,6 +412,8 @@ evalTypeExpr0 env = \case
             A0TyPrimBase tyPrimBase -> A0TyValPrimBase tyPrimBase
             A0TyTensor n -> A0TyValTensor n
             A0TyDataset dsParam -> A0TyValDataset dsParam
+            A0TyLstm i h -> A0TyValLstm i h
+            A0TyTextHelper labels -> A0TyValTextHelper labels
     maybeVPred <- mapM (evalExpr0 env) maybePred
     pure $ A0TyValPrim a0tyValPrim maybeVPred
   SA0TyVar atyvar ->
@@ -431,6 +453,16 @@ evalTypeExpr1 env = \case
           image <- validateIntListLiteral =<< evalExpr0 env (runIdentity datasetParam.image)
           label <- validateIntListLiteral =<< evalExpr0 env (runIdentity datasetParam.label)
           pure $ A1TyValDataset DatasetParam {numTrain, numTest, image, label}
+        A1TyLstm a0eInputSize a0eHiddenSize -> do
+          a0vInputSize <- evalExpr0 env a0eInputSize
+          a0vHiddenSize <- evalExpr0 env a0eHiddenSize
+          inputSize <- validateIntLiteral a0vInputSize
+          hiddenSize <- validateIntLiteral a0vHiddenSize
+          pure $ A1TyValLstm inputSize hiddenSize
+        A1TyTextHelper a0eLabels -> do
+          a0v <- evalExpr0 env a0eLabels
+          labels <- validateIntLiteral a0v
+          pure $ A1TyValTextHelper labels
   A1TyList a1tye -> do
     a1tyv <- evalTypeExpr1 env a1tye
     pure $ A1TyValList a1tyv
@@ -481,6 +513,8 @@ unliftTypeVal = \case
             A1TyValPrimBase tyPrimBase -> A0TyPrimBase tyPrimBase
             A1TyValTensor ns -> A0TyTensor ns
             A1TyValDataset datasetParam -> A0TyDataset datasetParam
+            A1TyValLstm i h -> A0TyLstm i h
+            A1TyValTextHelper labels -> A0TyTextHelper labels
      in SA0TyPrim a0tyPrim Nothing
   A1TyValList a1tyv ->
     SA0TyList (unliftTypeVal a1tyv) Nothing
