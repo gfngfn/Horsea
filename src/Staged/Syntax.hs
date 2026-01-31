@@ -27,7 +27,6 @@ module Staged.Syntax
     Ass0ValF (..),
     Ass1ValF (..),
     Ass0TypeValF (..),
-    Ass0PrimTypeVal (..),
     Ass1TypeValF (..),
     Ass1PrimTypeVal (..),
     EvalEnv,
@@ -332,7 +331,7 @@ data Ass1ValF sv
 -- | The type of stage-0 type values.
 data Ass0TypeValF sv
   = -- | Primitive types possibly equipped with a refinement predicate.
-    A0TyValPrim Ass0PrimTypeVal (Maybe (Ass0ValF sv))
+    A0TyValPrim Ass0PrimType (Maybe (Ass0ValF sv))
   | -- | List types possibly equipped with a refinement predicate.
     A0TyValList (Ass0TypeValF sv) (Maybe (Ass0ValF sv))
   | A0TyValVar AssTypeVar
@@ -341,14 +340,6 @@ data Ass0TypeValF sv
   | A0TyValCode (Ass1TypeValF sv)
   | A0TyValExplicitForAll AssTypeVar (StrictAss0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
-
-data Ass0PrimTypeVal
-  = A0TyValPrimBase AssPrimBaseType
-  | A0TyValTensor [Int]
-  | A0TyValDataset (DatasetParam [] Int)
-  | A0TyValLstm Int Int
-  | A0TyValTextHelper Int
-  deriving stock (Eq, Show)
 
 -- | The type of stage-1 type values.
 data Ass1TypeValF sv

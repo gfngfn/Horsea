@@ -958,16 +958,6 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
     A0TyValCode a1tyv1 -> dispBracket a1tyv1
     A0TyValExplicitForAll atyvar sa0tye1 -> dispForAllType req atyvar sa0tye1
 
-instance Disp Ass0PrimTypeVal where
-  dispGen req = \case
-    A0TyValPrimBase tyPrimBase -> disp tyPrimBase
-    A0TyValTensor [n] -> dispNameWithArgs req "Vec" disp [n]
-    A0TyValTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
-    A0TyValTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
-    A0TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
-    A0TyValLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
-    A0TyValTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
-
 instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case
     A1TyValPrim a1tyvPrim -> dispGen req a1tyvPrim

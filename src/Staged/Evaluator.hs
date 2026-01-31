@@ -413,15 +413,8 @@ evalExpr1 env = \case
 evalTypeExpr0 :: EvalEnv -> StrictAss0TypeExpr -> M Ass0TypeVal
 evalTypeExpr0 env = \case
   SA0TyPrim a0tyPrim maybePred -> do
-    let a0tyValPrim =
-          case a0tyPrim of
-            A0TyPrimBase tyPrimBase -> A0TyValPrimBase tyPrimBase
-            A0TyTensor n -> A0TyValTensor n
-            A0TyDataset dsParam -> A0TyValDataset dsParam
-            A0TyLstm i h -> A0TyValLstm i h
-            A0TyTextHelper labels -> A0TyValTextHelper labels
     maybeVPred <- mapM (evalExpr0 env) maybePred
-    pure $ A0TyValPrim a0tyValPrim maybeVPred
+    pure $ A0TyValPrim a0tyPrim maybeVPred
   SA0TyVar atyvar ->
     pure $ A0TyValVar atyvar
   SA0TyList sa0tye1 maybePred -> do
