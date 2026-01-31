@@ -837,8 +837,8 @@ instance (Disp sv) => Disp (AppContextEntryF sv) where
     AppArg0 (Just label) a0e a0tye -> "#" <> disp label <+> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye)
     AppArg1 Nothing a1tye -> stage1Style (disp a1tye)
     AppArg1 (Just label) a1tye -> "#" <> disp label <+> stage1Style (disp a1tye)
-    AppArgOptGiven0 a0e a0tye -> "{" <> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye) <> "}"
-    AppArgOptOmitted0 -> "_"
+    AppArgImpGiven0 a0e a0tye -> "{" <> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye) <> "}"
+    AppArgImpOmitted0 -> "_"
 
 instance (Disp sv, Disp (af sv)) => Disp (ResultF af sv) where
   dispGen _ = \case

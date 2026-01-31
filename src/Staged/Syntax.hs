@@ -502,8 +502,8 @@ type AppContextF sv = [AppContextEntryF sv]
 data AppContextEntryF sv
   = AppArg0 (Maybe Label) (Ass0ExprF sv) (Ass0TypeExprF sv)
   | AppArg1 (Maybe Label) (Ass1TypeExprF sv)
-  | AppArgOptGiven0 (Ass0ExprF sv) (Ass0TypeExprF sv)
-  | AppArgOptOmitted0
+  | AppArgImpGiven0 (Ass0ExprF sv) (Ass0TypeExprF sv)
+  | AppArgImpOmitted0
   deriving (Eq, Show, Functor)
 
 -- | The type of the results of the "Let arguments go first" traversal.

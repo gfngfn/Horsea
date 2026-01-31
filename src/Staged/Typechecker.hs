@@ -764,7 +764,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
               pure (result, varSolution, tyvar0Solution)
         (appCtxEntry : appCtx', A0TyImpArrow (x, a0tye1) a0tye2) ->
           case appCtxEntry of
-            AppArgOptGiven0 a0e1' a0tye1' -> do
+            AppArgImpGiven0 a0e1' a0tye1' -> do
               (cast, varSolution1, tyvar0Solution1) <-
                 makeAssertiveCast trav loc varsToInfer tyvars0ToInfer a0tye1' a0tye1
               let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
@@ -777,7 +777,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
               let a0tye1s = applySolution0 varSolution tyvar0Solution a0tye1
               let result = CastGiven0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
               pure (result, varSolution, tyvar0Solution)
-            AppArgOptOmitted0 -> do
+            AppArgImpOmitted0 -> do
               (result', varSolution', tyvar0Solution') <-
                 go (Set.insert x varsToInfer) tyvars0ToInfer appCtx' a0tye2
               (a0eInferred, a0tyeInferred) <-
@@ -1017,14 +1017,14 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             error "TODO: stage-0, LamOpt, non-empty AppContext"
       AppImpGiven e1 e2 -> do
         (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
-        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgOptGiven0 a0e2 a0tye2 : appCtx) e1
+        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgImpGiven0 a0e2 a0tye2 : appCtx) e1
         case result1 of
           CastGiven0 cast _a0tye11 result -> do
             pure (result, A0App a0e1 (applyCast cast a0e2))
           _ -> do
             bug "stage-0, AppOptGiven, not a CastGiven0"
       AppImpOmitted e1 -> do
-        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgOptOmitted0 : appCtx) e1
+        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgImpOmitted0 : appCtx) e1
         case result1 of
           FillInferred0 a0eInferred result -> do
             pure (result, A0App a0e1 a0eInferred)
