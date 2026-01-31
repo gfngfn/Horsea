@@ -331,7 +331,7 @@ typeExpr = fun
                   labelOpt = fmap (\(Located _ l) -> l) locLabelOpt
                in TypeExpr (mergeSpan loc1 loc2) (TyArrow labelOpt (xOpt, tye1) tye2)
             DomImplicit ((loc1, x), tye1) ->
-              TypeExpr (mergeSpan loc1 loc2) (TyOptArrow (x, tye1) tye2)
+              TypeExpr (mergeSpan loc1 loc2) (TyImpArrow (x, tye1) tye2)
         makeForAll (Located loc1 tyvar) tye@(TypeExpr loc2 _) =
           TypeExpr (mergeSpan loc1 loc2) (TyForAll tyvar tye)
 

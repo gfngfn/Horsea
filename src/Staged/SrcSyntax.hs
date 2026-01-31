@@ -101,7 +101,7 @@ data TypeExprMainF ann
   | TyVar TypeVar
   | TyArrow (Maybe Text) (Maybe Var, TypeExprF ann) (TypeExprF ann)
   | TyCode (TypeExprF ann)
-  | TyOptArrow (Var, TypeExprF ann) (TypeExprF ann)
+  | TyImpArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)
   | TyProduct (TypeExprF ann) (TypeExprF ann)
   | TyForAll TypeVar (TypeExprF ann)

@@ -305,7 +305,7 @@ typeExpr = fun
                   labelOpt = fmap (\(Located _ l) -> l) locLabelOpt
                in TypeExpr (mergeSpan loc1 loc2) $ TyArrow labelOpt (xOpt, tye1) tye2
             DomImplicit ((loc1, x), tye1) ->
-              TypeExpr (mergeSpan loc1 loc2) $ TyOptArrow (x, tye1) tye2
+              TypeExpr (mergeSpan loc1 loc2) $ TyImpArrow (x, tye1) tye2
 
     funDom :: P DomainSpec
     funDom =

@@ -62,7 +62,7 @@ data BITypeMainF bt tv
   | BITyBase [BITypeF bt tv]
   | BITyProduct (BITypeF bt tv) (BITypeF bt tv) -- TODO: generalize product types
   | BITyArrow (BITypeF bt tv) (BITypeF bt tv)
-  | BITyOptArrow (BITypeF bt tv) (BITypeF bt tv)
+  | BITyImpArrow (BITypeF bt tv) (BITypeF bt tv)
   deriving stock (Functor, Show)
 
 type BIType = BITypeF BindingTime BITypeVar
@@ -117,8 +117,8 @@ fromStaged0 = goPoly 0 Map.empty
               wrap0 <$> (BITyProduct <$> go a0tye1 <*> go a0tye2)
             Staged.A0TyArrow _labelOpt (_, a0tye1) a0tye2 ->
               wrap0 <$> (BITyArrow <$> go a0tye1 <*> go a0tye2)
-            Staged.A0TyOptArrow (_, a0tye1) a0tye2 ->
-              wrap0 <$> (BITyOptArrow <$> go a0tye1 <*> go a0tye2)
+            Staged.A0TyImpArrow (_, a0tye1) a0tye2 ->
+              wrap0 <$> (BITyImpArrow <$> go a0tye1 <*> go a0tye2)
             Staged.A0TyCode a1tye ->
               pure $ vacuous $ fromStaged1 a1tye
             Staged.A0TyImplicitForAll _atyvar _a0tye ->
