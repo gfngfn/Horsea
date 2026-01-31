@@ -169,9 +169,9 @@ makeAssertiveCast trav loc =
               pure (Nothing, Map.empty, Map.singleton atyvar2 a0tye1)
         (A0TyVar atyvar1, A0TyVar atyvar2)
           | atyvar1 == atyvar2 ->
-              -- If `atyvar2` is tracked by the type environment and
-              -- thereby is not a type variable for inference,
-              -- only strict equality is allowed:
+              -- If either `a0tye1` or `a0tye2` is of the form `A0TyVar atyvar`
+              -- such that `atyvar` is tracked by the type environment and thereby is not for inference,
+              -- then only exact equality is allowed:
               pure (Nothing, Map.empty, Map.empty)
         (A0TyImplicitForAll tyvar1 a0tye12, _) -> do
           (cast', varSolution', tyvar0Solution') <-
