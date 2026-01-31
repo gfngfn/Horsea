@@ -716,6 +716,8 @@ type VarSolution = Map AssVar (Ass0Expr, Ass0TypeExpr)
 
 type TypeVar0Solution = Map AssTypeVar Ass0TypeExpr
 
+type TypeVar1Solution = Map AssTypeVar Ass1TypeExpr
+
 applyVarSolution :: forall af. (HasVar StaticVar af) => VarSolution -> af StaticVar -> af StaticVar
 applyVarSolution varSolution entity =
   Map.foldrWithKey (flip subst0) entity (Map.map fst varSolution)
@@ -850,8 +852,6 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
         _ -> do
           spanInFile <- askSpanInFile loc
           typeError trav $ CannotInstantiateGuidedByAppContext0 spanInFile appCtx a0tye
-
-type TypeVar1Solution = Map AssTypeVar Ass1TypeExpr
 
 instantiateGuidedByAppContext1 :: forall trav. trav -> Span -> Set AssVar -> AppContext -> Ass1TypeExpr -> M trav (Result1, VarSolution)
 instantiateGuidedByAppContext1 trav loc varsToInfer0 appCtx0 a1tye0 = do
