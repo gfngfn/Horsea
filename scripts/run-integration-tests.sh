@@ -50,32 +50,32 @@ TESTS_STAGED_FAILURE=(
     examples/failure/error-var-not-stage-0.lba
 )
 TESTS_SURFACE_RUN=(
-    examples/gen_vrepeat.surf
-    examples/gen_vrepeat_explicit.surf
-    examples/mat.surf
-    examples/mat_explicit.surf
-    examples/mat_concat_vert.surf
-    examples/mat_concat_vert_explicit.surf
-    examples/repeat_and_add_explicit.surf
-    examples/repeat_and_add.surf
-    examples/simple_rec.surf
-    examples/tensor_add.surf
-    examples/tensor_add_mat.surf
+    examples/gen_vrepeat.hrs
+    examples/gen_vrepeat_explicit.hrs
+    examples/mat.hrs
+    examples/mat_explicit.hrs
+    examples/mat_concat_vert.hrs
+    examples/mat_concat_vert_explicit.hrs
+    examples/repeat_and_add_explicit.hrs
+    examples/repeat_and_add.hrs
+    examples/simple_rec.hrs
+    examples/tensor_add.hrs
+    examples/tensor_add_mat.hrs
 )
 TESTS_SURFACE_COMPILE=(
-    examples/ocaml-torch/jit/load_and_run.surf
-    examples/ocaml-torch/mnist/conv.surf
-    examples/ocaml-torch/mnist/linear.surf
-    examples/ocaml-torch/mnist/linear_as.surf
-    examples/ocaml-torch/pretrained/finetuning.surf
-    examples/ocaml-torch/pretrained/predict.surf
-    examples/ocaml-torch/char_rnn/char_rnn.surf
-    examples/ocaml-torch/gan/mnist_cgan.surf
-    examples/ocaml-torch/gan/mnist_dcgan.surf
-    examples/ocaml-torch/gan/mnist_gan.surf
+    examples/ocaml-torch/jit/load_and_run.hrs
+    examples/ocaml-torch/mnist/conv.hrs
+    examples/ocaml-torch/mnist/linear.hrs
+    examples/ocaml-torch/mnist/linear_as.hrs
+    examples/ocaml-torch/pretrained/finetuning.hrs
+    examples/ocaml-torch/pretrained/predict.hrs
+    examples/ocaml-torch/char_rnn/char_rnn.hrs
+    examples/ocaml-torch/gan/mnist_cgan.hrs
+    examples/ocaml-torch/gan/mnist_dcgan.hrs
+    examples/ocaml-torch/gan/mnist_gan.hrs
 )
 TESTS_SURFACE_FAILURE=(
-    examples/failure/error-stage.surf
+    examples/failure/error-stage.hrs
 )
 
 ERRORS=()
