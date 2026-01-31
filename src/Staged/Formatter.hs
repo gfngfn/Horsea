@@ -521,6 +521,7 @@ instance (Disp sv) => Disp (Ass1ExprF sv) where
     A1Lam Nothing (x, a1tye1) a1e2 -> dispNonrecLam req Nothing x a1tye1 a1e2
     A1Lam (Just (f, a1tyeRec)) (x, a1tye1) a1e2 -> dispRecLam req f a1tyeRec Nothing x a1tye1 a1e2
     A1App a1e1 a1e2 -> dispApp req a1e1 Nothing a1e2
+    A1LetIn (x, a1tye0) a1e1 a1e2 -> dispLetInWithAnnot req x a1tye0 a1e1 a1e2
     A1LetTupleIn xL xR a1e1 a1e2 -> dispLetTupleIn req xL xR a1e1 a1e2
     A1Sequential a1e1 a1e2 -> dispSequential req a1e1 a1e2
     A1Tuple a1e1 a1e2 -> dispTuple a1e1 a1e2
@@ -934,6 +935,8 @@ instance (Disp sv) => Disp (Ass1ValF sv) where
       dispRecLam req symbF a1tyvRec Nothing symbX a1tyv1 a1v2
     A1ValApp a1v1 a1v2 ->
       dispApp req a1v1 Nothing a1v2
+    A1ValLetIn (x, a1tyv0) a1v1 a1v2 ->
+      dispLetInWithAnnot req x a1tyv0 a1v1 a1v2
     A1ValLetTupleIn xL xR a1v1 a1v2 ->
       dispLetTupleIn req xL xR a1v1 a1v2
     A1ValSequential a1v1 a1v2 ->

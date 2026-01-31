@@ -375,6 +375,12 @@ evalExpr1 env = \case
     a1v1 <- evalExpr1 env a1e1
     a1v2 <- evalExpr1 env a1e2
     pure $ A1ValApp a1v1 a1v2
+  A1LetIn (x, a1tye0) a1e1 a1e2 -> do
+    a1tyv0 <- evalTypeExpr1 env a1tye0
+    a1v1 <- evalExpr1 env a1e1
+    symbX <- generateFreshSymbol
+    a1v2 <- evalExpr1 (env & Map.insert x (SymbolEntry symbX)) a1e2
+    pure $ A1ValLetIn (symbX, a1tyv0) a1v1 a1v2
   A1LetTupleIn xL xR a1e1 a1e2 -> do
     a1v1 <- evalExpr1 env a1e1
     symbXL <- generateFreshSymbol
@@ -496,6 +502,8 @@ unliftVal = \case
     A0Lam (Just (symbolToVar symbF, unliftTypeVal a1tyvRec)) (symbolToVar symbX, unliftTypeVal a1tyv1) (unliftVal a1v2)
   A1ValApp a1v1 a1v2 ->
     A0App (unliftVal a1v1) (unliftVal a1v2)
+  A1ValLetIn (symbX, a1tyv0) a1v1 a1v2 ->
+    A0LetIn (symbolToVar symbX, unliftTypeVal a1tyv0) (unliftVal a1v1) (unliftVal a1v2)
   A1ValLetTupleIn symbXL symbXR a1v1 a1v2 ->
     A0LetTupleIn (symbolToVar symbXL) (symbolToVar symbXR) (unliftVal a1v1) (unliftVal a1v2)
   A1ValSequential a1v1 a1v2 ->

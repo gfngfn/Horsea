@@ -7,7 +7,6 @@ module Staged.Syntax
     AssLiteralF (..),
     Ass0ExprF (..),
     Ass1ExprF (..),
-    a1LetIn,
     AssBindF (..),
     makeExprFromBinds,
     Type1EquationF (..),
@@ -134,6 +133,7 @@ data Ass1ExprF sv
   | A1BuiltInName Ass1BuiltIn
   | A1Lam (Maybe (AssVarF sv, Ass1TypeExprF sv)) (AssVarF sv, Ass1TypeExprF sv) (Ass1ExprF sv)
   | A1App (Ass1ExprF sv) (Ass1ExprF sv)
+  | A1LetIn (AssVarF sv, Ass1TypeExprF sv) (Ass1ExprF sv) (Ass1ExprF sv)
   | A1LetTupleIn (AssVarF sv) (AssVarF sv) (Ass1ExprF sv) (Ass1ExprF sv)
   | A1Sequential (Ass1ExprF sv) (Ass1ExprF sv)
   | A1Tuple (Ass1ExprF sv) (Ass1ExprF sv) -- TODO: generalize tuples
@@ -141,10 +141,6 @@ data Ass1ExprF sv
   | A1Escape (Ass0ExprF sv)
   | A1AppType (Ass1ExprF sv) (Ass1TypeExprF sv)
   deriving stock (Eq, Show, Functor)
-
-a1LetIn :: (AssVarF sv, Ass1TypeExprF sv) -> Ass1ExprF sv -> Ass1ExprF sv -> Ass1ExprF sv
-a1LetIn (x, a1tye) a1e1 a1e2 =
-  A1App (A1Lam Nothing (x, a1tye) a1e2) a1e1
 
 -- | The type of bindings obtained by elaboration through typechecking.
 data AssBindF sv
@@ -159,12 +155,12 @@ makeExprFromBinds abinds' a0eFinal = go0 abinds'
     go0 = \case
       [] -> a0eFinal
       ABind0 xsty a0e : abinds -> A0LetIn xsty a0e (go0 abinds)
-      ABind1 xty a1e : abinds -> A0Bracket (a1LetIn xty a1e (go1 abinds))
+      ABind1 xty a1e : abinds -> A0Bracket (A1LetIn xty a1e (go1 abinds))
 
     go1 :: [AssBindF sv] -> Ass1ExprF sv
     go1 = \case
       [] -> A1Escape a0eFinal
-      ABind1 xty a1e : abinds -> a1LetIn xty a1e (go1 abinds)
+      ABind1 xty a1e : abinds -> A1LetIn xty a1e (go1 abinds)
       ABind0 xsty a0e : abinds -> A1Escape (A0LetIn xsty a0e (go0 abinds))
 
 -- | The type of internal stage-0 type expressions for typechecking.
@@ -326,6 +322,7 @@ data Ass1ValF sv
   | A1ValVar Symbol
   | A1ValLam (Maybe (Symbol, Ass1TypeValF sv)) (Symbol, Ass1TypeValF sv) (Ass1ValF sv)
   | A1ValApp (Ass1ValF sv) (Ass1ValF sv)
+  | A1ValLetIn (Symbol, Ass1TypeValF sv) (Ass1ValF sv) (Ass1ValF sv)
   | A1ValLetTupleIn Symbol Symbol (Ass1ValF sv) (Ass1ValF sv)
   | A1ValSequential (Ass1ValF sv) (Ass1ValF sv)
   | A1ValTuple (Ass1ValF sv) (Ass1ValF sv)

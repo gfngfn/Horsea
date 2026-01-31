@@ -1332,7 +1332,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         let ax = AssVarStatic svX
         if ax `occurs1` result2
           then typeError trav $ VarOccursFreelyInAss1Type spanInFile x result2
-          else pure (result2, a1LetIn (ax, a1tye1) a1e1 a1e2)
+          else pure (result2, A1LetIn (ax, a1tye1) a1e1 a1e2)
       LetRecIn f params tyeBody eBody e2 -> do
         tyeRec <- constructFunTypeExpr1 trav loc params tyeBody
         a1tye1Rec <- typecheckTypeExpr1 trav tyEnv tyeRec
@@ -1363,7 +1363,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           typecheckExpr1 trav tyEnv' appCtx e2
         if afOuter `occurs1` result2
           then typeError trav $ VarOccursFreelyInAss1Type spanInFile f result2
-          else pure (result2, a1LetIn (afOuter, a1tye1Rec) a1e1 a1e2)
+          else pure (result2, A1LetIn (afOuter, a1tye1Rec) a1e1 a1e2)
       LetTupleIn xL xR e1 e2 -> do
         (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
         case a1tye1 of
