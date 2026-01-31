@@ -3,51 +3,51 @@
 # Must be run at the root of the repository
 
 TESTS_STAGED_RUN=(
-    examples/gen_vrepeat.lwsd
-    examples/gen_vrepeat_explicit.lwsd
-    examples/mat.lwsd
-    examples/mat_explicit.lwsd
-    examples/mat_concat_vert.lwsd
-    examples/mat_concat_vert_explicit.lwsd
-    examples/polymorphic.lwsd
-    examples/repeat_and_add.lwsd
-    examples/repeat_and_add_explicit.lwsd
-    examples/simple_rec.lwsd
-    examples/tensor_add.lwsd
-    examples/tensor_add_mat.lwsd
-    examples/vec.lwsd
-    examples/vec_explicit.lwsd
-    examples/vec_higher_order.lwsd
-    examples/vec_higher_order_explicit.lwsd
+    examples/gen_vrepeat.lba
+    examples/gen_vrepeat_explicit.lba
+    examples/mat.lba
+    examples/mat_explicit.lba
+    examples/mat_concat_vert.lba
+    examples/mat_concat_vert_explicit.lba
+    examples/polymorphic.lba
+    examples/repeat_and_add.lba
+    examples/repeat_and_add_explicit.lba
+    examples/simple_rec.lba
+    examples/tensor_add.lba
+    examples/tensor_add_mat.lba
+    examples/vec.lba
+    examples/vec_explicit.lba
+    examples/vec_higher_order.lba
+    examples/vec_higher_order_explicit.lba
 )
 TESTS_STAGED_COMPILE=(
-    examples/ocaml-torch/jit/load_and_run.lwsd
-    examples/ocaml-torch/mnist/conv.lwsd
-    examples/ocaml-torch/mnist/linear.lwsd
-    examples/ocaml-torch/mnist/linear_as.lwsd
-    examples/ocaml-torch/pretrained/finetuning.lwsd
-    examples/ocaml-torch/pretrained/predict.lwsd
-    examples/ocaml-torch/char_rnn/char_rnn.lwsd
-    examples/ocaml-torch/gan/mnist_cgan.lwsd
-    examples/ocaml-torch/gan/mnist_dcgan.lwsd
-    examples/ocaml-torch/gan/mnist_gan.lwsd
+    examples/ocaml-torch/jit/load_and_run.lba
+    examples/ocaml-torch/mnist/conv.lba
+    examples/ocaml-torch/mnist/linear.lba
+    examples/ocaml-torch/mnist/linear_as.lba
+    examples/ocaml-torch/pretrained/finetuning.lba
+    examples/ocaml-torch/pretrained/predict.lba
+    examples/ocaml-torch/char_rnn/char_rnn.lba
+    examples/ocaml-torch/gan/mnist_cgan.lba
+    examples/ocaml-torch/gan/mnist_dcgan.lba
+    examples/ocaml-torch/gan/mnist_gan.lba
 )
 TESTS_STAGED_FAILURE=(
-    examples/failure/error-bracket.lwsd
-    examples/failure/error-invalid-type-1.lwsd
-    examples/failure/error-not-code-typed.lwsd
-    examples/failure/error-scope-2.lwsd
-    examples/failure/error-dep-fun-at-stage-1.lwsd
-    examples/failure/error-list.lwsd
-    examples/failure/error-not-int-lit-arg.lwsd
-    examples/failure/error-scope.lwsd
-    examples/failure/error-escape.lwsd
-    examples/failure/error-nat.lwsd
-    examples/failure/error-not-int-typed-arg.lwsd
-    examples/failure/error-invalid-type-0.lwsd
-    examples/failure/error-normal-arg-at-stage-1.lwsd
-    examples/failure/error-persistent-arg-at-stage-0.lwsd
-    examples/failure/error-var-not-stage-0.lwsd
+    examples/failure/error-bracket.lba
+    examples/failure/error-invalid-type-1.lba
+    examples/failure/error-not-code-typed.lba
+    examples/failure/error-scope-2.lba
+    examples/failure/error-dep-fun-at-stage-1.lba
+    examples/failure/error-list.lba
+    examples/failure/error-not-int-lit-arg.lba
+    examples/failure/error-scope.lba
+    examples/failure/error-escape.lba
+    examples/failure/error-nat.lba
+    examples/failure/error-not-int-typed-arg.lba
+    examples/failure/error-invalid-type-0.lba
+    examples/failure/error-normal-arg-at-stage-1.lba
+    examples/failure/error-persistent-arg-at-stage-0.lba
+    examples/failure/error-var-not-stage-0.lba
 )
 TESTS_SURFACE_RUN=(
     examples/gen_vrepeat.surf
