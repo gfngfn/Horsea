@@ -27,7 +27,6 @@ module Staged.Syntax
     Ass0ValF (..),
     Ass1ValF (..),
     Ass0TypeValF (..),
-    Ass0PrimTypeVal (..),
     Ass1TypeValF (..),
     Ass1PrimTypeVal (..),
     EvalEnv,
@@ -174,7 +173,7 @@ data Ass0TypeExprF sv
   | -- | (Possibly dependent) function types.
     A0TyArrow (Maybe Label) (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | -- | Function types with an implicit parameter.
-    A0TyOptArrow (AssVarF sv, Ass0TypeExprF sv) (Ass0TypeExprF sv)
+    A0TyImpArrow (AssVarF sv, Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | A0TyCode (Ass1TypeExprF sv)
   | -- | Polymorphic types.
     A0TyImplicitForAll AssTypeVar (Ass0TypeExprF sv)
@@ -332,7 +331,7 @@ data Ass1ValF sv
 -- | The type of stage-0 type values.
 data Ass0TypeValF sv
   = -- | Primitive types possibly equipped with a refinement predicate.
-    A0TyValPrim Ass0PrimTypeVal (Maybe (Ass0ValF sv))
+    A0TyValPrim Ass0PrimType (Maybe (Ass0ValF sv))
   | -- | List types possibly equipped with a refinement predicate.
     A0TyValList (Ass0TypeValF sv) (Maybe (Ass0ValF sv))
   | A0TyValVar AssTypeVar
@@ -341,14 +340,6 @@ data Ass0TypeValF sv
   | A0TyValCode (Ass1TypeValF sv)
   | A0TyValExplicitForAll AssTypeVar (StrictAss0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
-
-data Ass0PrimTypeVal
-  = A0TyValPrimBase AssPrimBaseType
-  | A0TyValTensor [Int]
-  | A0TyValDataset (DatasetParam [] Int)
-  | A0TyValLstm Int Int
-  | A0TyValTextHelper Int
-  deriving stock (Eq, Show)
 
 -- | The type of stage-1 type values.
 data Ass1TypeValF sv
@@ -435,7 +426,7 @@ strictify = \case
   A0TyProduct a0tye1 a0tye2 -> SA0TyProduct (strictify a0tye1) (strictify a0tye2)
   A0TyArrow _labelOpt (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, strictify a0tye1) (strictify a0tye2)
   A0TyCode a1tye1 -> SA0TyCode a1tye1
-  A0TyOptArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictify a0tye1) (strictify a0tye2)
+  A0TyImpArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictify a0tye1) (strictify a0tye2)
   A0TyImplicitForAll atyvar a0tye -> SA0TyExplicitForAll atyvar (strictify a0tye)
 
 a0TyVec :: Int -> Ass0PrimType
@@ -511,8 +502,8 @@ type AppContextF sv = [AppContextEntryF sv]
 data AppContextEntryF sv
   = AppArg0 (Maybe Label) (Ass0ExprF sv) (Ass0TypeExprF sv)
   | AppArg1 (Maybe Label) (Ass1TypeExprF sv)
-  | AppArgOptGiven0 (Ass0ExprF sv) (Ass0TypeExprF sv)
-  | AppArgOptOmitted0
+  | AppArgImpGiven0 (Ass0ExprF sv) (Ass0TypeExprF sv)
+  | AppArgImpOmitted0
   deriving (Eq, Show, Functor)
 
 -- | The type of the results of the "Let arguments go first" traversal.

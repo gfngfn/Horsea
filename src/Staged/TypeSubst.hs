@@ -42,8 +42,8 @@ instance HasTypeVar Ass0TypeExprF where
       A0TyProduct (go a0tye1) (go a0tye2)
     A0TyArrow labelOpt (svOpt, a0tye1) a0tye2 ->
       A0TyArrow labelOpt (svOpt, go a0tye1) (go a0tye2)
-    A0TyOptArrow (ax, a0tye1) a0tye2 ->
-      A0TyOptArrow (ax, go a0tye1) (go a0tye2)
+    A0TyImpArrow (ax, a0tye1) a0tye2 ->
+      A0TyImpArrow (ax, go a0tye1) (go a0tye2)
     A0TyCode a1tye1 ->
       A0TyCode (go a1tye1)
     A0TyImplicitForAll atyvar a0tye1 ->

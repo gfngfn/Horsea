@@ -52,9 +52,9 @@ data ExprMainF ann
   | Tuple (ExprF ann) (ExprF ann)
   | IfThenElse (ExprF ann) (ExprF ann) (ExprF ann)
   | As (ExprF ann) (TypeExprF ann)
-  | LamOpt (Var, TypeExprF ann) (ExprF ann)
-  | AppOptGiven (ExprF ann) (ExprF ann)
-  | AppOptOmitted (ExprF ann)
+  | LamImp (Var, TypeExprF ann) (ExprF ann)
+  | AppImpGiven (ExprF ann) (ExprF ann)
+  | AppImpOmitted (ExprF ann)
   deriving stock (Show, Functor)
 
 data LamBinderF ann
@@ -76,7 +76,7 @@ data TypeExprF ann = TypeExpr ann (TypeExprMainF ann)
 data TypeExprMainF ann
   = TyName TypeName [ArgForTypeF ann]
   | TyArrow (Maybe Label) (Maybe Var, TypeExprF ann) (TypeExprF ann)
-  | TyOptArrow (Var, TypeExprF ann) (TypeExprF ann)
+  | TyImpArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)
   | TyProduct (TypeExprF ann) (TypeExprF ann)
   deriving stock (Show, Functor)

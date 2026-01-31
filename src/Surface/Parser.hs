@@ -154,8 +154,8 @@ exprAtom, expr :: P Expr
         makeAppSingle e1@(Expr loc1 _) = \case
           FunArgMandatory Nothing e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 Nothing e2)
           FunArgMandatory (Just (Located _ l)) e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 (Just l) e2)
-          FunArgOptGiven (Located loc2 e2) -> Expr (mergeSpan loc1 loc2) (AppOptGiven e1 e2)
-          FunArgOptOmitted loc2 -> Expr (mergeSpan loc1 loc2) (AppOptOmitted e1)
+          FunArgOptGiven (Located loc2 e2) -> Expr (mergeSpan loc1 loc2) (AppImpGiven e1 e2)
+          FunArgOptOmitted loc2 -> Expr (mergeSpan loc1 loc2) (AppImpOmitted e1)
 
     as :: P Expr
     as =
@@ -204,7 +204,7 @@ exprAtom, expr :: P Expr
           Expr (mergeSpan locFirst locLast) $
             case xBinder' of
               MandatoryBinder labelOpt xBinder -> Lam Nothing labelOpt xBinder e
-              ImplicitBinder xBinder -> LamOpt xBinder e
+              ImplicitBinder xBinder -> LamImp xBinder e
 
         makeRecLam locFirst fBinder xBinder e@(Expr locLast _) =
           Expr (mergeSpan locFirst locLast) (Lam (Just fBinder) Nothing xBinder e)
@@ -305,7 +305,7 @@ typeExpr = fun
                   labelOpt = fmap (\(Located _ l) -> l) locLabelOpt
                in TypeExpr (mergeSpan loc1 loc2) $ TyArrow labelOpt (xOpt, tye1) tye2
             DomImplicit ((loc1, x), tye1) ->
-              TypeExpr (mergeSpan loc1 loc2) $ TyOptArrow (x, tye1) tye2
+              TypeExpr (mergeSpan loc1 loc2) $ TyImpArrow (x, tye1) tye2
 
     funDom :: P DomainSpec
     funDom =

@@ -35,12 +35,12 @@ data TypeErrorF sv
   | NotACodeType SpanInFile (Ass0TypeExprF sv)
   | CannotUseEscapeAtStage0 SpanInFile
   | CannotUseBracketAtStage1 SpanInFile
-  | CannotUseLamOptAtStage1 SpanInFile
-  | CannotUseAppOptGivenAtStage1 SpanInFile
-  | CannotUseAppOptOmittedAtStage1 SpanInFile
+  | CannotUseLamImpAtStage1 SpanInFile
+  | CannotUseAppImpGivenAtStage1 SpanInFile
+  | CannotUseAppImpOmittedAtStage1 SpanInFile
   | FunctionTypeCannotBeDependentAtStage1 SpanInFile Var
   | CannotUseCodeTypeAtStage1 SpanInFile
-  | CannotUseOptArrowTypeAtStage1 SpanInFile
+  | CannotUseImpArrowTypeAtStage1 SpanInFile
   | CannotUseRefinementTypeAtStage1 SpanInFile
   | CannotUsePersistentArgAtStage0 SpanInFile
   | CannotUseNormalArgAtStage1 SpanInFile
@@ -54,7 +54,7 @@ data TypeErrorF sv
   | CannotApplyLiteral SpanInFile
   | CannotInstantiateGuidedByAppContext0 SpanInFile (AppContextF sv) (Ass0TypeExprF sv)
   | CannotInstantiateGuidedByAppContext1 SpanInFile (AppContextF sv) (Ass1TypeExprF sv)
-  | CannotInferOptional SpanInFile (AssVarF sv) (Ass0TypeExprF sv) (AppContextF sv)
+  | CannotInferImplicit SpanInFile (AssVarF sv) (Ass0TypeExprF sv) (AppContextF sv)
   | Stage1IfThenElseRestrictedToEmptyContext SpanInFile (AppContextF sv)
   | BindingOverwritten SpanInFile Var
   | UnknownExternalName SpanInFile Text
@@ -64,7 +64,7 @@ data TypeErrorF sv
   | CannotApplyTuple SpanInFile
   | NotATupleAtStage0 SpanInFile (Ass0TypeExprF sv)
   | NotATupleAtStage1 SpanInFile (Ass1TypeExprF sv)
-  | LetRecParamsCannotStartWithOptional SpanInFile
+  | LetRecParamsCannotStartWithImplicit SpanInFile
   | LetRecRequiresNonEmptyParams SpanInFile
   | CannotSynthesizeTypeFromExpr SpanInFile
   | CannotForceType SpanInFile (Ass0TypeExprF sv)

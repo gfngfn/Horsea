@@ -65,9 +65,9 @@ data ExprMainF ann
   | As (ExprF ann) (TypeExprF ann)
   | Bracket (ExprF ann)
   | Escape (ExprF ann)
-  | LamOpt (Var, TypeExprF ann) (ExprF ann)
-  | AppOptGiven (ExprF ann) (ExprF ann)
-  | AppOptOmitted (ExprF ann)
+  | LamImp (Var, TypeExprF ann) (ExprF ann)
+  | AppImpGiven (ExprF ann) (ExprF ann)
+  | AppImpOmitted (ExprF ann)
   | LetOpenIn Var (ExprF ann)
   | Sequential (ExprF ann) (ExprF ann)
   | Tuple (ExprF ann) (ExprF ann) -- TODO: generalize tuples
@@ -101,7 +101,7 @@ data TypeExprMainF ann
   | TyVar TypeVar
   | TyArrow (Maybe Text) (Maybe Var, TypeExprF ann) (TypeExprF ann)
   | TyCode (TypeExprF ann)
-  | TyOptArrow (Var, TypeExprF ann) (TypeExprF ann)
+  | TyImpArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)
   | TyProduct (TypeExprF ann) (TypeExprF ann)
   | TyForAll TypeVar (TypeExprF ann)

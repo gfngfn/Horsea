@@ -128,8 +128,8 @@ dispRecLam req f tyeRec labelOpt x tye1 e2 =
         Nothing -> "λ" <> disp x
         Just label -> "λ" <+> "#" <> disp label <+> disp x
 
-dispLamOpt :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> expr -> Doc Ann
-dispLamOpt req x tye1 e2 =
+dispLamImp :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> expr -> Doc Ann
+dispLamImp req x tye1 e2 =
   deepenParenWhen (req <= FunDomain) $
     group ("λ{" <> disp x <+> ":" <+> disp tye1 <> "}." <> nest 2 (line <> disp e2))
 
@@ -144,13 +144,13 @@ dispApp req e1 labelOpt e2 =
     doc1 = dispGen FunDomain e1
     doc2 = dispGen Atomic e2
 
-dispAppOptGiven :: (Disp expr) => Associativity -> expr -> expr -> Doc Ann
-dispAppOptGiven req e1 e2 =
+dispAppImpGiven :: (Disp expr) => Associativity -> expr -> expr -> Doc Ann
+dispAppImpGiven req e1 e2 =
   deepenParenWhen (req <= Atomic) $
     group (dispGen FunDomain e1 <> nest 2 (line <> "{" <> disp e2 <> "}"))
 
-dispAppOptOmitted :: (Disp expr) => Associativity -> expr -> Doc Ann
-dispAppOptOmitted req e1 =
+dispAppImpOmitted :: (Disp expr) => Associativity -> expr -> Doc Ann
+dispAppImpOmitted req e1 =
   deepenParenWhen (req <= Atomic) $
     group (dispGen FunDomain e1 <> nest 2 (line <> "_"))
 
@@ -266,8 +266,8 @@ dispNondepArrowType :: (Disp ty) => Associativity -> Maybe Label -> ty -> ty -> 
 dispNondepArrowType req labelOpt =
   dispArrowType req labelOpt (Nothing :: Maybe Text)
 
-dispOptArrowType :: (Disp var, Disp ty1, Disp ty2) => Associativity -> var -> ty1 -> ty2 -> Doc Ann
-dispOptArrowType req x tye1 tye2 =
+dispImpArrowType :: (Disp var, Disp ty1, Disp ty2) => Associativity -> var -> ty1 -> ty2 -> Doc Ann
+dispImpArrowType req x tye1 tye2 =
   deepenParenWhen (req <= FunDomain) $
     group (docDom <> " ->" <> line <> disp tye2)
   where
@@ -369,9 +369,9 @@ instance Disp (ExprMainF ann) where
     Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
     App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
-    LamOpt (x, tye1) e2 -> dispLamOpt req x tye1 e2
-    AppOptGiven e1 e2 -> dispAppOptGiven req e1 e2
-    AppOptOmitted e1 -> dispAppOptOmitted req e1
+    LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
+    AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
+    AppImpOmitted e1 -> dispAppImpOmitted req e1
     LetIn x params e1 e2 -> dispLetIn req x params e1 e2
     LetRecIn x params tye e1 e2 -> dispLetRecIn req x params tye e1 e2
     LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2
@@ -398,7 +398,7 @@ instance Disp (TypeExprMainF ann) where
     TyVar (TypeVar tyvar) -> "'" <> disp tyvar
     TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     TyCode tye1 -> dispBracket tye1
-    TyOptArrow (x, tye1) tye2 -> dispOptArrowType req x tye1 tye2
+    TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
     TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
     TyProduct tye1 tye2 -> dispProductType req tye1 tye2
     TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
@@ -452,9 +452,9 @@ instance Disp Surface.ExprMain where
     Surface.Tuple e1 e2 -> dispTuple e1 e2
     Surface.IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Surface.As e1 tye2 -> dispAs req e1 tye2
-    Surface.LamOpt (x, tye1) e2 -> dispLamOpt req x tye1 e2
-    Surface.AppOptGiven e1 e2 -> dispAppOptGiven req e1 e2
-    Surface.AppOptOmitted e1 -> dispAppOptOmitted req e1
+    Surface.LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
+    Surface.AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
+    Surface.AppImpOmitted e1 -> dispAppImpOmitted req e1
 
 instance Disp Surface.LamBinder where
   dispGen _ = \case
@@ -469,7 +469,7 @@ instance Disp Surface.TypeExprMain where
   dispGen req = \case
     Surface.TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
     Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
-    Surface.TyOptArrow (x, tye1) tye2 -> dispOptArrowType req x tye1 tye2
+    Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
     Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Surface.TyProduct tye1 tye2 -> dispProductType req tye1 tye2
 
@@ -564,7 +564,7 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyProduct a0tye1 a0tye2 -> dispProductType req a0tye1 a0tye2
     A0TyArrow labelOpt (xOpt, a0tye1) a0tye2 -> dispArrowType req labelOpt xOpt a0tye1 a0tye2
     A0TyCode a1tye1 -> dispBracket a1tye1
-    A0TyOptArrow (x, a0tye1) a0tye2 -> dispOptArrowType req x a0tye1 a0tye2
+    A0TyImpArrow (x, a0tye1) a0tye2 -> dispImpArrowType req x a0tye1 a0tye2
     A0TyImplicitForAll atyvar a0tye -> dispForAllType req atyvar a0tye
 
 instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
@@ -685,17 +685,17 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Cannot use Escape (~) at stage 0" <+> disp spanInFile
     CannotUseBracketAtStage1 spanInFile ->
       "Cannot use Bracket (&) at stage 1" <+> disp spanInFile
-    CannotUseLamOptAtStage1 spanInFile ->
+    CannotUseLamImpAtStage1 spanInFile ->
       "Cannot use function with implicit parameters (fun{...} ->) at stage 1" <+> disp spanInFile
-    CannotUseAppOptGivenAtStage1 spanInFile ->
+    CannotUseAppImpGivenAtStage1 spanInFile ->
       "Cannot use application for implicit parameters (... {...}) at stage 1" <+> disp spanInFile
-    CannotUseAppOptOmittedAtStage1 spanInFile ->
+    CannotUseAppImpOmittedAtStage1 spanInFile ->
       "Cannot use application for implicit parameters (... _) at stage 1" <+> disp spanInFile
     FunctionTypeCannotBeDependentAtStage1 spanInFile x ->
       "Function types cannot be dependent at stage 1:" <+> disp x <+> disp spanInFile
     CannotUseCodeTypeAtStage1 spanInFile ->
       "Cannot use code types at stage 1" <+> disp spanInFile
-    CannotUseOptArrowTypeAtStage1 spanInFile ->
+    CannotUseImpArrowTypeAtStage1 spanInFile ->
       "Cannot use implicit function types at stage 1" <+> disp spanInFile
     CannotUseRefinementTypeAtStage1 spanInFile ->
       "Cannot use refinement types at stage 1" <+> disp spanInFile
@@ -762,7 +762,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> hardline
         <+> "type:"
         <> nest 2 (hardline <> stage1Style (disp a1tye))
-    CannotInferOptional spanInFile x a0tye appCtx ->
+    CannotInferImplicit spanInFile x a0tye appCtx ->
       "Cannot infer an implicit argument for"
         <+> disp x
         <+> disp spanInFile
@@ -800,7 +800,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <+> disp spanInFile
         <> hardline
         <+> stage1Style (disp a1tye)
-    LetRecParamsCannotStartWithOptional spanInFile ->
+    LetRecParamsCannotStartWithImplicit spanInFile ->
       "Recursive function definitions cannot have an implicit parameter as the first one" <+> disp spanInFile
     LetRecRequiresNonEmptyParams spanInFile ->
       "Recursive function definitions require at least one parameter" <+> disp spanInFile
@@ -837,8 +837,8 @@ instance (Disp sv) => Disp (AppContextEntryF sv) where
     AppArg0 (Just label) a0e a0tye -> "#" <> disp label <+> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye)
     AppArg1 Nothing a1tye -> stage1Style (disp a1tye)
     AppArg1 (Just label) a1tye -> "#" <> disp label <+> stage1Style (disp a1tye)
-    AppArgOptGiven0 a0e a0tye -> "{" <> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye) <> "}"
-    AppArgOptOmitted0 -> "_"
+    AppArgImpGiven0 a0e a0tye -> "{" <> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye) <> "}"
+    AppArgImpOmitted0 -> "_"
 
 instance (Disp sv, Disp (af sv)) => Disp (ResultF af sv) where
   dispGen _ = \case
@@ -957,16 +957,6 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
     A0TyValArrow (xOpt, a0tyv1) a0tye2 -> dispArrowType req Nothing xOpt a0tyv1 a0tye2
     A0TyValCode a1tyv1 -> dispBracket a1tyv1
     A0TyValExplicitForAll atyvar sa0tye1 -> dispForAllType req atyvar sa0tye1
-
-instance Disp Ass0PrimTypeVal where
-  dispGen req = \case
-    A0TyValPrimBase tyPrimBase -> disp tyPrimBase
-    A0TyValTensor [n] -> dispNameWithArgs req "Vec" disp [n]
-    A0TyValTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
-    A0TyValTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
-    A0TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
-    A0TyValLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
-    A0TyValTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
 instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case
@@ -1134,7 +1124,7 @@ instance (Disp bt, Disp tv) => Disp (Bta.BITypeMainF bt tv) where
       deepenParenWhen (req <= Atomic) (dispGen Atomic bt1 <+> "*" <+> dispGen Atomic bt2)
     Bta.BITyArrow bt1 bt2 ->
       deepenParenWhen (req <= Atomic) (dispGen Atomic bt1 <+> "->" <+> dispGen Atomic bt2)
-    Bta.BITyOptArrow bt1 bt2 ->
+    Bta.BITyImpArrow bt1 bt2 ->
       deepenParenWhen (req <= Atomic) ("{" <> dispGen Atomic bt1 <> "} ->" <+> dispGen Atomic bt2)
 
 dispWithBindingTime :: (Disp exprMain) => Bta.BindingTimeConst -> exprMain -> Doc Ann
@@ -1165,9 +1155,9 @@ instance Disp (Bta.BCExprMainF ann) where
     Surface.Tuple e1 e2 -> dispTuple e1 e2
     Surface.IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Surface.As e1 tye2 -> dispAs req e1 tye2
-    Surface.LamOpt (x, tye1) e2 -> dispLamOpt req x tye1 e2
-    Surface.AppOptGiven e1 e2 -> dispAppOptGiven req e1 e2
-    Surface.AppOptOmitted e1 -> dispAppOptOmitted req e1
+    Surface.LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
+    Surface.AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
+    Surface.AppImpOmitted e1 -> dispAppImpOmitted req e1
 
 instance Disp (Bta.BCLamBinderF ann) where
   dispGen _ = \case
@@ -1183,7 +1173,7 @@ instance Disp (Bta.BCTypeExprMainF ann) where
   dispGen req = \case
     Surface.TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
     Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
-    Surface.TyOptArrow (x, tye1) tye2 -> dispOptArrowType req x tye1 tye2
+    Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
     Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Surface.TyProduct tye1 tye2 -> dispProductType req tye1 tye2
 

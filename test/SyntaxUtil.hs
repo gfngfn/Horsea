@@ -90,7 +90,7 @@ appWithLabel :: ExprVoid -> Label -> ExprVoid -> ExprVoid
 appWithLabel e1 label e2 = expr (App e1 (Just label) e2)
 
 appOptGiven :: ExprVoid -> ExprVoid -> ExprVoid
-appOptGiven e1 e2 = expr (AppOptGiven e1 e2)
+appOptGiven e1 e2 = expr (AppImpGiven e1 e2)
 
 binOp :: Var -> ExprVoid -> ExprVoid -> ExprVoid
 binOp op e1 = app (app (var op) e1)

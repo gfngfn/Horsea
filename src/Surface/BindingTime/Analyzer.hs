@@ -65,7 +65,7 @@ makeLam params eBody = do
       Expr (mergeSpan loc1 loc2) (Lam Nothing labelOpt (x, ty) e)
     go (ImplicitBinder (x, ty@(TypeExpr loc1 _))) e@(Expr loc2 _) =
       -- TODO (enhance): give better range:
-      Expr (mergeSpan loc1 loc2) (LamOpt (x, ty) e)
+      Expr (mergeSpan loc1 loc2) (LamImp (x, ty) e)
 
 makeRecLam :: trav -> Var -> [LamBinder] -> TypeExpr -> Expr -> M trav Expr
 makeRecLam _trav f params tyBody eBody = do
@@ -92,8 +92,8 @@ makeRecLam _trav f params tyBody eBody = do
       (eAcc', tyAcc')
     go (ImplicitBinder (x, ty@(TypeExpr loc1 _))) (eAcc@(Expr loc2 _), tyAcc) = do
       let ann = mergeSpan loc1 loc2 -- TODO (enhance): give better code position
-      let eAcc' = Expr ann (LamOpt (x, ty) eAcc)
-      let tyAcc' = TypeExpr ann (TyOptArrow (x, ty) tyAcc)
+      let eAcc' = Expr ann (LamImp (x, ty) eAcc)
+      let tyAcc' = TypeExpr ann (TyImpArrow (x, ty) tyAcc)
       (eAcc', tyAcc')
 
 analysisError :: trav -> AnalysisError -> M trav a
@@ -112,7 +112,7 @@ enhanceBIType enhBt enhBitv (BIType bt bityMain) =
       BITyBase bityBaseArgs -> BITyBase (map fBIType bityBaseArgs)
       BITyProduct bity1 bity2 -> BITyProduct (fBIType bity1) (fBIType bity2)
       BITyArrow bity1 bity2 -> BITyArrow (fBIType bity1) (fBIType bity2)
-      BITyOptArrow bity1 bity2 -> BITyOptArrow (fBIType bity1) (fBIType bity2)
+      BITyImpArrow bity1 bity2 -> BITyImpArrow (fBIType bity1) (fBIType bity2)
   where
     fBIType = enhanceBIType enhBt enhBitv
 
@@ -254,7 +254,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       pure (e', bitySynth, constraintsRec ++ constraints1 ++ constraints2 ++ constraintsEq ++ constraints)
     App e1 labelOpt e2 -> do
       (e1WithoutOpts, bity1WithoutOpts, constraints1) <- extractConstraintsFromExpr trav btenv e1
-      let (e1', bity1@(BIType bt1 bityMain1)) = appendOmittedOptionalArguments e1WithoutOpts bity1WithoutOpts
+      let (e1', bity1@(BIType bt1 bityMain1)) = appendOmittedImplicitArguments e1WithoutOpts bity1WithoutOpts
       (e2', bity2, constraints2) <- extractConstraintsFromExpr trav btenv e2
       (bity, constraints) <-
         case bityMain1 of
@@ -341,19 +341,19 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       constraintsEq <- makeConstraintsFromBITypeEquation trav ann bity1 bity2
       let constraints = constraints1 ++ constraints2 ++ constraintsEq ++ [CLeq ann bt bt1, CLeq ann bt bt2]
       pure (Expr (bt, ann) (As e1' btye2'), bity2, constraints)
-    LamOpt (x1, btye1) e2 -> do
+    LamImp (x1, btye1) e2 -> do
       (btye1', bity1, constraints1) <- extractConstraintsFromTypeExpr trav btenv btye1
       (e2', bity2, constraints2) <-
         extractConstraintsFromExpr trav (Map.insert x1 (EntryLocallyBound bt bity1) btenv) e2
       let constraints = [CEqual ann bt (BTConst BT0)]
-      let e' = Expr (bt, ann) (LamOpt (x1, btye1') e2')
-      pure (e', BIType bt (BITyOptArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
-    AppOptGiven e1 e2 -> do
+      let e' = Expr (bt, ann) (LamImp (x1, btye1') e2')
+      pure (e', BIType bt (BITyImpArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
+    AppImpGiven e1 e2 -> do
       (e1', bity1@(BIType bt1 bityMain1), constraints1) <- extractConstraintsFromExpr trav btenv e1
       (e2', bity2, constraints2) <- extractConstraintsFromExpr trav btenv e2
       (bity, constraints) <-
         case bityMain1 of
-          BITyOptArrow bity11 bity12 -> do
+          BITyImpArrow bity11 bity12 -> do
             let constraints = [CEqual ann bt bt1]
             constraintsEq <- makeConstraintsFromBITypeEquation trav ann bity2 bity11
             pure (bity12, constraints1 ++ constraints2 ++ constraintsEq ++ constraints)
@@ -361,26 +361,26 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
             let Expr ann1 _ = e1
             spanInFile1 <- askSpanInFile ann1
             analysisError trav $ NotAnOptFunction spanInFile1 bity1
-      pure (Expr (bt, ann) (AppOptGiven e1' e2'), bity, constraints)
-    AppOptOmitted e1 -> do
+      pure (Expr (bt, ann) (AppImpGiven e1' e2'), bity, constraints)
+    AppImpOmitted e1 -> do
       (e1', bity1@(BIType bt1 bityMain1), constraints1) <- extractConstraintsFromExpr trav btenv e1
       (bity, constraints) <-
         case bityMain1 of
-          BITyOptArrow _bity11 bity12 -> do
+          BITyImpArrow _bity11 bity12 -> do
             let constraints = [CEqual ann bt bt1]
             pure (bity12, constraints1 ++ constraints)
           _ -> do
             let Expr ann1 _ = e1
             spanInFile1 <- askSpanInFile ann1
             analysisError trav $ NotAnOptFunction spanInFile1 bity1
-      pure (Expr (bt, ann) (AppOptOmitted e1'), bity, constraints)
+      pure (Expr (bt, ann) (AppImpOmitted e1'), bity, constraints)
 
-appendOmittedOptionalArguments :: BExpr -> BIType -> (BExpr, BIType)
-appendOmittedOptionalArguments e@(Expr (_, ann) _) bity@(BIType _bt bityMain) =
+appendOmittedImplicitArguments :: BExpr -> BIType -> (BExpr, BIType)
+appendOmittedImplicitArguments e@(Expr (_, ann) _) bity@(BIType _bt bityMain) =
   case bityMain of
-    BITyOptArrow _bity1 bity2 ->
+    BITyImpArrow _bity1 bity2 ->
       -- TODO (enhance): give better location than `ann`
-      appendOmittedOptionalArguments (Expr (BTConst BT0, ann) (AppOptOmitted e)) bity2
+      appendOmittedImplicitArguments (Expr (BTConst BT0, ann) (AppImpOmitted e)) bity2
     _ ->
       (e, bity)
 
@@ -403,7 +403,7 @@ occurs bitv = goMain
       BITyBase bitys -> any go bitys
       BITyProduct bity1 bity2 -> go bity1 || go bity2
       BITyArrow bity1 bity2 -> go bity1 || go bity2
-      BITyOptArrow bity1 bity2 -> go bity1 || go bity2
+      BITyImpArrow bity1 bity2 -> go bity1 || go bity2
     go (BIType _bt bityMain) =
       goMain bityMain
 
@@ -461,7 +461,7 @@ makeConstraintsFromBITypeEquation trav ann bity1' bity2' = go bity1' bity2'
               constraints1 <- go bity11 bity21
               constraints2 <- go bity12 bity22
               pure $ constraints1 ++ constraints2
-            (BITyOptArrow bity11 bity12, BITyOptArrow bity21 bity22) -> do
+            (BITyImpArrow bity11 bity12, BITyImpArrow bity21 bity22) -> do
               constraints1 <- go bity11 bity21
               constraints2 <- go bity12 bity22
               pure $ constraints1 ++ constraints2
@@ -545,13 +545,13 @@ extractConstraintsFromTypeExpr trav btenv (TypeExpr ann typeExprMain) = do
           let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
           let tye' = TypeExpr (bt, ann) (TyArrow labelOpt (Just x1, tye1') tye2')
           pure (tye', BIType bt (BITyArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
-    TyOptArrow (x1, tye1) tye2 -> do
+    TyImpArrow (x1, tye1) tye2 -> do
       (tye1', bity1, constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
       (tye2', bity2, constraints2) <-
         extractConstraintsFromTypeExpr trav (Map.insert x1 (EntryLocallyBound bt bity1) btenv) tye2
       let constraints = [CEqual ann bt (BTConst BT0)]
-      let tye' = TypeExpr (bt, ann) (TyOptArrow (x1, tye1') tye2')
-      pure (tye', BIType bt (BITyOptArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
+      let tye' = TypeExpr (bt, ann) (TyImpArrow (x1, tye1') tye2')
+      pure (tye', BIType bt (BITyImpArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
     TyRefinement x tye1 e2 -> do
       (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
       (e2', BIType bt2 _, constraints2) <-
