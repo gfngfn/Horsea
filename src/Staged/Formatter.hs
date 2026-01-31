@@ -762,7 +762,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> hardline
         <+> "type:"
         <> nest 2 (hardline <> stage1Style (disp a1tye))
-    CannotInferOptional spanInFile x a0tye appCtx ->
+    CannotInferImplicit spanInFile x a0tye appCtx ->
       "Cannot infer an implicit argument for"
         <+> disp x
         <+> disp spanInFile

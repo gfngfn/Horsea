@@ -786,7 +786,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
                     pure entry
                   Nothing -> do
                     spanInFile <- askSpanInFile loc
-                    typeError trav $ CannotInferOptional spanInFile x a0tye appCtx
+                    typeError trav $ CannotInferImplicit spanInFile x a0tye appCtx
               (cast', _varSolution'', _tyvar0Solution'') <-
                 makeAssertiveCast
                   trav
@@ -806,7 +806,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
                     pure entry
                   Nothing -> do
                     spanInFile <- askSpanInFile loc
-                    typeError trav $ CannotInferOptional spanInFile x a0tye appCtx
+                    typeError trav $ CannotInferImplicit spanInFile x a0tye appCtx
               (cast', _varSolution'', _tyvar0Solution'') <-
                 makeAssertiveCast
                   trav
