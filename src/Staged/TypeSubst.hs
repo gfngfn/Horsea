@@ -160,6 +160,7 @@ instance HasTypeVar Ass1ExprF where
     A1Lam Nothing (x, a1tye1) a1e2 -> A1Lam Nothing (x, go a1tye1) (go a1e2)
     A1Lam (Just (f, a1tye0)) (x, a1tye1) a1e2 -> A1Lam (Just (f, go a1tye0)) (x, go a1tye1) (go a1e2)
     A1App a1e1 a1e2 -> A1App (go a1e1) (go a1e2)
+    A1LetIn (x, a1tye0) a1e1 a1e2 -> A1LetIn (x, go a1tye0) (go a1e1) (go a1e2)
     A1LetTupleIn x y a1e1 a1e2 -> A1LetTupleIn x y (go a1e1) (go a1e2)
     A1Sequential a1e1 a1e2 -> A1Sequential (go a1e1) (go a1e2)
     A1Tuple a1e1 a1e2 -> A1Tuple (go a1e1) (go a1e2)

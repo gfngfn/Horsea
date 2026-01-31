@@ -235,6 +235,11 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
        in (var0set, var1set)
     A1App a1e1 a1e2 ->
       unionPairs [frees a1e1, frees a1e2]
+    A1LetIn (x, a1tye0) a1e1 a1e2 ->
+      let (var0set0, var1set0) = frees a1tye0
+          (var0set1, var1set1) = frees a1e1
+          (var0set2, var1set2) = frees a1e2
+       in (Set.unions [var0set0, var0set1, var0set2], Set.unions [var1set0, var1set1, Set.delete x var1set2])
     A1LetTupleIn xL xR a1e1 a1e2 ->
       let (var0set1, var1set1) = frees a1e1
           (var0set2, var1set2) = frees a1e2
@@ -271,6 +276,11 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
           Subst1 _ _ -> go a1e2
     A1App a1e1 a1e2 ->
       A1App (go a1e1) (go a1e2)
+    A1LetIn (x', a1tye0) a1e1 a1e2 ->
+      A1LetIn (x', go a1tye0) (go a1e1) $
+        case s of
+          Subst0 x _ -> if x == x' then a1e2 else go a1e2
+          Subst1 _ _ -> go a1e2
     A1LetTupleIn xL xR a1e1 a1e2 ->
       A1LetTupleIn xL xR (go a1e1) $
         case s of
