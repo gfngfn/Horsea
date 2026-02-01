@@ -349,7 +349,7 @@ data Ass1TypeValF sv
   | A1TyValVar AssTypeVar
   | A1TyValProduct (Ass1TypeValF sv) (Ass1TypeValF sv)
   | A1TyValArrow (Maybe Label) (Ass1TypeValF sv) (Ass1TypeValF sv)
-  | A1TyValImplicitForAll AssTypeVar (Ass1TypeExprF sv)
+  | A1TyValImplicitForAll AssTypeVar (Ass1TypeValF sv)
   deriving stock (Eq, Show, Functor)
 
 data Ass1PrimTypeVal

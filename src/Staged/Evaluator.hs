@@ -476,7 +476,8 @@ evalTypeExpr1 env = \case
     a1tyv2 <- evalTypeExpr1 env a1tye2
     pure $ A1TyValArrow labelOpt a1tyv1 a1tyv2
   A1TyImplicitForAll atyvar a1tye2 -> do
-    pure $ A1TyValImplicitForAll atyvar a1tye2
+    a1tyv2 <- evalTypeExpr1 env a1tye2
+    pure $ A1TyValImplicitForAll atyvar a1tyv2
 
 run :: M a -> EvalState -> Either EvalError a
 run = evalStateT
@@ -519,11 +520,11 @@ unliftTypeVal = \case
      in SA0TyPrim a0tyPrim Nothing
   A1TyValList a1tyv ->
     SA0TyList (unliftTypeVal a1tyv) Nothing
-  A1TyValVar _atyvar ->
-    error "TODO: unliftTypeVal, A1TyValVar"
+  A1TyValVar atyvar ->
+    SA0TyVar atyvar
   A1TyValProduct a1tyv1 a1tyv2 ->
     SA0TyProduct (unliftTypeVal a1tyv1) (unliftTypeVal a1tyv2)
   A1TyValArrow _labelOpt a1tyv1 a1tyv2 ->
     SA0TyArrow (Nothing, unliftTypeVal a1tyv1) (unliftTypeVal a1tyv2)
-  A1TyValImplicitForAll _atyvar _a1tye2 ->
-    error "TODO: unliftTypeVal, A1TyValImplicitForAll"
+  A1TyValImplicitForAll atyvar a1tyv2 ->
+    SA0TyExplicitForAll atyvar (unliftTypeVal a1tyv2)
