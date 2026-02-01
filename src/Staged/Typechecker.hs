@@ -5,11 +5,6 @@ module Staged.Typechecker
     typecheckTypeExpr1,
     typecheckBind,
     typecheckBinds,
-    TypecheckConfig (..),
-    TypecheckState (..),
-    ImplicitArgLogF (..),
-    ImplicitArgLog,
-    M,
     run,
   )
 where
@@ -23,69 +18,30 @@ import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Maybe (fromMaybe)
 import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Data.Tuple.Extra
-import GHC.Generics (Generic)
 import Safe.Exact
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
 import Staged.Core
-import Staged.Scope.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
-import Staged.Scope.SigRecord qualified as SigRecord
-import Staged.Scope.TypeEnv (TypeEnv, TypeVarEntry (..))
-import Staged.Scope.TypeEnv qualified as TypeEnv
 import Staged.SrcSyntax
 import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
 import Staged.TypeSubst
-import Util.Elaborator
-import Util.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
+import Staged.Typechecker.Monad
+import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
+import Staged.Typechecker.SigRecord qualified as SigRecord
+import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
+import Staged.Typechecker.TypeEnv qualified as TypeEnv
+import Util.LocationInFile (SpanInFile, getSpanInFile)
 import Util.Matrix qualified as Matrix
 import Util.Maybe1
 import Util.TokenUtil (Span)
 import Util.Vector qualified as Vector
 import Prelude
-
-data TypecheckConfig = TypecheckConfig
-  { optimizeTrivialAssertion :: Bool,
-    distributeIfUnderTensorShape :: Bool,
-    sourceSpec :: SourceSpec
-  }
-
-data ImplicitArgLogF sv
-  = LogGivenArg SpanInFile (Ass0ExprF sv)
-  | LogInferredArg SpanInFile (Ass0ExprF sv)
-  deriving stock (Functor, Generic)
-
-type ImplicitArgLog = ImplicitArgLogF StaticVar
-
-data TypecheckState = TypecheckState
-  { nextVarIndex :: Int,
-    assVarDisplay :: Map StaticVar Text,
-    nextTypeVarIndex :: Int,
-    assTypeVarDisplay :: Map AssTypeVar Text,
-    implicitArgLogRev :: [ImplicitArgLog]
-  }
-
-type M' err trav a = Elaborator TypecheckState TypecheckConfig err trav a
-
-type M trav a = M' TypeError trav a
-
-typeError :: trav -> err -> M' err trav a
-typeError = raiseError
-
-mapTypeError :: (err1 -> err2) -> M' err1 trav a -> M' err2 trav a
-mapTypeError = mapError
-
-logImplicitArg :: ImplicitArgLog -> M trav ()
-logImplicitArg impArgLog = do
-  tcState@TypecheckState {implicitArgLogRev} <- getState
-  putState $ tcState {implicitArgLogRev = impArgLog : implicitArgLogRev}
 
 bug :: String -> a
 bug msg = error $ "bug: " ++ msg
@@ -121,25 +77,6 @@ findTypeVar trav loc tyvar tyEnv = do
       typeError trav $ UnboundTypeVar spanInFile tyvar
     Just tyVarEntry ->
       pure tyVarEntry
-
-generateFreshVar :: Maybe Text -> M' err trav StaticVar
-generateFreshVar maybeName = do
-  currentState@TypecheckState {nextVarIndex = n, assVarDisplay} <- getState
-  let t = fromMaybe (Text.pack ("#X" ++ show n)) maybeName
-  let sv = StaticVar n
-  putState $ currentState {nextVarIndex = n + 1, assVarDisplay = Map.insert sv t assVarDisplay}
-  pure sv
-
-generateFreshTypeVar :: TypeVar -> M' err trav AssTypeVar
-generateFreshTypeVar (TypeVar name) = do
-  currentState@TypecheckState {nextTypeVarIndex = n, assTypeVarDisplay} <- getState
-  let atyvar = AssTypeVar n
-  putState $
-    currentState
-      { nextTypeVarIndex = n + 1,
-        assTypeVarDisplay = Map.insert atyvar name assTypeVarDisplay
-      }
-  pure atyvar
 
 makeIdentityLam :: Ass0TypeExpr -> M trav Ass0Expr
 makeIdentityLam a0tye = do
@@ -1083,8 +1020,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           then typeError trav $ VarOccursFreelyInAss0Type spanInFile x result2
           else pure (result2, A0LetIn (ax, sa0tye1) a0e1 a0e2)
       LetRecIn f params tyeBody eBody e2 -> do
-        let tyeRec = constructFunTypeExpr0 loc params tyeBody
-        a0tye1Rec <- typecheckTypeExpr0 trav tyEnv tyeRec
+        a0tye1Rec <- constructFunTypeExpr0 trav tyEnv params tyeBody
         (labelOpt, x0, tyeParam0, paramsRest) <-
           case params of
             MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->
@@ -1201,31 +1137,46 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             _ ->
               pure pair
 
--- TODO (enhance): give better code position
--- TODO: refactor this; elaborate the types of the parameters before building a function type
-constructFunTypeExpr0 :: Span -> [LamBinder] -> TypeExpr -> TypeExpr
-constructFunTypeExpr0 loc params tyeBody =
-  foldr
-    ( \param tyeAcc ->
-        case param of
-          MandatoryBinder labelOpt (x, tye) -> TypeExpr loc (TyArrow labelOpt (Just x, tye) tyeAcc)
-          ImplicitBinder (x, tye) -> TypeExpr loc (TyImpArrow (x, tye) tyeAcc)
-    )
-    tyeBody
-    params
+constructFunTypeExpr0 :: trav -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass0TypeExpr
+constructFunTypeExpr0 trav tyEnv params tyeBody = do
+  (tyEnv', f) <-
+    foldM
+      ( \(tyEnv0, f0) param ->
+          case param of
+            MandatoryBinder labelOpt (x, tye) -> do
+              svX <- generateFreshVar (Just x)
+              let ax = AssVarStatic svX
+              a0tye <- typecheckTypeExpr0 trav tyEnv0 tye
+              let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
+              let f1 = f0 . A0TyArrow labelOpt (Just ax, a0tye)
+              pure (tyEnv1, f1)
+            ImplicitBinder (x, tye) -> do
+              svX <- generateFreshVar (Just x)
+              let ax = AssVarStatic svX
+              a0tye <- typecheckTypeExpr0 trav tyEnv0 tye
+              let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
+              let f1 = f0 . A0TyImpArrow (ax, a0tye)
+              pure (tyEnv1, f1)
+      )
+      (tyEnv, id)
+      params
+  a0tyeBody <- typecheckTypeExpr0 trav tyEnv' tyeBody
+  pure $ f a0tyeBody
 
--- TODO (enhance): give better code position
--- TODO: refactor this; elaborate the types of the parameters before building a function type
-constructFunTypeExpr1 :: trav -> Span -> [LamBinder] -> TypeExpr -> M trav TypeExpr
-constructFunTypeExpr1 trav loc params tyeBody = do
+constructFunTypeExpr1 :: trav -> Span -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass1TypeExpr
+constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
   spanInFile <- askSpanInFile loc
+  a0tyeBody <- typecheckTypeExpr1 trav tyEnv tyeBody
   foldrM
-    ( \param tyeAcc ->
+    ( \param a0tyeAcc ->
         case param of
-          MandatoryBinder labelOpt (_x, tye) -> pure $ TypeExpr loc (TyArrow labelOpt (Nothing, tye) tyeAcc)
-          ImplicitBinder (_x, _tye) -> typeError trav $ CannotUseLamImpAtStage1 spanInFile
+          MandatoryBinder labelOpt (_x, tye) -> do
+            a0tye <- typecheckTypeExpr1 trav tyEnv tye
+            pure $ A1TyArrow labelOpt a0tye a0tyeAcc
+          ImplicitBinder (_x, _tye) ->
+            typeError trav $ CannotUseLamImpAtStage1 spanInFile
     )
-    tyeBody
+    a0tyeBody
     params
 
 typecheckLetInBody0 :: trav -> TypeEnv -> [LamBinder] -> Expr -> M trav (Ass0TypeExpr, Ass0Expr)
@@ -1381,8 +1332,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           then typeError trav $ VarOccursFreelyInAss1Type spanInFile x result2
           else pure (result2, A1LetIn (ax, a1tye1) a1e1 a1e2)
       LetRecIn f params tyeBody eBody e2 -> do
-        tyeRec <- constructFunTypeExpr1 trav loc params tyeBody
-        a1tye1Rec <- typecheckTypeExpr1 trav tyEnv tyeRec
+        a1tye1Rec <- constructFunTypeExpr1 trav loc tyEnv params tyeBody
         (labelOpt, x0, tyeParam0, paramsRest) <-
           case params of
             MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->

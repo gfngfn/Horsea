@@ -1,4 +1,4 @@
-module Staged.Scope.SigRecord
+module Staged.Typechecker.SigRecord
   ( Ass0Metadata (..),
     Ass1Metadata (..),
     AssPersMetadata (..),
