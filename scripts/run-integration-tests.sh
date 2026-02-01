@@ -49,6 +49,9 @@ TESTS_STAGED_FAILURE=(
     examples/failure/error-normal-arg-at-stage-1.lba
     examples/failure/error-persistent-arg-at-stage-0.lba
     examples/failure/error-var-not-stage-0.lba
+    examples/failure/error-labeled-1.lba
+    examples/failure/error-labeled-2.lba
+    examples/failure/error-labeled-3.lba
 )
 TESTS_SURFACE_RUN=(
     examples/gen_vrepeat.hrs

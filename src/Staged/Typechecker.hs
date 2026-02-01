@@ -1063,12 +1063,14 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
       LetRecIn f params tyeBody eBody e2 -> do
         let tyeRec = constructFunTypeExpr0 loc params tyeBody
         a0tye1Rec <- typecheckTypeExpr0 trav tyEnv tyeRec
-        (x0, tyeParam0, paramsRest) <-
+        (labelOpt, x0, tyeParam0, paramsRest) <-
           case params of
-            MandatoryBinder Nothing (x0', tyeParam0') : paramsRest' -> pure (x0', tyeParam0', paramsRest')
-            MandatoryBinder (Just _) _ : _ -> error "TODO (error): rec param with a label"
-            ImplicitBinder _ : _ -> typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
-            [] -> typeError trav $ LetRecRequiresNonEmptyParams spanInFile
+            MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->
+              pure (labelOpt', x0', tyeParam0', paramsRest')
+            ImplicitBinder _ : _ ->
+              typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
+            [] ->
+              typeError trav $ LetRecRequiresNonEmptyParams spanInFile
         svFInner <- generateFreshVar (Just f)
         let afInner = AssVarStatic svFInner
         svX0 <- generateFreshVar (Just x0)
@@ -1080,7 +1082,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                   & TypeEnv.addVal f (Ass0Entry a0tye1Rec (Right svFInner))
                   & TypeEnv.addVal x0 (Ass0Entry a0tyeParam0 (Right svX0))
           typecheckLetInBody0 trav tyEnv' paramsRest eBody
-        let a0tye1Synth = A0TyArrow Nothing (Just ax0, a0tyeParam0) a0tyeRestSynth
+        let a0tye1Synth = A0TyArrow labelOpt (Just ax0, a0tyeParam0) a0tyeRestSynth
         (cast, _varSolution, _tyvar0Solution) <-
           makeAssertiveCast trav loc Set.empty Set.empty a0tye1Synth a0tye1Rec
         let a0e1 = applyCast cast (A0Lam (Just (afInner, strictify a0tye1Rec)) (ax0, strictify a0tyeParam0) a0eRest)
@@ -1355,12 +1357,14 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
       LetRecIn f params tyeBody eBody e2 -> do
         tyeRec <- constructFunTypeExpr1 trav loc params tyeBody
         a1tye1Rec <- typecheckTypeExpr1 trav tyEnv tyeRec
-        (x0, tyeParam0, paramsRest) <-
+        (labelOpt, x0, tyeParam0, paramsRest) <-
           case params of
-            MandatoryBinder Nothing (x0', tyeParam0') : paramsRest' -> pure (x0', tyeParam0', paramsRest')
-            MandatoryBinder (Just _) _ : _ -> error "TODO (error): rec param with a label"
-            ImplicitBinder _ : _ -> typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
-            [] -> typeError trav $ LetRecRequiresNonEmptyParams spanInFile
+            MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->
+              pure (labelOpt', x0', tyeParam0', paramsRest')
+            ImplicitBinder _ : _ ->
+              typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
+            [] ->
+              typeError trav $ LetRecRequiresNonEmptyParams spanInFile
         svFInner <- generateFreshVar (Just f)
         let afInner = AssVarStatic svFInner
         svX0 <- generateFreshVar (Just x0)
@@ -1372,7 +1376,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                   & TypeEnv.addVal f (Ass1Entry a1tye1Rec (Right svFInner))
                   & TypeEnv.addVal x0 (Ass1Entry a1tyeParam0 (Right svX0))
           typecheckLetInBody1 trav tyEnv' paramsRest eBody
-        let a1tye1Synth = A1TyArrow Nothing a1tyeParam0 a1tyeRestSynth
+        let a1tye1Synth = A1TyArrow labelOpt a1tyeParam0 a1tyeRestSynth
         (eq, _varSolution, _tyvar1Solution) <- makeEquation1 trav loc Set.empty Set.empty a1tye1Synth a1tye1Rec
         let a1e1 = applyEquationCast loc eq (A1Lam (Just (afInner, a1tye1Rec)) (ax0, a1tyeParam0) a1eRest)
         svFOuter <- generateFreshVar (Just f)

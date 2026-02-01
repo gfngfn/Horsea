@@ -1,0 +1,2 @@
+let f #foo (n : Int) = show_int n in
+f 6
