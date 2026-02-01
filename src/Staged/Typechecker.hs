@@ -1083,7 +1083,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           then typeError trav $ VarOccursFreelyInAss0Type spanInFile x result2
           else pure (result2, A0LetIn (ax, sa0tye1) a0e1 a0e2)
       LetRecIn f params tyeBody eBody e2 -> do
-        a0tye1Rec <- constructFunTypeExpr0 trav loc tyEnv params tyeBody
+        a0tye1Rec <- constructFunTypeExpr0 trav tyEnv params tyeBody
         (labelOpt, x0, tyeParam0, paramsRest) <-
           case params of
             MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->
@@ -1200,35 +1200,47 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             _ ->
               pure pair
 
--- TODO (enhance): give better code position
--- TODO: refactor this; elaborate the types of the parameters before building a function type
-constructFunTypeExpr0 :: trav -> Span -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass0TypeExpr
-constructFunTypeExpr0 trav loc tyEnv params tyeBody =
-  typecheckTypeExpr0 trav tyEnv $
-    foldr
-      ( \param tyeAcc ->
+constructFunTypeExpr0 :: trav -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass0TypeExpr
+constructFunTypeExpr0 trav tyEnv params tyeBody = do
+  (tyEnv', f) <-
+    foldM
+      ( \(tyEnv0, f0) param ->
           case param of
-            MandatoryBinder labelOpt (x, tye) -> TypeExpr loc (TyArrow labelOpt (Just x, tye) tyeAcc)
-            ImplicitBinder (x, tye) -> TypeExpr loc (TyImpArrow (x, tye) tyeAcc)
+            MandatoryBinder labelOpt (x, tye) -> do
+              svX <- generateFreshVar (Just x)
+              let ax = AssVarStatic svX
+              a0tye <- typecheckTypeExpr0 trav tyEnv0 tye
+              let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
+              let f1 = f0 . A0TyArrow labelOpt (Just ax, a0tye)
+              pure (tyEnv1, f1)
+            ImplicitBinder (x, tye) -> do
+              svX <- generateFreshVar (Just x)
+              let ax = AssVarStatic svX
+              a0tye <- typecheckTypeExpr0 trav tyEnv0 tye
+              let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
+              let f1 = f0 . A0TyImpArrow (ax, a0tye)
+              pure (tyEnv1, f1)
       )
-      tyeBody
+      (tyEnv, id)
       params
+  a0tyeBody <- typecheckTypeExpr0 trav tyEnv' tyeBody
+  pure $ f a0tyeBody
 
--- TODO (enhance): give better code position
--- TODO: refactor this; elaborate the types of the parameters before building a function type
 constructFunTypeExpr1 :: trav -> Span -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass1TypeExpr
 constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
   spanInFile <- askSpanInFile loc
-  tyeRec <-
-    foldrM
-      ( \param tyeAcc ->
-          case param of
-            MandatoryBinder labelOpt (_x, tye) -> pure $ TypeExpr loc (TyArrow labelOpt (Nothing, tye) tyeAcc)
-            ImplicitBinder (_x, _tye) -> typeError trav $ CannotUseLamImpAtStage1 spanInFile
-      )
-      tyeBody
-      params
-  typecheckTypeExpr1 trav tyEnv tyeRec
+  a0tyeBody <- typecheckTypeExpr1 trav tyEnv tyeBody
+  foldrM
+    ( \param a0tyeAcc ->
+        case param of
+          MandatoryBinder labelOpt (_x, tye) -> do
+            a0tye <- typecheckTypeExpr1 trav tyEnv tye
+            pure $ A1TyArrow labelOpt a0tye a0tyeAcc
+          ImplicitBinder (_x, _tye) ->
+            typeError trav $ CannotUseLamImpAtStage1 spanInFile
+    )
+    a0tyeBody
+    params
 
 typecheckLetInBody0 :: trav -> TypeEnv -> [LamBinder] -> Expr -> M trav (Ass0TypeExpr, Ass0Expr)
 typecheckLetInBody0 trav tyEnv params e1 =
