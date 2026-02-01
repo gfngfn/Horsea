@@ -1083,8 +1083,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           then typeError trav $ VarOccursFreelyInAss0Type spanInFile x result2
           else pure (result2, A0LetIn (ax, sa0tye1) a0e1 a0e2)
       LetRecIn f params tyeBody eBody e2 -> do
-        let tyeRec = constructFunTypeExpr0 loc params tyeBody
-        a0tye1Rec <- typecheckTypeExpr0 trav tyEnv tyeRec
+        a0tye1Rec <- constructFunTypeExpr0 trav loc tyEnv params tyeBody
         (labelOpt, x0, tyeParam0, paramsRest) <-
           case params of
             MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->
@@ -1203,30 +1202,33 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
 
 -- TODO (enhance): give better code position
 -- TODO: refactor this; elaborate the types of the parameters before building a function type
-constructFunTypeExpr0 :: Span -> [LamBinder] -> TypeExpr -> TypeExpr
-constructFunTypeExpr0 loc params tyeBody =
-  foldr
-    ( \param tyeAcc ->
-        case param of
-          MandatoryBinder labelOpt (x, tye) -> TypeExpr loc (TyArrow labelOpt (Just x, tye) tyeAcc)
-          ImplicitBinder (x, tye) -> TypeExpr loc (TyImpArrow (x, tye) tyeAcc)
-    )
-    tyeBody
-    params
+constructFunTypeExpr0 :: trav -> Span -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass0TypeExpr
+constructFunTypeExpr0 trav loc tyEnv params tyeBody =
+  typecheckTypeExpr0 trav tyEnv $
+    foldr
+      ( \param tyeAcc ->
+          case param of
+            MandatoryBinder labelOpt (x, tye) -> TypeExpr loc (TyArrow labelOpt (Just x, tye) tyeAcc)
+            ImplicitBinder (x, tye) -> TypeExpr loc (TyImpArrow (x, tye) tyeAcc)
+      )
+      tyeBody
+      params
 
 -- TODO (enhance): give better code position
 -- TODO: refactor this; elaborate the types of the parameters before building a function type
-constructFunTypeExpr1 :: trav -> Span -> [LamBinder] -> TypeExpr -> M trav TypeExpr
-constructFunTypeExpr1 trav loc params tyeBody = do
+constructFunTypeExpr1 :: trav -> Span -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass1TypeExpr
+constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
   spanInFile <- askSpanInFile loc
-  foldrM
-    ( \param tyeAcc ->
-        case param of
-          MandatoryBinder labelOpt (_x, tye) -> pure $ TypeExpr loc (TyArrow labelOpt (Nothing, tye) tyeAcc)
-          ImplicitBinder (_x, _tye) -> typeError trav $ CannotUseLamImpAtStage1 spanInFile
-    )
-    tyeBody
-    params
+  tyeRec <-
+    foldrM
+      ( \param tyeAcc ->
+          case param of
+            MandatoryBinder labelOpt (_x, tye) -> pure $ TypeExpr loc (TyArrow labelOpt (Nothing, tye) tyeAcc)
+            ImplicitBinder (_x, _tye) -> typeError trav $ CannotUseLamImpAtStage1 spanInFile
+      )
+      tyeBody
+      params
+  typecheckTypeExpr1 trav tyEnv tyeRec
 
 typecheckLetInBody0 :: trav -> TypeEnv -> [LamBinder] -> Expr -> M trav (Ass0TypeExpr, Ass0Expr)
 typecheckLetInBody0 trav tyEnv params e1 =
@@ -1381,8 +1383,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           then typeError trav $ VarOccursFreelyInAss1Type spanInFile x result2
           else pure (result2, A1LetIn (ax, a1tye1) a1e1 a1e2)
       LetRecIn f params tyeBody eBody e2 -> do
-        tyeRec <- constructFunTypeExpr1 trav loc params tyeBody
-        a1tye1Rec <- typecheckTypeExpr1 trav tyEnv tyeRec
+        a1tye1Rec <- constructFunTypeExpr1 trav loc tyEnv params tyeBody
         (labelOpt, x0, tyeParam0, paramsRest) <-
           case params of
             MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->
