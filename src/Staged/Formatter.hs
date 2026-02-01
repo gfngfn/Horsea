@@ -1125,9 +1125,13 @@ instance Disp Bta.AnalysisError where
         <+> disp bity1Local
         <+> "!="
         <+> disp bity2Local
-    Bta.UnknownTypeOrInvalidArgs spanInFile _tyName _args ->
+    Bta.UnknownTypeOrInvalidArgs spanInFile tyName _args ->
       -- TODO (enhance): detailed report
-      "Unknown type or invalid arguments" <+> disp spanInFile
+      "Unknown type or invalid arguments:" <+> disp tyName <+> disp spanInFile
+    Bta.LetRecParamsCannotStartWithImplicit spanInFile ->
+      "Recursive function definitions cannot have an implicit parameter as the first one" <+> disp spanInFile
+    Bta.LetRecRequiresNonEmptyParams spanInFile ->
+      "Recursive function definitions require at least one parameter" <+> disp spanInFile
 
 instance Disp Bta.BindingTime where
   dispGen _req = \case

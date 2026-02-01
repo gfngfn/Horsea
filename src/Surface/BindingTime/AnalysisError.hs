@@ -19,4 +19,6 @@ data AnalysisError
   | BITypeContradiction SpanInFile BIType BIType BIType BIType
   | UnknownTypeOrInvalidArgs SpanInFile TypeName [ArgForType]
   | NotATuple SpanInFile BIType
+  | LetRecParamsCannotStartWithImplicit SpanInFile
+  | LetRecRequiresNonEmptyParams SpanInFile
   deriving stock (Show)

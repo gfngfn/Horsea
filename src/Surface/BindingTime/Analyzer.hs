@@ -67,33 +67,33 @@ makeLam params eBody = do
       -- TODO (enhance): give better range:
       Expr (mergeSpan loc1 loc2) (LamImp (x, ty) e)
 
-makeRecLam :: trav -> Var -> [LamBinder] -> TypeExpr -> Expr -> M trav Expr
-makeRecLam _trav f params tyBody eBody = do
-  (x0, ty0, paramsRest) <-
+makeRecLam :: trav -> Span -> Var -> [LamBinder] -> TypeExpr -> Expr -> M trav Expr
+makeRecLam trav ann f params tyBody eBody = do
+  spanInFile <- askSpanInFile ann
+  (labelOpt0, x0, ty0, paramsRest) <-
     case params of
-      MandatoryBinder Nothing (x0', ty0') : paramsRest' -> pure (x0', ty0', paramsRest')
-      MandatoryBinder (Just _) _ : _ -> error "TODO (error): makeLamRec, with a label"
-      ImplicitBinder _ : _ -> error "TODO (error): makeLamRec, implicit binder"
-      [] -> error "TODO (error): makeLamRec, empty parameter sequence"
+      MandatoryBinder labelOpt0' (x0', ty0') : paramsRest' -> pure (labelOpt0', x0', ty0', paramsRest')
+      ImplicitBinder _ : _ -> analysisError trav $ LetRecParamsCannotStartWithImplicit spanInFile
+      [] -> analysisError trav $ LetRecRequiresNonEmptyParams spanInFile
   let (eRest, tyRest) = foldr go (eBody, tyBody) paramsRest
-  let ann =
+  let annTyRec =
         -- TODO (enhance): give better code position
         let TypeExpr loc1 _ = ty0
             Expr loc2 _ = eBody
          in mergeSpan loc1 loc2
-  let tyRec = TypeExpr ann (TyArrow Nothing (Just x0, ty0) tyRest)
-  pure $ Expr ann (Lam (Just (f, tyRec)) Nothing (x0, ty0) eRest)
+  let tyRec = TypeExpr annTyRec (TyArrow labelOpt0 (Just x0, ty0) tyRest)
+  pure $ Expr ann (Lam (Just (f, tyRec)) labelOpt0 (x0, ty0) eRest)
   where
     go :: LamBinder -> (Expr, TypeExpr) -> (Expr, TypeExpr)
     go (MandatoryBinder labelOpt (x, ty@(TypeExpr loc1 _))) (eAcc@(Expr loc2 _), tyAcc) = do
-      let ann = mergeSpan loc1 loc2 -- TODO (enhance): give better code position
-      let eAcc' = Expr ann (Lam Nothing labelOpt (x, ty) eAcc)
-      let tyAcc' = TypeExpr ann (TyArrow labelOpt (Just x, ty) tyAcc)
+      let ann' = mergeSpan loc1 loc2 -- TODO (enhance): give better code position
+      let eAcc' = Expr ann' (Lam Nothing labelOpt (x, ty) eAcc)
+      let tyAcc' = TypeExpr ann' (TyArrow labelOpt (Just x, ty) tyAcc)
       (eAcc', tyAcc')
     go (ImplicitBinder (x, ty@(TypeExpr loc1 _))) (eAcc@(Expr loc2 _), tyAcc) = do
-      let ann = mergeSpan loc1 loc2 -- TODO (enhance): give better code position
-      let eAcc' = Expr ann (LamImp (x, ty) eAcc)
-      let tyAcc' = TypeExpr ann (TyImpArrow (x, ty) tyAcc)
+      let ann' = mergeSpan loc1 loc2 -- TODO (enhance): give better code position
+      let eAcc' = Expr ann' (LamImp (x, ty) eAcc)
+      let tyAcc' = TypeExpr ann' (TyImpArrow (x, ty) tyAcc)
       (eAcc', tyAcc')
 
 analysisError :: trav -> AnalysisError -> M trav a
@@ -276,7 +276,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       let e' = Expr (bt, ann) (LetIn x [] e1' e2')
       pure (e', bity2, constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
     LetRecIn x params tye eBody e2 -> do
-      e1 <- makeRecLam trav x params tye eBody
+      e1 <- makeRecLam trav ann x params tye eBody
       -- Not confident. TODO: check the validity of the following
       (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr trav btenv e1
       (e2', bity2@(BIType bt2 _), constraints2) <-
