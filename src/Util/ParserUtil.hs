@@ -35,10 +35,9 @@ import Prelude hiding (or, span)
 
 type GenP token a = Mp.Parsec Void [Located token] a
 
-data ParseError = ParseError
-  { spanInFile :: SpanInFile,
-    message :: Text
-  }
+data ParseError
+  = ParseError SpanInFile Text
+  | UnexpectedEndOfInput
   deriving stock (Eq, Show)
 
 runParser :: (Ord token, Mp.VisualStream [Located token], Mp.TraversableStream [Located token]) => GenP token a -> SourceSpec -> [Located token] -> Either [ParseError] a
@@ -56,13 +55,9 @@ makeParseError sourceSpec bundle =
         case unexpected of
           Just (Mp.Tokens (token0 :| tokensRest)) ->
             let span = List.foldl' (\loc t -> mergeSpan loc (getSpan t)) (getSpan token0) tokensRest
-             in [ ParseError
-                    { spanInFile = getSpanInFile sourceSpec span,
-                      message = Text.pack (Mp.parseErrorTextPretty e)
-                    }
-                ]
+             in [ParseError (getSpanInFile sourceSpec span) (Text.pack (Mp.parseErrorTextPretty e))]
           Just Mp.EndOfInput ->
-            error "TODO: EndOfInput"
+            [UnexpectedEndOfInput]
           Just (Mp.Label _chars) ->
             []
           Nothing ->

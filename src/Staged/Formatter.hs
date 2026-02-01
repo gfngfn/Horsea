@@ -615,10 +615,13 @@ instance Disp FrontError where
       List.foldl' (\doc parseError -> doc <> hardline <> disp parseError) mempty parseErrors
 
 instance Disp ParseError where
-  dispGen _ ParseError {spanInFile, message} =
-    disp spanInFile
-      <> hardline
-      <> disp message
+  dispGen _ = \case
+    ParseError spanInFile message ->
+      disp spanInFile
+        <> hardline
+        <> disp message
+    UnexpectedEndOfInput ->
+      "Unexpected end of input"
 
 instance Disp Matrix.ConstructionError where
   dispGen _ = \case
