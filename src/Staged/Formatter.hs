@@ -1074,9 +1074,9 @@ instance Disp SpanInFile where
 instance (Disp sv) => Disp (ImplicitArgLogF sv) where
   dispGen _ = \case
     LogGivenArg spanInFile a0e ->
-      "-" <+> disp spanInFile <> ":" <+> stage0Style (disp a0e)
+      "- given" <+> disp spanInFile <> nest 4 (hardline <> stage0Style (disp a0e))
     LogInferredArg spanInFile a0e ->
-      "*" <+> disp spanInFile <> ":" <+> stage0Style (disp a0e)
+      "* inferred" <+> disp spanInFile <> nest 4 (hardline <> stage0Style (disp a0e))
 
 instance (Disp sv) => Disp (BugF sv) where
   dispGen _ = \case
