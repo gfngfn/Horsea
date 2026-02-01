@@ -483,6 +483,16 @@ module Layer = struct
       Tensor %(List.append ns [output_dim])
     )
     external (builtin = "layer__gen_linear", surface = "linear")
+  val ~gen_layer_norm :
+    (* #cudnn_enable Bool -> *)
+    (* #eps Float -> *)
+    #dim (dim : Nat) ->
+    {shape : {s : List Nat | List.length s >= 1 && List.last s == dim}} ->
+    &(VarStore ->
+      Tensor %shape ->
+      Tensor %shape
+    )
+    external (builtin = "layer__gen_layer_norm", surface = "layer_norm")
   module Lstm = struct
     val ~gen_create :
       #input_dim (input_size : Nat) ->

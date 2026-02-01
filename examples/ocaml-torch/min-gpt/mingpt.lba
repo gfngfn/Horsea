@@ -24,12 +24,14 @@ type config (vocab_size, n_embd, n_head, n_layer, block_size) =
   }
 *)
 
-let causal_self_attention
+let gen_causal_self_attention
+    {sz_b : Nat}
+    {sz_t : Nat}
+    {sz_c : Nat}
     (cfg_block_size : Int)
     (cfg_n_layer : Int)
     (cfg_n_head : Int)
     (cfg_n_embd : {n : Int | mod n cfg_n_head == 0}) =
-  let sz_b = 102 in let sz_t = 203 in let sz_c = 304 in (* TODO *)
   &(fun(cfg_attn_pdrop : Float) ->
     fun(cfg_resid_pdrop : Float) ->
     fun(cfg_embd_pdrop : Float) ->
@@ -91,24 +93,67 @@ let causal_self_attention
   )
 in
 
-let block (vs : VarStore) (n_embd : Int) (resid_pdrop : Int) =
-  let ln1 = Layer.layer_norm (let open VarStore in vs / "ln1") n_embd in
-  let ln2 = Layer.layer_norm (let open VarStore in vs / "ln2") n_embd in
-  let attn = causal_self_attention vs cfg in
-  let lin1 = Layer.linear (let open VarStore in vs / "lin1") #input_dim n_embd (4 * n_embd) in
-  let lin2 = Layer.linear (let open VarStore in vs / "lin2") #input_dim (4 * n_embd) n_embd in
-  Layer.of_fn_ (fun (xs : Tensor %[foo]) -> fun #is_training (is_training : Bool) ->
-      let xs =
-        ~Tensor.gen_add xs (Layer.forward ln1 xs |> Layer.forward_ attn #is_training is_training)
+let gen_block
+    {sz_b : Nat}
+    {sz_t : Nat}
+    {sz_c : Nat}
+    (cfg_block_size : Int)
+    (cfg_n_layer : Int)
+    (cfg_n_head : Int)
+    (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
+    {shape : {s : List Nat | List.length s >= 1 && List.last s == cfg_n_embd}}
+    (resid_pdrop : Int) =
+  &(fun(cfg_attn_pdrop : Float) ->
+    fun(cfg_resid_pdrop : Float) ->
+    fun(cfg_embd_pdrop : Float) ->
+    fun(vs : VarStore) ->
+      let ln1 = ~(Layer.gen_layer_norm #dim cfg_n_embd {shape}) (let open VarStore in vs / "ln1") in
+      let ln2 = ~(Layer.gen_layer_norm #dim cfg_n_embd {shape}) (let open VarStore in vs / "ln2") in
+      let attn =
+        ~(gen_causal_self_attention
+            {sz_b}
+            {sz_t}
+            {sz_c}
+            cfg_block_size
+            cfg_n_layer
+            cfg_n_head
+            cfg_n_embd
+          )
+          cfg_attn_pdrop
+          cfg_resid_pdrop
+          cfg_embd_pdrop
+          vs
       in
-      let ys =
-        Layer.forward ln2 xs
-          |> Layer.forward lin1
-          |> Tensor.gelu
-          |> Layer.forward lin2
-          |> Tensor.dropout #p resid_pdrop #is_training is_training
+      let lin1 =
+        ~(Layer.gen_linear {shape}
+            #input_dim cfg_n_embd
+            #output_dim (4 * cfg_n_embd)
+          )
+          (let open VarStore in vs / "lin1")
       in
-      ~Tensor.gen_add xs ys
+      let lin2 =
+        ~(Layer.gen_linear {List.append (List.init shape) [4 * cfg_n_embd]}
+            #input_dim (4 * cfg_n_embd)
+            #output_dim cfg_n_embd
+          )
+          (let open VarStore in vs / "lin2")
+      in
+      ~Layer.gen_of_fn_ (fun (xs : Tensor %shape) -> fun #is_training (is_training : Bool) ->
+          let xs =
+            ~Tensor.gen_add
+              xs
+              (xs |> ~Layer.gen_forward ln1 |> ~Layer.gen_forward_ attn #is_training is_training)
+          in
+          let ys =
+            xs
+              |> ~Layer.gen_forward ln2
+              |> ~Layer.gen_forward lin1
+              |> Tensor.gelu
+              |> ~Layer.gen_forward lin2
+              |> ~Tensor.gen_dropout #p cfg_resid_pdrop #is_training is_training
+          in
+          ~Tensor.gen_add xs ys
+      )
   )
 in
 
