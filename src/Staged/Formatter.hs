@@ -24,6 +24,7 @@ import Staged.EvalError
 import Staged.SrcSyntax
 import Staged.Syntax
 import Staged.TypeError
+import Staged.Typechecker (ImplicitArgLogF (..))
 import Surface.BindingTime.Analyzer qualified as Bta
 import Surface.BindingTime.Core qualified as Bta
 import Surface.BindingTime.Stager qualified as Bta
@@ -1069,6 +1070,13 @@ instance Disp SpanInFile where
       LocationInFile endLine endColumn = endLocation
       indentation = disp (replicate (startColumn - 1) ' ')
       hats = disp (replicate (endColumn - startColumn) '^')
+
+instance (Disp sv) => Disp (ImplicitArgLogF sv) where
+  dispGen _ = \case
+    LogGivenArg spanInFile a0e ->
+      "-" <+> disp spanInFile <> ":" <+> stage0Style (disp a0e)
+    LogInferredArg spanInFile a0e ->
+      "*" <+> disp spanInFile <> ":" <+> stage0Style (disp a0e)
 
 instance (Disp sv) => Disp (BugF sv) where
   dispGen _ = \case

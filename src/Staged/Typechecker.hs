@@ -7,6 +7,8 @@ module Staged.Typechecker
     typecheckBinds,
     TypecheckConfig (..),
     TypecheckState (..),
+    ImplicitArgLogF (..),
+    ImplicitArgLog,
     M,
     run,
   )
@@ -27,6 +29,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Tuple.Extra
+import GHC.Generics (Generic)
 import Safe.Exact
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
@@ -54,11 +57,19 @@ data TypecheckConfig = TypecheckConfig
     sourceSpec :: SourceSpec
   }
 
+data ImplicitArgLogF sv
+  = LogGivenArg SpanInFile (Ass0ExprF sv)
+  | LogInferredArg SpanInFile (Ass0ExprF sv)
+  deriving stock (Functor, Generic)
+
+type ImplicitArgLog = ImplicitArgLogF StaticVar
+
 data TypecheckState = TypecheckState
   { nextVarIndex :: Int,
     assVarDisplay :: Map StaticVar Text,
     nextTypeVarIndex :: Int,
-    assTypeVarDisplay :: Map AssTypeVar Text
+    assTypeVarDisplay :: Map AssTypeVar Text,
+    implicitArgLogRev :: [ImplicitArgLog]
   }
 
 type M' err trav a = Elaborator TypecheckState TypecheckConfig err trav a
@@ -70,6 +81,11 @@ typeError = raiseError
 
 mapTypeError :: (err1 -> err2) -> M' err1 trav a -> M' err2 trav a
 mapTypeError = mapError
+
+logImplicitArg :: ImplicitArgLog -> M trav ()
+logImplicitArg impArgLog = do
+  tcState@TypecheckState {implicitArgLogRev} <- getState
+  putState $ tcState {implicitArgLogRev = impArgLog : implicitArgLogRev}
 
 bug :: String -> a
 bug msg = error $ "bug: " ++ msg
@@ -925,8 +941,8 @@ typecheckExpr0Single trav tyEnv e@(Expr loc _) = do
 typecheckExpr0 :: trav -> TypeEnv -> AppContext -> Expr -> M trav (Result0, Ass0Expr)
 typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
-  completeInferredImplicit
-    <$> case eMain of
+  completeInferredImplicit spanInFile
+    =<< case eMain of
       Literal lit ->
         case appCtx of
           [] -> do
@@ -1043,6 +1059,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgImpGiven0 a0e2 a0tye2 : appCtx) e1
         case result1 of
           CastGiven0 cast _a0tye11 result -> do
+            logImplicitArg $ LogGivenArg spanInFile a0e2
             pure (result, A0App a0e1 (applyCast cast a0e2))
           _ -> do
             bug "stage-0, AppImpGiven, not a CastGiven0"
@@ -1050,6 +1067,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgImpOmitted0 : appCtx) e1
         case result1 of
           FillInferred0 a0eInferred result -> do
+            logImplicitArg $ LogInferredArg spanInFile a0eInferred
             pure (result, A0App a0e1 a0eInferred)
           _ -> do
             bug "stage-0, AppImpOmitted, not a FillInferred0"
@@ -1171,14 +1189,17 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
       Escape _ ->
         typeError trav $ CannotUseEscapeAtStage0 spanInFile
   where
-    completeInferredImplicit pair@(result, a0e) =
-      case result of
-        InsertInferred0 a0eInferred result' ->
-          completeInferredImplicit (result', A0App a0e a0eInferred)
-        InsertInferredType0 a0tyeInferred result' ->
-          completeInferredImplicit (result', A0AppType a0e (strictify a0tyeInferred))
-        _ ->
-          pair
+    completeInferredImplicit spanInFile = go
+      where
+        go pair@(result, a0e) =
+          case result of
+            InsertInferred0 a0eInferred result' -> do
+              logImplicitArg $ LogInferredArg spanInFile a0eInferred
+              go (result', A0App a0e a0eInferred)
+            InsertInferredType0 a0tyeInferred result' ->
+              go (result', A0AppType a0e (strictify a0tyeInferred))
+            _ ->
+              pure pair
 
 -- TODO (enhance): give better code position
 -- TODO: refactor this; elaborate the types of the parameters before building a function type
