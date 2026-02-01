@@ -21,9 +21,9 @@ import Staged.Evaluator qualified as Evaluator
 import Staged.Formatter (Disp)
 import Staged.Formatter qualified as Formatter
 import Staged.Parser qualified as Parser
-import Staged.Scope.SigRecord (SigRecord)
-import Staged.Scope.TypeEnv (TypeEnv)
-import Staged.Scope.TypeEnv qualified as TypeEnv
+import Staged.Typechecker.SigRecord (SigRecord)
+import Staged.Typechecker.TypeEnv (TypeEnv)
+import Staged.Typechecker.TypeEnv qualified as TypeEnv
 import Staged.SrcSyntax
 import Staged.Syntax
 import Staged.TypeError (TypeError)

@@ -34,10 +34,10 @@ import Safe.Exact
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
 import Staged.Core
-import Staged.Scope.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
-import Staged.Scope.SigRecord qualified as SigRecord
-import Staged.Scope.TypeEnv (TypeEnv, TypeVarEntry (..))
-import Staged.Scope.TypeEnv qualified as TypeEnv
+import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
+import Staged.Typechecker.SigRecord qualified as SigRecord
+import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
+import Staged.Typechecker.TypeEnv qualified as TypeEnv
 import Staged.SrcSyntax
 import Staged.Subst
 import Staged.Syntax
