@@ -201,6 +201,25 @@ definitions =
           a0vs2 <- validateListValue a0v2
           pure $ A0ValLiteral (ALitList (dropAt n1 a0vs2))
         |],
+    versatile [] "swap" ForStage0 3 $
+      [|
+        do
+          n1 <- validateIntLiteral a0v1
+          n2 <- validateIntLiteral a0v2
+          a0vs <- validateListValue a0v3
+          case swap n1 n2 a0vs of
+            Nothing -> evalError $ Bug $ GeneralBuiltInError "swap; index out of bounds"
+            Just a0vs' -> pure $ A0ValLiteral (ALitList a0vs')
+        |],
+    versatile [] "dim_matmul" ForStage0 2 $
+      [|
+        do
+          ns1 <- validateIntListLiteral a0v1
+          ns2 <- validateIntListLiteral a0v2
+          case dimMatmul ns1 ns2 of
+            Nothing -> evalError $ Bug $ GeneralBuiltInError "dim_matmul"
+            Just ns -> pure $ A0ValLiteral (ALitList (map (A0ValLiteral . ALitInt) ns))
+        |],
     versatile [] "broadcastable" ForStage0 2 $
       [|
         do

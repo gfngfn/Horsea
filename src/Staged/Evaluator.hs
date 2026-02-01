@@ -19,6 +19,7 @@ import Data.Map qualified as Map
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Safe (atMay)
 import Staged.BuiltIn.CompileTime (deriveDeltaReduction)
 import Staged.BuiltIn.Core
 import Staged.BuiltIn.Definitions (definitions)
@@ -158,6 +159,34 @@ insertAt n x (v : vs) = v : insertAt (n - 1) x vs
 dropAt :: Int -> [a] -> [a]
 dropAt _ [] = []
 dropAt n (v : vs) = if n <= 0 then vs else v : dropAt (n - 1) vs
+
+-- The implementation of the built-in function `swap`.
+swap :: Int -> Int -> [a] -> Maybe [a]
+swap n1' n2' xs = do
+  v1 <- atMay xs n1
+  v2 <- atMay xs n2
+  pure $
+    zipWith
+      (\i v -> if i == n1 then v2 else if i == n2 then v1 else v)
+      [0 ..]
+      xs
+  where
+    n1 = normalize n1'
+    n2 = normalize n2'
+    normalize n = if n < 0 then len + n else n
+    len = length xs
+
+-- The implementation of the built-in function `dim_matmul`.
+dimMatmul :: [Int] -> [Int] -> Maybe [Int]
+dimMatmul xs ys =
+  case (xs, ys) of
+    ([], _) -> Nothing
+    (_, []) -> Nothing
+    ([x0], [y0, y1]) -> if x0 == y0 then Just [y1] else Nothing
+    ([x0, x1], [y0]) -> if x1 == y0 then Just [x0] else Nothing
+    ([x0, x1], [y0, y1]) -> if x1 == y0 then Just [x0, y1] else Nothing
+    (_ : _ : xs', _ : _ : ys') -> dimMatmul xs' ys'
+    (_, _) -> Nothing
 
 -- The implementation of the built-in function `broadcast`.
 broadcast :: [Int] -> [Int] -> Maybe [Int]

@@ -30,8 +30,11 @@ val %( || ) : Bool -> Bool -> Bool
   external (builtin = "or", surface = "||")
 val %( :: ) : forall 'a -> 'a -> List 'a -> List 'a
   external (builtin = "cons", surface = "::")
+val %sqrt : Float -> Float
+  external (builtin = "sqrt", surface = "sqrt")
 val %float : Int -> Float
   external (builtin = "float", surface = "float")
+val neg_infinity = float -1 / 0.0
 val %print_int : Int -> Unit
   external (builtin = "print_int", surface = "print_int")
 val %print_float : Float -> Unit
@@ -60,6 +63,10 @@ val ~insert_at : Nat -> Nat -> List Nat -> List Nat
   external (builtin = "insert_at", surface = "insert_at")
 val ~drop_at : Nat -> List Nat -> List Nat
   external (builtin = "drop_at", surface = "drop_at")
+val ~swap : Nat -> Nat -> List Nat -> List Nat
+  external (builtin = "swap", surface = "swap")
+val ~dim_matmul : List Nat -> List Nat -> List Nat
+  external (builtin = "dim_matmul", surface = "dim_matmul")
 val ~broadcastable : List Nat -> List Nat -> Bool
   external (builtin = "broadcastable", surface = "broadcastable")
 val ~broadcast : List Nat -> List Nat -> List Nat
@@ -157,6 +164,10 @@ module Tensor = struct
     {shape1 : List Nat} -> {shape2 : {s : List Nat | broadcastable shape1 s}} ->
     &(Tensor %shape1 -> Tensor %shape2 -> Tensor %(broadcast shape1 shape2))
     external (builtin = "tensor__gen_mult", surface = "*")
+  val ~gen_div :
+    {shape1 : List Nat} -> {shape2 : {s : List Nat | broadcastable shape1 s}} ->
+    &(Tensor %shape1 -> Tensor %shape2 -> Tensor %(broadcast shape1 shape2))
+    external (builtin = "tensor__gen_div", surface = "/")
   val ~gen_log :
     {shape : List Nat} -> &(Tensor %shape -> Tensor %shape)
     external (builtin = "tensor__gen_log", surface = "log")
@@ -243,6 +254,12 @@ module Tensor = struct
       Tensor %shape
     )
     external (builtin = "tensor__gen_tril", surface = "tril")
+  val ~gen_contiguous :
+    {shape : List Nat} ->
+    &(Tensor %shape ->
+      Tensor %shape
+    )
+    external (builtin = "tensor__gen_contiguous", surface = "contiguous")
   val ~gen_eq_scalar :
     {shape : List Nat} ->
     &(Tensor %shape ->
@@ -299,6 +316,41 @@ module Tensor = struct
     #length (length : Nat) ->
     &(#start Int -> Tensor %shape -> Tensor %(insert_at dim length (drop_at dim shape)))
     external (builtin = "tensor__gen_narrow", surface = "narrow")
+  val ~gen_transpose :
+    {shape : List Nat} ->
+    #dim0 (dim0 : {n : Int | n >= 0 - List.length shape && n < List.length shape}) ->
+    #dim1 (dim1 : {n : Int | n >= 0 - List.length shape && n < List.length shape}) ->
+    &(Tensor %shape ->
+      Tensor %(swap dim0 dim1 shape)
+    )
+    external (builtin = "tensor__gen_transpose", surface = "transpose")
+  val ~gen_matmul :
+    {shape1 : {s : List Nat | List.length s >= 2}} ->
+    {shape2 :
+      {s : List Nat |
+        List.length s >= 2
+          && broadcastable (List.init (List.init shape1)) (List.init (List.init s))
+          && List.last shape1 == List.nth (List.length s - 2) s
+      }
+    } ->
+    &(Tensor %shape1 ->
+      Tensor %shape2 ->
+      Tensor
+        %(List.append
+            (broadcast (List.init (List.init shape1)) (List.init (List.init shape2)))
+            (dim_matmul shape1 shape2)
+        )
+    )
+    external (builtin = "tensor__gen_matmul", surface = "matmul")
+  val ~gen_masked_fill :
+    {shape1 : List Nat} ->
+    {shape2 : {s : List Nat | broadcastable s shape1}} ->
+    &(#mask Tensor %shape1 ->
+      #value Tensor %[] ->
+      Tensor %shape2 ->
+      Tensor %(broadcast shape2 shape1)
+    )
+    external (builtin = "tensor__gen_masked_fill", surface = "masked_fill")
   val ~gen_max_pool2d :
     {k : Nat} ->
     {l : Nat} ->
@@ -377,6 +429,13 @@ module Layer = struct
       Tensor %shape1 -> #is_training Bool -> Tensor %shape2
     )
     external (builtin = "layer__gen_forward_", surface = "forward_")
+  val ~gen_of_fn_ :
+    {shape1 : List Nat} ->
+    {shape2 : List Nat} ->
+    &((Tensor %shape1 -> #is_training Bool -> Tensor %shape2) ->
+      Tensor %shape1 -> #is_training Bool -> Tensor %shape2
+    )
+    external (builtin = "layer__gen_of_fn_", surface = "of_fn_")
   val ~gen_conv2d_ :
     {l : Nat} ->
     {m : Nat} ->

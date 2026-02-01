@@ -29,10 +29,15 @@ let causal_self_attention
     (cfg_n_layer : Int)
     (cfg_n_head : Int)
     (cfg_n_embd : {n : Int | mod n cfg_n_head == 0}) =
-  &(fun(vs : VarStore) ->
+  let sz_b = 102 in let sz_t = 203 in let sz_c = 304 in (* TODO *)
+  &(fun(cfg_attn_pdrop : Float) ->
+    fun(cfg_resid_pdrop : Float) ->
+    fun(cfg_embd_pdrop : Float) ->
+    fun(vs : VarStore) ->
       let linear (n : String) =
         ~(Layer.gen_linear {[4423]} #input_dim cfg_n_embd #output_dim cfg_n_embd) (* TODO *)
           (let open VarStore in vs / n)
+          Layer.Activation.none
       in
       let key = linear "key" in
       let query = linear "query" in
@@ -44,42 +49,44 @@ let causal_self_attention
           |> ~(Tensor.gen_view #size [1, 1, cfg_block_size, cfg_block_size])
       in
       let mask = ~Tensor.gen_eq_scalar mask_init (Tensor.f 0.0) in
-      Layer.of_fn_ (fun (xs : Tensor %[sz_b, sz_t, sz_c]) -> fun #is_training (is_training : Bool) ->
-          let sz_c_over_n_head = sz_c / cfg_n_head in
+      ~Layer.gen_of_fn_ (fun (xs : Tensor %[sz_b, sz_t, sz_c]) -> fun #is_training (is_training : Bool) ->
+        ~(let sz_c_over_n_head = sz_c // cfg_n_head in
           let size = [sz_b, sz_t, cfg_n_head, sz_c_over_n_head] in
-          let k = (* Tensor %[sz_b, cfg_n_head, sz_t, sz_c / cfg_n_head] *)
-            xs
-              |> ~Layer.gen_forward key
-              |> ~Tensor.gen_view #size size
-              |> ~Tensor.gen_transpose #dim0 1 #dim1 2
-          in
-          let q =
-            xs
-              |> ~Layer.gen_forward query
-              |> ~Tensor.gen_view #size size
-              |> ~Tensor.gen_transpose #dim0 1 #dim1 2
-          in
-          let v =
-            xs
-              |> ~Layer.gen_forward value
-              |> ~(Tensor.gen_view #size size)
-              |> ~Tensor.gen_transpose #dim0 1 #dim1 2
-          in
-          let att = (* Tensor %[sz_b, n_head, sz_t, sz_t] *)
-            Tensor.matmul q (~(Tensor.gen_transpose #dim0 -2 #dim1 -1) k)
-          in
-          let att =
-            (let open Tensor in att / f (float sz_c_over_n_head |> Float.sqrt))
-              |> Tensor.masked_fill #mask mask #value (Scalar.f Float.neg_infinity)
-              |> Tensor.softmax #dim -1
-              |> Tensor.dropout #p cfg_attn_pdrop #is_training is_training
-          in
-          Tensor.matmul att v (* [sz_b, n_head, sz_t, sz_c / n_head] *)
-            |> ~(Tensor.gen_transpose #dim0 1 #dim1 2) (* [sz_b, sz_t, n_head, sz_c / n_head] *)
-            |> Tensor.contiguous
-            |> ~(Tensor.gen_view #size [sz_b, sz_t, sz_c])
-            |> ~Layer.gen_forward proj
-            |> ~Tensor.gen_dropout #p cfg_resid_pdrop #is_training is_training
+          &(let k = (* Tensor %[sz_b, cfg_n_head, sz_t, sz_c / cfg_n_head] *)
+              xs
+                |> ~Layer.gen_forward key
+                |> ~(Tensor.gen_view #size size)
+                |> ~(Tensor.gen_transpose #dim0 1 #dim1 2)
+            in
+            let q =
+              xs
+                |> ~Layer.gen_forward query
+                |> ~(Tensor.gen_view #size size)
+                |> ~(Tensor.gen_transpose #dim0 1 #dim1 2)
+            in
+            let v =
+              xs
+                |> ~Layer.gen_forward value
+                |> ~(Tensor.gen_view #size size)
+                |> ~(Tensor.gen_transpose #dim0 1 #dim1 2)
+            in
+            let att = (* Tensor %[sz_b, n_head, sz_t, sz_t] *)
+              ~Tensor.gen_matmul q (~(Tensor.gen_transpose #dim0 -2 #dim1 -1) k)
+            in
+            let att =
+              (~Tensor.gen_div att (Tensor.f (sqrt (float ~(lift_int sz_c_over_n_head)))))
+                |> ~Tensor.gen_masked_fill #mask mask #value (Tensor.f neg_infinity)
+                |> ~(Tensor.gen_softmax #dim -1)
+                |> ~Tensor.gen_dropout #p cfg_attn_pdrop #is_training is_training
+            in
+            ~Tensor.gen_matmul att v (* [sz_b, n_head, sz_t, sz_c / n_head] *)
+              |> ~(Tensor.gen_transpose #dim0 1 #dim1 2) (* [sz_b, sz_t, n_head, sz_c / n_head] *)
+              |> ~Tensor.gen_contiguous
+              |> ~(Tensor.gen_view #size [sz_b, sz_t, sz_c])
+              |> ~Layer.gen_forward proj
+              |> ~Tensor.gen_dropout #p cfg_resid_pdrop #is_training is_training
+          )
+        )
       )
   )
 in
