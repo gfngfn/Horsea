@@ -38,6 +38,7 @@ module Staged.Syntax
     mapAssLiteral,
     mapMAssLiteral,
     strictify,
+    makeTrivialEquationFromType1,
     decomposeType1Equation,
     decomposeListEquation,
     AppContextF,
@@ -348,7 +349,7 @@ data Ass1TypeValF sv
   | A1TyValVar AssTypeVar
   | A1TyValProduct (Ass1TypeValF sv) (Ass1TypeValF sv)
   | A1TyValArrow (Maybe Label) (Ass1TypeValF sv) (Ass1TypeValF sv)
-  | A1TyValImplicitForAll AssTypeVar (Ass1TypeExprF sv)
+  | A1TyValImplicitForAll AssTypeVar (Ass1TypeValF sv)
   deriving stock (Eq, Show, Functor)
 
 data Ass1PrimTypeVal
@@ -365,6 +366,10 @@ data Type1EquationF sv
   | TyEq1List (Type1EquationF sv)
   | TyEq1Arrow (Maybe Label) (Type1EquationF sv) (Type1EquationF sv)
   | TyEq1Product (Type1EquationF sv) (Type1EquationF sv)
+  | -- | Only for trivial equations.
+    TyEq1TypeVar AssTypeVar
+  | -- | Only for trivial equations.
+    TyEq1ImplicitForAll AssTypeVar (Type1EquationF sv)
   deriving stock (Eq, Show, Functor)
 
 data Type1PrimEquationF sv
@@ -441,6 +446,36 @@ a1TyVec a0e = A1TyTensor (A0Literal (ALitList [a0e]))
 a1TyMat :: Ass0ExprF ann -> Ass0ExprF ann -> Ass1PrimTypeF ann
 a1TyMat a0e1 a0e2 = A1TyTensor (A0Literal (ALitList [a0e1, a0e2]))
 
+makeTrivialEquationFromType1 :: Ass1TypeExprF sv -> Type1EquationF sv
+makeTrivialEquationFromType1 = \case
+  A1TyPrim a1tyPrim ->
+    TyEq1Prim $
+      case a1tyPrim of
+        A1TyPrimBase aPrimTy -> TyEq1PrimBase aPrimTy
+        A1TyTensor a0e -> TyEq1Tensor (ListEqByWhole a0e a0e)
+        A1TyDataset DatasetParam {numTrain, numTest, image = Identity image, label = Identity label} ->
+          TyEq1Dataset
+            DatasetParamEquation
+              { numTrainEq = (numTrain, numTrain),
+                numTestEq = (numTest, numTest),
+                imageEq = ListEqByWhole image image,
+                labelEq = ListEqByWhole label label
+              }
+        A1TyLstm a0e1 a0e2 ->
+          TyEq1Lstm (a0e1, a0e1) (a0e2, a0e2)
+        A1TyTextHelper a0e ->
+          TyEq1TextHelper (a0e, a0e)
+  A1TyList a1tye ->
+    TyEq1List (makeTrivialEquationFromType1 a1tye)
+  A1TyVar atyvar ->
+    TyEq1TypeVar atyvar
+  A1TyProduct a1tye1 a1tye2 ->
+    TyEq1Product (makeTrivialEquationFromType1 a1tye1) (makeTrivialEquationFromType1 a1tye2)
+  A1TyArrow labelOpt a1tye1 a1tye2 ->
+    TyEq1Arrow labelOpt (makeTrivialEquationFromType1 a1tye1) (makeTrivialEquationFromType1 a1tye2)
+  A1TyImplicitForAll atyvar a1tye ->
+    TyEq1ImplicitForAll atyvar (makeTrivialEquationFromType1 a1tye)
+
 decomposeType1Equation :: Type1EquationF sv -> (Ass1TypeExprF sv, Ass1TypeExprF sv)
 decomposeType1Equation = \case
   TyEq1Prim ty1eqPrim ->
@@ -485,6 +520,11 @@ decomposeType1Equation = \case
     let (a1tye11, a1tye21) = decomposeType1Equation ty1eq1
         (a1tye12, a1tye22) = decomposeType1Equation ty1eq2
      in (A1TyProduct a1tye11 a1tye12, A1TyProduct a1tye21 a1tye22)
+  TyEq1TypeVar atyvar ->
+    (A1TyVar atyvar, A1TyVar atyvar)
+  TyEq1ImplicitForAll atyvar ty1eq ->
+    let (a1tye1, a1tye2) = decomposeType1Equation ty1eq
+     in (A1TyImplicitForAll atyvar a1tye1, A1TyImplicitForAll atyvar a1tye2)
   where
     prims p = (A1TyPrim p, A1TyPrim p)
 

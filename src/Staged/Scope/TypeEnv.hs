@@ -26,7 +26,9 @@ data TypeEnv = TypeEnv
     envModules :: [(Var, ModuleEntry)]
   }
 
-newtype TypeVarEntry = TypeVarEntry AssTypeVar
+data TypeVarEntry
+  = TypeVarEntry0 AssTypeVar
+  | TypeVarEntry1 AssTypeVar
 
 empty :: TypeEnv
 empty = TypeEnv {envVals = [], envTypeVars = [], envModules = []}

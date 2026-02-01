@@ -6,6 +6,7 @@ module Staged.EvalError
   )
 where
 
+import Data.Text (Text)
 import Staged.BuiltIn.Core
 import Staged.Syntax
 import Util.LocationInFile (SpanInFile)
@@ -29,6 +30,7 @@ data BugF sv
   | InconsistentAppBuiltInArity1 BuiltInArity1 (Ass0ValF sv)
   | InconsistentAppBuiltInArity2 BuiltInArity2 (Ass0ValF sv) (Ass0ValF sv)
   | BroadcastFailed [Int] [Int]
+  | GeneralBuiltInError Text
   deriving stock (Eq, Show, Functor)
 
 data EvalErrorF sv

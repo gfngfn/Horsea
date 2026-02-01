@@ -17,6 +17,10 @@ data AnalysisError
   | NotABase SpanInFile BIType
   | BindingTimeContradiction SpanInFile
   | BITypeContradiction SpanInFile BIType BIType BIType BIType
+  | BITypeInclusionLeft SpanInFile BIType BIType BITypeVar BIType
+  | BITypeInclusionRight SpanInFile BIType BIType BIType BITypeVar
   | UnknownTypeOrInvalidArgs SpanInFile TypeName [ArgForType]
   | NotATuple SpanInFile BIType
+  | LetRecParamsCannotStartWithImplicit SpanInFile
+  | LetRecRequiresNonEmptyParams SpanInFile
   deriving stock (Show)

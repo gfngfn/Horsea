@@ -229,13 +229,10 @@ dispEscape :: (Disp expr) => expr -> Doc Ann
 dispEscape e =
   stagingOperatorStyle "~" <> stage0Style (dispGen Atomic e)
 
-dispTypeVar :: AssTypeVar -> Doc Ann
-dispTypeVar (AssTypeVar n) = "'a" <> disp n
-
 dispForAllType :: (Disp ty) => Associativity -> AssTypeVar -> ty -> Doc Ann
 dispForAllType req atyvar tye =
   deepenParenWhen (req <= Atomic) $
-    group ("forall" <+> dispTypeVar atyvar <> "." <+> disp tye)
+    group ("forall" <+> disp atyvar <> "." <+> disp tye)
 
 dispListType :: (Disp ty) => Associativity -> ty -> Doc Ann
 dispListType req tye =
@@ -348,6 +345,9 @@ instance (Disp sv) => Disp (AssVarF sv) where
 instance Disp Symbol where
   dispGen _ (Symbol n) = "#S" <> disp n
 
+instance Disp AssTypeVar where
+  dispGen _ (AssTypeVar n) = "'a" <> disp n
+
 instance (Disp e) => Disp (Literal e) where
   dispGen _ = \case
     LitInt n -> pretty n
@@ -410,6 +410,9 @@ instance Disp (ArgForTypeF ann) where
     TypeArg tye -> dispGen req tye
 
 $(deriveDisp definitions)
+
+instance Disp TypeVar where
+  dispGen _ (TypeVar a) = "'" <> disp a
 
 instance Disp BuiltIn where
   dispGen req = \case
@@ -558,7 +561,7 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
   dispGen req = \case
     A0TyPrim a0tyPrim Nothing -> disp a0tyPrim
     A0TyPrim a0tyPrim (Just a0ePred) -> dispInternalRefinementType req a0tyPrim a0ePred
-    A0TyVar atyvar -> dispTypeVar atyvar
+    A0TyVar atyvar -> disp atyvar
     A0TyList a0tye Nothing -> dispListType req a0tye
     A0TyList a0tye (Just a0ePred) -> dispInternalRefinementListType req a0tye a0ePred
     A0TyProduct a0tye1 a0tye2 -> dispProductType req a0tye1 a0tye2
@@ -571,7 +574,7 @@ instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
   dispGen req = \case
     SA0TyPrim a0tyPrim Nothing -> disp a0tyPrim
     SA0TyPrim a0tyPrim (Just a0ePred) -> dispInternalRefinementType req a0tyPrim a0ePred
-    SA0TyVar atyvar -> dispTypeVar atyvar
+    SA0TyVar atyvar -> disp atyvar
     SA0TyList sa0tye Nothing -> dispListType req sa0tye
     SA0TyList sa0tye (Just a0ePred) -> dispInternalRefinementListType req sa0tye a0ePred
     SA0TyProduct sa0tye1 sa0tye2 -> dispProductType req sa0tye1 sa0tye2
@@ -599,7 +602,7 @@ instance (Disp sv) => Disp (Ass1TypeExprF sv) where
   dispGen req = \case
     A1TyPrim a1tyPrim -> dispGen req a1tyPrim
     A1TyList a1tye -> dispListType req a1tye
-    A1TyVar atyvar -> dispTypeVar atyvar
+    A1TyVar atyvar -> disp atyvar
     A1TyProduct a1tye1 a1tye2 -> dispProductType req a1tye1 a1tye2
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2
     A1TyImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
@@ -612,10 +615,13 @@ instance Disp FrontError where
       List.foldl' (\doc parseError -> doc <> hardline <> disp parseError) mempty parseErrors
 
 instance Disp ParseError where
-  dispGen _ ParseError {spanInFile, message} =
-    disp spanInFile
-      <> hardline
-      <> disp message
+  dispGen _ = \case
+    ParseError spanInFile message ->
+      disp spanInFile
+        <> hardline
+        <> disp message
+    UnexpectedEndOfInput ->
+      "Unexpected end of input"
 
 instance Disp Matrix.ConstructionError where
   dispGen _ = \case
@@ -631,6 +637,8 @@ instance Disp Matrix.ConstructionError where
 
 instance (Disp sv) => Disp (TypeErrorF sv) where
   dispGen _ = \case
+    Unsupported spanInFile detail ->
+      "Unsupported;" <+> disp detail <+> disp spanInFile
     UnboundVar spanInFile ms x ->
       "Unbound variable" <+> dispLongName ms x <+> disp spanInFile
     UnboundTypeVar spanInFile (TypeVar a) ->
@@ -764,7 +772,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> nest 2 (hardline <> stage1Style (disp a1tye))
     CannotInferImplicit spanInFile x a0tye appCtx ->
       "Cannot infer an implicit argument for"
-        <+> disp x
+        <+> stage0Style (disp x)
         <+> disp spanInFile
         <> hardline
         <+> "application context:"
@@ -772,6 +780,36 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> hardline
         <+> "type:"
         <> nest 2 (hardline <> stage0Style (disp a0tye))
+    CannotInferTypeVariableInstance0 spanInFile atyvar appCtx a0tye ->
+      "Cannot infer an instance for type variable"
+        <+> stage0Style (disp atyvar)
+        <+> disp spanInFile
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
+        <> hardline
+        <+> "type:"
+        <> nest 2 (hardline <> stage0Style (disp a0tye))
+    CannotInferTypeVariableInstance1 spanInFile atyvar appCtx a1tye ->
+      "Cannot infer an instance for type variable"
+        <+> stage1Style (disp atyvar)
+        <+> disp spanInFile
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
+        <> hardline
+        <+> "type:"
+        <> nest 2 (hardline <> stage1Style (disp a1tye))
+    CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile atyvar a0tye1 a0tye2 ->
+      "Cannot instantiate type variable"
+        <+> stage0Style (disp atyvar)
+        <+> disp spanInFile
+        <> hardline
+        <+> "left:"
+        <> nest 2 (hardline <> stage0Style (disp a0tye1))
+        <> hardline
+        <+> "right:"
+        <> nest 2 (hardline <> stage0Style (disp a0tye2))
     Stage1IfThenElseRestrictedToEmptyContext spanInFile appCtx ->
       "Stage-1 if-expressions are restricted to be used at empty application contexts"
         <+> disp spanInFile
@@ -823,6 +861,10 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         labelExpected = maybe "no label" quote labelOptExpected
         labelGot = maybe "no label" quote labelOptGot
         quote t = "'#" <> disp t <> "'"
+    NotAStage0TypeVar spanInFile tyvar ->
+      "Not a stage-0 type variable:" <+> disp tyvar <+> disp spanInFile
+    NotAStage1TypeVar spanInFile tyvar ->
+      "Not a stage-1 type variable:" <+> disp tyvar <+> disp spanInFile
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case
@@ -830,6 +872,32 @@ instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
       "types" <+> stage0Style (disp a0tye1) <+> "and" <+> stage0Style (disp a0tye2) <+> "are incompatible"
     CannotMerge1 a1tye1 a1tye2 ->
       "types" <+> stage1Style (disp a1tye1) <+> "and" <+> stage1Style (disp a1tye2) <+> "are incompatible"
+
+instance (Disp sv) => Disp (UnsupportedF sv) where
+  dispGen _ = \case
+    CannotBindPersistentValue x ->
+      "Cannot bind persistent values other than built-in functions:" <+> disp x
+    HigherRankPolymorphism a0tye1 atyvar a0tye2 ->
+      "Higher-rank polymorphism; we must judge that"
+        <+> stage0Style (disp a0tye1)
+        <+> "be more general than"
+        <+> stage0Style (disp (A0TyImplicitForAll atyvar a0tye2))
+        <> ", but this has not been supported so far"
+    AsWithArguments appCtx ->
+      "Function with an as-coercion applied to argument(s); consider let-binding it to a variable"
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
+    LamWithArguments appCtx ->
+      "Lambda abstraction directly applied to argument(s); consider using let-expressions"
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
+    LamImpWithArguments appCtx ->
+      "Lambda abstraction for an implicit parameter directly applied to argument(s); consider using let-expressions"
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
 
 instance (Disp sv) => Disp (AppContextEntryF sv) where
   dispGen _ = \case
@@ -950,7 +1018,7 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
   dispGen req = \case
     A0TyValPrim a0tyvPrim Nothing -> dispGen req a0tyvPrim
     A0TyValPrim a0tyvPrim (Just a0vPred) -> dispInternalRefinementType req a0tyvPrim a0vPred
-    A0TyValVar atyvar -> dispTypeVar atyvar
+    A0TyValVar atyvar -> disp atyvar
     A0TyValList a0tyv1 Nothing -> dispListType req a0tyv1
     A0TyValList a0tyv1 (Just a0vPred) -> dispInternalRefinementListType req a0tyv1 a0vPred
     A0TyValProduct a0tyv1 a0tyv2 -> dispProductType req a0tyv1 a0tyv2
@@ -962,7 +1030,7 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case
     A1TyValPrim a1tyvPrim -> dispGen req a1tyvPrim
     A1TyValList a1tyv -> dispListType req a1tyv
-    A1TyValVar atyvar -> dispTypeVar atyvar
+    A1TyValVar atyvar -> disp atyvar
     A1TyValProduct a1tyv1 a1tyv2 -> dispProductType req a1tyv1 a1tyv2
     A1TyValArrow labelOpt a1tyv1 a1tyv2 -> dispNondepArrowType req labelOpt a1tyv1 a1tyv2
     A1TyValImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
@@ -1043,6 +1111,8 @@ instance (Disp sv) => Disp (BugF sv) where
         <+> disp a0v2
     BroadcastFailed ns1 ns2 ->
       "Broadcast failed:" <+> dispListLiteral ns1 <> "," <+> dispListLiteral ns2
+    GeneralBuiltInError msg ->
+      "Error raised by a built-in function:" <+> disp msg
 
 instance (Disp sv) => Disp (EvalErrorF sv) where
   dispGen _ = \case
@@ -1095,9 +1165,33 @@ instance Disp Bta.AnalysisError where
         <+> disp bity1Local
         <+> "!="
         <+> disp bity2Local
-    Bta.UnknownTypeOrInvalidArgs spanInFile _tyName _args ->
+    Bta.BITypeInclusionLeft spanInFile bity1 bity2 bitv1 bity2Local ->
+      "Basic type contradiction;"
+        <+> disp bity1
+        <+> "!="
+        <+> disp bity2
+        <+> disp spanInFile
+        <> ";"
+        <+> disp bitv1
+        <+> "is included in"
+        <+> disp bity2Local
+    Bta.BITypeInclusionRight spanInFile bity1 bity2 bity1Local bitv2 ->
+      "Basic type contradiction;"
+        <+> disp bity1
+        <+> "!="
+        <+> disp bity2
+        <+> disp spanInFile
+        <> ";"
+        <+> disp bity1Local
+        <+> "includes"
+        <+> disp bitv2
+    Bta.UnknownTypeOrInvalidArgs spanInFile tyName _args ->
       -- TODO (enhance): detailed report
-      "Unknown type or invalid arguments" <+> disp spanInFile
+      "Unknown type or invalid arguments:" <+> disp tyName <+> disp spanInFile
+    Bta.LetRecParamsCannotStartWithImplicit spanInFile ->
+      "Recursive function definitions cannot have an implicit parameter as the first one" <+> disp spanInFile
+    Bta.LetRecRequiresNonEmptyParams spanInFile ->
+      "Recursive function definitions require at least one parameter" <+> disp spanInFile
 
 instance Disp Bta.BindingTime where
   dispGen _req = \case

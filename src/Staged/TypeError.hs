@@ -1,6 +1,7 @@
 module Staged.TypeError
   ( TypeErrorF (..),
     ConditionalMergeErrorF (..),
+    UnsupportedF (..),
     TypeError,
     ConditionalMergeError,
   )
@@ -15,7 +16,8 @@ import Util.Matrix qualified as Matrix
 import Prelude
 
 data TypeErrorF sv
-  = UnboundVar SpanInFile [Var] Var
+  = Unsupported SpanInFile (UnsupportedF sv)
+  | UnboundVar SpanInFile [Var] Var
   | UnboundTypeVar SpanInFile TypeVar
   | UnboundModule SpanInFile Var
   | NotAStage0Var SpanInFile Var
@@ -55,6 +57,9 @@ data TypeErrorF sv
   | CannotInstantiateGuidedByAppContext0 SpanInFile (AppContextF sv) (Ass0TypeExprF sv)
   | CannotInstantiateGuidedByAppContext1 SpanInFile (AppContextF sv) (Ass1TypeExprF sv)
   | CannotInferImplicit SpanInFile (AssVarF sv) (Ass0TypeExprF sv) (AppContextF sv)
+  | CannotInferTypeVariableInstance0 SpanInFile AssTypeVar (AppContextF sv) (Ass0TypeExprF sv)
+  | CannotInferTypeVariableInstance1 SpanInFile AssTypeVar (AppContextF sv) (Ass1TypeExprF sv)
+  | CannotInstantiateTypeVariableGuidedByAssertion0 SpanInFile AssTypeVar (Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | Stage1IfThenElseRestrictedToEmptyContext SpanInFile (AppContextF sv)
   | BindingOverwritten SpanInFile Var
   | UnknownExternalName SpanInFile Text
@@ -69,11 +74,21 @@ data TypeErrorF sv
   | CannotSynthesizeTypeFromExpr SpanInFile
   | CannotForceType SpanInFile (Ass0TypeExprF sv)
   | ApplicationLabelMismatch SpanInFile (AppContextF sv) (Maybe Label) (Maybe Label)
+  | NotAStage0TypeVar SpanInFile TypeVar
+  | NotAStage1TypeVar SpanInFile TypeVar
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv
   = CannotMerge0 (Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | CannotMerge1 (Ass1TypeExprF sv) (Ass1TypeExprF sv)
+  deriving stock (Eq, Show, Functor)
+
+data UnsupportedF sv
+  = CannotBindPersistentValue Var
+  | HigherRankPolymorphism (Ass0TypeExprF sv) AssTypeVar (Ass0TypeExprF sv)
+  | AsWithArguments (AppContextF sv)
+  | LamWithArguments (AppContextF sv)
+  | LamImpWithArguments (AppContextF sv)
   deriving stock (Eq, Show, Functor)
 
 type TypeError = TypeErrorF StaticVar
