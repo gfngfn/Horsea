@@ -72,6 +72,8 @@ data TypeErrorF sv
   | CannotSynthesizeTypeFromExpr SpanInFile
   | CannotForceType SpanInFile (Ass0TypeExprF sv)
   | ApplicationLabelMismatch SpanInFile (AppContextF sv) (Maybe Label) (Maybe Label)
+  | NotAStage0TypeVar SpanInFile TypeVar
+  | NotAStage1TypeVar SpanInFile TypeVar
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv

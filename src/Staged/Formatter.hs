@@ -411,6 +411,9 @@ instance Disp (ArgForTypeF ann) where
 
 $(deriveDisp definitions)
 
+instance Disp TypeVar where
+  dispGen _ (TypeVar a) = "'" <> disp a
+
 instance Disp BuiltIn where
   dispGen req = \case
     BuiltInArity1 bi1 -> dispGen req bi1
@@ -853,6 +856,10 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         labelExpected = maybe "no label" quote labelOptExpected
         labelGot = maybe "no label" quote labelOptGot
         quote t = "'#" <> disp t <> "'"
+    NotAStage0TypeVar spanInFile tyvar ->
+      "Not a stage-0 type variable:" <+> disp tyvar <+> disp spanInFile
+    NotAStage1TypeVar spanInFile tyvar ->
+      "Not a stage-1 type variable:" <+> disp tyvar <+> disp spanInFile
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case
