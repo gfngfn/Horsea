@@ -849,7 +849,8 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
             Just a0tyeInferred ->
               pure (InsertInferredType0 a0tyeInferred result', varSolution', tyvar0Solution')
             Nothing -> do
-              error "TODO (error): instantiateGuidedByAppContext0, cannot infer a type for the type variable"
+              spanInFile <- askSpanInFile loc
+              typeError trav $ CannotInferTypeVariableInstance0 spanInFile atyvar appCtx a0tye
         _ -> do
           spanInFile <- askSpanInFile loc
           typeError trav $ CannotInstantiateGuidedByAppContext0 spanInFile appCtx a0tye

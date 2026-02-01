@@ -764,7 +764,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> nest 2 (hardline <> stage1Style (disp a1tye))
     CannotInferImplicit spanInFile x a0tye appCtx ->
       "Cannot infer an implicit argument for"
-        <+> disp x
+        <+> stage0Style (disp x)
         <+> disp spanInFile
         <> hardline
         <+> "application context:"
@@ -772,9 +772,9 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> hardline
         <+> "type:"
         <> nest 2 (hardline <> stage0Style (disp a0tye))
-    CannotInferTypeVariableInstance1 spanInFile atyvar appCtx a0tye ->
+    CannotInferTypeVariableInstance0 spanInFile atyvar appCtx a0tye ->
       "Cannot infer an instance for type variable"
-        <+> disp atyvar
+        <+> stage0Style (disp atyvar)
         <+> disp spanInFile
         <> hardline
         <+> "application context:"
@@ -782,6 +782,16 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> hardline
         <+> "type:"
         <> nest 2 (hardline <> stage0Style (disp a0tye))
+    CannotInferTypeVariableInstance1 spanInFile atyvar appCtx a1tye ->
+      "Cannot infer an instance for type variable"
+        <+> stage1Style (disp atyvar)
+        <+> disp spanInFile
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
+        <> hardline
+        <+> "type:"
+        <> nest 2 (hardline <> stage1Style (disp a1tye))
     Stage1IfThenElseRestrictedToEmptyContext spanInFile appCtx ->
       "Stage-1 if-expressions are restricted to be used at empty application contexts"
         <+> disp spanInFile
