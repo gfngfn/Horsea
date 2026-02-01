@@ -590,6 +590,10 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       unionPairs [frees ty1eqDom, frees ty1eqCod]
     TyEq1Product ty1eq1 ty1eq2 ->
       unionPairs [frees ty1eq1, frees ty1eq2]
+    TyEq1TypeVar _atyvar ->
+      (Set.empty, Set.empty)
+    TyEq1ImplicitForAll _atyvar ty1eq ->
+      frees ty1eq
 
   subst s = \case
     TyEq1Prim ty1eqPrim ->
@@ -606,6 +610,10 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
     TyEq1Product ty1eq1 ty1eq2 ->
       TyEq1Product (go ty1eq1) (go ty1eq2)
+    TyEq1TypeVar atyvar ->
+      TyEq1TypeVar atyvar
+    TyEq1ImplicitForAll atyvar ty1eq ->
+      TyEq1ImplicitForAll atyvar (go ty1eq)
     where
       go :: forall af. (HasVar sv af) => af sv -> af sv
       go = subst s

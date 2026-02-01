@@ -377,20 +377,21 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
         A0Var x | x `elem` varsToInfer -> (True, a0e1, Map.singleton x (a0e1, a0tye1))
         _ -> (alphaEquivalent a0e1 a0e2, a0e2, Map.empty)
 
-    makeTrivialEquationFromType :: Ass1TypeExpr -> Type1Equation
-    makeTrivialEquationFromType = error "TODO: makeTrivialEquationFromType"
-
     go :: Set AssVar -> Set AssTypeVar -> Ass1TypeExpr -> Ass1TypeExpr -> Either () (Bool, Type1Equation, VarSolution, TypeVar1Solution)
     go varsToInfer tyvars1ToInfer a1tye1 a1tye2 =
       case (a1tye1, a1tye2) of
-        (A1TyVar atyvar1, _) ->
-          if atyvar1 `elem` tyvars1ToInfer
-            then pure (True, makeTrivialEquationFromType a1tye2, Map.empty, Map.singleton atyvar1 a1tye2)
-            else error $ "TODO (error): makeEquation1, unexpected type variable (left) " ++ show atyvar1
-        (_, A1TyVar atyvar2) ->
-          if atyvar2 `elem` tyvars1ToInfer
-            then pure (True, makeTrivialEquationFromType a1tye1, Map.empty, Map.singleton atyvar2 a1tye1)
-            else error $ "TODO (error): makeEquation1, unexpected type variable (right) " ++ show atyvar2
+        (A1TyVar atyvar1, _)
+          | atyvar1 `elem` tyvars1ToInfer ->
+              pure (True, makeTrivialEquationFromType1 a1tye2, Map.empty, Map.singleton atyvar1 a1tye2)
+        (_, A1TyVar atyvar2)
+          | atyvar2 `elem` tyvars1ToInfer ->
+              pure (True, makeTrivialEquationFromType1 a1tye1, Map.empty, Map.singleton atyvar2 a1tye1)
+        (A1TyVar atyvar1, A1TyVar atyvar2)
+          | atyvar1 == atyvar2 ->
+              -- If either `a0tye1` or `a0tye2` is of the form `A0TyVar atyvar`
+              -- such that `atyvar` is tracked by the type environment and thereby is not for inference,
+              -- then only exact equality is allowed:
+              pure (True, makeTrivialEquationFromType1 a1tye1, Map.empty, Map.empty)
         (A1TyPrim a1tyPrim1, A1TyPrim a1tyPrim2) ->
           case (a1tyPrim1, a1tyPrim2) of
             (A1TyPrimBase tyPrimBase1, A1TyPrimBase tyPrimBase2) ->
