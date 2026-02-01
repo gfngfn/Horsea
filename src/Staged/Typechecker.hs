@@ -188,8 +188,8 @@ makeAssertiveCast trav loc =
               pure (cast, varSolution', tyvar0Solution')
             Nothing ->
               typeError trav $ CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile tyvar1 a0tye12 a0tye2
-        (_, A0TyImplicitForAll _tyvar2 _a0tye2) ->
-          error "TODO: makeAssertiveCast, A0TyImplicitForAll (right)"
+        (_, A0TyImplicitForAll atyvar2 a0tye2') ->
+          typeError trav $ Unsupported spanInFile $ HigherRankPolymorphism a0tye1 atyvar2 a0tye2'
         (A0TyPrim a0tyPrim1 maybePred1, A0TyPrim a0tyPrim2 maybePred2') -> do
           -- Ad-hoc optimization of refinement cast insertion.
           -- Maybe we can try using an SMT solver for some subset of predicates here
@@ -1913,8 +1913,10 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
         Stage1 -> do
           (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
           pure (SigRecord.singletonVal x (Ass1Entry a1tye (Right svX)), [ABind1 (ax, a1tye) a1e])
-        StagePers ->
-          error "TODO: typecheckBind, BindValNormal, StagePers"
+        StagePers -> do
+          -- TODO: bind persistent values
+          spanInFile <- askSpanInFile loc
+          typeError trav $ Unsupported spanInFile (CannotBindPersistentValue x)
     BindModule m binds -> do
       (_, sigr, abinds) <- typecheckBinds trav tyEnv binds
       pure (SigRecord.singletonModule m (ModuleEntry sigr), abinds)

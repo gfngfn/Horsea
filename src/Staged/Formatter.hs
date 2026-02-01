@@ -637,6 +637,8 @@ instance Disp Matrix.ConstructionError where
 
 instance (Disp sv) => Disp (TypeErrorF sv) where
   dispGen _ = \case
+    Unsupported spanInFile detail ->
+      "Unsupported;" <+> disp detail <+> disp spanInFile
     UnboundVar spanInFile ms x ->
       "Unbound variable" <+> dispLongName ms x <+> disp spanInFile
     UnboundTypeVar spanInFile (TypeVar a) ->
@@ -870,6 +872,17 @@ instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
       "types" <+> stage0Style (disp a0tye1) <+> "and" <+> stage0Style (disp a0tye2) <+> "are incompatible"
     CannotMerge1 a1tye1 a1tye2 ->
       "types" <+> stage1Style (disp a1tye1) <+> "and" <+> stage1Style (disp a1tye2) <+> "are incompatible"
+
+instance (Disp sv) => Disp (UnsupportedF sv) where
+  dispGen _ = \case
+    CannotBindPersistentValue x ->
+      "Cannot bind persistent values other than built-in functions:" <+> disp x
+    HigherRankPolymorphism a0tye1 atyvar a0tye2 ->
+      "Higher-rank polymorphism; we must judge that"
+        <+> stage0Style (disp a0tye1)
+        <+> "be more general than"
+        <+> stage0Style (disp (A0TyImplicitForAll atyvar a0tye2))
+        <> ", but this has not been supported so far"
 
 instance (Disp sv) => Disp (AppContextEntryF sv) where
   dispGen _ = \case

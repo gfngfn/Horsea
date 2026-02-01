@@ -1,6 +1,7 @@
 module Staged.TypeError
   ( TypeErrorF (..),
     ConditionalMergeErrorF (..),
+    UnsupportedF (..),
     TypeError,
     ConditionalMergeError,
   )
@@ -15,7 +16,8 @@ import Util.Matrix qualified as Matrix
 import Prelude
 
 data TypeErrorF sv
-  = UnboundVar SpanInFile [Var] Var
+  = Unsupported SpanInFile (UnsupportedF sv)
+  | UnboundVar SpanInFile [Var] Var
   | UnboundTypeVar SpanInFile TypeVar
   | UnboundModule SpanInFile Var
   | NotAStage0Var SpanInFile Var
@@ -79,6 +81,11 @@ data TypeErrorF sv
 data ConditionalMergeErrorF sv
   = CannotMerge0 (Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | CannotMerge1 (Ass1TypeExprF sv) (Ass1TypeExprF sv)
+  deriving stock (Eq, Show, Functor)
+
+data UnsupportedF sv
+  = CannotBindPersistentValue Var
+  | HigherRankPolymorphism (Ass0TypeExprF sv) AssTypeVar (Ass0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 type TypeError = TypeErrorF StaticVar
