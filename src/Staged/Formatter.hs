@@ -792,6 +792,16 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> hardline
         <+> "type:"
         <> nest 2 (hardline <> stage1Style (disp a1tye))
+    CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile atyvar a0tye1 a0tye2 ->
+      "Cannot instantiate type variable"
+        <+> stage0Style (disp atyvar)
+        <+> disp spanInFile
+        <> hardline
+        <+> "left:"
+        <> nest 2 (hardline <> stage0Style (disp a0tye1))
+        <> hardline
+        <+> "right:"
+        <> nest 2 (hardline <> stage0Style (disp a0tye2))
     Stage1IfThenElseRestrictedToEmptyContext spanInFile appCtx ->
       "Stage-1 if-expressions are restricted to be used at empty application contexts"
         <+> disp spanInFile

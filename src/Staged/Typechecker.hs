@@ -187,7 +187,7 @@ makeAssertiveCast trav loc =
                       applyCast cast' (A0AppType (A0Var ax) (strictify a0tye11))
               pure (cast, varSolution', tyvar0Solution')
             Nothing ->
-              error "TODO (error): makeAssertiveCast, cannot infer a type for a type variable (left)"
+              typeError trav $ CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile tyvar1 a0tye12 a0tye2
         (_, A0TyImplicitForAll _tyvar2 _a0tye2) ->
           error "TODO: makeAssertiveCast, A0TyImplicitForAll (right)"
         (A0TyPrim a0tyPrim1 maybePred1, A0TyPrim a0tyPrim2 maybePred2') -> do
