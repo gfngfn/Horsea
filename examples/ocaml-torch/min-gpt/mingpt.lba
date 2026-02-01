@@ -1,0 +1,232 @@
+(* This example uses the tinyshakespeare dataset which can be downloaded at:
+   https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt
+
+   It has been heavily inspired by https://github.com/karpathy/minGPT
+*)
+
+let learning_rate = 0.0003 in
+let batch_size = 64 in
+let seq_len = 128 in
+let epochs = 100 in
+let sampling_length = 2048 in
+let temperature = 1.0 in
+
+(*
+type config (vocab_size, n_embd, n_head, n_layer, block_size) =
+  { vocab_size : { v:int | v = vocab_size }
+  ; n_embd : { v:int | v = n_embd && n_embd = n_head * (n_embd // n_head) }
+  ; n_head : { v:int | v = n_head }
+  ; n_layer : { v:int | v = n_layer }
+  ; block_size : { v:int | v = block_size }
+  ; attn_pdrop : float
+  ; resid_pdrop : float
+  ; embd_pdrop : float
+  }
+*)
+
+let causal_self_attention
+    (cfg_block_size : Int)
+    (cfg_n_layer : Int)
+    (cfg_n_head : Int)
+    (cfg_n_embd : {n : Int | mod n cfg_n_head == 0}) =
+  &(fun(vs : VarStore) ->
+      let linear (n : String) =
+        ~(Layer.gen_linear #input_dim cfg_n_embd #output_dim cfg_n_embd)
+          (let open VarStore in vs / n)
+      in
+      let key = linear "key" in
+      let query = linear "query" in
+      let value = linear "value" in
+      let proj = linear "proj" in
+      let mask_init =
+        ~(Tensor.gen_ones [cfg_block_size, cfg_block_size]) #device (VarStore.device vs)
+          |> Tensor.tril #diagonal 0
+          |> ~(Tensor.gen_view #size [1, 1, cfg_block_size, cfg_block_size])
+      in
+      let mask = Tensor.eq_scalar mask_init (Scalar.float 0.0) in
+      Layer.of_fn_ (fun (xs : Tensor %[sz_b, sz_t, sz_c]) -> fun #is_training (is_training : Bool) ->
+          let sz_c_over_n_head = sz_c / cfg_n_head in
+          let size = [sz_b, sz_t, cfg_n_head, sz_c_over_n_head] in
+          let k = Layer.forward key   xs |> Tensor.view #size size |> Tensor.transpose #dim0 1 #dim1 2 in (* [sz_b, n_head, sz_t, sz_c / n_head] *)
+          let q = Layer.forward query xs |> Tensor.view #size size |> Tensor.transpose #dim0 1 #dim1 2 in
+          let v = Layer.forward value xs |> Tensor.view #size size |> Tensor.transpose #dim0 1 #dim1 2 in
+          let att = Tensor.matmul q (Tensor.transpose k #dim0 -2 #dim1 -1) in (* [sz_b, n_head, sz_t, sz_t] *)
+          let att =
+            (let open Tensor in att / f (float sz_c_over_n_head |> Float.sqrt))
+              |> Tensor.masked_fill #mask mask #value (Scalar.f Float.neg_infinity)
+              |> Tensor.softmax #dim -1
+              |> Tensor.dropout #p cfg_attn_pdrop #is_training is_training
+          in
+          Tensor.matmul att v (* [sz_b, n_head, sz_t, sz_c / n_head] *)
+            |> Tensor.transpose #dim0 1 #dim1 2 (* [sz_b, sz_t, n_head, sz_c / n_head] *)
+            |> Tensor.contiguous
+            |> ~(Tensor.gen_view #size [sz_b, sz_t, sz_c])
+            |> Layer.forward proj
+            |> Tensor.dropout #p cfg_resid_pdrop #is_training is_training
+      )
+  )
+in
+
+let block (vs : VarStore) (n_embd : Int) (resid_pdrop : Int) =
+  let ln1 = Layer.layer_norm (let open VarStore in vs / "ln1") n_embd in
+  let ln2 = Layer.layer_norm (let open VarStore in vs / "ln2") n_embd in
+  let attn = causal_self_attention vs cfg in
+  let lin1 = Layer.linear (let open VarStore in vs / "lin1") #input_dim n_embd (4 * n_embd) in
+  let lin2 = Layer.linear (let open VarStore in vs / "lin2") #input_dim (4 * n_embd) n_embd in
+  Layer.of_fn_ (fun (xs : Tensor %[foo]) -> fun #is_training (is_training : Bool) ->
+      let xs =
+        ~Tensor.gen_add xs (Layer.forward ln1 xs |> Layer.forward_ attn #is_training is_training)
+      in
+      let ys =
+        Layer.forward ln2 xs
+          |> Layer.forward lin1
+          |> Tensor.gelu
+          |> Layer.forward lin2
+          |> Tensor.dropout #p resid_pdrop #is_training is_training
+      in
+      ~Tensor.gen_add xs ys
+  )
+in
+
+let gpt (vs : VarStore) (vocab_size : Int) (n_embd : Int) (block_size : Int) (n_layer : Int) =
+  let tok_emb =
+    Layer.embeddings
+      (let open VarStore in vs / "tok_emb")
+      #num_embeddings vocab_size
+      #embedding_dim n_embd
+  in
+  let pos_emb =
+    VarStore.new_var vs #shape [1, block_size, n_embd] #name "pos_emb" #init VarStore.Init.zeros
+  in
+  let ln_f = Layer.layer_norm (let open VarStore in vs / "ln_f") n_embd in
+  let head =
+    Layer.linear (let open VarStore in vs / "head") #input_dim n_embd vocab_size #use_bias false
+  in
+  let blocks =
+    let rec loop (i : Int) : Tensor %fooo -> #is_training Bool -> Tensor %fooo =
+      if i <= 0 then
+        fun (xs : Tensor %fooo) -> fun #is_training (is_training : Bool) -> xs
+      else
+        fun (xs : Tensor %fooo) -> fun #is_training (is_training : Bool) ->
+          Layer.forward_ (block (let open VarStore in vs // i) cfg) xs #is_training is_training
+            |> (fun (xs : Tensor %fooo) -> loop (i - 1) xs #is_training is_training)
+    in
+    Layer.of_fn_ (loop n_layer)
+  in
+  Layer.of_fn_ (fun (xs : Tensor %[sz_b, sz_t]) -> fun #is_training (is_training : Bool) ->
+      let tok_emb = Layer.forward tok_emb xs in
+      let pos_emb = Tensor.narrow pos_emb #dim 1 #start 0 #length sz_t in
+      ~Tensor.gen_add tok_emb pos_emb (* [sz_b, sz_t, n_embd] *)
+        |> Tensor.dropout #p cfg_embd_pdrop #is_training is_training
+        |> Layer.forward_ blocks #is_training is_training (* [sz_b, sz_t, n_embd] *)
+        |> Layer.forward ln_f
+        |> Layer.forward head (* [sz_b, sz_t, vocab_size] *)
+  )
+in
+
+let sample (block_size : Int) #gpt (gpt : Gpt) #dataset (dataset : TextHelper) #device (device : Device) =
+  let input = ~(Tensor.gen_zeros #device [1, block_size]) (* #kind (T Int64) *) in
+  let rec loop (i : Int) (input : Tensor %[1, block_size]) : List Char =
+    if i <= 0 then
+      []
+    else
+      ( Gc.full_major ();
+        let logits =
+          ~Layer.gen_forward_ gpt input #is_training false |> Tensor.select #dim 1 #index -1
+        in
+        let logits =
+          let open Tensor in logits / f temperature
+        in
+        let sampled_y =
+          Tensor.softmax logits #dim -1 (* #dtype (T Float) *)
+          |> Tensor.multinomial #num_samples 1 #replacement true
+        in
+        let sampled_char =
+          TextHelper.char dataset #label (Tensor.int_value sampled_y)
+        in
+        let input =
+          Tensor.cat_ #dim 1 input (Tensor.view sampled_y #size [1, 1])
+          |> Tensor.narrow #dim 1 #start 1 #length block_size
+        in
+        sampled_char :: loop (i - 1) input
+      )
+  in
+  String.from_char_list (loop (sampling_length - 1) input)
+in
+
+let train (vs : VarStore) #cfg (cfg : Cfg) #gpt (gpt : Gpt) #dataset (dataset : TextHelper) =
+  let device = VarStore.device vs in
+  let adam = Optimizer.adam vs #learning_rate learning_rate in
+  let batches_per_epoch = (TextHelper.total_length dataset - seq_len) / batch_size in
+  Checkpointing.loop
+    #start_index 1
+    #end_index epochs
+    #var_stores [vs]
+    #checkpoint_base "min-gpt.ot"
+    #checkpoint_every (iters 1)
+    (fun #index (epoch_idx : Int) ->
+      IO.OutChannel.write_all
+        ("out.txt." ++ show_int epoch_idx)
+        #data (sample cfg #gpt gpt #dataset dataset #device device);
+      let start_time = Unix.gettimeofday () in
+      let sum_loss = Tensor.f 0.0 in
+      TextHelper.iter #device dataset #batch_size batch_size #seq_len seq_len
+        (fun (batch_idx : Int) -> fun #xs (xs : Tensor %foooo) -> fun #ys (ys : Tensor %baaar) ->
+          let logits = ~Layer.gen_forward_ gpt xs #is_training true in
+          (* Compute the cross-entropy loss. *)
+          let loss =
+            ~Tensor.gen_cross_entropy_for_logits
+              (~(Tensor.gen_view #size [batch_size * seq_len, cfg_vocab_size]) logits)
+              #targets (~(Tensor.gen_view #size [batch_size * seq_len]) ys)
+          in
+          ~Tensor.gen_add_update sum_loss loss;
+          Stdio.printf
+            "%d/%d %f\n%!"
+            batch_idx
+            batches_per_epoch
+            (Tensor.float_value sum_loss /. Float.of_int (1 + batch_idx));
+          Optimizer.backward_step #clip_grad (norm2 4.0) adam #loss loss
+        );
+      Stdio.printf
+        "%d %.0fs %f\n%!"
+        epoch_idx
+        (Unix.gettimeofday () -. start_time)
+        (Tensor.float_value sum_loss /. Float.of_int batches_per_epoch))
+in
+
+&(let device = ~(Device.gen_cuda_if_available ()) in
+  let dataset = TextHelper.create #filename "data/input.txt" in
+  let vs = VarStore.create #name "min-gpt" #device device () in
+  let labels = TextHelper.labels dataset in
+  Stdio.printf
+    "Dataset loaded, length: %d, labels: %d.\n%!"
+    (TextHelper.total_length dataset)
+    labels;
+(*
+  let cfg =
+    { vocab_size = labels
+    ; n_embd = 512
+    ; n_head = 8
+    ; n_layer = 8
+    ; block_size = seq_len
+    ; attn_pdrop = 0.1
+    ; resid_pdrop = 0.1
+    ; embd_pdrop = 0.1
+    }
+  in
+*)
+  let gpt = gpt vs cfg in
+  train vs #gpt gpt #cfg cfg #dataset dataset
+)
+(*
+  case Sys.argv of
+  | [_bin] | [_bin, "train"] ->
+      train vs #gpt #cfg #dataset
+  | [_bin, "sample", filename] ->
+      let named_tensors = VarStore.all_vars vs in
+      Serialize.load_multi_ #named_tensors #filename;
+      sample cfg #gpt #dataset #device |> Stdio.print_endline
+  | _ ->
+      failwith "usage: mingpt (train|sample weight.ot)"
+  end
+*)
