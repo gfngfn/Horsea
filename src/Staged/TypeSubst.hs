@@ -6,6 +6,7 @@ module Staged.TypeSubst
 where
 
 import Data.Functor.Identity
+import Data.Tuple.Extra
 import Staged.Core
 import Staged.Syntax
 import Util.Maybe1
@@ -139,7 +140,7 @@ instance HasTypeVar Ass0ExprF where
     A0Tuple a0e1 a0e2 -> A0Tuple (go a0e1) (go a0e2)
     A0IfThenElse a0e0 a0e1 a0e2 -> A0IfThenElse (go a0e0) (go a0e1) (go a0e2)
     A0Bracket a1e -> A0Bracket (go a1e)
-    A0TyEqAssert _loc _ty1eq -> error "TODO: HasTypeVar Ass0ExprF, A0TyEqAssert"
+    A0TyEqAssert loc ty1eq -> A0TyEqAssert loc (go ty1eq)
     A0RefinementAssert loc a0e1 a0e2 -> A0RefinementAssert loc (go a0e1) (go a0e2)
     A0AppType a0e1 sa0tye2 -> A0AppType (go a0e1) (go sa0tye2)
     where
@@ -150,6 +151,61 @@ instance (HasTypeVar af) => HasTypeVar (AssLiteralF af) where
   tySubst s = \case
     ALitList a0es -> ALitList (map (tySubst s) a0es)
     alit -> alit
+
+instance HasTypeVar Type1EquationF where
+  tySubst :: forall sv. TypeSubstF sv -> Type1EquationF sv -> Type1EquationF sv
+  tySubst s = \case
+    TyEq1Prim ty1eqPrim ->
+      TyEq1Prim $
+        case ty1eqPrim of
+          TyEq1PrimBase tyPrimBase -> TyEq1PrimBase tyPrimBase
+          TyEq1Tensor listEq -> TyEq1Tensor (go listEq)
+          TyEq1Dataset dpEq -> TyEq1Dataset (go dpEq)
+          TyEq1Lstm (i1, i2) (h1, h2) -> TyEq1Lstm (go i1, go i2) (go h1, go h2)
+          TyEq1TextHelper (labels1, labels2) -> TyEq1TextHelper (go labels1, go labels2)
+    TyEq1List ty1eqElem ->
+      TyEq1List (go ty1eqElem)
+    TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
+      TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
+    TyEq1Product ty1eq1 ty1eq2 ->
+      TyEq1Product (go ty1eq1) (go ty1eq2)
+    TyEq1TypeVar atyvar ->
+      case s of
+        TypeSubst0 _ _ ->
+          TyEq1TypeVar atyvar
+        TypeSubst1 atyvar' a1tye' ->
+          if atyvar == atyvar'
+            then makeTrivialEquationFromType1 a1tye'
+            else TyEq1TypeVar atyvar
+    TyEq1ImplicitForAll atyvar ty1eq ->
+      TyEq1ImplicitForAll atyvar (go ty1eq)
+    where
+      go :: forall af. (HasTypeVar af) => af sv -> af sv
+      go = tySubst s
+
+instance HasTypeVar ListEquationF where
+  tySubst :: forall sv. TypeSubstF sv -> ListEquationF sv -> ListEquationF sv
+  tySubst s = \case
+    ListEqByElements zipped ->
+      ListEqByElements (map (both go) zipped)
+    ListEqByWhole a0eList1 a0eList2 ->
+      ListEqByWhole (go a0eList1) (go a0eList2)
+    where
+      go :: forall af. (HasTypeVar af) => af sv -> af sv
+      go = tySubst s
+
+instance HasTypeVar DatasetParamEquationF where
+  tySubst :: forall sv. TypeSubstF sv -> DatasetParamEquationF sv -> DatasetParamEquationF sv
+  tySubst s DatasetParamEquation {numTrainEq, numTestEq, imageEq, labelEq} =
+    DatasetParamEquation
+      { numTrainEq = both go numTrainEq,
+        numTestEq = both go numTestEq,
+        imageEq = go imageEq,
+        labelEq = go labelEq
+      }
+    where
+      go :: forall af. (HasTypeVar af) => af sv -> af sv
+      go = tySubst s
 
 instance HasTypeVar Ass1ExprF where
   tySubst :: forall sv. TypeSubstF sv -> Ass1ExprF sv -> Ass1ExprF sv

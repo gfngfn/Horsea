@@ -1035,7 +1035,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             let sa0tye1 = strictify a0tye1
             pure (Pure (A0TyImpArrow (ax1, a0tye1) a0tye2), A0Lam Nothing (ax1, sa0tye1) a0e2)
           _ : _ ->
-            error "TODO: stage-0, LamOpt, non-empty AppContext"
+            error "TODO: stage-0, LamImp, non-empty AppContext"
       AppImpGiven e1 e2 -> do
         (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgImpGiven0 a0e2 a0tye2 : appCtx) e1
@@ -1043,14 +1043,14 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           CastGiven0 cast _a0tye11 result -> do
             pure (result, A0App a0e1 (applyCast cast a0e2))
           _ -> do
-            bug "stage-0, AppOptGiven, not a CastGiven0"
+            bug "stage-0, AppImpGiven, not a CastGiven0"
       AppImpOmitted e1 -> do
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgImpOmitted0 : appCtx) e1
         case result1 of
           FillInferred0 a0eInferred result -> do
             pure (result, A0App a0e1 a0eInferred)
           _ -> do
-            bug "stage-0, AppOptOmitted, not a FillInferred0"
+            bug "stage-0, AppImpOmitted, not a FillInferred0"
       LetIn x params e1 e2 -> do
         svX <- generateFreshVar (Just x)
         let ax = AssVarStatic svX
