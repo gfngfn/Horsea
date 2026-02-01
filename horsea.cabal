@@ -76,6 +76,7 @@ library
       Staged.TypeError,
       Staged.TypeSubst,
       Staged.Typechecker,
+      Staged.Typechecker.Monad,
       Staged.Typechecker.SigRecord,
       Staged.Typechecker.TypeEnv,
       Surface.BindingTime,

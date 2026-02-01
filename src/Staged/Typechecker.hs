@@ -5,11 +5,6 @@ module Staged.Typechecker
     typecheckTypeExpr1,
     typecheckBind,
     typecheckBinds,
-    TypecheckConfig (..),
-    TypecheckState (..),
-    ImplicitArgLogF (..),
-    ImplicitArgLog,
-    M,
     run,
   )
 where
@@ -23,69 +18,30 @@ import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Maybe (fromMaybe)
 import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Data.Tuple.Extra
-import GHC.Generics (Generic)
 import Safe.Exact
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
 import Staged.Core
-import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
-import Staged.Typechecker.SigRecord qualified as SigRecord
-import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
-import Staged.Typechecker.TypeEnv qualified as TypeEnv
 import Staged.SrcSyntax
 import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
 import Staged.TypeSubst
-import Util.Elaborator
-import Util.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
+import Staged.Typechecker.Monad
+import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
+import Staged.Typechecker.SigRecord qualified as SigRecord
+import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
+import Staged.Typechecker.TypeEnv qualified as TypeEnv
+import Util.LocationInFile (SpanInFile, getSpanInFile)
 import Util.Matrix qualified as Matrix
 import Util.Maybe1
 import Util.TokenUtil (Span)
 import Util.Vector qualified as Vector
 import Prelude
-
-data TypecheckConfig = TypecheckConfig
-  { optimizeTrivialAssertion :: Bool,
-    distributeIfUnderTensorShape :: Bool,
-    sourceSpec :: SourceSpec
-  }
-
-data ImplicitArgLogF sv
-  = LogGivenArg SpanInFile (Ass0ExprF sv)
-  | LogInferredArg SpanInFile (Ass0ExprF sv)
-  deriving stock (Functor, Generic)
-
-type ImplicitArgLog = ImplicitArgLogF StaticVar
-
-data TypecheckState = TypecheckState
-  { nextVarIndex :: Int,
-    assVarDisplay :: Map StaticVar Text,
-    nextTypeVarIndex :: Int,
-    assTypeVarDisplay :: Map AssTypeVar Text,
-    implicitArgLogRev :: [ImplicitArgLog]
-  }
-
-type M' err trav a = Elaborator TypecheckState TypecheckConfig err trav a
-
-type M trav a = M' TypeError trav a
-
-typeError :: trav -> err -> M' err trav a
-typeError = raiseError
-
-mapTypeError :: (err1 -> err2) -> M' err1 trav a -> M' err2 trav a
-mapTypeError = mapError
-
-logImplicitArg :: ImplicitArgLog -> M trav ()
-logImplicitArg impArgLog = do
-  tcState@TypecheckState {implicitArgLogRev} <- getState
-  putState $ tcState {implicitArgLogRev = impArgLog : implicitArgLogRev}
 
 bug :: String -> a
 bug msg = error $ "bug: " ++ msg
@@ -121,25 +77,6 @@ findTypeVar trav loc tyvar tyEnv = do
       typeError trav $ UnboundTypeVar spanInFile tyvar
     Just tyVarEntry ->
       pure tyVarEntry
-
-generateFreshVar :: Maybe Text -> M' err trav StaticVar
-generateFreshVar maybeName = do
-  currentState@TypecheckState {nextVarIndex = n, assVarDisplay} <- getState
-  let t = fromMaybe (Text.pack ("#X" ++ show n)) maybeName
-  let sv = StaticVar n
-  putState $ currentState {nextVarIndex = n + 1, assVarDisplay = Map.insert sv t assVarDisplay}
-  pure sv
-
-generateFreshTypeVar :: TypeVar -> M' err trav AssTypeVar
-generateFreshTypeVar (TypeVar name) = do
-  currentState@TypecheckState {nextTypeVarIndex = n, assTypeVarDisplay} <- getState
-  let atyvar = AssTypeVar n
-  putState $
-    currentState
-      { nextTypeVarIndex = n + 1,
-        assTypeVarDisplay = Map.insert atyvar name assTypeVarDisplay
-      }
-  pure atyvar
 
 makeIdentityLam :: Ass0TypeExpr -> M trav Ass0Expr
 makeIdentityLam a0tye = do

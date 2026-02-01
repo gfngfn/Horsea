@@ -11,9 +11,9 @@ import Staged.Entrypoint qualified
 import Staged.Formatter (Disp)
 import Staged.Formatter qualified as Formatter
 import Staged.Parser qualified as StagedParser
+import Staged.Typechecker.Monad (TypecheckState (..))
 import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
-import Staged.Typechecker (TypecheckState (..))
 import Surface.BindingTime qualified as BindingTime
 import Surface.BindingTime.Core
 import Surface.Parser qualified as Parser

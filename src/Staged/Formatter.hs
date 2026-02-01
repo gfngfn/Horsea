@@ -24,7 +24,7 @@ import Staged.EvalError
 import Staged.SrcSyntax
 import Staged.Syntax
 import Staged.TypeError
-import Staged.Typechecker (ImplicitArgLogF (..))
+import Staged.Typechecker.Monad (ImplicitArgLogF (..))
 import Surface.BindingTime.Analyzer qualified as Bta
 import Surface.BindingTime.Core qualified as Bta
 import Surface.BindingTime.Stager qualified as Bta

@@ -13,10 +13,10 @@ module Staged.Typechecker.TypeEnv
 where
 
 import Data.List.Extra qualified as List
-import Staged.Typechecker.SigRecord (ModuleEntry, SigRecord, ValEntry)
-import Staged.Typechecker.SigRecord qualified as SigRecord
 import Staged.SrcSyntax (TypeVar, Var)
 import Staged.Syntax (AssTypeVar)
+import Staged.Typechecker.SigRecord (ModuleEntry, SigRecord, ValEntry)
+import Staged.Typechecker.SigRecord qualified as SigRecord
 import Prelude
 
 -- TODO (enhance): optimize internal representation
