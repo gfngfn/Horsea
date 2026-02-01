@@ -102,11 +102,11 @@ module List = struct
     external (builtin = "list__initialize", surface = "initialize")
   val %equal : forall 'a -> ('a -> 'a -> Bool) -> List 'a -> List 'a -> Bool
     external (builtin = "list__equal", surface = "equal")
-  val ~init : forall 'a -> List 'a -> List 'a
+  val ~init : forall 'a -> {xs : List 'a | length xs >= 1} -> List 'a
     external (builtin = "list__init", surface = "init")
-  val ~last : forall 'a -> List 'a -> 'a
+  val ~last : forall 'a -> {xs : List 'a | length xs >= 1} -> 'a
     external (builtin = "list__last", surface = "last")
-  val ~nth : forall 'a -> Nat -> List 'a -> 'a
+  val ~nth : forall 'a -> (i : Nat) -> {xs : List 'a | length xs > i} -> 'a
     external (builtin = "list__nth", surface = "nth")
 end
 
