@@ -338,7 +338,7 @@ definitions =
         do
           a0vs <- validateListValue a0v1
           case initMay a0vs of
-            Nothing -> error "TODO (error): List.init, empty list"
+            Nothing -> evalError $ Bug $ GeneralBuiltInError "List.init; empty list"
             Just a0vs' -> pure $ A0ValLiteral (ALitList a0vs')
         |],
     versatile ["list"] "last" ForStage0 1 $
@@ -346,7 +346,7 @@ definitions =
         do
           a0vs <- validateListValue a0v1
           case lastMay a0vs of
-            Nothing -> error "TODO (error): List.init, empty list"
+            Nothing -> evalError $ Bug $ GeneralBuiltInError "List.last; empty list"
             Just a0v -> pure a0v
         |],
     versatile ["list"] "nth" ForStage0 2 $
@@ -355,7 +355,7 @@ definitions =
           n <- validateIntLiteral a0v1
           a0vs <- validateListValue a0v2
           case atMay a0vs n of
-            Nothing -> error "TODO (error): List.nth, index out of bounds"
+            Nothing -> evalError $ Bug $ GeneralBuiltInError "List.nth; index out of bounds"
             Just a0v -> pure a0v
         |],
     versatile ["gc"] "full_major" ForStage1 1 $

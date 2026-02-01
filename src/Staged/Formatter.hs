@@ -1073,6 +1073,8 @@ instance (Disp sv) => Disp (BugF sv) where
         <+> disp a0v2
     BroadcastFailed ns1 ns2 ->
       "Broadcast failed:" <+> dispListLiteral ns1 <> "," <+> dispListLiteral ns2
+    GeneralBuiltInError msg ->
+      "Error raised by a built-in function:" <+> disp msg
 
 instance (Disp sv) => Disp (EvalErrorF sv) where
   dispGen _ = \case
