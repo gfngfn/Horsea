@@ -425,15 +425,17 @@ makeConstraintsFromBITypeEquation trav ann bity1' bity2' = go bity1' bity2'
             pure []
           (Left bitv1, Right nonvarBityMain2) ->
             if bitv1 `occurs` nonvarBityMain2
-              then
-                error "TODO (error): inclusion error"
+              then do
+                spanInFile <- askSpanInFile ann
+                analysisError trav $ BITypeInclusionLeft spanInFile bity1' bity2' bitv1 bity2
               else do
                 solve bitv1 nonvarBityMain2
                 pure []
           (Right nonvarBityMain1, Left bitv2) ->
             if bitv2 `occurs` nonvarBityMain1
-              then
-                error "TODO (error): inclusion error"
+              then do
+                spanInFile <- askSpanInFile ann
+                analysisError trav $ BITypeInclusionRight spanInFile bity1' bity2' bity1 bitv2
               else do
                 solve bitv2 nonvarBityMain1
                 pure []

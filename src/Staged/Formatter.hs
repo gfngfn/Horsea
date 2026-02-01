@@ -1125,6 +1125,26 @@ instance Disp Bta.AnalysisError where
         <+> disp bity1Local
         <+> "!="
         <+> disp bity2Local
+    Bta.BITypeInclusionLeft spanInFile bity1 bity2 bitv1 bity2Local ->
+      "Basic type contradiction;"
+        <+> disp bity1
+        <+> "!="
+        <+> disp bity2
+        <+> disp spanInFile
+        <> ";"
+        <+> disp bitv1
+        <+> "is included in"
+        <+> disp bity2Local
+    Bta.BITypeInclusionRight spanInFile bity1 bity2 bity1Local bitv2 ->
+      "Basic type contradiction;"
+        <+> disp bity1
+        <+> "!="
+        <+> disp bity2
+        <+> disp spanInFile
+        <> ";"
+        <+> disp bity1Local
+        <+> "includes"
+        <+> disp bitv2
     Bta.UnknownTypeOrInvalidArgs spanInFile tyName _args ->
       -- TODO (enhance): detailed report
       "Unknown type or invalid arguments:" <+> disp tyName <+> disp spanInFile
