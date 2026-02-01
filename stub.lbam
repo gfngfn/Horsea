@@ -236,6 +236,20 @@ module Tensor = struct
     external (builtin = "tensor__float_value", surface = "float_value")
   val int_value : Tensor %[] -> Int
     external (builtin = "tensor__int_value", surface = "int_value")
+  val ~gen_tril :
+    {shape : {s : List Nat | List.length s == 2}} ->
+    &(#diagonal Int ->
+      Tensor %shape ->
+      Tensor %shape
+    )
+    external (builtin = "tensor__gen_tril", surface = "tril")
+  val ~gen_eq_scalar :
+    {shape : List Nat} ->
+    &(Tensor %shape ->
+      Tensor %[] ->
+      Tensor %shape
+    )
+    external (builtin = "tensor__gen_eq_scalar", surface = "eq_scalar")
   val ~gen_get :
     {n : Nat} ->
     {shape : List Nat} ->
@@ -325,6 +339,8 @@ module VarStore = struct
     external (builtin = "var_store__unfreeze", surface = "unfreeze")
   val ( / ) : VarStore -> String -> VarStore
     external (builtin = "var_store__slash", surface = "/")
+  val device : VarStore -> Device
+    external (builtin = "var_store__device", surface = "device")
   val ~gen_all_vars : {ns : List Nat} -> &(VarStore -> List (String * Tensor %ns))
     external (builtin = "var_store__gen_all_vars", surface = "all_vars")
 end

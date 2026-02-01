@@ -31,7 +31,7 @@ let causal_self_attention
     (cfg_n_embd : {n : Int | mod n cfg_n_head == 0}) =
   &(fun(vs : VarStore) ->
       let linear (n : String) =
-        ~(Layer.gen_linear #input_dim cfg_n_embd #output_dim cfg_n_embd)
+        ~(Layer.gen_linear {[4423]} #input_dim cfg_n_embd #output_dim cfg_n_embd) (* TODO *)
           (let open VarStore in vs / n)
       in
       let key = linear "key" in
@@ -39,18 +39,35 @@ let causal_self_attention
       let value = linear "value" in
       let proj = linear "proj" in
       let mask_init =
-        ~(Tensor.gen_ones [cfg_block_size, cfg_block_size]) #device (VarStore.device vs)
-          |> Tensor.tril #diagonal 0
+        ~(Tensor.gen_ones [cfg_block_size, cfg_block_size]) (* #device (VarStore.device vs) *)
+          |> ~Tensor.gen_tril #diagonal 0
           |> ~(Tensor.gen_view #size [1, 1, cfg_block_size, cfg_block_size])
       in
-      let mask = Tensor.eq_scalar mask_init (Scalar.float 0.0) in
+      let mask = ~Tensor.gen_eq_scalar mask_init (Tensor.f 0.0) in
       Layer.of_fn_ (fun (xs : Tensor %[sz_b, sz_t, sz_c]) -> fun #is_training (is_training : Bool) ->
           let sz_c_over_n_head = sz_c / cfg_n_head in
           let size = [sz_b, sz_t, cfg_n_head, sz_c_over_n_head] in
-          let k = Layer.forward key   xs |> Tensor.view #size size |> Tensor.transpose #dim0 1 #dim1 2 in (* [sz_b, n_head, sz_t, sz_c / n_head] *)
-          let q = Layer.forward query xs |> Tensor.view #size size |> Tensor.transpose #dim0 1 #dim1 2 in
-          let v = Layer.forward value xs |> Tensor.view #size size |> Tensor.transpose #dim0 1 #dim1 2 in
-          let att = Tensor.matmul q (Tensor.transpose k #dim0 -2 #dim1 -1) in (* [sz_b, n_head, sz_t, sz_t] *)
+          let k = (* Tensor %[sz_b, cfg_n_head, sz_t, sz_c / cfg_n_head] *)
+            xs
+              |> ~Layer.gen_forward key
+              |> ~Tensor.gen_view #size size
+              |> ~Tensor.gen_transpose #dim0 1 #dim1 2
+          in
+          let q =
+            xs
+              |> ~Layer.gen_forward query
+              |> ~Tensor.gen_view #size size
+              |> ~Tensor.gen_transpose #dim0 1 #dim1 2
+          in
+          let v =
+            xs
+              |> ~Layer.gen_forward value
+              |> ~(Tensor.gen_view #size size)
+              |> ~Tensor.gen_transpose #dim0 1 #dim1 2
+          in
+          let att = (* Tensor %[sz_b, n_head, sz_t, sz_t] *)
+            Tensor.matmul q (~(Tensor.gen_transpose #dim0 -2 #dim1 -1) k)
+          in
           let att =
             (let open Tensor in att / f (float sz_c_over_n_head |> Float.sqrt))
               |> Tensor.masked_fill #mask mask #value (Scalar.f Float.neg_infinity)
@@ -58,11 +75,11 @@ let causal_self_attention
               |> Tensor.dropout #p cfg_attn_pdrop #is_training is_training
           in
           Tensor.matmul att v (* [sz_b, n_head, sz_t, sz_c / n_head] *)
-            |> Tensor.transpose #dim0 1 #dim1 2 (* [sz_b, sz_t, n_head, sz_c / n_head] *)
+            |> ~(Tensor.gen_transpose #dim0 1 #dim1 2) (* [sz_b, sz_t, n_head, sz_c / n_head] *)
             |> Tensor.contiguous
             |> ~(Tensor.gen_view #size [sz_b, sz_t, sz_c])
-            |> Layer.forward proj
-            |> Tensor.dropout #p cfg_resid_pdrop #is_training is_training
+            |> ~Layer.gen_forward proj
+            |> ~Tensor.gen_dropout #p cfg_resid_pdrop #is_training is_training
       )
   )
 in
