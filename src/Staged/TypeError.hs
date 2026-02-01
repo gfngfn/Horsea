@@ -86,6 +86,9 @@ data ConditionalMergeErrorF sv
 data UnsupportedF sv
   = CannotBindPersistentValue Var
   | HigherRankPolymorphism (Ass0TypeExprF sv) AssTypeVar (Ass0TypeExprF sv)
+  | AsWithArguments (AppContextF sv)
+  | LamWithArguments (AppContextF sv)
+  | LamImpWithArguments (AppContextF sv)
   deriving stock (Eq, Show, Functor)
 
 type TypeError = TypeErrorF StaticVar

@@ -1014,7 +1014,8 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                 let sa0tye1 = strictify a0tye1
                 pure (Pure a0tyeRec, applyCast cast (A0Lam (Just (af, sa0tyeRec)) (ax1, sa0tye1) a0e2))
           _ : _ ->
-            error "TODO: stage-0, Lam, non-empty AppContext"
+            -- TODO: consider supporting lambda abstractions with direct arguments
+            typeError trav $ Unsupported spanInFile $ LamWithArguments appCtx
       App e1 labelOpt e2 -> do
         (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArg0 labelOpt a0e2 a0tye2 : appCtx) e1
@@ -1035,7 +1036,8 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             let sa0tye1 = strictify a0tye1
             pure (Pure (A0TyImpArrow (ax1, a0tye1) a0tye2), A0Lam Nothing (ax1, sa0tye1) a0e2)
           _ : _ ->
-            error "TODO: stage-0, LamImp, non-empty AppContext"
+            -- TODO: consider supporting lambda abstractions with direct arguments
+            typeError trav $ Unsupported spanInFile $ LamImpWithArguments appCtx
       AppImpGiven e1 e2 -> do
         (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgImpGiven0 a0e2 a0tye2 : appCtx) e1
@@ -1161,7 +1163,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             a0e1 <- forceExpr0 trav tyEnv a0tye2 e1
             pure (Pure a0tye2, a0e1)
           _ : _ ->
-            error "TODO: stage-0, As, non-empty AppContext"
+            typeError trav $ Unsupported spanInFile $ AsWithArguments appCtx
       Bracket e1 -> do
         (result1, a1e1) <- typecheckExpr1 trav tyEnv appCtx e1
         result <- mapMPure (pure . A0TyCode) result1
@@ -1331,7 +1333,8 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                   makeEquation1 trav loc Set.empty Set.empty a1tyeSynth a1tyeRec
                 pure (Pure a1tyeRec, applyEquationCast loc eq (A1Lam (Just (af, a1tyeRec)) (ax1, a1tye1) a1e2))
           _ : _ ->
-            error "TODO: stage-1, Lam, non-empty AppContext"
+            -- TODO: consider supporting lambda abstractions with direct arguments
+            typeError trav $ Unsupported spanInFile $ LamWithArguments appCtx
       App e1 labelOpt e2 -> do
         (a1tye2, a1e2) <- typecheckExpr1Single trav tyEnv e2
         (result1, a1e1) <- typecheckExpr1 trav tyEnv (AppArg1 labelOpt a1tye2 : appCtx) e1

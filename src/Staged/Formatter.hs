@@ -883,6 +883,21 @@ instance (Disp sv) => Disp (UnsupportedF sv) where
         <+> "be more general than"
         <+> stage0Style (disp (A0TyImplicitForAll atyvar a0tye2))
         <> ", but this has not been supported so far"
+    AsWithArguments appCtx ->
+      "Function with an as-coercion applied to argument(s); consider let-binding it to a variable"
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
+    LamWithArguments appCtx ->
+      "Lambda abstraction directly applied to argument(s); consider using let-expressions"
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
+    LamImpWithArguments appCtx ->
+      "Lambda abstraction for an implicit parameter directly applied to argument(s); consider using let-expressions"
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
 
 instance (Disp sv) => Disp (AppContextEntryF sv) where
   dispGen _ = \case
