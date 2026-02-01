@@ -7,12 +7,14 @@ module Staged.Entrypoint
   )
 where
 
+import Control.Lens ((^?))
+import Control.Monad (forM_)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Data.Either.Extra (mapLeft)
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import Data.Tuple.Extra (first)
 import Staged.Evaluator qualified as Evaluator
@@ -25,7 +27,7 @@ import Staged.Scope.TypeEnv qualified as TypeEnv
 import Staged.SrcSyntax
 import Staged.Syntax
 import Staged.TypeError (TypeError)
-import Staged.Typechecker (TypecheckConfig (..), TypecheckState (..))
+import Staged.Typechecker (ImplicitArgLogF (..), TypecheckConfig (..), TypecheckState (..))
 import Staged.Typechecker qualified as Typechecker
 import Util.FailureReason (FailureReason (..))
 import Util.IO (readFileEither)
@@ -88,7 +90,8 @@ typecheckStub sourceSpecOfStub bindsInStub = do
           { nextVarIndex = 0,
             assVarDisplay = Map.empty,
             nextTypeVarIndex = 0,
-            assTypeVarDisplay = Map.empty
+            assTypeVarDisplay = Map.empty,
+            implicitArgLogRev = []
           }
       initialTypeEnv = TypeEnv.empty
   pure $
@@ -106,10 +109,19 @@ showVar :: Map StaticVar Text -> StaticVar -> Text
 showVar assVarDisplay sv =
   fromMaybe "<!!UNKNOWN-VAR!!>" (Map.lookup sv assVarDisplay)
 
+displayInferenceResult :: [ImplicitArgLogF Text] -> M ()
+displayInferenceResult impArgLogs = do
+  putSectionLine $ "inference result (total: " ++ show numTotal ++ ", inferred: " ++ show numInferred ++ "):"
+  forM_ impArgLogs putRenderedLines
+  where
+    numTotal = length impArgLogs
+    numInferred = length $ filter (isJust . (^? #_LogInferredArg)) impArgLogs
+
 typecheckAndEvalInput :: TypecheckState -> SourceSpec -> TypeEnv -> [AssBind] -> Expr -> M (Maybe FailureReason)
 typecheckAndEvalInput tcState sourceSpecOfInput tyEnvStub abinds e = do
   let initialEvalState = Evaluator.initialState sourceSpecOfInput
-  (r, TypecheckState {assVarDisplay}) <- typecheckInput sourceSpecOfInput tcState tyEnvStub e
+  (r, TypecheckState {assVarDisplay, implicitArgLogRev}) <-
+    typecheckInput sourceSpecOfInput tcState tyEnvStub e
   case r of
     Left tyErr -> do
       putSectionLine "type error:"
@@ -121,6 +133,7 @@ typecheckAndEvalInput tcState sourceSpecOfInput tyEnvStub abinds e = do
       putRenderedLinesAtStage0 (fmap (showVar assVarDisplay) result)
       putSectionLine "elaborated expression:"
       putRenderedLinesAtStage0 (fmap (showVar assVarDisplay) a0e)
+      displayInferenceResult (map (fmap (showVar assVarDisplay)) (reverse implicitArgLogRev))
       case Evaluator.run (Evaluator.evalExpr0 initialEnv a0e) initialEvalState of
         Left err -> do
           putSectionLine "error during compile-time code generation:"
