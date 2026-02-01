@@ -55,6 +55,7 @@ data TypeErrorF sv
   | CannotInstantiateGuidedByAppContext0 SpanInFile (AppContextF sv) (Ass0TypeExprF sv)
   | CannotInstantiateGuidedByAppContext1 SpanInFile (AppContextF sv) (Ass1TypeExprF sv)
   | CannotInferImplicit SpanInFile (AssVarF sv) (Ass0TypeExprF sv) (AppContextF sv)
+  | CannotInferTypeVariableInstance1 SpanInFile AssTypeVar (AppContextF sv) (Ass1TypeExprF sv)
   | Stage1IfThenElseRestrictedToEmptyContext SpanInFile (AppContextF sv)
   | BindingOverwritten SpanInFile Var
   | UnknownExternalName SpanInFile Text

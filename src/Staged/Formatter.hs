@@ -229,13 +229,10 @@ dispEscape :: (Disp expr) => expr -> Doc Ann
 dispEscape e =
   stagingOperatorStyle "~" <> stage0Style (dispGen Atomic e)
 
-dispTypeVar :: AssTypeVar -> Doc Ann
-dispTypeVar (AssTypeVar n) = "'a" <> disp n
-
 dispForAllType :: (Disp ty) => Associativity -> AssTypeVar -> ty -> Doc Ann
 dispForAllType req atyvar tye =
   deepenParenWhen (req <= Atomic) $
-    group ("forall" <+> dispTypeVar atyvar <> "." <+> disp tye)
+    group ("forall" <+> disp atyvar <> "." <+> disp tye)
 
 dispListType :: (Disp ty) => Associativity -> ty -> Doc Ann
 dispListType req tye =
@@ -347,6 +344,9 @@ instance (Disp sv) => Disp (AssVarF sv) where
 
 instance Disp Symbol where
   dispGen _ (Symbol n) = "#S" <> disp n
+
+instance Disp AssTypeVar where
+  dispGen _ (AssTypeVar n) = "'a" <> disp n
 
 instance (Disp e) => Disp (Literal e) where
   dispGen _ = \case
@@ -558,7 +558,7 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
   dispGen req = \case
     A0TyPrim a0tyPrim Nothing -> disp a0tyPrim
     A0TyPrim a0tyPrim (Just a0ePred) -> dispInternalRefinementType req a0tyPrim a0ePred
-    A0TyVar atyvar -> dispTypeVar atyvar
+    A0TyVar atyvar -> disp atyvar
     A0TyList a0tye Nothing -> dispListType req a0tye
     A0TyList a0tye (Just a0ePred) -> dispInternalRefinementListType req a0tye a0ePred
     A0TyProduct a0tye1 a0tye2 -> dispProductType req a0tye1 a0tye2
@@ -571,7 +571,7 @@ instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
   dispGen req = \case
     SA0TyPrim a0tyPrim Nothing -> disp a0tyPrim
     SA0TyPrim a0tyPrim (Just a0ePred) -> dispInternalRefinementType req a0tyPrim a0ePred
-    SA0TyVar atyvar -> dispTypeVar atyvar
+    SA0TyVar atyvar -> disp atyvar
     SA0TyList sa0tye Nothing -> dispListType req sa0tye
     SA0TyList sa0tye (Just a0ePred) -> dispInternalRefinementListType req sa0tye a0ePred
     SA0TyProduct sa0tye1 sa0tye2 -> dispProductType req sa0tye1 sa0tye2
@@ -599,7 +599,7 @@ instance (Disp sv) => Disp (Ass1TypeExprF sv) where
   dispGen req = \case
     A1TyPrim a1tyPrim -> dispGen req a1tyPrim
     A1TyList a1tye -> dispListType req a1tye
-    A1TyVar atyvar -> dispTypeVar atyvar
+    A1TyVar atyvar -> disp atyvar
     A1TyProduct a1tye1 a1tye2 -> dispProductType req a1tye1 a1tye2
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2
     A1TyImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
@@ -765,6 +765,16 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
     CannotInferImplicit spanInFile x a0tye appCtx ->
       "Cannot infer an implicit argument for"
         <+> disp x
+        <+> disp spanInFile
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
+        <> hardline
+        <+> "type:"
+        <> nest 2 (hardline <> stage0Style (disp a0tye))
+    CannotInferTypeVariableInstance1 spanInFile atyvar appCtx a0tye ->
+      "Cannot infer an instance for type variable"
+        <+> disp atyvar
         <+> disp spanInFile
         <> hardline
         <+> "application context:"
@@ -950,7 +960,7 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
   dispGen req = \case
     A0TyValPrim a0tyvPrim Nothing -> dispGen req a0tyvPrim
     A0TyValPrim a0tyvPrim (Just a0vPred) -> dispInternalRefinementType req a0tyvPrim a0vPred
-    A0TyValVar atyvar -> dispTypeVar atyvar
+    A0TyValVar atyvar -> disp atyvar
     A0TyValList a0tyv1 Nothing -> dispListType req a0tyv1
     A0TyValList a0tyv1 (Just a0vPred) -> dispInternalRefinementListType req a0tyv1 a0vPred
     A0TyValProduct a0tyv1 a0tyv2 -> dispProductType req a0tyv1 a0tyv2
@@ -962,7 +972,7 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case
     A1TyValPrim a1tyvPrim -> dispGen req a1tyvPrim
     A1TyValList a1tyv -> dispListType req a1tyv
-    A1TyValVar atyvar -> dispTypeVar atyvar
+    A1TyValVar atyvar -> disp atyvar
     A1TyValProduct a1tyv1 a1tyv2 -> dispProductType req a1tyv1 a1tyv2
     A1TyValArrow labelOpt a1tyv1 a1tyv2 -> dispNondepArrowType req labelOpt a1tyv1 a1tyv2
     A1TyValImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2

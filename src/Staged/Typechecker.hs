@@ -869,8 +869,9 @@ instantiateGuidedByAppContext1 trav loc varsToInfer0 appCtx0 a1tye0 = do
           case Map.lookup atyvar tyvar1Solution' of
             Just a1tyeInferred ->
               pure (InsertType1 a1tyeInferred result', varSolution', tyvar1Solution')
-            Nothing ->
-              error "TODO (error): instantiateGuidedByAppContext1, cannot infer a type for a type variable"
+            Nothing -> do
+              spanInFile <- askSpanInFile loc
+              typeError trav $ CannotInferTypeVariableInstance1 spanInFile atyvar appCtx a1tye
         (AppArg1 labelOpt' a1tye1' : appCtx', A1TyArrow labelOpt a1tye1 a1tye2) -> do
           if labelOpt' /= labelOpt
             then do
