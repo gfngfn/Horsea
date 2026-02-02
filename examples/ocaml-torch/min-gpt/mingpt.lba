@@ -51,7 +51,7 @@ let gen_causal_self_attention
           |> ~(Tensor.gen_view #size [1, 1, cfg_block_size, cfg_block_size])
       in
       let mask = ~Tensor.gen_eq_scalar mask_init (Tensor.f 0.0) in
-      ~Layer.gen_of_fn_ (fun (xs : Tensor %[sz_b, sz_t, sz_c]) -> fun #is_training (is_training : Bool) ->
+      ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %[sz_b, sz_t, sz_c]) ->
         ~(let sz_c_over_n_head = sz_c // cfg_n_head in
           let size = [sz_b, sz_t, cfg_n_head, sz_c_over_n_head] in
           &(let k = (* Tensor %[sz_b, cfg_n_head, sz_t, sz_c / cfg_n_head] *)
@@ -94,9 +94,7 @@ let gen_causal_self_attention
 in
 
 let gen_block
-    {sz_b : Nat}
-    {sz_t : Nat}
-    {sz_c : Nat}
+    {sz_b : Nat} {sz_t : Nat} {sz_c : Nat}
     (cfg_block_size : Int)
     (cfg_n_layer : Int)
     (cfg_n_head : Int)
@@ -130,6 +128,7 @@ let gen_block
             #output_dim (4 * cfg_n_embd)
           )
           (let open VarStore in vs / "lin1")
+          Layer.Activation.none
       in
       let lin2 =
         ~(Layer.gen_linear {List.append (List.init shape) [4 * cfg_n_embd]}
@@ -137,8 +136,9 @@ let gen_block
             #output_dim cfg_n_embd
           )
           (let open VarStore in vs / "lin2")
+          Layer.Activation.none
       in
-      ~Layer.gen_of_fn_ (fun (xs : Tensor %shape) -> fun #is_training (is_training : Bool) ->
+      ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %shape) ->
           let xs =
             ~Tensor.gen_add
               xs
@@ -148,7 +148,7 @@ let gen_block
             xs
               |> ~Layer.gen_forward ln2
               |> ~Layer.gen_forward lin1
-              |> Tensor.gelu
+              |> ~Tensor.gen_gelu
               |> ~Layer.gen_forward lin2
               |> ~Tensor.gen_dropout #p cfg_resid_pdrop #is_training is_training
           in
@@ -157,39 +157,46 @@ let gen_block
   )
 in
 
-let gpt (vs : VarStore) (vocab_size : Int) (n_embd : Int) (block_size : Int) (n_layer : Int) =
-  let tok_emb =
-    Layer.embeddings
-      (let open VarStore in vs / "tok_emb")
-      #num_embeddings vocab_size
-      #embedding_dim n_embd
-  in
-  let pos_emb =
-    VarStore.new_var vs #shape [1, block_size, n_embd] #name "pos_emb" #init VarStore.Init.zeros
-  in
-  let ln_f = Layer.layer_norm (let open VarStore in vs / "ln_f") n_embd in
-  let head =
-    Layer.linear (let open VarStore in vs / "head") #input_dim n_embd vocab_size #use_bias false
-  in
-  let blocks =
-    let rec loop (i : Int) : Tensor %fooo -> #is_training Bool -> Tensor %fooo =
-      if i <= 0 then
-        fun (xs : Tensor %fooo) -> fun #is_training (is_training : Bool) -> xs
-      else
-        fun (xs : Tensor %fooo) -> fun #is_training (is_training : Bool) ->
-          Layer.forward_ (block (let open VarStore in vs // i) cfg) xs #is_training is_training
-            |> (fun (xs : Tensor %fooo) -> loop (i - 1) xs #is_training is_training)
-    in
-    Layer.of_fn_ (loop n_layer)
-  in
-  Layer.of_fn_ (fun (xs : Tensor %[sz_b, sz_t]) -> fun #is_training (is_training : Bool) ->
-      let tok_emb = Layer.forward tok_emb xs in
-      let pos_emb = Tensor.narrow pos_emb #dim 1 #start 0 #length sz_t in
-      ~Tensor.gen_add tok_emb pos_emb (* [sz_b, sz_t, n_embd] *)
-        |> Tensor.dropout #p cfg_embd_pdrop #is_training is_training
-        |> Layer.forward_ blocks #is_training is_training (* [sz_b, sz_t, n_embd] *)
-        |> Layer.forward ln_f
-        |> Layer.forward head (* [sz_b, sz_t, vocab_size] *)
+let gen_gpt
+    {sz_b : Nat} {sz_t : Nat} {sz_c : Nat}
+    (vocab_size : Int) (n_embd : Int) (block_size : Int) (n_layer : Int) =
+  &(fun(vs : VarStore) ->
+      let tok_emb =
+        ~(Layer.gen_embeddings {[sz_b, sz_t]} #num_embeddings vocab_size #embedding_dim n_embd)
+          (let open VarStore in vs / "tok_emb")
+      in
+      let pos_emb =
+        ~(VarStore.gen_new_var #shape [1, block_size, n_embd])
+          vs
+          #name "pos_emb"
+          #init VarStore.Init.zeros
+      in
+      let ln_f = ~(Layer.gen_layer_norm #dim n_embd) (let open VarStore in vs / "ln_f") in
+      let head =
+        ~(Layer.gen_linear #input_dim n_embd #output_dim vocab_size)
+          (let open VarStore in vs / "head")
+          #use_bias false
+      in
+      let blocks =
+        let rec loop (i : Int) : #is_training Bool -> Tensor %fooo -> Tensor %fooo =
+          if i <= 0 then
+            fun #is_training (is_training : Bool) -> fun (xs : Tensor %fooo) -> xs
+          else
+            fun #is_training (is_training : Bool) -> fun (xs : Tensor %fooo) ->
+              Layer.forward_ (block (let open VarStore in vs // i) cfg) xs #is_training is_training
+                |> (fun (xs : Tensor %fooo) -> loop (i - 1) xs #is_training is_training)
+        in
+        ~Layer.gen_of_fn_ (loop n_layer)
+      in
+      Layer.of_fn_ (fun (xs : Tensor %[sz_b, sz_t]) -> fun #is_training (is_training : Bool) ->
+          let tok_emb = ~Layer.gen_forward tok_emb xs in
+          let pos_emb = Tensor.narrow pos_emb #dim 1 #start 0 #length sz_t in
+          ~Tensor.gen_add tok_emb pos_emb (* [sz_b, sz_t, n_embd] *)
+            |> Tensor.dropout #p cfg_embd_pdrop #is_training is_training
+            |> Layer.forward_ blocks #is_training is_training (* [sz_b, sz_t, n_embd] *)
+            |> Layer.forward ln_f
+            |> Layer.forward head (* [sz_b, sz_t, vocab_size] *)
+      )
   )
 in
 

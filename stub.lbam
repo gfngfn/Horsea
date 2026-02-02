@@ -287,6 +287,12 @@ module Tensor = struct
       Tensor %shape
     )
     external (builtin = "tensor__gen_dropout", surface = "dropout")
+  val ~gen_gelu :
+    {shape : List Nat} ->
+    &(Tensor %shape ->
+      Tensor %shape
+    )
+    external (builtin = "tensor__gen_gelu", surface = "gelu")
   val ~gen_relu :
     {shape : List Nat} ->
     &(Tensor %shape ->
@@ -395,6 +401,20 @@ module VarStore = struct
     external (builtin = "var_store__device", surface = "device")
   val ~gen_all_vars : {ns : List Nat} -> &(VarStore -> List (String * Tensor %ns))
     external (builtin = "var_store__gen_all_vars", surface = "all_vars")
+  (* TODO: handle `VarStoreInit` by an ADT *)
+  val ~gen_new_var :
+    #shape (shape : List Nat) ->
+    &(VarStore ->
+      (* #trainable Bool -> *) (* default: true *)
+      #name String ->
+      #init VarStoreInit ->
+      Tensor %shape
+    )
+    external (builtin = "var_store__gen_new_var", surface = "new_var")
+  module Init = struct
+    val zeros : VarStoreInit
+      external (builtin = "var_store__init__zeros", surface = "zeros")
+  end
 end
 
 module Layer = struct
@@ -493,6 +513,17 @@ module Layer = struct
       Tensor %shape
     )
     external (builtin = "layer__gen_layer_norm", surface = "layer_norm")
+  val ~gen_embeddings :
+    {shape : List Nat} ->
+    (* #sparse Bool -> *)
+    (* #scale_grad_by_freq Bool -> *)
+    #num_embeddings Nat ->
+    #embedding_dim (embedding_dim : Nat) ->
+    &(VarStore ->
+      Tensor %shape ->
+      Tensor %(List.append shape [embedding_dim])
+    )
+    external (builtin = "layer__gen_embeddings", surface = "embeddings")
   module Lstm = struct
     val ~gen_create :
       #input_dim (input_size : Nat) ->

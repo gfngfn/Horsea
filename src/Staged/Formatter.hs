@@ -547,6 +547,7 @@ instance Disp AssPrimBaseType where
     ATyPrimChar -> "Char"
     ATyPrimClipGrad -> "ClipGrad"
     ATyPrimOutChannel -> "OutChannel"
+    ATyPrimVarStoreInit -> "VarStoreInit"
 
 instance Disp Ass0PrimType where
   dispGen req = \case
