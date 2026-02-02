@@ -67,7 +67,7 @@ let dataset =
                 #targets batch_labels
             in
             (let open Tensor in sum_loss += loss);
-            Optimizer.backward_step sgd #loss loss
+            Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none sgd #loss loss
       )
       Device.cpu
       dataset;

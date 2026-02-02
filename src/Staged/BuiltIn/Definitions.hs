@@ -550,11 +550,12 @@ definitions =
       [|error "UNIMPLEMENTED: Optimizer.step"|],
     versatile ["optimizer"] "zero_grad" ForStage1 1 $
       [|error "UNIMPLEMENTED: Optimizer.zero_grad"|],
-    versatile ["optimizer"] "backward_step" ForStage1 2 $
+    versatile ["optimizer"] "backward_step" ForStage1 3 $
       [|
         do
-          let _optimizer = a0v1
-          let _tensor = a0v2
+          let _clipGrad = a0v1
+          let _optimizer = a0v2
+          let _tensor = a0v3
           error "UNIMPLEMENTED: Optimizer.backward_step"
         |],
     versatile ["checkpointing"] "loop" ForStage1 6 $

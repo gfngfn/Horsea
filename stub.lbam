@@ -586,7 +586,10 @@ module Optimizer = struct
     #momentum Float ->
     Optimizer
     external (builtin = "optimizer__sgd", surface = "sgd")
+  (* TODO: handle `Optimizer.ClipGrad` as an ADT *)
   module ClipGrad = struct
+    val none : ClipGrad
+      external (builtin = "optimizer__clip_grad__none", surface = "none")
     val norm2 : Float -> ClipGrad
       external (builtin = "optimizer__clip_grad__norm2", surface = "norm2")
     val value : Float -> ClipGrad
@@ -602,6 +605,7 @@ module Optimizer = struct
     Unit
     external (builtin = "optimizer__zero_grad", surface = "zero_grad")
   val backward_step :
+    #clip_grad ClipGrad -> (* default: Optimizer.ClipGrad.none *)
     Optimizer ->
     #loss Tensor %[] ->
     Unit

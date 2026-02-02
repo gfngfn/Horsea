@@ -74,7 +74,7 @@ let model_path = "path/to/model" in
                       #targets batch_labels
                   in
                   ~Tensor.gen_add_update sum_loss loss;
-                  Optimizer.backward_step sgd #loss loss
+                  Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none sgd #loss loss
               )
             )
         )
