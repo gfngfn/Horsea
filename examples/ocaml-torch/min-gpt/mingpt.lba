@@ -24,12 +24,12 @@ let gen_causal_self_attention
     {sz_b : Nat}
     {sz_t : Nat}
     {sz_c : Nat}
-    (cfg_block_size : Int)
-    (cfg_n_head : Int)
-    (cfg_n_embd : {n : Int | mod n cfg_n_head == 0}) =
-  &(fun(cfg_attn_pdrop : Float) ->
-    fun(cfg_resid_pdrop : Float) ->
-    fun(cfg_embd_pdrop : Float) ->
+    #block_size (cfg_block_size : Int)
+    #n_head (cfg_n_head : Int)
+    #n_embd (cfg_n_embd : {n : Int | mod n cfg_n_head == 0}) =
+  &(fun #attn_pdrop (cfg_attn_pdrop : Float) ->
+    fun #resid_pdrop (cfg_resid_pdrop : Float) ->
+    fun #embd_pdrop (cfg_embd_pdrop : Float) ->
     fun(vs : VarStore) ->
       let linear (n : String) =
         ~(Layer.gen_linear {[4423]} #input_dim cfg_n_embd #output_dim cfg_n_embd) (* TODO *)
@@ -91,13 +91,13 @@ in
 
 let gen_block
     {sz_b : Nat} {sz_t : Nat} {sz_c : Nat}
-    (cfg_block_size : Int)
-    (cfg_n_head : Int)
-    (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
+    #block_size (cfg_block_size : Int)
+    #n_head (cfg_n_head : Int)
+    #n_embd (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
     {shape : {s : List Nat | List.length s >= 1 && List.last s == cfg_n_embd}} =
-  &(fun(cfg_attn_pdrop : Float) ->
-    fun(cfg_resid_pdrop : Float) ->
-    fun(cfg_embd_pdrop : Float) ->
+  &(fun #attn_pdrop (cfg_attn_pdrop : Float) ->
+    fun #resid_pdrop (cfg_resid_pdrop : Float) ->
+    fun #embd_pdrop (cfg_embd_pdrop : Float) ->
     fun(vs : VarStore) ->
       let ln1 = ~(Layer.gen_layer_norm #dim cfg_n_embd {shape}) (let open VarStore in vs / "ln1") in
       let ln2 = ~(Layer.gen_layer_norm #dim cfg_n_embd {shape}) (let open VarStore in vs / "ln2") in
@@ -106,13 +106,13 @@ let gen_block
             {sz_b}
             {sz_t}
             {sz_c}
-            cfg_block_size
-            cfg_n_head
-            cfg_n_embd
+            #block_size cfg_block_size
+            #n_head cfg_n_head
+            #n_embd cfg_n_embd
           )
-          cfg_attn_pdrop
-          cfg_resid_pdrop
-          cfg_embd_pdrop
+          #attn_pdrop cfg_attn_pdrop
+          #resid_pdrop cfg_resid_pdrop
+          #embd_pdrop cfg_embd_pdrop
           vs
       in
       let lin1 =
@@ -158,14 +158,14 @@ let gen_gpt
     {sz_b : Nat}
     {sz_t : Nat}
     {sz_c : Nat}
-    (cfg_block_size : Int)
-    (cfg_n_head : Int)
-    (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
-    (cfg_vocab_size : Int) =
-  &(fun(cfg_n_layer : Int) ->
-    fun(cfg_attn_pdrop : Float) ->
-    fun(cfg_resid_pdrop : Float) ->
-    fun(cfg_embd_pdrop : Float) ->
+    #block_size (cfg_block_size : Int)
+    #n_head (cfg_n_head : Int)
+    #n_embd (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
+    #vocab_size (cfg_vocab_size : Int) =
+  &(fun #n_layer (cfg_n_layer : Int) ->
+    fun #attn_pdrop (cfg_attn_pdrop : Float) ->
+    fun #resid_pdrop (cfg_resid_pdrop : Float) ->
+    fun #embd_pdrop (cfg_embd_pdrop : Float) ->
     fun(vs : VarStore) ->
       let tok_emb =
         ~(Layer.gen_embeddings {[sz_b, sz_t]} #num_embeddings cfg_vocab_size #embedding_dim cfg_n_embd)
@@ -199,14 +199,14 @@ let gen_gpt
                         {sz_b}
                         {sz_t}
                         {sz_c}
-                        cfg_block_size
-                        cfg_n_head
-                        cfg_n_embd
+                        #block_size cfg_block_size
+                        #n_head cfg_n_head
+                        #n_embd cfg_n_embd
                         {fooo}
                     )
-                      cfg_attn_pdrop
-                      cfg_resid_pdrop
-                      cfg_embd_pdrop
+                      #attn_pdrop cfg_attn_pdrop
+                      #resid_pdrop cfg_resid_pdrop
+                      #embd_pdrop cfg_embd_pdrop
                       (let open VarStore in vs // i)
                   )
                   #is_training is_training
@@ -269,17 +269,11 @@ let baaar = [1925] in (* TODO *)
 
 let gen_train
     {labels : Nat}
-    (cfg_block_size : Int)
-    (cfg_n_head : Int)
-    (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
-    (cfg_vocab_size : Int) =
+    #block_size (cfg_block_size : Int)
+    #vocab_size (cfg_vocab_size : Int) =
   &(let learning_rate = 0.0003 in
     let epochs = 100 in
     fun(vs : VarStore) ->
-    fun(cfg_n_layer : Int) ->
-    fun(cfg_attn_pdrop : Float) ->
-    fun(cfg_resid_pdrop : Float) ->
-    fun(cfg_embd_pdrop : Float) ->
     fun #gpt (gpt : #is_training Bool -> Tensor %[1, cfg_block_size] -> Tensor %[3456]) -> (* TODO *)
     fun #dataset (dataset : TextHelper %labels) ->
       let device = VarStore.device vs in
@@ -350,8 +344,29 @@ let labels = 1000 in (* TODO *)
     }
   in
 *)
-  let gpt = gpt vs cfg in
-  train vs #gpt gpt #cfg cfg #dataset dataset
+  let gpt =
+    ~(gen_gpt
+        {431} (* sz_b *)
+        {542} (* sz_t *)
+        {653} (* sz_c *)
+        #block_size seq_len
+        #n_head 8
+        #n_embd 512
+        #vocab_size labels
+    )
+      #n_layer 8
+      #attn_pdrop 0.1
+      #resid_pdrop 0.1
+      #embd_pdrop 0.1
+      vs
+  in
+  ~(gen_train
+      #block_size seq_len
+      #vocab_size labels
+  )
+    vs
+    #gpt gpt
+    #dataset dataset
 )
 (*
   case Sys.argv of

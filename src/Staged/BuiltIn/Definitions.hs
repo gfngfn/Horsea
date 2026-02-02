@@ -503,7 +503,16 @@ definitions =
           let _varStore = a0v1
           error "UNIMPLEMENTED: VarStore.freeze"
         |],
+    versatile ["var_store"] "slash" ForStage1 2 $
+      [|error "UNIMPLEMENTED: VarStore.( / )"|],
+    versatile ["var_store"] "double_slash" ForStage1 2 $
+      [|error "UNIMPLEMENTED: VarStore.( // )"|],
+    versatile ["var_store"] "device" ForStage1 1 $
+      [|error "UNIMPLEMENTED: VarStore.device"|],
     gen ["var_store"] "all_vars" [ParamIntList],
+    gen ["var_store"] "new_var" [ParamIntList],
+    versatile ["var_store", "init"] "zeros" ForStage1 0 $
+      [|error "UNIMPLEMENTED: VarStore.Init.zeros"|],
     versatile ["layer", "activation"] "relu" ForStage1 0 $
       [|error "UNIMPLEMENTED: Layer.Activation.relu"|],
     versatile ["layer", "activation"] "softmax" ForStage1 0 $
@@ -520,9 +529,12 @@ definitions =
       [|error "UNIMPLEMENTED: Layer.Activation.none"|],
     gen ["layer"] "forward" [ParamIntList, ParamIntList],
     gen ["layer"] "forward_" [ParamIntList, ParamIntList],
+    gen ["layer"] "of_fn_" [ParamIntList, ParamIntList],
     gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt],
     gen ["layer"] "conv_transpose2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamIntList],
     gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt],
+    gen ["layer"] "layer_norm" [ParamInt, ParamIntList],
+    gen ["layer"] "embeddings" [ParamIntList, ParamInt, ParamInt],
     gen ["layer", "lstm"] "create" [ParamInt, ParamInt],
     gen ["layer", "lstm"] "zero_state" [ParamInt, ParamInt, ParamInt],
     gen ["layer", "lstm"] "step" [ParamInt, ParamInt, ParamInt],
@@ -542,6 +554,8 @@ definitions =
           _momentum <- validateFloatLiteral a0v3
           error "UNIMPLEMENTED: Optimizer.sgd"
         |],
+    versatile ["optimizer", "clip_grad"] "none" ForStage1 0 $
+      [|error "UNIMPLEMENTED: Optimizer.ClipGrad.none"|],
     versatile ["optimizer", "clip_grad"] "norm2" ForStage1 0 $
       [|error "UNIMPLEMENTED: Optimizer.ClipGrad.norm2"|],
     versatile ["optimizer", "clip_grad"] "value" ForStage1 0 $
