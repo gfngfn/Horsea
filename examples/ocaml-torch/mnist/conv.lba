@@ -75,7 +75,7 @@ let batch_size = 256 in
                   MnistHelper.dataset
               in
               print_int batch_idx;
-              print_float (Tensor.float_value loss);
+              print_float (~Tensor.gen_float_value loss);
               print_float test_accuracy
             else
               ()

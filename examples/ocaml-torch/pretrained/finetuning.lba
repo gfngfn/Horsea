@@ -93,7 +93,7 @@ let model_path = "path/to/model" in
         in
         print_string "train loss:";
         print_float
-          (Tensor.float_value sum_loss /
+          (~Tensor.gen_float_value sum_loss /
             float (~(DatasetHelper.gen_batches_per_epoch #batch_size batch_size) dataset));
         print_string "test accuracy:";
         print_float test_accuracy

@@ -112,7 +112,9 @@ unliftBuiltInName = \case
   A1BIIntEqual -> arity2 BIIntEqual
   A1BIAnd -> arity2 BIAnd
   A1BICons -> arity2 BICons
+  A1BIProd -> arity1 BIProd
   A1BIFloat -> arity1 BIFloat
+  A1BIPrintInt -> arity1 BIPrintInt
   A1BIPrintFloat -> arity1 BIPrintFloat
   A1BIPrintString -> arity1 BIPrintString
   A1BIRange -> arity2 BIRange

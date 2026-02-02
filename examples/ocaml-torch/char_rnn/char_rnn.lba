@@ -35,7 +35,7 @@ let gen_sample {labels : Nat} {input_size : Nat} {hidden_size : Nat} =
               let sampled_label =
                 ~(Tensor.gen_get {1} {[] as List Nat})
                   (~(Tensor.gen_get {1} {[1]}) sampled_y 0) 0
-                    |> Tensor.int_value
+                    |> ~Tensor.gen_int_value
               in
               loop (sampled_label, seq) state (i - 1)
             )
@@ -81,38 +81,36 @@ in
         #data (~gen_sample #dataset dataset #lstm lstm #linear linear #device device);
       let start_time = Unix.gettimeofday () in
       let sum_loss = Tensor.f 0.0 in
-      ~(TextHelper.gen_iter #seq_len seq_len #batch_size batch_size
-          &(fun (batch_idx : Int) ->
-            fun #xs (xs : Tensor %[batch_size, seq_len]) ->
-            fun #ys (ys : Tensor %[batch_size, seq_len]) ->
-              Optimizer.zero_grad adam;
-              let onehot =
-                let xs = ~(Tensor.gen_view #size [batch_size, seq_len, 1]) xs in
-                let one = ~(Tensor.gen_ones [batch_size, seq_len, 1]) (* #device device *) in
-                ~(Tensor.gen_zeros [batch_size, seq_len, labels]) (* #device device *)
+      ~(TextHelper.gen_iter #seq_len seq_len #batch_size batch_size)
+        ( fun (batch_idx : Int) ->
+          fun #xs (xs : Tensor %[batch_size, seq_len]) ->
+          fun #ys (ys : Tensor %[batch_size, seq_len]) ->
+            Optimizer.zero_grad adam;
+            let onehot =
+              let xs = ~(Tensor.gen_view #size [batch_size, seq_len, 1]) xs in
+              let one = ~(Tensor.gen_ones [batch_size, seq_len, 1]) (* #device device *) in
+              ~(Tensor.gen_zeros [batch_size, seq_len, labels]) (* #device device *)
                 |> ~(Tensor.gen_scatter_ #dim 2) #src one #index xs
-              in
-              let (lstm_out, dummy) = ~Layer.Lstm.gen_seq #is_training true lstm onehot in
-              let logits = ~Layer.gen_forward linear lstm_out in
-              (* Compute the cross-entropy loss. *)
-              let loss =
-                ~Tensor.gen_cross_entropy_for_logits
-                  (~(Tensor.gen_view #size [batch_size * seq_len, labels]) logits)
-                  #targets (~(Tensor.gen_view #size [batch_size * seq_len]) ys)
-              in
-              ~Tensor.gen_add_update sum_loss loss;
-              print_int batch_idx;
-              print_int batches_per_epoch;
-              print_float (Tensor.float_value sum_loss / float (1 + batch_idx));
-              Tensor.backward loss;
-              Optimizer.step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam
-            )
-          )
-      )
+            in
+            let (lstm_out, dummy) = ~Layer.Lstm.gen_seq #is_training true lstm onehot in
+            let logits = ~Layer.gen_forward linear lstm_out in
+            (* Compute the cross-entropy loss. *)
+            let loss =
+              ~Tensor.gen_cross_entropy_for_logits
+                (~(Tensor.gen_view #size [batch_size * seq_len, labels]) logits)
+                #targets (~(Tensor.gen_view #size [batch_size * seq_len]) ys)
+            in
+            ~Tensor.gen_add_update sum_loss loss;
+            print_int batch_idx;
+            print_int batches_per_epoch;
+            print_float (~Tensor.gen_float_value sum_loss / float (1 + batch_idx));
+            Tensor.backward loss;
+            Optimizer.step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam
+        )
         #device device
         dataset;
       print_int epoch_idx;
       print_int (Unix.gettimeofday () - start_time);
-      print_float (Tensor.float_value sum_loss / float batches_per_epoch)
+      print_float (~Tensor.gen_float_value sum_loss / float batches_per_epoch)
     )
 )

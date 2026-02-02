@@ -63,10 +63,12 @@ val ~insert_at : Nat -> Nat -> List Nat -> List Nat
   external (builtin = "insert_at", surface = "insert_at")
 val ~drop_at : Nat -> List Nat -> List Nat
   external (builtin = "drop_at", surface = "drop_at")
-val ~swap : Nat -> Nat -> List Nat -> List Nat
+val ~swap : Int -> Int -> List Nat -> List Nat
   external (builtin = "swap", surface = "swap")
 val ~dim_matmul : List Nat -> List Nat -> List Nat
   external (builtin = "dim_matmul", surface = "dim_matmul")
+val %prod : List Int -> Int
+  external (builtin = "prod", surface = "prod")
 val ~broadcastable : List Nat -> List Nat -> Bool
   external (builtin = "broadcastable", surface = "broadcastable")
 val ~broadcast : List Nat -> List Nat -> List Nat
@@ -242,10 +244,14 @@ module Tensor = struct
     external (builtin = "tensor__backward", surface = "backward")
   val no_grad : (Unit -> Unit) -> Unit
     external (builtin = "tensor__no_grad", surface = "no_grad")
-  val float_value : Tensor %[] -> Float
-    external (builtin = "tensor__float_value", surface = "float_value")
-  val int_value : Tensor %[] -> Int
-    external (builtin = "tensor__int_value", surface = "int_value")
+  val ~gen_float_value :
+    {shape : {s : List Nat | prod s == 1}} ->
+    &(Tensor %shape -> Float)
+    external (builtin = "tensor__gen_float_value", surface = "float_value")
+  val ~gen_int_value :
+    {shape : {s : List Nat | prod s == 1}} ->
+    &(Tensor %shape -> Int)
+    external (builtin = "tensor__gen_int_value", surface = "int_value")
   val ~gen_tril :
     {shape : {s : List Nat | List.length s == 2}} ->
     &(#diagonal Int ->
@@ -357,11 +363,11 @@ module Tensor = struct
     external (builtin = "tensor__gen_matmul", surface = "matmul")
   val ~gen_masked_fill :
     {shape1 : List Nat} ->
-    {shape2 : {s : List Nat | broadcastable s shape1}} ->
+    {shape2 : {s : List Nat | broadcastable shape1 s}} ->
     &(#mask Tensor %shape1 ->
       #value Tensor %[] ->
       Tensor %shape2 ->
-      Tensor %(broadcast shape2 shape1)
+      Tensor %(broadcast shape1 shape2)
     )
     external (builtin = "tensor__gen_masked_fill", surface = "masked_fill")
   val ~gen_max_pool2d :
@@ -728,8 +734,11 @@ module TextHelper = struct
     {labels : Nat} ->
     #seq_len (seq_len : Nat) ->
     #batch_size (batch_size : Nat) ->
-    &(Int -> #xs Tensor %[batch_size, seq_len] -> #ys Tensor %[batch_size, seq_len] -> Unit) ->
-    &(#device Device -> TextHelper %labels -> Unit)
+    &((Int -> #xs Tensor %[batch_size, seq_len] -> #ys Tensor %[batch_size, seq_len] -> Unit) ->
+      #device Device ->
+      TextHelper %labels ->
+      Unit
+    )
     external (builtin = "text_helper__gen_iter", surface = "iter")
 end
 

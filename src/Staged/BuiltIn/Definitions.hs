@@ -122,19 +122,23 @@ definitions =
           n <- validateIntLiteral a0v1
           pure $ A0ValLiteral (ALitFloat (fromIntegral n))
         |],
+    versatile [] "print_int" ForBothStages 1 $
+      [|
+        do
+          _r <- validateFloatLiteral a0v1
+          error "UNIMPLEMENTED: print_int"
+        |],
     versatile [] "print_float" ForBothStages 1 $
       [|
         do
           _r <- validateFloatLiteral a0v1
-          -- TODO: print `r` here
-          pure $ A0ValLiteral ALitUnit
+          error "UNIMPLEMENTED: print_float"
         |],
     versatile [] "print_string" ForBothStages 1 $
       [|
         do
           _s <- validateStringLiteral a0v1
-          -- TODO: print `s` here
-          pure $ A0ValLiteral ALitUnit
+          error "UNIMPLEMENTED: print_string"
         |],
     versatile [] "range" ForBothStages 2 $
       [|
@@ -219,6 +223,12 @@ definitions =
           case dimMatmul ns1 ns2 of
             Nothing -> evalError $ Bug $ GeneralBuiltInError "dim_matmul"
             Just ns -> pure $ A0ValLiteral (ALitList (map (A0ValLiteral . ALitInt) ns))
+        |],
+    versatile [] "prod" ForBothStages 1 $
+      [|
+        do
+          ns <- validateIntListLiteral a0v1
+          pure $ A0ValLiteral (ALitInt (List.foldl' (*) 1 ns))
         |],
     versatile [] "broadcastable" ForStage0 2 $
       [|
@@ -423,6 +433,7 @@ definitions =
         |],
     gen ["tensor"] "sub" [ParamIntList, ParamIntList],
     gen ["tensor"] "mult" [ParamIntList, ParamIntList],
+    gen ["tensor"] "div" [ParamIntList, ParamIntList],
     gen ["tensor"] "log" [ParamIntList],
     gen ["tensor"] "square" [ParamIntList],
     gen ["tensor"] "cat_" [ParamInt, ParamIntList, ParamIntList],
@@ -466,10 +477,8 @@ definitions =
           let _f = a0v1
           error "UNIMPLEMENTED: Tensor.no_grad"
         |],
-    versatile ["tensor"] "float_value" ForStage1 1 $
-      [|error "UNIMPLEMENTED: Tensor.float_value"|],
-    versatile ["tensor"] "int_value" ForStage1 1 $
-      [|error "UNIMPLEMENTED: Tensor.int_value"|],
+    gen ["tensor"] "float_value" [ParamIntList],
+    gen ["tensor"] "int_value" [ParamIntList],
     gen ["tensor"] "tril" [ParamIntList],
     gen ["tensor"] "contiguous" [ParamIntList],
     gen ["tensor"] "eq_scalar" [ParamIntList],
@@ -603,7 +612,7 @@ definitions =
     gen ["text_helper"] "create" [ParamInt, ParamString],
     gen ["text_helper"] "char" [ParamInt],
     gen ["text_helper"] "total_length" [ParamInt],
-    gen ["text_helper"] "iter" [ParamInt, ParamInt, ParamInt, ParamDiscarded],
+    gen ["text_helper"] "iter" [ParamInt, ParamInt, ParamInt],
     gen ["torch_vision", "resnet"] "resnet18" [ParamInt, ParamInt, ParamInt, ParamInt],
     gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamInt, ParamString, ParamStringList],
     gen ["torch_vision", "imagenet"] "load_image" [ParamIntList, ParamString],

@@ -83,7 +83,9 @@ Checkpointing.loop
       #data (sample #dataset dataset #lstm lstm #linear linear #device device);
     let start_time = Unix.gettimeofday () in
     let sum_loss = Tensor.f 0.0 in
-    TextHelper.iter #seq_len seq_len #batch_size batch_size
+    TextHelper.iter
+      #seq_len seq_len
+      #batch_size batch_size
       ( fun (batch_idx : Int) ->
         fun #xs (xs : Tensor [batch_size, seq_len]) ->
         fun #ys (ys : Tensor [batch_size, seq_len]) ->
@@ -103,9 +105,9 @@ Checkpointing.loop
               #targets (Tensor.view #size [batch_size * seq_len] ys)
           in
           (let open Tensor in sum_loss += loss);
-          print_int (lift_int batch_idx);
+          print_int batch_idx;
           print_int batches_per_epoch;
-          print_float (Tensor.float_value sum_loss / float (1 + (lift_int batch_idx)));
+          print_float (Tensor.float_value sum_loss / float (1 + batch_idx));
           Tensor.backward loss;
           Optimizer.step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam
       )
