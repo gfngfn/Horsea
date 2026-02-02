@@ -35,7 +35,7 @@ let gen_causal_self_attention
       ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %[b, seq_len, cfg_n_embd]) ->
         ~(let n_embd_over_n_head = cfg_n_embd // cfg_n_head in
           let size = [b, seq_len, cfg_n_head, n_embd_over_n_head] in
-          &(let k = (* Tensor %[b, cfg_n_head, seq_len, cfg_n_embd / cfg_n_head] *)
+          &(let k = (* [b, cfg_n_head, seq_len, cfg_n_embd / cfg_n_head] *)
               xs
                 |> ~Layer.gen_forward key
                 |> ~(Tensor.gen_view #size size)
@@ -53,20 +53,17 @@ let gen_causal_self_attention
                 |> ~(Tensor.gen_view #size size)
                 |> ~(Tensor.gen_transpose #dim0 1 #dim1 2)
             in
-            let att = (* Tensor %[b, cfg_n_head, seq_len, seq_len] *)
+            let att = (* [b, cfg_n_head, seq_len, seq_len] *)
               ~Tensor.gen_matmul q (~(Tensor.gen_transpose #dim0 -2 #dim1 -1) k)
-                as Tensor %[b, cfg_n_head, seq_len, seq_len]
             in
-            let att0 = (~Tensor.gen_div att (Tensor.f (sqrt (float ~(lift_int n_embd_over_n_head))))) in
-            (* let a = mask + 1 in *)
             let att =
-              att0
+              ~Tensor.gen_div att (Tensor.f (sqrt (float ~(lift_int n_embd_over_n_head))))
                 |> ~Tensor.gen_masked_fill #mask mask #value (Tensor.f neg_infinity)
                 |> ~(Tensor.gen_softmax #dim -1)
                 |> ~Tensor.gen_dropout #p cfg_attn_pdrop #is_training is_training
             in
-            ~Tensor.gen_matmul att v (* [b, n_head, seq_len, cfg_n_embd / n_head] *)
-              |> ~(Tensor.gen_transpose #dim0 1 #dim1 2) (* [b, seq_len, n_head, cfg_n_embd / n_head] *)
+            ~Tensor.gen_matmul att v (* [b, n_head, seq_len, cfg_n_embd / cfg_n_head] *)
+              |> ~(Tensor.gen_transpose #dim0 1 #dim1 2) (* [b, seq_len, cfg_n_head, cfg_n_embd / cfg_n_head] *)
               |> ~Tensor.gen_contiguous
               |> ~(Tensor.gen_view #size [b, seq_len, cfg_n_embd])
               |> ~Layer.gen_forward proj
@@ -305,9 +302,9 @@ let labels = 1000 in (* TODO *)
   let vs = VarStore.create #frozen false #name "min-gpt" #device device () in
   print_string
     ( "Dataset loaded, length: "
-        ++ (show_int (~TextHelper.gen_total_length dataset))
+        ++ show_int (~TextHelper.gen_total_length dataset)
         ++ ", labels: "
-        ++ (show_int ~(lift_int labels))
+        ++ show_int ~(lift_int labels)
         ++ ".\n");
   ~(let gpt (b : Nat) =
       &(~(gen_gpt

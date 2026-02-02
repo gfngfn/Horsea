@@ -1,0 +1,321 @@
+(* This example uses the tinyshakespeare dataset which can be downloaded at:
+   https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt
+
+   It has been heavily inspired by https://github.com/karpathy/minGPT
+*)
+
+let batch_size = 64 in
+let seq_len = 128 in
+
+let causal_self_attention
+    {b : Nat}
+    #block_size (cfg_block_size : Nat)
+    #n_head (cfg_n_head : Nat)
+    #n_embd (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
+    #attn_pdrop (cfg_attn_pdrop : Float)
+    #resid_pdrop (cfg_resid_pdrop : Float)
+    #embd_pdrop (cfg_embd_pdrop : Float)
+    (vs : VarStore) =
+  let linear (n : String) =
+    Layer.linear {[b, seq_len]} #input_dim cfg_n_embd #output_dim cfg_n_embd
+      (let open VarStore in vs / n)
+      #use_bias true
+      Layer.Activation.none
+  in
+  let key = linear "key" in
+  let query = linear "query" in
+  let value = linear "value" in
+  let proj = linear "proj" in
+  let mask_init =
+    Tensor.ones [cfg_block_size, cfg_block_size] (* #device (VarStore.device vs) *)
+      |> Tensor.tril #diagonal 0
+      |> Tensor.view #size [1, 1, cfg_block_size, cfg_block_size]
+  in
+  let mask = Tensor.eq_scalar mask_init (Tensor.f 0.0) in
+  Layer.of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor [b, seq_len, cfg_n_embd]) ->
+    let n_embd_over_n_head = cfg_n_embd // cfg_n_head in
+    let size = [b, seq_len, cfg_n_head, n_embd_over_n_head] in
+    let k = (* [b, cfg_n_head, seq_len, cfg_n_embd / cfg_n_head] *)
+      xs
+        |> Layer.forward key
+        |> Tensor.view #size size
+        |> Tensor.transpose #dim0 1 #dim1 2
+    in
+    let q =
+      xs
+        |> Layer.forward query
+        |> Tensor.view #size size
+        |> Tensor.transpose #dim0 1 #dim1 2
+    in
+    let v =
+      xs
+        |> Layer.forward value
+        |> Tensor.view #size size
+        |> Tensor.transpose #dim0 1 #dim1 2
+    in
+    let att = (* [b, cfg_n_head, seq_len, seq_len] *)
+      Tensor.matmul q (Tensor.transpose #dim0 -2 #dim1 -1 k)
+    in
+    let att =
+      (let open Tensor in att / (f (sqrt (float (lift_int n_embd_over_n_head)))))
+        |> Tensor.masked_fill #mask mask #value (Tensor.f neg_infinity)
+        |> Tensor.softmax #dim -1
+        |> Tensor.dropout #p cfg_attn_pdrop #is_training is_training
+    in
+    Tensor.matmul att v (* [b, cfg_n_head, seq_len, cfg_n_embd / cfg_n_head] *)
+      |> Tensor.transpose #dim0 1 #dim1 2 (* [b, seq_len, cfg_n_head, cfg_n_embd / cfg_n_head] *)
+      |> Tensor.contiguous
+      |> Tensor.view #size [b, seq_len, cfg_n_embd]
+      |> Layer.forward proj
+      |> Tensor.dropout #p cfg_resid_pdrop #is_training is_training
+  )
+in
+
+let block
+    {b : Nat}
+    #block_size (cfg_block_size : Int)
+    #n_head (cfg_n_head : Int)
+    #n_embd (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
+    #attn_pdrop (cfg_attn_pdrop : Float)
+    #resid_pdrop (cfg_resid_pdrop : Float)
+    #embd_pdrop (cfg_embd_pdrop : Float)
+    (vs : VarStore) =
+  let ln1 = Layer.layer_norm #dim cfg_n_embd {[b, seq_len, cfg_n_embd]} (let open VarStore in vs / "ln1") in
+  let ln2 = Layer.layer_norm #dim cfg_n_embd {[b, seq_len, cfg_n_embd]} (let open VarStore in vs / "ln2") in
+  let attn =
+    causal_self_attention
+      {b}
+      #block_size cfg_block_size
+      #n_head cfg_n_head
+      #n_embd cfg_n_embd
+      #attn_pdrop cfg_attn_pdrop
+      #resid_pdrop cfg_resid_pdrop
+      #embd_pdrop cfg_embd_pdrop
+      vs
+  in
+  let lin1 =
+    Layer.linear
+      {[b, seq_len]}
+      #input_dim cfg_n_embd
+      #output_dim (4 * cfg_n_embd)
+      (let open VarStore in vs / "lin1")
+      #use_bias true
+      Layer.Activation.none
+  in
+  let lin2 =
+    Layer.linear
+      {[b, seq_len]}
+      #input_dim (4 * cfg_n_embd)
+      #output_dim cfg_n_embd
+      (let open VarStore in vs / "lin2")
+      #use_bias true
+      Layer.Activation.none
+  in
+  Layer.of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor [b, seq_len, cfg_n_embd]) ->
+    let xs =
+      let open Tensor in
+      xs + (xs |> Layer.forward ln1 |> Layer.forward_ attn #is_training is_training)
+    in
+    let ys =
+      xs
+        |> Layer.forward ln2
+        |> Layer.forward lin1
+        |> Tensor.gelu
+        |> Layer.forward lin2
+        |> Tensor.dropout #p cfg_resid_pdrop #is_training is_training
+    in
+    let open Tensor in xs + ys
+  )
+in
+
+let gpt
+    {b : Nat}
+    #block_size (cfg_block_size : Int)
+    #n_head (cfg_n_head : Int)
+    #n_embd (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
+    #vocab_size (cfg_vocab_size : Int)
+    #n_layer (cfg_n_layer : Int)
+    #attn_pdrop (cfg_attn_pdrop : Float)
+    #resid_pdrop (cfg_resid_pdrop : Float)
+    #embd_pdrop (cfg_embd_pdrop : Float)
+    (vs : VarStore) =
+  let tok_emb =
+    Layer.embeddings {[b, seq_len]} #num_embeddings cfg_vocab_size #embedding_dim cfg_n_embd
+      (let open VarStore in vs / "tok_emb")
+  in
+  let pos_emb =
+    VarStore.new_var #shape [1, cfg_block_size, cfg_n_embd]
+      vs
+      #name "pos_emb"
+      #init VarStore.Init.zeros
+  in
+  let ln_f =
+    Layer.layer_norm #dim cfg_n_embd {[b, seq_len, cfg_n_embd]}
+      (let open VarStore in vs / "ln_f")
+  in
+  let head =
+    Layer.linear {[b, seq_len]} #input_dim cfg_n_embd #output_dim cfg_vocab_size
+      (let open VarStore in vs / "head")
+      #use_bias false
+      Layer.Activation.none
+  in
+  let blocks =
+    let rec loop (i : Int) :
+        #is_training Bool -> Tensor [b, seq_len, cfg_n_embd] -> Tensor [b, seq_len, cfg_n_embd] =
+      if i <= 0 then
+        fun #is_training (is_training : Bool) -> fun (xs : Tensor [b, seq_len, cfg_n_embd]) -> xs
+      else
+        fun #is_training (is_training : Bool) -> fun (xs : Tensor [b, seq_len, cfg_n_embd]) ->
+          let xs =
+            Layer.forward_
+              ( block
+                  {b}
+                  #block_size cfg_block_size
+                  #n_head cfg_n_head
+                  #n_embd cfg_n_embd
+                  #attn_pdrop cfg_attn_pdrop
+                  #resid_pdrop cfg_resid_pdrop
+                  #embd_pdrop cfg_embd_pdrop
+                  (let open VarStore in vs // i)
+              )
+              #is_training is_training
+              xs
+          in
+          loop (i - 1) #is_training is_training xs
+    in
+    Layer.of_fn_ (loop cfg_n_layer)
+  in
+  Layer.of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor [b, seq_len]) ->
+    let tok_emb = Layer.forward tok_emb xs in
+    let pos_emb = Tensor.narrow #dim 1 #length seq_len #start 0 pos_emb in
+    (let open Tensor in tok_emb + pos_emb) (* [b, seq_len, cfg_n_embd] *)
+      |> Tensor.dropout #p cfg_embd_pdrop #is_training is_training
+      |> Layer.forward_ blocks #is_training is_training (* [b, seq_len, cfg_n_embd] *)
+      |> Layer.forward ln_f
+      |> Layer.forward head (* [b, seq_len, cfg_vocab_size] *)
+  )
+in
+
+let sampling_length = 2048 in
+let temperature = 1.0 in
+
+let sample
+    {cfg_vocab_size : Nat}
+    (cfg_block_size : Nat)
+    #gpt (gpt :
+      #is_training Bool -> Tensor [1, cfg_block_size] -> Tensor [1, seq_len, cfg_vocab_size]
+    )
+    #dataset (dataset : TextHelper cfg_vocab_size)
+    #device (device : Device) =
+  let input = Tensor.zeros [1, cfg_block_size] (* #device device *) (* #kind (T Int64) *) in
+  let rec loop (i : Int) (input : Tensor [1, cfg_block_size]) : List Char =
+    if i <= 0 then
+      [] as List Char
+    else
+      ( Gc.full_major ();
+        let logits =
+          input
+            |> Layer.forward_ gpt #is_training false
+            |> Tensor.select #dim 1 #index -1
+        in
+        let logits = let open Tensor in logits / (Tensor.f temperature) in
+        let sampled_y =
+          Tensor.softmax #dim -1 logits (* #dtype (T Float) *)
+            |> Tensor.multinomial #num_samples 1 #replacement true
+        in
+        let sampled_char =
+          TextHelper.char dataset #label (Tensor.int_value sampled_y)
+        in
+        let input =
+          Tensor.cat_ #dim 1 input (Tensor.view #size [1, 1] sampled_y)
+            |> Tensor.narrow #dim 1 #length cfg_block_size #start 1
+        in
+        sampled_char :: loop (i - 1) input
+      )
+  in
+  String.from_char_list (loop (sampling_length - 1) input)
+in
+
+let learning_rate = 0.0003 in
+let epochs = 100 in
+
+let train
+    {labels : Nat}
+    #block_size (cfg_block_size : Int)
+    #vocab_size (cfg_vocab_size : Int)
+    #gpt (gpt :
+      (n : Nat) -> #is_training Bool -> Tensor [n, cfg_block_size] -> Tensor [n, seq_len, cfg_vocab_size]
+    )
+    (vs : VarStore)
+    #dataset (dataset : TextHelper labels) =
+  let device = VarStore.device vs in
+  let adam = Optimizer.adam vs #learning_rate learning_rate in
+  let batches_per_epoch =
+    (TextHelper.total_length dataset - (lift_int seq_len)) // (lift_int batch_size)
+  in
+  Checkpointing.loop
+    #start_index 1
+    #end_index epochs
+    #var_stores [vs]
+    #checkpoint_base "min-gpt.ot"
+    #checkpoint_every_iters 1
+    (fun #index (epoch_idx : Int) ->
+      IO.write_all
+        ("out.txt." ++ show_int epoch_idx)
+        #data (sample cfg_block_size #gpt (gpt 1) #dataset dataset #device device);
+      let start_time = Unix.gettimeofday () in
+      let sum_loss = Tensor.f 0.0 in
+      TextHelper.iter #seq_len seq_len #batch_size batch_size
+        ( fun(batch_idx : Int) ->
+          fun #xs (xs : Tensor [batch_size, seq_len]) ->
+          fun #ys (ys : Tensor [batch_size, seq_len]) ->
+            let logits = Layer.forward_ (gpt batch_size) #is_training true xs in
+            (* Compute the cross-entropy loss. *)
+            let loss =
+              Tensor.cross_entropy_for_logits
+                (Tensor.view #size [batch_size * seq_len, cfg_vocab_size] logits)
+                #targets (Tensor.view #size [batch_size * seq_len] ys)
+            in
+            (let open Tensor in sum_loss += loss);
+            print_string (show_int batch_idx ++ "/" ++ show_int batches_per_epoch);
+            print_float (Tensor.float_value sum_loss / float (1 + batch_idx));
+            Optimizer.backward_step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam #loss loss
+        )
+        #device device
+        dataset;
+      print_int epoch_idx;
+      print_int (Unix.gettimeofday () - start_time);
+      print_float (Tensor.float_value sum_loss / float batches_per_epoch)
+    )
+in
+
+let labels = 1000 in (* TODO *)
+
+let device = Device.cuda_if_available () in
+let dataset = TextHelper.create {labels} #filename "data/input.txt" in
+let vs = VarStore.create #frozen false #name "min-gpt" #device device () in
+print_string
+  ( "Dataset loaded, length: "
+      ++ show_int (TextHelper.total_length dataset)
+      ++ ", labels: "
+      ++ show_int (lift_int labels)
+      ++ ".\n");
+let gpt (b : Nat) =
+  gpt
+    {b}
+    #block_size seq_len
+    #n_head 8
+    #n_embd 512
+    #vocab_size labels
+    #n_layer 8
+    #attn_pdrop 0.1
+    #resid_pdrop 0.1
+    #embd_pdrop 0.1
+    vs
+in
+train
+  #block_size seq_len
+  #vocab_size labels
+  #gpt gpt
+  vs
+  #dataset dataset
