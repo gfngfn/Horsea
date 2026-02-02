@@ -6,7 +6,6 @@
 
 let batch_size = 64 in
 let seq_len = 128 in
-let epochs = 100 in
 
 (*
 type config (vocab_size, n_embd, n_head, n_layer, block_size) =
@@ -275,6 +274,7 @@ let gen_train
     (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
     (cfg_vocab_size : Int) =
   &(let learning_rate = 0.0003 in
+    let epochs = 100 in
     fun(vs : VarStore) ->
     fun(cfg_n_layer : Int) ->
     fun(cfg_attn_pdrop : Float) ->
@@ -292,43 +292,51 @@ let gen_train
         #end_index epochs
         #var_stores [vs]
         #checkpoint_base "min-gpt.ot"
-        #checkpoint_every (iters 1)
+        #checkpoint_every_iters 1
         (fun #index (epoch_idx : Int) ->
           IO.write_all
             ("out.txt." ++ show_int epoch_idx)
             #data (~(gen_sample cfg_block_size) #gpt gpt #dataset dataset #device device);
           let start_time = Unix.gettimeofday () in
           let sum_loss = Tensor.f 0.0 in
-          TextHelper.iter #device dataset #batch_size batch_size #seq_len seq_len
-            (fun (batch_idx : Int) -> fun #xs (xs : Tensor %foooo) -> fun #ys (ys : Tensor %baaar) ->
-              let logits = ~Layer.gen_forward_ gpt #is_training true xs in
-              (* Compute the cross-entropy loss. *)
-              let loss =
-                ~Tensor.gen_cross_entropy_for_logits
-                  (~(Tensor.gen_view #size [batch_size * seq_len, cfg_vocab_size]) logits)
-                  #targets (~(Tensor.gen_view #size [batch_size * seq_len]) ys)
-              in
-              ~Tensor.gen_add_update sum_loss loss;
-              print_string (show_int batch_idx ++ "/" ++ show_int batches_per_epoch);
-              print_float (Tensor.float_value sum_loss / float (1 + batch_idx));
-              Optimizer.backward_step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam #loss loss
-            );
-          Stdio.printf
-            "%d %.0fs %f\n%!"
-            epoch_idx
-            (Unix.gettimeofday () -. start_time)
-            (Tensor.float_value sum_loss /. Float.of_int batches_per_epoch))
+          ~(TextHelper.gen_iter
+              #seq_len seq_len
+              #batch_size batch_size
+              &(fun(batch_idx : Int) ->
+                fun #xs (xs : Tensor %[batch_size, seq_len]) ->
+                fun #ys (ys : Tensor %[batch_size, seq_len]) ->
+                  let logits = ~Layer.gen_forward_ gpt #is_training true xs in
+                  (* Compute the cross-entropy loss. *)
+                  let loss =
+                    ~Tensor.gen_cross_entropy_for_logits
+                      (~(Tensor.gen_view #size [batch_size * seq_len, cfg_vocab_size]) logits)
+                      #targets (~(Tensor.gen_view #size [batch_size * seq_len]) ys)
+                  in
+                  ~Tensor.gen_add_update sum_loss loss;
+                  print_string (show_int batch_idx ++ "/" ++ show_int batches_per_epoch);
+                  print_float (Tensor.float_value sum_loss / float (1 + batch_idx));
+                  Optimizer.backward_step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam #loss loss
+              )
+            )
+            #device device
+            dataset;
+          print_int epoch_idx;
+          print_int (Unix.gettimeofday () - start_time);
+          print_float (Tensor.float_value sum_loss / float batches_per_epoch))
   )
 in
 
+let labels = 1000 in (* TODO *)
+
 &(let device = ~(Device.gen_cuda_if_available ()) in
-  let dataset = TextHelper.create #filename "data/input.txt" in
-  let vs = VarStore.create #name "min-gpt" #device device () in
-  let labels = TextHelper.labels dataset in
-  Stdio.printf
-    "Dataset loaded, length: %d, labels: %d.\n%!"
-    (TextHelper.total_length dataset)
-    labels;
+  let dataset = ~(TextHelper.gen_create {labels} #filename "data/input.txt") in
+  let vs = VarStore.create #frozen false #name "min-gpt" #device device () in
+  print_string
+    ( "Dataset loaded, length: "
+        ++ (show_int (~TextHelper.gen_total_length dataset))
+        ++ ", labels: "
+        ++ (show_int ~(lift_int labels))
+        ++ ".\n");
 (*
   let cfg =
     { vocab_size = labels

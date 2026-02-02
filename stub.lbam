@@ -728,7 +728,7 @@ module TextHelper = struct
     {labels : Nat} ->
     #seq_len (seq_len : Nat) ->
     #batch_size (batch_size : Nat) ->
-    (Nat -> &(#xs Tensor %[batch_size, seq_len] -> #ys Tensor %[batch_size, seq_len] -> Unit)) ->
+    &(Int -> #xs Tensor %[batch_size, seq_len] -> #ys Tensor %[batch_size, seq_len] -> Unit) ->
     &(#device Device -> TextHelper %labels -> Unit)
     external (builtin = "text_helper__gen_iter", surface = "iter")
 end

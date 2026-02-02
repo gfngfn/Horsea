@@ -82,9 +82,9 @@ in
       let start_time = Unix.gettimeofday () in
       let sum_loss = Tensor.f 0.0 in
       ~(TextHelper.gen_iter #seq_len seq_len #batch_size batch_size
-          (fun (batch_idx : Int) ->
-            &(fun #xs (xs : Tensor %[batch_size, seq_len]) ->
-              fun #ys (ys : Tensor %[batch_size, seq_len]) ->
+          &(fun (batch_idx : Int) ->
+            fun #xs (xs : Tensor %[batch_size, seq_len]) ->
+            fun #ys (ys : Tensor %[batch_size, seq_len]) ->
               Optimizer.zero_grad adam;
               let onehot =
                 let xs = ~(Tensor.gen_view #size [batch_size, seq_len, 1]) xs in
@@ -101,9 +101,9 @@ in
                   #targets (~(Tensor.gen_view #size [batch_size * seq_len]) ys)
               in
               ~Tensor.gen_add_update sum_loss loss;
-              print_int ~(lift_int batch_idx);
+              print_int batch_idx;
               print_int batches_per_epoch;
-              print_float (Tensor.float_value sum_loss / float (1 + ~(lift_int batch_idx)));
+              print_float (Tensor.float_value sum_loss / float (1 + batch_idx));
               Tensor.backward loss;
               Optimizer.step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam
             )
