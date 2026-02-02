@@ -227,12 +227,11 @@ module Tensor = struct
     &(Tensor %[m, n] -> #targets Tensor %[m] -> Tensor %[])
     external (builtin = "tensor__gen_cross_entropy_for_logits", surface = "cross_entropy_for_logits")
   val ~gen_multinomial :
-    {shape : List Nat} ->
-    {n : Nat} ->
+    {shape : {s : List Nat | List.length s >= 1}} ->
     #num_samples (num_samples : Nat) ->
     &(#replacement Bool ->
-      Tensor %(List.append shape [n]) ->
-      Tensor %(List.append shape [num_samples])
+      Tensor %shape ->
+      Tensor %(List.append (List.init shape) [num_samples])
     )
     external (builtin = "tensor__gen_multinomial", surface = "multinomial")
   val ~gen_count_equal : {shape : List Nat} -> &(Tensor %shape -> Tensor %shape -> Int)

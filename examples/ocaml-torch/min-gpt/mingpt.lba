@@ -8,7 +8,6 @@ let learning_rate = 0.0003 in
 let batch_size = 64 in
 let seq_len = 128 in
 let epochs = 100 in
-let sampling_length = 2048 in
 
 (*
 type config (vocab_size, n_embd, n_head, n_layer, block_size) =
@@ -232,7 +231,8 @@ let gen_gpt
 in
 
 let gen_sample {labels : Nat} (block_size : Nat) =
-  &(let temperature = 1.0 in
+  &(let sampling_length = 2048 in
+    let temperature = 1.0 in
     fun #gpt (gpt : #is_training Bool -> Tensor %[1, block_size] -> Tensor %[3456]) -> (* TODO *)
     fun #dataset (dataset : TextHelper %labels) ->
     fun #device (device : Device) ->
@@ -253,7 +253,7 @@ let gen_sample {labels : Nat} (block_size : Nat) =
                 |> ~(Tensor.gen_multinomial #num_samples 1) #replacement true
             in
             let sampled_char =
-              TextHelper.char dataset #label (Tensor.int_value sampled_y)
+              ~TextHelper.gen_char dataset #label (Tensor.int_value sampled_y)
             in
             let input =
               ~(Tensor.gen_cat_ #dim 1) input (~(Tensor.gen_view #size [1, 1]) sampled_y)
