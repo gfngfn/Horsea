@@ -474,8 +474,6 @@ module Layer = struct
   val ~gen_conv_transpose2d_ :
     #ksize (ksize : Nat) ->
     #stride (stride : Nat) ->
-    (* #use_bias Bool -> *) (* default: true *)
-    (* #w_init VarStore.Init -> *)
     #padding (padding : Nat) ->
     #output_padding (output_padding : Nat) -> (* default: 0 *)
     (* #groups Nat -> *)
@@ -483,6 +481,8 @@ module Layer = struct
     #output_dim (output_dim : Nat) ->
     {shape : {s : List Nat | List.length s == 4 && List.nth 1 s == input_dim}} ->
     &(VarStore ->
+      (* #use_bias Bool -> *) (* default: true *)
+      (* #w_init VarStore.Init -> *)
       Activation ->
       Tensor %shape ->
       Tensor %[
@@ -498,6 +498,8 @@ module Layer = struct
     #input_dim (input_dim : Nat) ->
     #output_dim (output_dim : Nat) ->
     &(VarStore ->
+      #use_bias Bool -> (* default: true *)
+      (* #w_init VarStore.Init -> *)
       Activation ->
       Tensor %(List.append ns [input_dim]) ->
       Tensor %(List.append ns [output_dim])

@@ -44,7 +44,11 @@ let dataset =
   let train_vs = VarStore.create #frozen false #name "rn-vs" #device Device.cpu () in
   let model {ns : List Nat} (xs : Tensor ns) =
     Layer.forward
-      (Layer.linear {ns} #input_dim 512 #output_dim (List.length classes) train_vs Layer.Activation.none)
+      ( Layer.linear {ns} #input_dim 512 #output_dim (List.length classes)
+          train_vs
+          #use_bias true
+          Layer.Activation.none
+      )
       xs
   in
   let sgd = Optimizer.sgd train_vs #learning_rate 0.001 #momentum 0.9 in

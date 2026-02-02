@@ -171,11 +171,17 @@ let gen_gpt
           #name "pos_emb"
           #init VarStore.Init.zeros
       in
-      let ln_f = ~(Layer.gen_layer_norm #dim n_embd) (let open VarStore in vs / "ln_f") in
+      let ln_f =
+        ~(Layer.gen_layer_norm #dim n_embd {[sz_b, sz_t, n_embd]})
+          (let open VarStore in vs / "ln_f")
+          #use_bias true
+          Layer.Activation.none
+      in
       let head =
         ~(Layer.gen_linear #input_dim n_embd #output_dim vocab_size)
           (let open VarStore in vs / "head")
           #use_bias false
+          Layer.Activation.none
       in
       let blocks =
         let rec loop (i : Int) : #is_training Bool -> Tensor %fooo -> Tensor %fooo =

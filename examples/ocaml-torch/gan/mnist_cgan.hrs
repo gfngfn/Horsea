@@ -14,6 +14,7 @@ let create_generator {shape : {s : List Nat | List.length s > 0}} (vs : VarStore
       #input_dim (latent_dim + label_count)
       #output_dim generator_hidden_nodes
       vs
+      #use_bias true
       Layer.Activation.leaky_relu
   in
   let linear2 =
@@ -21,6 +22,7 @@ let create_generator {shape : {s : List Nat | List.length s > 0}} (vs : VarStore
       #input_dim generator_hidden_nodes
       #output_dim image_dim
       vs
+      #use_bias true
       Layer.Activation.tanh
   in
   fun (rand_input : Tensor shape) ->
@@ -36,6 +38,7 @@ let create_discriminator
       #input_dim (image_dim + label_count)
       #output_dim discriminator_hidden_nodes
       vs
+      #use_bias true
       Layer.Activation.leaky_relu
   in
   let linear2 =
@@ -43,6 +46,7 @@ let create_discriminator
       #input_dim discriminator_hidden_nodes
       #output_dim 1
       vs
+      #use_bias true
       Layer.Activation.sigmoid
   in
   fun (xs : Tensor shape) ->

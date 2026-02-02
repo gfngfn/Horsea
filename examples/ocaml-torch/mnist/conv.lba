@@ -6,13 +6,7 @@ let batch_size = 256 in
   let vs = VarStore.create #frozen false #name "cnn" #device device () in
   ~(let gen_conv2d1 {size : Nat} =
       &(fun (t : Tensor %[size, 1, 28, 28]) ->
-          ~(Layer.gen_conv2d_
-              #ksize 5
-              #stride 1
-              #padding 0
-              #input_dim 1
-              #output_dim 32
-            )
+          ~(Layer.gen_conv2d_ #ksize 5 #stride 1 #padding 0 #input_dim 1 #output_dim 32)
             vs
             Layer.Activation.none
             t
@@ -20,35 +14,23 @@ let batch_size = 256 in
     in
     let gen_conv2d2 {size : Nat} =
       &(fun(t : Tensor %[size, 32, 12, 12]) ->
-          ~(Layer.gen_conv2d_
-              #ksize 5
-              #stride 1
-              #padding 0
-              #input_dim 32
-              #output_dim 64
-            )
+          ~(Layer.gen_conv2d_ #ksize 5 #stride 1 #padding 0 #input_dim 32 #output_dim 64)
             vs
             Layer.Activation.none
             t
       )
     in
     let gen_linear1 {size : Nat} =
-      &(~(Layer.gen_linear
-            {[size]}
-            #input_dim 1024
-            #output_dim 1024
-          )
+      &(~(Layer.gen_linear {[size]} #input_dim 1024 #output_dim 1024)
           vs
+          #use_bias true
           Layer.Activation.relu
       )
     in
     let gen_linear2 {size : Nat} =
-      &(~(Layer.gen_linear
-            {[size]}
-            #input_dim 1024
-            #output_dim MnistHelper.label_count
-          )
+      &(~(Layer.gen_linear {[size]} #input_dim 1024 #output_dim MnistHelper.label_count)
           vs
+          #use_bias true
           Layer.Activation.none
       )
     in

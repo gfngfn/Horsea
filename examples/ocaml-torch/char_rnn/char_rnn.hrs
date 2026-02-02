@@ -62,7 +62,10 @@ print_string "labels:";
 print_int (lift_int labels);
 let lstm = Layer.Lstm.create #input_dim labels #hidden_size hidden_size vs in
 let linear =
-  Layer.linear {[1]} #input_dim hidden_size #output_dim labels vs Layer.Activation.none
+  Layer.linear {[1]} #input_dim hidden_size #output_dim labels
+    vs
+    #use_bias true
+    Layer.Activation.none
 in
 let adam = Optimizer.adam vs #learning_rate learning_rate in
 let batches_per_epoch =

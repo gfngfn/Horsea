@@ -52,6 +52,7 @@ let model_path = "path/to/model" in
           ~Layer.gen_forward
             (~(Layer.gen_linear {ns} #input_dim 512 #output_dim (List.length classes))
                 train_vs
+                #use_bias true
                 Layer.Activation.none
             )
             xs

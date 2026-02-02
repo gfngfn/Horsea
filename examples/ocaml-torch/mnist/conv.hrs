@@ -5,41 +5,27 @@ let learning_rate = 0.001 in
 let device = Device.cuda_if_available () in
 let vs = VarStore.create #frozen false #name "cnn" #device device () in
 let conv2d1 {size : Nat} (t : Tensor [size, 1, 28, 28]) =
-  Layer.conv2d_
-    #ksize 5
-    #stride 1
-    #padding 0
-    #input_dim 1
-    #output_dim 32
+  Layer.conv2d_ #ksize 5 #stride 1 #padding 0 #input_dim 1 #output_dim 32
     vs
     Layer.Activation.none
     t
 in
 let conv2d2 {size : Nat} (t : Tensor [size, 32, 12, 12]) =
-  Layer.conv2d_
-    #ksize 5
-    #stride 1
-    #padding 0
-    #input_dim 32
-    #output_dim 64
+  Layer.conv2d_ #ksize 5 #stride 1 #padding 0 #input_dim 32 #output_dim 64
     vs
     Layer.Activation.none
     t
 in
 let linear1 {size : Nat} =
-  Layer.linear
-    {[size]}
-    #input_dim 1024
-    #output_dim 1024
+  Layer.linear {[size]} #input_dim 1024 #output_dim 1024
     vs
+    #use_bias true
     Layer.Activation.relu
 in
 let linear2 {size : Nat} =
-  Layer.linear
-    {[size]}
-    #input_dim 1024
-    #output_dim MnistHelper.label_count
+  Layer.linear {[size]} #input_dim 1024 #output_dim MnistHelper.label_count
     vs
+    #use_bias true
     Layer.Activation.none
 in
 let adam = Optimizer.adam vs #learning_rate learning_rate in
