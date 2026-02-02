@@ -322,6 +322,14 @@ module Tensor = struct
     #length (length : Nat) ->
     &(#start Int -> Tensor %shape -> Tensor %(insert_at dim length (drop_at dim shape)))
     external (builtin = "tensor__gen_narrow", surface = "narrow")
+  val ~gen_select :
+    #dim (dim : Nat) ->
+    {shape : {s : List Nat | List.length s > dim}} ->
+    &(#index Int ->
+      Tensor %shape ->
+      Tensor %(drop_at dim shape)
+    )
+    external (builtin = "tensor__gen_select", surface = "select")
   val ~gen_transpose :
     {shape : List Nat} ->
     #dim0 (dim0 : {n : Int | n >= 0 - List.length shape && n < List.length shape}) ->

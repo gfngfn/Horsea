@@ -9,7 +9,6 @@ let batch_size = 64 in
 let seq_len = 128 in
 let epochs = 100 in
 let sampling_length = 2048 in
-let temperature = 1.0 in
 
 (*
 type config (vocab_size, n_embd, n_head, n_layer, block_size) =
@@ -29,7 +28,6 @@ let gen_causal_self_attention
     {sz_t : Nat}
     {sz_c : Nat}
     (cfg_block_size : Int)
-    (cfg_n_layer : Int)
     (cfg_n_head : Int)
     (cfg_n_embd : {n : Int | mod n cfg_n_head == 0}) =
   &(fun(cfg_attn_pdrop : Float) ->
@@ -97,7 +95,6 @@ in
 let gen_block
     {sz_b : Nat} {sz_t : Nat} {sz_c : Nat}
     (cfg_block_size : Int)
-    (cfg_n_layer : Int)
     (cfg_n_head : Int)
     (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
     {shape : {s : List Nat | List.length s >= 1 && List.last s == cfg_n_embd}} =
@@ -113,7 +110,6 @@ let gen_block
             {sz_t}
             {sz_c}
             cfg_block_size
-            cfg_n_layer
             cfg_n_head
             cfg_n_embd
           )
@@ -166,11 +162,11 @@ let gen_gpt
     {sz_t : Nat}
     {sz_c : Nat}
     (cfg_block_size : Int)
-    (cfg_n_layer : Int)
     (cfg_n_head : Int)
     (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
     (cfg_vocab_size : Int) =
-  &(fun(cfg_attn_pdrop : Float) ->
+  &(fun(cfg_n_layer : Int) ->
+    fun(cfg_attn_pdrop : Float) ->
     fun(cfg_resid_pdrop : Float) ->
     fun(cfg_embd_pdrop : Float) ->
     fun(vs : VarStore) ->
@@ -200,68 +196,74 @@ let gen_gpt
             fun #is_training (is_training : Bool) -> fun (xs : Tensor %fooo) -> xs
           else
             fun #is_training (is_training : Bool) -> fun (xs : Tensor %fooo) ->
-              ~Layer.gen_forward_
-                ( ~(gen_block
-                      {sz_b}
-                      {sz_t}
-                      {sz_c}
-                      cfg_block_size
-                      cfg_n_layer
-                      cfg_n_head
-                      cfg_n_embd
-                      {fooo}
+              let xs =
+                ~Layer.gen_forward_
+                  ( ~(gen_block
+                        {sz_b}
+                        {sz_t}
+                        {sz_c}
+                        cfg_block_size
+                        cfg_n_head
+                        cfg_n_embd
+                        {fooo}
+                    )
+                      cfg_attn_pdrop
+                      cfg_resid_pdrop
+                      cfg_embd_pdrop
+                      (let open VarStore in vs // i)
                   )
-                    cfg_attn_pdrop
-                    cfg_resid_pdrop
-                    cfg_embd_pdrop
-                    (let open VarStore in vs // i)
-                )
-                #is_training is_training
-                xs
-                |> (fun (xs : Tensor %fooo) -> loop (i - 1) #is_training is_training xs)
+                  #is_training is_training
+                  xs
+              in
+              loop (i - 1) #is_training is_training xs
         in
-        ~Layer.gen_of_fn_ (loop n_layer)
+        ~Layer.gen_of_fn_ (loop cfg_n_layer)
       in
-      Layer.of_fn_ (fun (xs : Tensor %[sz_b, sz_t]) -> fun #is_training (is_training : Bool) ->
+      ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %[sz_b, sz_t]) ->
           let tok_emb = ~Layer.gen_forward tok_emb xs in
-          let pos_emb = Tensor.narrow pos_emb #dim 1 #start 0 #length sz_t in
+          let pos_emb = ~(Tensor.gen_narrow #dim 1 #length sz_t) #start 0 pos_emb in
           ~Tensor.gen_add tok_emb pos_emb (* [sz_b, sz_t, n_embd] *)
-            |> Tensor.dropout #p cfg_embd_pdrop #is_training is_training
-            |> Layer.forward_ blocks #is_training is_training (* [sz_b, sz_t, n_embd] *)
-            |> Layer.forward ln_f
-            |> Layer.forward head (* [sz_b, sz_t, vocab_size] *)
+            |> ~Tensor.gen_dropout #p cfg_embd_pdrop #is_training is_training
+            |> ~Layer.gen_forward_ blocks #is_training is_training (* [sz_b, sz_t, n_embd] *)
+            |> ~Layer.gen_forward ln_f
+            |> ~Layer.gen_forward head (* [sz_b, sz_t, cfg_vocab_size] *)
       )
   )
 in
 
-let sample (block_size : Int) #gpt (gpt : Gpt) #dataset (dataset : TextHelper) #device (device : Device) =
-  let input = ~(Tensor.gen_zeros #device [1, block_size]) (* #kind (T Int64) *) in
-  let rec loop (i : Int) (input : Tensor %[1, block_size]) : List Char =
-    if i <= 0 then
-      []
-    else
-      ( Gc.full_major ();
-        let logits =
-          ~Layer.gen_forward_ gpt input #is_training false |> Tensor.select #dim 1 #index -1
-        in
-        let logits =
-          let open Tensor in logits / f temperature
-        in
-        let sampled_y =
-          Tensor.softmax logits #dim -1 (* #dtype (T Float) *)
-          |> Tensor.multinomial #num_samples 1 #replacement true
-        in
-        let sampled_char =
-          TextHelper.char dataset #label (Tensor.int_value sampled_y)
-        in
-        let input =
-          Tensor.cat_ #dim 1 input (Tensor.view sampled_y #size [1, 1])
-          |> Tensor.narrow #dim 1 #start 1 #length block_size
-        in
-        sampled_char :: loop (i - 1) input
-      )
-  in
-  String.from_char_list (loop (sampling_length - 1) input)
+let gen_sample {labels : Nat} (block_size : Nat) =
+  &(let temperature = 1.0 in
+    fun #gpt (gpt : #is_training Bool -> Tensor %[1, block_size] -> Tensor %[3456]) -> (* TODO *)
+    fun #dataset (dataset : TextHelper %labels) ->
+    fun #device (device : Device) ->
+      let input = ~(Tensor.gen_zeros [1, block_size]) (* #device device *) (* #kind (T Int64) *) in
+      let rec loop (i : Int) (input : Tensor %[1, block_size]) : List Char =
+        if i <= 0 then
+          [] as List Char
+        else
+          ( Gc.full_major ();
+            let logits =
+              input
+                |> ~Layer.gen_forward_ gpt #is_training false
+                |> ~(Tensor.gen_select #dim 1) #index -1
+            in
+            let logits = ~Tensor.gen_div logits (Tensor.f temperature) in
+            let sampled_y =
+              ~(Tensor.gen_softmax #dim -1) logits (* #dtype (T Float) *)
+                |> ~(Tensor.gen_multinomial #num_samples 1) #replacement true
+            in
+            let sampled_char =
+              TextHelper.char dataset #label (Tensor.int_value sampled_y)
+            in
+            let input =
+              ~(Tensor.gen_cat_ #dim 1) input (~(Tensor.gen_view #size [1, 1]) sampled_y)
+                |> ~(Tensor.gen_narrow #dim 1 #length block_size) #start 1
+            in
+            sampled_char :: loop (i - 1) input
+          )
+      in
+      String.from_char_list (loop (sampling_length - 1) input)
+  )
 in
 
 let train (vs : VarStore) #cfg (cfg : Cfg) #gpt (gpt : Gpt) #dataset (dataset : TextHelper) =
