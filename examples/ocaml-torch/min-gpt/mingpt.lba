@@ -39,6 +39,7 @@ let gen_causal_self_attention
       let linear (n : String) =
         ~(Layer.gen_linear {[4423]} #input_dim cfg_n_embd #output_dim cfg_n_embd) (* TODO *)
           (let open VarStore in vs / n)
+          #use_bias true
           Layer.Activation.none
       in
       let key = linear "key" in
@@ -99,8 +100,7 @@ let gen_block
     (cfg_n_layer : Int)
     (cfg_n_head : Int)
     (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
-    {shape : {s : List Nat | List.length s >= 1 && List.last s == cfg_n_embd}}
-    (resid_pdrop : Int) =
+    {shape : {s : List Nat | List.length s >= 1 && List.last s == cfg_n_embd}} =
   &(fun(cfg_attn_pdrop : Float) ->
     fun(cfg_resid_pdrop : Float) ->
     fun(cfg_embd_pdrop : Float) ->
@@ -128,6 +128,7 @@ let gen_block
             #output_dim (4 * cfg_n_embd)
           )
           (let open VarStore in vs / "lin1")
+          #use_bias true
           Layer.Activation.none
       in
       let lin2 =
@@ -136,6 +137,7 @@ let gen_block
             #output_dim cfg_n_embd
           )
           (let open VarStore in vs / "lin2")
+          #use_bias true
           Layer.Activation.none
       in
       ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %shape) ->
@@ -157,28 +159,37 @@ let gen_block
   )
 in
 
+let fooo = [8901] in (* TODO *)
+
 let gen_gpt
-    {sz_b : Nat} {sz_t : Nat} {sz_c : Nat}
-    (vocab_size : Int) (n_embd : Int) (block_size : Int) (n_layer : Int) =
-  &(fun(vs : VarStore) ->
+    {sz_b : Nat}
+    {sz_t : Nat}
+    {sz_c : Nat}
+    (cfg_block_size : Int)
+    (cfg_n_layer : Int)
+    (cfg_n_head : Int)
+    (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
+    (cfg_vocab_size : Int) =
+  &(fun(cfg_attn_pdrop : Float) ->
+    fun(cfg_resid_pdrop : Float) ->
+    fun(cfg_embd_pdrop : Float) ->
+    fun(vs : VarStore) ->
       let tok_emb =
-        ~(Layer.gen_embeddings {[sz_b, sz_t]} #num_embeddings vocab_size #embedding_dim n_embd)
+        ~(Layer.gen_embeddings {[sz_b, sz_t]} #num_embeddings cfg_vocab_size #embedding_dim cfg_n_embd)
           (let open VarStore in vs / "tok_emb")
       in
       let pos_emb =
-        ~(VarStore.gen_new_var #shape [1, block_size, n_embd])
+        ~(VarStore.gen_new_var #shape [1, cfg_block_size, cfg_n_embd])
           vs
           #name "pos_emb"
           #init VarStore.Init.zeros
       in
       let ln_f =
-        ~(Layer.gen_layer_norm #dim n_embd {[sz_b, sz_t, n_embd]})
+        ~(Layer.gen_layer_norm #dim cfg_n_embd {[sz_b, sz_t, cfg_n_embd]})
           (let open VarStore in vs / "ln_f")
-          #use_bias true
-          Layer.Activation.none
       in
       let head =
-        ~(Layer.gen_linear #input_dim n_embd #output_dim vocab_size)
+        ~(Layer.gen_linear {[sz_b, sz_t, cfg_vocab_size]} #input_dim cfg_n_embd #output_dim cfg_vocab_size)
           (let open VarStore in vs / "head")
           #use_bias false
           Layer.Activation.none
@@ -189,8 +200,25 @@ let gen_gpt
             fun #is_training (is_training : Bool) -> fun (xs : Tensor %fooo) -> xs
           else
             fun #is_training (is_training : Bool) -> fun (xs : Tensor %fooo) ->
-              Layer.forward_ (block (let open VarStore in vs // i) cfg) xs #is_training is_training
-                |> (fun (xs : Tensor %fooo) -> loop (i - 1) xs #is_training is_training)
+              ~Layer.gen_forward_
+                ( ~(gen_block
+                      {sz_b}
+                      {sz_t}
+                      {sz_c}
+                      cfg_block_size
+                      cfg_n_layer
+                      cfg_n_head
+                      cfg_n_embd
+                      {fooo}
+                  )
+                    cfg_attn_pdrop
+                    cfg_resid_pdrop
+                    cfg_embd_pdrop
+                    (let open VarStore in vs // i)
+                )
+                #is_training is_training
+                xs
+                |> (fun (xs : Tensor %fooo) -> loop (i - 1) #is_training is_training xs)
         in
         ~Layer.gen_of_fn_ (loop n_layer)
       in

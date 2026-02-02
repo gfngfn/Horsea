@@ -640,7 +640,7 @@ instance Disp Matrix.ConstructionError where
 instance (Disp sv) => Disp (TypeErrorF sv) where
   dispGen _ = \case
     Unsupported spanInFile detail ->
-      "Unsupported;" <+> disp detail <+> disp spanInFile
+      "Unsupported feature" <+> disp spanInFile <> hardline <+> disp detail
     UnboundVar spanInFile ms x ->
       "Unbound variable" <+> dispLongName ms x <+> disp spanInFile
     UnboundTypeVar spanInFile (TypeVar a) ->

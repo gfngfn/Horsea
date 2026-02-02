@@ -397,6 +397,8 @@ module VarStore = struct
     external (builtin = "var_store__unfreeze", surface = "unfreeze")
   val ( / ) : VarStore -> String -> VarStore
     external (builtin = "var_store__slash", surface = "/")
+  val ( // ) : VarStore -> Int -> VarStore
+    external (builtin = "var_store__double_slash", surface = "//")
   val device : VarStore -> Device
     external (builtin = "var_store__device", surface = "device")
   val ~gen_all_vars : {ns : List Nat} -> &(VarStore -> List (String * Tensor %ns))
