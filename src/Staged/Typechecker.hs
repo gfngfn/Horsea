@@ -182,7 +182,7 @@ makeAssertiveCast trav loc =
                 pure $
                   Just $
                     A0Lam Nothing (ax, strictify a0tye1) $
-                      A0App (A0App ass0exprAnd (A0App a0eCast1 (A0Var ax))) (A0App a0eCast2 (A0Var ax))
+                      A0App a0eCast2 (A0App a0eCast1 (A0Var ax))
           pure (castForList, varSolution, tyvar0Solution)
         (A0TyProduct a0tye11 a0tye12, A0TyProduct a0tye21 a0tye22) -> do
           (cast1, varSolution1, tyvar0Solution1) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21

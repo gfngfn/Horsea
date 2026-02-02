@@ -84,10 +84,10 @@ validateIntLiteral = \case
   A0ValLiteral (ALitInt n) -> pure n
   a0v -> bug $ NotAnInteger a0v
 
-validateBoolLiteral :: Ass0Val -> M Bool
-validateBoolLiteral = \case
+validateBoolLiteral :: Text -> Ass0Val -> M Bool
+validateBoolLiteral msg = \case
   A0ValLiteral (ALitBool b) -> pure b
-  a0v -> bug $ NotABoolean a0v
+  a0v -> bug $ NotABoolean msg a0v
 
 validateFloatLiteral :: Ass0Val -> M Double
 validateFloatLiteral = \case
@@ -206,10 +206,10 @@ arithmetic f a0v1 a0v2 = do
   n2 <- validateIntLiteral a0v2
   pure (f n1 n2)
 
-logical :: (Bool -> Bool -> Ass0Val) -> Ass0Val -> Ass0Val -> M Ass0Val
-logical f a0v1 a0v2 = do
-  b1 <- validateBoolLiteral a0v1
-  b2 <- validateBoolLiteral a0v2
+logical :: Text -> (Bool -> Bool -> Ass0Val) -> Ass0Val -> Ass0Val -> M Ass0Val
+logical msg f a0v1 a0v2 = do
+  b1 <- validateBoolLiteral ("logical1, " <> msg) a0v1
+  b2 <- validateBoolLiteral ("logical2, " <> msg) a0v2
   pure (f b1 b2)
 
 $(deriveDeltaReduction definitions)
@@ -345,7 +345,7 @@ evalExpr0 env = \case
     pure $ A0ValTuple a0v1 a0v2
   A0IfThenElse a0e0 a0e1 a0e2 -> do
     a0v0 <- evalExpr0 env a0e0
-    b <- validateBoolLiteral a0v0
+    b <- validateBoolLiteral "if" a0v0
     if b
       then evalExpr0 env a0e1
       else evalExpr0 env a0e2
@@ -366,7 +366,7 @@ evalExpr0 env = \case
   A0RefinementAssert loc a0ePred a0eTarget -> do
     a0vPred <- evalExpr0 env a0ePred
     a0vTarget <- evalExpr0 env a0eTarget
-    b <- validateBoolLiteral =<< reduceBeta a0vPred a0vTarget
+    b <- validateBoolLiteral "refinement assertion" =<< reduceBeta a0vPred a0vTarget
     if b
       then
         pure a0vTarget

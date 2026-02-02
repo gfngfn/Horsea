@@ -1095,8 +1095,8 @@ instance (Disp sv) => Disp (BugF sv) where
       "Not a vector:" <+> disp a0v
     NotAMatrix a0v ->
       "Not a matrix:" <+> disp a0v
-    NotABoolean a0v ->
-      "Not a Boolean:" <+> disp a0v
+    NotABoolean msg a0v ->
+      "Not a Boolean:" <+> disp a0v <+> "(" <> disp msg <> ")"
     NotAFloat a0v ->
       "Not a float:" <+> disp a0v
     NotAUnit a0v ->

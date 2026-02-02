@@ -107,9 +107,9 @@ definitions =
     versatile [] "int_equal" ForBothStages 2 $
       [|arithmetic (\n1 n2 -> A0ValLiteral (ALitBool (n1 == n2))) a0v1 a0v2|],
     versatile [] "and" ForBothStages 2 $
-      [|logical (\b1 b2 -> A0ValLiteral (ALitBool (b1 && b2))) a0v1 a0v2|],
+      [|logical "&&" (\b1 b2 -> A0ValLiteral (ALitBool (b1 && b2))) a0v1 a0v2|],
     versatile [] "or" ForBothStages 2 $
-      [|logical (\b1 b2 -> A0ValLiteral (ALitBool (b1 || b2))) a0v1 a0v2|],
+      [|logical "||" (\b1 b2 -> A0ValLiteral (ALitBool (b1 || b2))) a0v1 a0v2|],
     versatile [] "cons" ForBothStages 2 $
       [|
         do
@@ -357,7 +357,7 @@ definitions =
                     ( \(a0vA, a0vB) -> do
                         a0vPartial <- reduceBeta a0v1 a0vA
                         a0vResult <- reduceBeta a0vPartial a0vB
-                        validateBoolLiteral a0vResult
+                        validateBoolLiteral "List.equal" a0vResult
                     )
                     zipped
           pure $ A0ValLiteral (ALitBool b)
@@ -502,7 +502,7 @@ definitions =
     versatile ["var_store"] "create" ForStage1 4 $
       [|
         do
-          _frozen <- validateBoolLiteral a0v1
+          _frozen <- validateBoolLiteral "VarStore.create" a0v1
           _name <- validateStringLiteral a0v2
           let _device = a0v3
           () <- validateUnitLiteral a0v4
