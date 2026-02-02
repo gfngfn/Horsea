@@ -61,8 +61,8 @@ print_int (TextHelper.total_length dataset);
 print_string "labels:";
 print_int (lift_int labels);
 let lstm = Layer.Lstm.create #input_dim labels #hidden_size hidden_size vs in
-let linear =
-  Layer.linear {[1]} #input_dim hidden_size #output_dim labels
+let linear (shape : List Nat) =
+  Layer.linear {shape} #input_dim hidden_size #output_dim labels
     vs
     #use_bias true
     Layer.Activation.none
@@ -80,7 +80,7 @@ Checkpointing.loop
   (fun #index (epoch_idx : Int) ->
     IO.write_all
       ("out.txt." ++ show_int epoch_idx)
-      #data (sample #dataset dataset #lstm lstm #linear linear #device device);
+      #data (sample #dataset dataset #lstm lstm #linear (linear [1]) #device device);
     let start_time = Unix.gettimeofday () in
     let sum_loss = Tensor.f 0.0 in
     TextHelper.iter
@@ -97,7 +97,7 @@ Checkpointing.loop
             |> Tensor.scatter_ #dim 2 #src one #index xs
           in
           let (lstm_out, dummy) = Layer.Lstm.seq #is_training true lstm onehot in
-          let logits = Layer.forward linear lstm_out in
+          let logits = Layer.forward (linear [batch_size, seq_len]) lstm_out in
           (* Compute the cross-entropy loss. *)
           let loss =
             Tensor.cross_entropy_for_logits
