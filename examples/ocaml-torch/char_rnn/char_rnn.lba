@@ -89,7 +89,7 @@ in
                 ~(Tensor.gen_zeros [batch_size, seq_len, labels]) (* #device device *)
                 |> ~(Tensor.gen_scatter_ #dim 2) #src one #index xs
               in
-              let (lstm_out, dummy) = ~Layer.Lstm.gen_seq lstm onehot #is_training true in
+              let (lstm_out, dummy) = ~Layer.Lstm.gen_seq #is_training true lstm onehot in
               let logits = ~Layer.gen_forward linear lstm_out in
               (* Compute the cross-entropy loss. *)
               let loss =

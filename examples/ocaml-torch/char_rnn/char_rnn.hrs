@@ -91,7 +91,7 @@ Checkpointing.loop
             Tensor.zeros [batch_size, seq_len, labels] (* #device device *)
             |> Tensor.scatter_ #dim 2 #src one #index xs
           in
-          let (lstm_out, dummy) = Layer.Lstm.seq lstm onehot #is_training true in
+          let (lstm_out, dummy) = Layer.Lstm.seq #is_training true lstm onehot in
           let logits = Layer.forward linear lstm_out in
           (* Compute the cross-entropy loss. *)
           let loss =

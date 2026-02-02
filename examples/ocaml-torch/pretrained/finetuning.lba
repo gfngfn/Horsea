@@ -20,7 +20,7 @@ let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (mode
               &(fun(batch_images : Tensor %[actual_batch_size, imgdim, 107, 203]) -> (* TODO *)
                 fun(batch_labels : Tensor %[actual_batch_size]) ->
                   let activations =
-                    ~Layer.gen_forward_ pretrained_model batch_images #is_training false
+                    ~Layer.gen_forward_ pretrained_model #is_training false batch_images
                   in
                   (~Tensor.gen_copy activations, batch_labels)
               )

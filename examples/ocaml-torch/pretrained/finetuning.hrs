@@ -19,7 +19,7 @@ let precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (model_pa
         fun(batch_images : Tensor [actual_batch_size, imgdim, 107, 203]) -> (* TODO *)
           fun(batch_labels : Tensor [actual_batch_size]) ->
             let activations =
-              Layer.forward_ pretrained_model batch_images #is_training false
+              Layer.forward_ pretrained_model #is_training false batch_images
             in
             (Tensor.copy activations, batch_labels)
       )

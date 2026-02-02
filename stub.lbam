@@ -425,15 +425,15 @@ module Layer = struct
   val ~gen_forward_ :
     {shape1 : List Nat} ->
     {shape2 : List Nat} ->
-    &((Tensor %shape1 -> #is_training Bool -> Tensor %shape2) ->
-      Tensor %shape1 -> #is_training Bool -> Tensor %shape2
+    &((#is_training Bool -> Tensor %shape1 -> Tensor %shape2) ->
+      #is_training Bool -> Tensor %shape1 -> Tensor %shape2
     )
     external (builtin = "layer__gen_forward_", surface = "forward_")
   val ~gen_of_fn_ :
     {shape1 : List Nat} ->
     {shape2 : List Nat} ->
-    &((Tensor %shape1 -> #is_training Bool -> Tensor %shape2) ->
-      Tensor %shape1 -> #is_training Bool -> Tensor %shape2
+    &((#is_training Bool -> Tensor %shape1 -> Tensor %shape2) ->
+      #is_training Bool -> Tensor %shape1 -> Tensor %shape2
     )
     external (builtin = "layer__gen_of_fn_", surface = "of_fn_")
   val ~gen_conv2d_ :
@@ -522,9 +522,9 @@ module Layer = struct
       {hidden_size : Nat} ->
       {batch_size : Nat} ->
       {seq_len : Nat} ->
-      &(Lstm %input_size %hidden_size ->
+      &(#is_training Bool ->
+        Lstm %input_size %hidden_size ->
         Tensor %[batch_size, seq_len, input_size] ->
-        #is_training Bool ->
         Tensor %[batch_size, seq_len, hidden_size]
           * (Tensor %[1, batch_size, hidden_size] * Tensor %[1, batch_size, hidden_size])
       )
@@ -695,8 +695,8 @@ module TorchVision = struct
       {width : Nat} ->
       #num_classes (num_classes : Nat) -> (* default: 512 *)
       &(VarStore ->
-        Tensor %[num_images, 3, height, width] ->
         #is_training Bool ->
+        Tensor %[num_images, 3, height, width] ->
         Tensor %[num_images, num_classes]
       )
       external (builtin = "torch_vision__resnet__gen_resnet18", surface = "resnet18")
@@ -735,8 +735,8 @@ module TorchVision = struct
       {width : Nat} ->
       #num_classes (num_classes : Nat) ->
       &(VarStore ->
-        Tensor %[num_images, 3, height, width] ->
         #is_training Bool ->
+        Tensor %[num_images, 3, height, width] ->
         Tensor %[num_images, num_classes]
       )
       external (builtin = "torch_vision__vgg__gen_vgg11", surface = "vgg11")
