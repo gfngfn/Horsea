@@ -32,7 +32,7 @@ let gen_causal_self_attention
     fun #embd_pdrop (cfg_embd_pdrop : Float) ->
     fun(vs : VarStore) ->
       let linear (n : String) =
-        ~(Layer.gen_linear {[4423]} #input_dim cfg_n_embd #output_dim cfg_n_embd) (* TODO *)
+        ~(Layer.gen_linear {[sz_b, sz_t]} #input_dim cfg_n_embd #output_dim cfg_n_embd) (* TODO: sz_c == cfg_n_embd ? *)
           (let open VarStore in vs / n)
           #use_bias true
           Layer.Activation.none
@@ -93,14 +93,13 @@ let gen_block
     {sz_b : Nat} {sz_t : Nat} {sz_c : Nat}
     #block_size (cfg_block_size : Int)
     #n_head (cfg_n_head : Int)
-    #n_embd (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
-    {shape : {s : List Nat | List.length s >= 1 && List.last s == cfg_n_embd}} =
+    #n_embd (cfg_n_embd : {n : Int | mod n cfg_n_head == 0}) =
   &(fun #attn_pdrop (cfg_attn_pdrop : Float) ->
     fun #resid_pdrop (cfg_resid_pdrop : Float) ->
     fun #embd_pdrop (cfg_embd_pdrop : Float) ->
     fun(vs : VarStore) ->
-      let ln1 = ~(Layer.gen_layer_norm #dim cfg_n_embd {shape}) (let open VarStore in vs / "ln1") in
-      let ln2 = ~(Layer.gen_layer_norm #dim cfg_n_embd {shape}) (let open VarStore in vs / "ln2") in
+      let ln1 = ~(Layer.gen_layer_norm #dim cfg_n_embd {[sz_b, sz_t, sz_c]}) (let open VarStore in vs / "ln1") in
+      let ln2 = ~(Layer.gen_layer_norm #dim cfg_n_embd {[sz_b, sz_t, sz_c]}) (let open VarStore in vs / "ln2") in
       let attn =
         ~(gen_causal_self_attention
             {sz_b}
@@ -116,7 +115,7 @@ let gen_block
           vs
       in
       let lin1 =
-        ~(Layer.gen_linear {shape}
+        ~(Layer.gen_linear {[sz_b, sz_t]}
             #input_dim cfg_n_embd
             #output_dim (4 * cfg_n_embd)
           )
@@ -125,7 +124,7 @@ let gen_block
           Layer.Activation.none
       in
       let lin2 =
-        ~(Layer.gen_linear {List.append (List.init shape) [4 * cfg_n_embd]}
+        ~(Layer.gen_linear {[sz_b, sz_t]}
             #input_dim (4 * cfg_n_embd)
             #output_dim cfg_n_embd
           )
@@ -133,7 +132,7 @@ let gen_block
           #use_bias true
           Layer.Activation.none
       in
-      ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %shape) ->
+      ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %[sz_b, sz_t, sz_c]) ->
           let xs =
             ~Tensor.gen_add
               xs
@@ -188,11 +187,11 @@ let gen_gpt
           Layer.Activation.none
       in
       let blocks =
-        let rec loop (i : Int) : #is_training Bool -> Tensor %fooo -> Tensor %fooo =
+        let rec loop (i : Int) : #is_training Bool -> Tensor %[sz_b, sz_t, sz_c] -> Tensor %[sz_b, sz_t, sz_c] =
           if i <= 0 then
-            fun #is_training (is_training : Bool) -> fun (xs : Tensor %fooo) -> xs
+            fun #is_training (is_training : Bool) -> fun (xs : Tensor %[sz_b, sz_t, sz_c]) -> xs
           else
-            fun #is_training (is_training : Bool) -> fun (xs : Tensor %fooo) ->
+            fun #is_training (is_training : Bool) -> fun (xs : Tensor %[sz_b, sz_t, sz_c]) ->
               let xs =
                 ~Layer.gen_forward_
                   ( ~(gen_block
@@ -202,7 +201,6 @@ let gen_gpt
                         #block_size cfg_block_size
                         #n_head cfg_n_head
                         #n_embd cfg_n_embd
-                        {fooo}
                     )
                       #attn_pdrop cfg_attn_pdrop
                       #resid_pdrop cfg_resid_pdrop
@@ -348,7 +346,7 @@ let labels = 1000 in (* TODO *)
     ~(gen_gpt
         {431} (* sz_b *)
         {542} (* sz_t *)
-        {653} (* sz_c *)
+        {512} (* sz_c == cfg_n_embd ? *)
         #block_size seq_len
         #n_head 8
         #n_embd 512
