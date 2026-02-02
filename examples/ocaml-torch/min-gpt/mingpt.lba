@@ -8,9 +8,7 @@ let batch_size = 64 in
 let seq_len = 128 in
 
 let gen_causal_self_attention
-    {sz_b : Nat}
-    {sz_t : Nat}
-    {sz_c : Nat}
+    {b : Nat}
     #block_size (cfg_block_size : Nat)
     #n_head (cfg_n_head : Nat)
     #n_embd (cfg_n_embd : {n : Int | mod n cfg_n_head == 0}) =
@@ -19,7 +17,7 @@ let gen_causal_self_attention
     fun #embd_pdrop (cfg_embd_pdrop : Float) ->
     fun(vs : VarStore) ->
       let linear (n : String) =
-        ~(Layer.gen_linear {[sz_b, sz_t]} #input_dim cfg_n_embd #output_dim cfg_n_embd) (* TODO: sz_c == cfg_n_embd ? *)
+        ~(Layer.gen_linear {[b, seq_len]} #input_dim cfg_n_embd #output_dim cfg_n_embd)
           (let open VarStore in vs / n)
           #use_bias true
           Layer.Activation.none
@@ -34,10 +32,10 @@ let gen_causal_self_attention
           |> ~(Tensor.gen_view #size [1, 1, cfg_block_size, cfg_block_size])
       in
       let mask = ~Tensor.gen_eq_scalar mask_init (Tensor.f 0.0) in
-      ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %[sz_b, sz_t, sz_c]) ->
-        ~(let sz_c_over_n_head = sz_c // cfg_n_head in
-          let size = [sz_b, sz_t, cfg_n_head, sz_c_over_n_head] in
-          &(let k = (* Tensor %[sz_b, cfg_n_head, sz_t, sz_c / cfg_n_head] *)
+      ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %[b, seq_len, cfg_n_embd]) ->
+        ~(let n_embd_over_n_head = cfg_n_embd // cfg_n_head in
+          let size = [b, seq_len, cfg_n_head, n_embd_over_n_head] in
+          &(let k = (* Tensor %[b, cfg_n_head, seq_len, cfg_n_embd / cfg_n_head] *)
               xs
                 |> ~Layer.gen_forward key
                 |> ~(Tensor.gen_view #size size)
@@ -55,11 +53,11 @@ let gen_causal_self_attention
                 |> ~(Tensor.gen_view #size size)
                 |> ~(Tensor.gen_transpose #dim0 1 #dim1 2)
             in
-            let att = (* Tensor %[sz_b, cfg_n_head, sz_t, sz_t] *)
+            let att = (* Tensor %[b, cfg_n_head, seq_len, seq_len] *)
               ~Tensor.gen_matmul q (~(Tensor.gen_transpose #dim0 -2 #dim1 -1) k)
-                as Tensor %[sz_b, cfg_n_head, sz_t, sz_t]
+                as Tensor %[b, cfg_n_head, seq_len, seq_len]
             in
-            let att0 = (~Tensor.gen_div att (Tensor.f (sqrt (float ~(lift_int sz_c_over_n_head))))) in
+            let att0 = (~Tensor.gen_div att (Tensor.f (sqrt (float ~(lift_int n_embd_over_n_head))))) in
             (* let a = mask + 1 in *)
             let att =
               att0
@@ -67,10 +65,10 @@ let gen_causal_self_attention
                 |> ~(Tensor.gen_softmax #dim -1)
                 |> ~Tensor.gen_dropout #p cfg_attn_pdrop #is_training is_training
             in
-            ~Tensor.gen_matmul att v (* [sz_b, n_head, sz_t, sz_c / n_head] *)
-              |> ~(Tensor.gen_transpose #dim0 1 #dim1 2) (* [sz_b, sz_t, n_head, sz_c / n_head] *)
+            ~Tensor.gen_matmul att v (* [b, n_head, seq_len, cfg_n_embd / n_head] *)
+              |> ~(Tensor.gen_transpose #dim0 1 #dim1 2) (* [b, seq_len, n_head, cfg_n_embd / n_head] *)
               |> ~Tensor.gen_contiguous
-              |> ~(Tensor.gen_view #size [sz_b, sz_t, sz_c])
+              |> ~(Tensor.gen_view #size [b, seq_len, cfg_n_embd])
               |> ~Layer.gen_forward proj
               |> ~Tensor.gen_dropout #p cfg_resid_pdrop #is_training is_training
           )
@@ -80,7 +78,7 @@ let gen_causal_self_attention
 in
 
 let gen_block
-    {sz_b : Nat} {sz_t : Nat} {sz_c : Nat}
+    {b : Nat}
     #block_size (cfg_block_size : Int)
     #n_head (cfg_n_head : Int)
     #n_embd (cfg_n_embd : {n : Int | mod n cfg_n_head == 0}) =
@@ -88,13 +86,11 @@ let gen_block
     fun #resid_pdrop (cfg_resid_pdrop : Float) ->
     fun #embd_pdrop (cfg_embd_pdrop : Float) ->
     fun(vs : VarStore) ->
-      let ln1 = ~(Layer.gen_layer_norm #dim cfg_n_embd {[sz_b, sz_t, sz_c]}) (let open VarStore in vs / "ln1") in
-      let ln2 = ~(Layer.gen_layer_norm #dim cfg_n_embd {[sz_b, sz_t, sz_c]}) (let open VarStore in vs / "ln2") in
+      let ln1 = ~(Layer.gen_layer_norm #dim cfg_n_embd {[b, seq_len, cfg_n_embd]}) (let open VarStore in vs / "ln1") in
+      let ln2 = ~(Layer.gen_layer_norm #dim cfg_n_embd {[b, seq_len, cfg_n_embd]}) (let open VarStore in vs / "ln2") in
       let attn =
         ~(gen_causal_self_attention
-            {sz_b}
-            {sz_t}
-            {sz_c}
+            {b}
             #block_size cfg_block_size
             #n_head cfg_n_head
             #n_embd cfg_n_embd
@@ -105,7 +101,7 @@ let gen_block
           vs
       in
       let lin1 =
-        ~(Layer.gen_linear {[sz_b, sz_t]}
+        ~(Layer.gen_linear {[b, seq_len]}
             #input_dim cfg_n_embd
             #output_dim (4 * cfg_n_embd)
           )
@@ -114,7 +110,7 @@ let gen_block
           Layer.Activation.none
       in
       let lin2 =
-        ~(Layer.gen_linear {[sz_b, sz_t]}
+        ~(Layer.gen_linear {[b, seq_len]}
             #input_dim (4 * cfg_n_embd)
             #output_dim cfg_n_embd
           )
@@ -122,7 +118,7 @@ let gen_block
           #use_bias true
           Layer.Activation.none
       in
-      ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %[sz_b, sz_t, sz_c]) ->
+      ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %[b, seq_len, cfg_n_embd]) ->
           let xs =
             ~Tensor.gen_add
               xs
@@ -142,9 +138,7 @@ let gen_block
 in
 
 let gen_gpt
-    {sz_b : Nat}
-    {sz_t : Nat}
-    {sz_c : Nat}
+    {b : Nat}
     #block_size (cfg_block_size : Int)
     #n_head (cfg_n_head : Int)
     #n_embd (cfg_n_embd : {n : Int | mod n cfg_n_head == 0})
@@ -155,7 +149,7 @@ let gen_gpt
     fun #embd_pdrop (cfg_embd_pdrop : Float) ->
     fun(vs : VarStore) ->
       let tok_emb =
-        ~(Layer.gen_embeddings {[sz_b, sz_t]} #num_embeddings cfg_vocab_size #embedding_dim cfg_n_embd)
+        ~(Layer.gen_embeddings {[b, seq_len]} #num_embeddings cfg_vocab_size #embedding_dim cfg_n_embd)
           (let open VarStore in vs / "tok_emb")
       in
       let pos_emb =
@@ -165,27 +159,26 @@ let gen_gpt
           #init VarStore.Init.zeros
       in
       let ln_f =
-        ~(Layer.gen_layer_norm #dim cfg_n_embd {[sz_b, sz_t, cfg_n_embd]})
+        ~(Layer.gen_layer_norm #dim cfg_n_embd {[b, seq_len, cfg_n_embd]})
           (let open VarStore in vs / "ln_f")
       in
       let head =
-        ~(Layer.gen_linear {[sz_b, sz_t]} #input_dim cfg_n_embd #output_dim cfg_vocab_size)
+        ~(Layer.gen_linear {[b, seq_len]} #input_dim cfg_n_embd #output_dim cfg_vocab_size)
           (let open VarStore in vs / "head")
           #use_bias false
           Layer.Activation.none
       in
       let blocks =
-        let rec loop (i : Int) : #is_training Bool -> Tensor %[sz_b, sz_t, sz_c] -> Tensor %[sz_b, sz_t, sz_c] =
+        let rec loop (i : Int) :
+            #is_training Bool -> Tensor %[b, seq_len, cfg_n_embd] -> Tensor %[b, seq_len, cfg_n_embd] =
           if i <= 0 then
-            fun #is_training (is_training : Bool) -> fun (xs : Tensor %[sz_b, sz_t, sz_c]) -> xs
+            fun #is_training (is_training : Bool) -> fun (xs : Tensor %[b, seq_len, cfg_n_embd]) -> xs
           else
-            fun #is_training (is_training : Bool) -> fun (xs : Tensor %[sz_b, sz_t, sz_c]) ->
+            fun #is_training (is_training : Bool) -> fun (xs : Tensor %[b, seq_len, cfg_n_embd]) ->
               let xs =
                 ~Layer.gen_forward_
                   ( ~(gen_block
-                        {sz_b}
-                        {sz_t}
-                        {sz_c}
+                        {b}
                         #block_size cfg_block_size
                         #n_head cfg_n_head
                         #n_embd cfg_n_embd
@@ -202,14 +195,14 @@ let gen_gpt
         in
         ~Layer.gen_of_fn_ (loop cfg_n_layer)
       in
-      ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %[sz_b, sz_t]) ->
+      ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %[b, seq_len]) ->
           let tok_emb = ~Layer.gen_forward tok_emb xs in
-          let pos_emb = ~(Tensor.gen_narrow #dim 1 #length sz_t) #start 0 pos_emb in
-          ~Tensor.gen_add tok_emb pos_emb (* [sz_b, sz_t, cfg_n_embd] *)
+          let pos_emb = ~(Tensor.gen_narrow #dim 1 #length seq_len) #start 0 pos_emb in
+          ~Tensor.gen_add tok_emb pos_emb (* [b, seq_len, cfg_n_embd] *)
             |> ~Tensor.gen_dropout #p cfg_embd_pdrop #is_training is_training
-            |> ~Layer.gen_forward_ blocks #is_training is_training (* [sz_b, sz_t, cfg_n_embd] *)
+            |> ~Layer.gen_forward_ blocks #is_training is_training (* [b, seq_len, cfg_n_embd] *)
             |> ~Layer.gen_forward ln_f
-            |> ~Layer.gen_forward head (* [sz_b, sz_t, cfg_vocab_size] *)
+            |> ~Layer.gen_forward head (* [b, seq_len, cfg_vocab_size] *)
       )
   )
 in
@@ -217,7 +210,9 @@ in
 let gen_sample {cfg_vocab_size : Nat} (cfg_block_size : Nat) =
   &(let sampling_length = 2048 in
     let temperature = 1.0 in
-    fun #gpt (gpt : #is_training Bool -> Tensor %[1, cfg_block_size] -> Tensor %[1, seq_len, cfg_vocab_size]) -> (* TODO *)
+    fun #gpt (gpt :
+      #is_training Bool -> Tensor %[1, cfg_block_size] -> Tensor %[1, seq_len, cfg_vocab_size]
+    ) ->
     fun #dataset (dataset : TextHelper %cfg_vocab_size) ->
     fun #device (device : Device) ->
       let input = ~(Tensor.gen_zeros [1, cfg_block_size]) (* #device device *) (* #kind (T Int64) *) in
@@ -254,7 +249,10 @@ let gen_train
     {labels : Nat}
     #block_size (cfg_block_size : Int)
     #vocab_size (cfg_vocab_size : Int)
-    #gpt (gpt : (n : Nat) -> &(#is_training Bool -> Tensor %[n, cfg_block_size] -> Tensor %[n, seq_len, cfg_vocab_size])) =
+    #gpt (gpt :
+      (n : Nat) ->
+      &(#is_training Bool -> Tensor %[n, cfg_block_size] -> Tensor %[n, seq_len, cfg_vocab_size])
+    ) =
   &(let learning_rate = 0.0003 in
     let epochs = 100 in
     fun(vs : VarStore) ->
@@ -311,11 +309,9 @@ let labels = 1000 in (* TODO *)
         ++ ", labels: "
         ++ (show_int ~(lift_int labels))
         ++ ".\n");
-  ~(let gpt (n : Nat) =
+  ~(let gpt (b : Nat) =
       &(~(gen_gpt
-            {n} (* sz_b *)
-            {128} (* sz_t == seq_len ? *)
-            {512} (* sz_c == cfg_n_embd ? *)
+            {b}
             #block_size seq_len
             #n_head 8
             #n_embd 512
