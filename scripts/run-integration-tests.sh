@@ -22,16 +22,17 @@ TESTS_STAGED_RUN=(
     examples/vec_higher_order_explicit.lba
 )
 TESTS_STAGED_COMPILE=(
+    examples/ocaml-torch/char_rnn/char_rnn.lba
+    examples/ocaml-torch/gan/mnist_cgan.lba
+    examples/ocaml-torch/gan/mnist_dcgan.lba
+    examples/ocaml-torch/gan/mnist_gan.lba
     examples/ocaml-torch/jit/load_and_run.lba
+    examples/ocaml-torch/min-gpt/mingpt.lba
     examples/ocaml-torch/mnist/conv.lba
     examples/ocaml-torch/mnist/linear.lba
     examples/ocaml-torch/mnist/linear_as.lba
     examples/ocaml-torch/pretrained/finetuning.lba
     examples/ocaml-torch/pretrained/predict.lba
-    examples/ocaml-torch/char_rnn/char_rnn.lba
-    examples/ocaml-torch/gan/mnist_cgan.lba
-    examples/ocaml-torch/gan/mnist_dcgan.lba
-    examples/ocaml-torch/gan/mnist_gan.lba
 )
 TESTS_STAGED_FAILURE=(
     examples/failure/error-bracket.lba
