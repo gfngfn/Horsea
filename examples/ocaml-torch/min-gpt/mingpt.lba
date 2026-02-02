@@ -289,24 +289,21 @@ let gen_train
             #data (~(gen_sample cfg_block_size) #gpt ~(gpt 1) #dataset dataset #device device);
           let start_time = Unix.gettimeofday () in
           let sum_loss = Tensor.f 0.0 in
-          ~(TextHelper.gen_iter
-              #seq_len seq_len
-              #batch_size batch_size
-              &(fun(batch_idx : Int) ->
-                fun #xs (xs : Tensor %[batch_size, seq_len]) ->
-                fun #ys (ys : Tensor %[batch_size, seq_len]) ->
-                  let logits = ~Layer.gen_forward_ ~(gpt batch_size) #is_training true xs in
-                  (* Compute the cross-entropy loss. *)
-                  let loss =
-                    ~Tensor.gen_cross_entropy_for_logits
-                      (~(Tensor.gen_view #size [batch_size * seq_len, cfg_vocab_size]) logits)
-                      #targets (~(Tensor.gen_view #size [batch_size * seq_len]) ys)
-                  in
-                  ~Tensor.gen_add_update sum_loss loss;
-                  print_string (show_int batch_idx ++ "/" ++ show_int batches_per_epoch);
-                  print_float (~Tensor.gen_float_value sum_loss / float (1 + batch_idx));
-                  Optimizer.backward_step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam #loss loss
-              )
+          ~(TextHelper.gen_iter #seq_len seq_len #batch_size batch_size)
+            ( fun(batch_idx : Int) ->
+              fun #xs (xs : Tensor %[batch_size, seq_len]) ->
+              fun #ys (ys : Tensor %[batch_size, seq_len]) ->
+                let logits = ~Layer.gen_forward_ ~(gpt batch_size) #is_training true xs in
+                (* Compute the cross-entropy loss. *)
+                let loss =
+                  ~Tensor.gen_cross_entropy_for_logits
+                    (~(Tensor.gen_view #size [batch_size * seq_len, cfg_vocab_size]) logits)
+                    #targets (~(Tensor.gen_view #size [batch_size * seq_len]) ys)
+                in
+                ~Tensor.gen_add_update sum_loss loss;
+                print_string (show_int batch_idx ++ "/" ++ show_int batches_per_epoch);
+                print_float (~Tensor.gen_float_value sum_loss / float (1 + batch_idx));
+                Optimizer.backward_step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam #loss loss
             )
             #device device
             dataset;
