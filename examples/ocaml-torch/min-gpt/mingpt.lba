@@ -7,19 +7,6 @@
 let batch_size = 64 in
 let seq_len = 128 in
 
-(*
-type config (vocab_size, n_embd, n_head, n_layer, block_size) =
-  { vocab_size : { v:int | v = vocab_size }
-  ; n_embd : { v:int | v = n_embd && n_embd = n_head * (n_embd // n_head) }
-  ; n_head : { v:int | v = n_head }
-  ; n_layer : { v:int | v = n_layer }
-  ; block_size : { v:int | v = block_size }
-  ; attn_pdrop : float
-  ; resid_pdrop : float
-  ; embd_pdrop : float
-  }
-*)
-
 let gen_causal_self_attention
     {sz_b : Nat}
     {sz_t : Nat}
@@ -267,7 +254,7 @@ let gen_train
     {labels : Nat}
     #block_size (cfg_block_size : Int)
     #vocab_size (cfg_vocab_size : Int)
-    #gpt (gpt : (n : Nat) -> &(#is_training Bool -> Tensor %[n, cfg_block_size] -> Tensor %[n, seq_len, cfg_vocab_size])) = (* TODO *)
+    #gpt (gpt : (n : Nat) -> &(#is_training Bool -> Tensor %[n, cfg_block_size] -> Tensor %[n, seq_len, cfg_vocab_size])) =
   &(let learning_rate = 0.0003 in
     let epochs = 100 in
     fun(vs : VarStore) ->
@@ -324,19 +311,6 @@ let labels = 1000 in (* TODO *)
         ++ ", labels: "
         ++ (show_int ~(lift_int labels))
         ++ ".\n");
-(*
-  let cfg =
-    { vocab_size = labels
-    ; n_embd = 512
-    ; n_head = 8
-    ; n_layer = 8
-    ; block_size = seq_len
-    ; attn_pdrop = 0.1
-    ; resid_pdrop = 0.1
-    ; embd_pdrop = 0.1
-    }
-  in
-*)
   ~(let gpt (n : Nat) =
       &(~(gen_gpt
             {n} (* sz_b *)

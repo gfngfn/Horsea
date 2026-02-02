@@ -68,7 +68,7 @@ let random (u : Unit) =
   f 2.0 * rand [batch_size, latent_dim] - f 1.0
 in
 let end_line_by (s : String) = "  [" ++ s ++ "],\n" in
-let write_samples (samples : Tensor [batch_size, image_dim]) #filename (filename : String) = (* TODO *)
+let write_samples (samples : Tensor [batch_size, image_dim]) #filename (filename : String) =
   IO.OutChannel.with_file filename (fun (channel : OutChannel) ->
     IO.OutChannel.output_string channel "data_ = [\n";
     (range 0 99) |> List.iter (fun(sample_index : Int) ->

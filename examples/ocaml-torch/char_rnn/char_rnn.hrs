@@ -33,7 +33,7 @@ let sample {labels : Nat} {input_size : Nat} {hidden_size : Nat}
           let sampled_y =
             Layer.forward linear h
               |> Tensor.softmax #dim -1
-              |> Tensor.multinomial {[1, labels]} #num_samples 1 #replacement false
+              |> Tensor.multinomial #num_samples 1 #replacement false
           in
           let sampled_label =
             Tensor.get {1} {[] as List Nat}
