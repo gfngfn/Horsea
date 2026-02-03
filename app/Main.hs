@@ -10,15 +10,17 @@ import Prelude
 defaultDisplayWidth :: Int
 defaultDisplayWidth = 120
 
-helpStub, helpDisplayWidth, helpInsertTrivial, helpSuppressIfDistribution, helpCompileTimeOnly, helpDefaultToStage0, helpShowParsed, helpShowBindingTime :: String
+helpStub, helpDisplayWidth, helpInsertTrivial, helpSuppressIfDistribution, helpCompileTimeOnly, helpDefaultToStage0, helpShowParsed, helpShowBindingTime, helpShowElaborated, helpShowInferred :: String
 helpStub = "Specify the stub file"
 helpDisplayWidth = "Set the display width (default: " ++ show defaultDisplayWidth ++ ")"
 helpInsertTrivial = "Inserts trivial cast assertions as well as non-trivial ones"
 helpSuppressIfDistribution = "Suppress the distribution of if-expressions under list literals for tensor shapes"
 helpCompileTimeOnly = "Stops after the compile-time evaluation"
 helpDefaultToStage0 = "Make ambiguous binding times default to 0, which promotes inlining"
-helpShowParsed = "Display parsed expressions"
+helpShowParsed = "Display the parsed expression"
 helpShowBindingTime = "Display the result of binding-time analysis"
+helpShowElaborated = "Display the elaborated expression"
+helpShowInferred = "Display the inferred arguments"
 
 data Argument
   = StagedArgument Staged.Entrypoint.Argument
@@ -40,6 +42,9 @@ stagedArgumentParser =
     <*> switch (long "suppress-if-distribution" <> help helpSuppressIfDistribution)
     <*> option auto (short 'w' <> long "display-width" <> value defaultDisplayWidth <> help helpDisplayWidth)
     <*> switch (short 'c' <> long "compile-time-only" <> help helpCompileTimeOnly)
+    <*> switch (long "show-parsed" <> help helpShowParsed)
+    <*> switch (long "show-elaborated" <> help helpShowElaborated)
+    <*> switch (long "show-inferred" <> help helpShowInferred)
 
 surfaceArgumentParser :: Parser Surface.Entrypoint.Argument
 surfaceArgumentParser =
@@ -52,6 +57,8 @@ surfaceArgumentParser =
     <*> switch (short 'c' <> long "compile-time-only" <> help helpCompileTimeOnly)
     <*> switch (short 'd' <> long "default-to-stage-0" <> help helpDefaultToStage0)
     <*> switch (long "show-parsed" <> help helpShowParsed)
+    <*> switch (long "show-elaborated" <> help helpShowElaborated)
+    <*> switch (long "show-inferred" <> help helpShowInferred)
     <*> switch (long "show-binding-time" <> help helpShowBindingTime)
 
 main :: IO ()

@@ -33,6 +33,8 @@ data Argument = Argument
     compileTimeOnly :: Bool,
     fallBackToBindingTime0 :: Bool,
     showParsed :: Bool,
+    showElaborated :: Bool,
+    showInferred :: Bool,
     showBtaResult :: Bool
   }
 
@@ -90,7 +92,7 @@ makeBindingTimeEnvFromStub =
 
 handle :: Argument -> IO (Maybe FailureReason)
 handle arg = do
-  putStrLn "Lightweight Dependent Types via Staging (Surface Language)"
+  putStrLn "Staged Shape-Dependent Types (Horsea)"
   stub_ <- readFileEither stubFilePath
   case stub_ of
     Left err -> do
@@ -167,6 +169,8 @@ handle arg = do
         compileTimeOnly,
         fallBackToBindingTime0,
         showParsed,
+        showElaborated,
+        showInferred,
         showBtaResult
       } = arg
 
@@ -177,7 +181,10 @@ handle arg = do
           Staged.Entrypoint.insertTrivial = insertTrivial,
           Staged.Entrypoint.suppressIfDistribution = suppressIfDistribution,
           Staged.Entrypoint.displayWidth = displayWidth,
-          Staged.Entrypoint.compileTimeOnly = compileTimeOnly
+          Staged.Entrypoint.compileTimeOnly = compileTimeOnly,
+          Staged.Entrypoint.showParsed = showParsed,
+          Staged.Entrypoint.showElaborated = showElaborated,
+          Staged.Entrypoint.showInferred = showInferred
         }
 
     putSectionLine :: String -> IO ()

@@ -8,7 +8,7 @@ module Staged.Entrypoint
 where
 
 import Control.Lens ((^?))
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Data.Either.Extra (mapLeft)
@@ -41,7 +41,10 @@ data Argument = Argument
     insertTrivial :: Bool,
     suppressIfDistribution :: Bool,
     displayWidth :: Int,
-    compileTimeOnly :: Bool
+    compileTimeOnly :: Bool,
+    showParsed :: Bool,
+    showElaborated :: Bool,
+    showInferred :: Bool
   }
   deriving (Read, Show)
 
@@ -111,14 +114,17 @@ showVar assVarDisplay sv =
 
 displayInferenceResult :: [ImplicitArgLogF Text] -> M ()
 displayInferenceResult impArgLogs = do
+  Argument {showInferred} <- ask
   putSectionLine $ "inference result (total: " ++ show numTotal ++ ", inferred: " ++ show numInferred ++ "):"
-  forM_ impArgLogs putRenderedLines
+  when showInferred $ do
+    forM_ impArgLogs putRenderedLines
   where
     numTotal = length impArgLogs
     numInferred = length $ filter (isJust . (^? #_LogInferredArg)) impArgLogs
 
 typecheckAndEvalInput :: TypecheckState -> SourceSpec -> TypeEnv -> [AssBind] -> Expr -> M (Maybe FailureReason)
 typecheckAndEvalInput tcState sourceSpecOfInput tyEnvStub abinds e = do
+  Argument {compileTimeOnly, showElaborated} <- ask
   let initialEvalState = Evaluator.initialState sourceSpecOfInput
   (r, TypecheckState {assVarDisplay, implicitArgLogRev}) <-
     typecheckInput sourceSpecOfInput tcState tyEnvStub e
@@ -129,10 +135,11 @@ typecheckAndEvalInput tcState sourceSpecOfInput tyEnvStub abinds e = do
       failure ExitByTypeError
     Right (result, a0eWithoutStub) -> do
       let a0e = makeExprFromBinds abinds a0eWithoutStub
-      putSectionLine "type:"
-      putRenderedLinesAtStage0 (fmap (showVar assVarDisplay) result)
-      putSectionLine "elaborated expression:"
-      putRenderedLinesAtStage0 (fmap (showVar assVarDisplay) a0e)
+      when showElaborated $ do
+        putSectionLine "type:"
+        putRenderedLinesAtStage0 (fmap (showVar assVarDisplay) result)
+        putSectionLine "elaborated expression:"
+        putRenderedLinesAtStage0 (fmap (showVar assVarDisplay) a0e)
       displayInferenceResult (map (fmap (showVar assVarDisplay)) (reverse implicitArgLogRev))
       case Evaluator.run (Evaluator.evalExpr0 initialEnv a0e) initialEvalState of
         Left err -> do
@@ -140,7 +147,6 @@ typecheckAndEvalInput tcState sourceSpecOfInput tyEnvStub abinds e = do
           putRenderedLines (fmap (showVar assVarDisplay) err)
           failure ExitByCompileTimeEvalError
         Right a0v -> do
-          Argument {compileTimeOnly} <- ask
           case a0v of
             A0ValBracket a1v -> do
               putSectionLine "generated code:"
@@ -181,8 +187,8 @@ typecheckAndEval sourceSpecOfStub bindsInStub sourceSpecOfInput e = do
 
 handle' :: M (Maybe FailureReason)
 handle' = do
-  Argument {inputFilePath, stubFilePath} <- ask
-  lift $ putStrLn "Staged Shape-Dependent Types"
+  Argument {inputFilePath, stubFilePath, showParsed} <- ask
+  lift $ putStrLn "Staged Shape-Dependent Types (Lambda-Bracket-Assertion)"
   stub_ <- lift $ readFileEither stubFilePath
   case stub_ of
     Left err -> do
@@ -217,8 +223,9 @@ handle' = do
                   putRenderedLines err
                   failure ExitByParseError
                 Right e -> do
-                  putSectionLine "parsed expression:"
-                  putRenderedLinesAtStage0 e
+                  when showParsed $ do
+                    putSectionLine "parsed expression:"
+                    putRenderedLinesAtStage0 e
                   typecheckAndEval sourceSpecOfStub bindsInStub sourceSpecOfInput e
 
 -- Returns a boolean that represents success or failure
