@@ -88,21 +88,21 @@ ERRORS=()
 
 for FILE in "${TESTS_STAGED_RUN[@]}"; do
     echo "======== $FILE (should pass) ========"
-    cabal run horsea -- staged --optimize --distribute-if "$FILE"
+    cabal run horsea -- staged "$FILE"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass)")
     fi
 done
 for FILE in "${TESTS_STAGED_COMPILE[@]}"; do
     echo "======== $FILE (should pass, compile-time only) ========"
-    cabal run horsea -- staged --optimize --distribute-if --compile-time-only "$FILE"
+    cabal run horsea -- staged --compile-time-only "$FILE"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass, compile-time only)")
     fi
 done
 for FILE in "${TESTS_STAGED_FAILURE[@]}"; do
     echo "======== $FILE (should be rejected) ========"
-    cabal run horsea -- staged --optimize --distribute-if "$FILE"
+    cabal run horsea -- staged "$FILE"
     if [ $? -le 1 ]; then
         ERRORS+=("$FILE (should be rejected)")
     fi
@@ -110,21 +110,21 @@ done
 
 for FILE in "${TEST_SURFACE_RUN[@]}"; do
     echo "======== $FILE (should pass) ========"
-    cabal run horsea -- surface --optimize --distribute-if "$FILE"
+    cabal run horsea -- surface "$FILE"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass)")
     fi
 done
 for FILE in "${TESTS_SURFACE_COMPILE[@]}"; do
     echo "======== $FILE (should pass, compile-time only) ========"
-    cabal run horsea -- surface --optimize --distribute-if --compile-time-only "$FILE"
+    cabal run horsea -- surface --compile-time-only "$FILE"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass, compile-time only)")
     fi
 done
 for FILE in "${TESTS_SURFACE_FAILURE[@]}"; do
     echo "======== $FILE (should be rejected) ========"
-    cabal run horsea -- surface --optimize --distribute-if "$FILE"
+    cabal run horsea -- surface "$FILE"
     if [ $? -le 1 ]; then
         ERRORS+=("$FILE (should be rejected)")
     fi

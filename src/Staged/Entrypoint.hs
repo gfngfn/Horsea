@@ -38,8 +38,8 @@ import Prelude
 data Argument = Argument
   { inputFilePath :: String,
     stubFilePath :: String,
-    optimize :: Bool,
-    distributeIf :: Bool,
+    insertTrivial :: Bool,
+    suppressIfDistribution :: Bool,
     displayWidth :: Int,
     compileTimeOnly :: Bool
   }
@@ -49,11 +49,11 @@ type M a = ReaderT Argument IO a
 
 makeConfig :: SourceSpec -> M TypecheckConfig
 makeConfig sourceSpec = do
-  Argument {optimize, distributeIf} <- ask
+  Argument {insertTrivial, suppressIfDistribution} <- ask
   pure $
     TypecheckConfig
-      { optimizeTrivialAssertion = optimize,
-        distributeIfUnderTensorShape = distributeIf,
+      { optimizeTrivialAssertion = not insertTrivial,
+        distributeIfUnderTensorShape = not suppressIfDistribution,
         sourceSpec = sourceSpec
       }
 

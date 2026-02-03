@@ -10,11 +10,11 @@ import Prelude
 defaultDisplayWidth :: Int
 defaultDisplayWidth = 120
 
-helpStub, helpDisplayWidth, helpOptimize, helpDistributeIf, helpCompileTimeOnly :: String
+helpStub, helpDisplayWidth, helpInsertTrivial, helpSuppressIfDistribution, helpCompileTimeOnly :: String
 helpStub = "Specify the stub file"
 helpDisplayWidth = "Set the display width (default: " ++ show defaultDisplayWidth ++ ")"
-helpOptimize = "Inserts only non-trivial cast assertions"
-helpDistributeIf = "Distributes if-expressions under list literals for tensor shapes"
+helpInsertTrivial = "Inserts trivial cast assertions as well as non-trivial ones"
+helpSuppressIfDistribution = "Suppress the distribution of if-expressions under list literals for tensor shapes"
 helpCompileTimeOnly = "Stops after the compile-time evaluation"
 
 data Argument
@@ -33,8 +33,8 @@ stagedArgumentParser =
   Staged.Entrypoint.Argument
     <$> strArgument (metavar "INPUT-FILE-PATH")
     <*> option auto (short 's' <> long "stub" <> value "stub.lbam" <> help helpStub)
-    <*> switch (short 'O' <> long "optimize" <> help helpOptimize)
-    <*> switch (short 'D' <> long "distribute-if" <> help helpDistributeIf)
+    <*> switch (long "insert-trivial" <> help helpInsertTrivial)
+    <*> switch (long "suppress-if-distribution" <> help helpSuppressIfDistribution)
     <*> option auto (short 'w' <> long "display-width" <> value defaultDisplayWidth <> help helpDisplayWidth)
     <*> switch (short 'c' <> long "compile-time-only" <> help helpCompileTimeOnly)
 
@@ -43,8 +43,8 @@ surfaceArgumentParser =
   Surface.Entrypoint.Argument
     <$> strArgument (metavar "INPUT-FILE-PATH")
     <*> option auto (short 's' <> long "stub" <> value "stub.lbam" <> help helpStub)
-    <*> switch (short 'O' <> long "optimize" <> help helpOptimize)
-    <*> switch (short 'D' <> long "distribute-if" <> help helpDistributeIf)
+    <*> switch (long "insert-trivial" <> help helpInsertTrivial)
+    <*> switch (long "suppress-if-distribution" <> help helpSuppressIfDistribution)
     <*> option auto (short 'w' <> long "display-width" <> value defaultDisplayWidth <> help helpDisplayWidth)
     <*> switch (short 'c' <> long "compile-time-only" <> help helpCompileTimeOnly)
     <*> switch (short 'd' <> long "default-to-stage-0" <> help "Make ambiguous binding times default to 0, which promotes inlining")
