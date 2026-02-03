@@ -4,6 +4,7 @@ module Surface.Entrypoint
   )
 where
 
+import Control.Monad (unless)
 import Control.Monad.Trans.Reader
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
@@ -38,7 +39,8 @@ data Argument = Argument
     showParsed :: Bool,
     showElaborated :: Bool,
     showInferred :: Bool,
-    showBtaResult :: Bool
+    showBtaResult :: Bool,
+    statsOnly :: Bool
   }
 
 makeBindingTimeEnvFromStub :: SigRecord -> BindingTimeEnv
@@ -97,7 +99,7 @@ putNormalLine :: String -> IO ()
 putNormalLine = putStrLn
 
 putSectionLine :: String -> IO ()
-putSectionLine s = putStrLn ("-------- " ++ s ++ " --------")
+putSectionLine s = putStrLn $ "-------- " ++ s ++ " --------"
 
 putRenderedLines :: (Disp a) => Argument -> a -> IO ()
 putRenderedLines Argument {displayWidth} =
@@ -112,22 +114,24 @@ putSkipped option =
   putNormalLine $ "  Skipped; specify " ++ option ++ " to see this"
 
 displayParsed :: Argument -> Expr -> IO ()
-displayParsed arg@Argument {showParsed} e = do
-  putSectionLine "parsed expression:"
-  if showParsed
-    then putRenderedLines arg e
-    else putSkipped "--show-parsed"
+displayParsed arg@Argument {statsOnly, showParsed} e = do
+  unless statsOnly $ do
+    putSectionLine "parsed expression:"
+    if showParsed
+      then putRenderedLines arg e
+      else putSkipped "--show-parsed"
 
 displayBtaResult :: Argument -> BCExprF Span -> StagedSyntax.Expr -> IO ()
-displayBtaResult arg@Argument {showBtaResult} bce lwe = do
-  putSectionLine "result of binding-time analysis:"
-  if showBtaResult
-    then putRenderedLines arg bce
-    else putSkipped "--show-binding-time"
-  putSectionLine "result of staging:"
-  if showBtaResult
-    then putRenderedLinesAtStage0 arg lwe
-    else putSkipped "--show-binding-time"
+displayBtaResult arg@Argument {statsOnly, showBtaResult} bce lwe = do
+  unless statsOnly $ do
+    putSectionLine "result of binding-time analysis:"
+    if showBtaResult
+      then putRenderedLines arg bce
+      else putSkipped "--show-binding-time"
+    putSectionLine "result of staging:"
+    if showBtaResult
+      then putRenderedLinesAtStage0 arg lwe
+      else putSkipped "--show-binding-time"
 
 handle :: Argument -> IO (Maybe FailureReason)
 handle arg = do
@@ -203,7 +207,8 @@ handle arg = do
         fallBackToBindingTime0,
         showParsed,
         showElaborated,
-        showInferred
+        showInferred,
+        statsOnly
       } = arg
 
     lwArg =
@@ -216,7 +221,8 @@ handle arg = do
           Staged.Entrypoint.compileTimeOnly = compileTimeOnly,
           Staged.Entrypoint.showParsed = showParsed,
           Staged.Entrypoint.showElaborated = showElaborated,
-          Staged.Entrypoint.showInferred = showInferred
+          Staged.Entrypoint.showInferred = showInferred,
+          Staged.Entrypoint.statsOnly = statsOnly
         }
 
     failure = return . Just

@@ -10,7 +10,7 @@ import Prelude
 defaultDisplayWidth :: Int
 defaultDisplayWidth = 120
 
-helpStub, helpDisplayWidth, helpInsertTrivial, helpSuppressIfDistribution, helpCompileTimeOnly, helpDefaultToStage0, helpShowParsed, helpShowBindingTime, helpShowElaborated, helpShowInferred :: String
+helpStub, helpDisplayWidth, helpInsertTrivial, helpSuppressIfDistribution, helpCompileTimeOnly, helpDefaultToStage0, helpShowParsed, helpShowBindingTime, helpShowElaborated, helpShowInferred, helpStatsOnly :: String
 helpStub = "Specify the stub file"
 helpDisplayWidth = "Set the display width (default: " ++ show defaultDisplayWidth ++ ")"
 helpInsertTrivial = "Inserts trivial cast assertions as well as non-trivial ones"
@@ -21,6 +21,7 @@ helpShowParsed = "Display the parsed expression"
 helpShowBindingTime = "Display the result of binding-time analysis"
 helpShowElaborated = "Display the elaborated expression"
 helpShowInferred = "Display the inferred arguments"
+helpStatsOnly = "Display only statistics"
 
 data Argument
   = StagedArgument Staged.Entrypoint.Argument
@@ -45,6 +46,7 @@ stagedArgumentParser =
     <*> switch (long "show-parsed" <> help helpShowParsed)
     <*> switch (long "show-elaborated" <> help helpShowElaborated)
     <*> switch (long "show-inferred" <> help helpShowInferred)
+    <*> switch (long "stats-only" <> help helpStatsOnly)
 
 surfaceArgumentParser :: Parser Surface.Entrypoint.Argument
 surfaceArgumentParser =
@@ -60,6 +62,7 @@ surfaceArgumentParser =
     <*> switch (long "show-elaborated" <> help helpShowElaborated)
     <*> switch (long "show-inferred" <> help helpShowInferred)
     <*> switch (long "show-binding-time" <> help helpShowBindingTime)
+    <*> switch (long "stats-only" <> help helpStatsOnly)
 
 main :: IO ()
 main = do

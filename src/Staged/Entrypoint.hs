@@ -8,7 +8,7 @@ module Staged.Entrypoint
 where
 
 import Control.Lens ((^?))
-import Control.Monad (forM_)
+import Control.Monad (forM_, unless)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Data.Either.Extra (mapLeft)
@@ -44,7 +44,8 @@ data Argument = Argument
     compileTimeOnly :: Bool,
     showParsed :: Bool,
     showElaborated :: Bool,
-    showInferred :: Bool
+    showInferred :: Bool,
+    statsOnly :: Bool
   }
   deriving (Read, Show)
 
@@ -121,46 +122,59 @@ putSkipped option =
 
 displayParsed :: Expr -> M ()
 displayParsed e = do
-  Argument {showParsed} <- ask
-  putSectionLine "parsed expression:"
-  if showParsed
-    then putRenderedLinesAtStage0 e
-    else putSkipped "--show-parsed"
+  Argument {statsOnly, showParsed} <- ask
+  unless statsOnly $ do
+    putSectionLine "parsed expression:"
+    if showParsed
+      then putRenderedLinesAtStage0 e
+      else putSkipped "--show-parsed"
 
 displayElaborated :: Map StaticVar Text -> Result0 -> Ass0Expr -> M ()
 displayElaborated assVarDisplay result a0e = do
-  Argument {showElaborated} <- ask
-  putSectionLine "type:"
-  if showElaborated
-    then putRenderedLinesAtStage0 (fmap (showVar assVarDisplay) result)
-    else putSkipped "--show-elaborated"
-  putSectionLine "elaborated expression:"
-  if showElaborated
-    then putRenderedLinesAtStage0 (fmap (showVar assVarDisplay) a0e)
-    else putSkipped "--show-elaborated"
+  Argument {statsOnly, showElaborated} <- ask
+  unless statsOnly $ do
+    putSectionLine "type:"
+    if showElaborated
+      then putRenderedLinesAtStage0 (fmap (showVar assVarDisplay) result)
+      else putSkipped "--show-elaborated"
+    putSectionLine "elaborated expression:"
+    if showElaborated
+      then putRenderedLinesAtStage0 (fmap (showVar assVarDisplay) a0e)
+      else putSkipped "--show-elaborated"
 
 displayInferenceResult :: [ImplicitArgLogF Text] -> M ()
 displayInferenceResult impArgLogs = do
-  Argument {showInferred} <- ask
-  putSectionLine $ "inference result (total: " ++ show numTotal ++ ", inferred: " ++ show numInferred ++ "):"
-  if showInferred
-    then forM_ impArgLogs putRenderedLines
-    else putSkipped "--show-inferred"
+  Argument {statsOnly, showInferred} <- ask
+  unless statsOnly $ do
+    putSectionLine "inference result:"
+    if showInferred
+      then forM_ impArgLogs putRenderedLines
+      else putSkipped "--show-inferred"
+
+displayGenerated :: Map StaticVar Text -> Ass1Val -> M ()
+displayGenerated assVarDisplay a1v = do
+  Argument {statsOnly} <- ask
+  unless statsOnly $ do
+    putSectionLine "generated code:"
+    putRenderedLinesAtStage1 (fmap (showVar assVarDisplay) a1v)
+
+displayStats :: [ImplicitArgLogF Text] -> M ()
+displayStats impArgLogs = do
+  putSectionLine "stats:"
+  putNormalLine "- implicit arguments:"
+  putNormalLine $ "  * total:    " ++ show numTotal
+  putNormalLine $ "  * inferred: " ++ show numInferred
   where
     numTotal = length impArgLogs
     numInferred = length $ filter (isJust . (^? #_LogInferredArg)) impArgLogs
 
-displayGenerated :: Map StaticVar Text -> Ass1Val -> M ()
-displayGenerated assVarDisplay a1v = do
-  putSectionLine "generated code:"
-  putRenderedLinesAtStage1 (fmap (showVar assVarDisplay) a1v)
-
 typecheckAndEvalInput :: TypecheckState -> SourceSpec -> TypeEnv -> [AssBind] -> Expr -> M (Maybe FailureReason)
-typecheckAndEvalInput tcState sourceSpecOfInput tyEnvStub abinds e = do
+typecheckAndEvalInput tcStateAfterStub sourceSpecOfInput tyEnvStub abinds e = do
   Argument {compileTimeOnly} <- ask
-  let initialEvalState = Evaluator.initialState sourceSpecOfInput
+  let tcState = tcStateAfterStub {implicitArgLogRev = []}
   (r, TypecheckState {assVarDisplay, implicitArgLogRev}) <-
     typecheckInput sourceSpecOfInput tcState tyEnvStub e
+  let implicitArgLog = map (fmap (showVar assVarDisplay)) $ reverse implicitArgLogRev
   case r of
     Left tyErr -> do
       putSectionLine "type error:"
@@ -169,7 +183,8 @@ typecheckAndEvalInput tcState sourceSpecOfInput tyEnvStub abinds e = do
     Right (result, a0eWithoutStub) -> do
       let a0e = makeExprFromBinds abinds a0eWithoutStub
       displayElaborated assVarDisplay result a0e
-      displayInferenceResult (map (fmap (showVar assVarDisplay)) (reverse implicitArgLogRev))
+      displayInferenceResult implicitArgLog
+      let initialEvalState = Evaluator.initialState sourceSpecOfInput
       case Evaluator.run (Evaluator.evalExpr0 initialEnv a0e) initialEvalState of
         Left err -> do
           putSectionLine "error during compile-time code generation:"
@@ -179,18 +194,20 @@ typecheckAndEvalInput tcState sourceSpecOfInput tyEnvStub abinds e = do
           case a0v of
             A0ValBracket a1v -> do
               displayGenerated assVarDisplay a1v
-              let a0eRuntime = Evaluator.unliftVal a1v
+              displayStats implicitArgLog
               if compileTimeOnly
                 then success
-                else case Evaluator.run (Evaluator.evalExpr0 initialEnv a0eRuntime) initialEvalState of
-                  Left err -> do
-                    putSectionLine "eval error:"
-                    putRenderedLines (fmap (showVar assVarDisplay) err)
-                    failure ExitByRuntimeEvalError
-                  Right a0vRuntime -> do
-                    putSectionLine "result of runtime evaluation:"
-                    putRenderedLinesAtStage0 (fmap (showVar assVarDisplay) a0vRuntime)
-                    success
+                else do
+                  let a0eRuntime = Evaluator.unliftVal a1v
+                  case Evaluator.run (Evaluator.evalExpr0 initialEnv a0eRuntime) initialEvalState of
+                    Left err -> do
+                      putSectionLine "eval error:"
+                      putRenderedLines (fmap (showVar assVarDisplay) err)
+                      failure ExitByRuntimeEvalError
+                    Right a0vRuntime -> do
+                      putSectionLine "result of runtime evaluation:"
+                      putRenderedLinesAtStage0 (fmap (showVar assVarDisplay) a0vRuntime)
+                      success
             _ -> do
               putSectionLine "stage-0 result:"
               putNormalLine "(The stage-0 result was not a code value)"
