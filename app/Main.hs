@@ -10,12 +10,18 @@ import Prelude
 defaultDisplayWidth :: Int
 defaultDisplayWidth = 120
 
-helpStub, helpDisplayWidth, helpOptimize, helpDistributeIf, helpCompileTimeOnly :: String
+helpStub, helpDisplayWidth, helpInsertTrivial, helpSuppressIfDistribution, helpCompileTimeOnly, helpDefaultToStage0, helpShowParsed, helpShowBindingTime, helpShowElaborated, helpShowInferred, helpStatsOnly :: String
 helpStub = "Specify the stub file"
 helpDisplayWidth = "Set the display width (default: " ++ show defaultDisplayWidth ++ ")"
-helpOptimize = "Inserts only non-trivial cast assertions"
-helpDistributeIf = "Distributes if-expressions under list literals for tensor shapes"
+helpInsertTrivial = "Inserts trivial cast assertions as well as non-trivial ones"
+helpSuppressIfDistribution = "Suppress the distribution of if-expressions under list literals for tensor shapes"
 helpCompileTimeOnly = "Stops after the compile-time evaluation"
+helpDefaultToStage0 = "Make ambiguous binding times default to 0, which promotes inlining"
+helpShowParsed = "Display the parsed expression"
+helpShowBindingTime = "Display the result of binding-time analysis"
+helpShowElaborated = "Display the elaborated expression"
+helpShowInferred = "Display the inferred arguments"
+helpStatsOnly = "Display only statistics"
 
 data Argument
   = StagedArgument Staged.Entrypoint.Argument
@@ -33,21 +39,30 @@ stagedArgumentParser =
   Staged.Entrypoint.Argument
     <$> strArgument (metavar "INPUT-FILE-PATH")
     <*> option auto (short 's' <> long "stub" <> value "stub.lbam" <> help helpStub)
-    <*> switch (short 'O' <> long "optimize" <> help helpOptimize)
-    <*> switch (short 'D' <> long "distribute-if" <> help helpDistributeIf)
+    <*> switch (long "insert-trivial" <> help helpInsertTrivial)
+    <*> switch (long "suppress-if-distribution" <> help helpSuppressIfDistribution)
     <*> option auto (short 'w' <> long "display-width" <> value defaultDisplayWidth <> help helpDisplayWidth)
     <*> switch (short 'c' <> long "compile-time-only" <> help helpCompileTimeOnly)
+    <*> switch (long "show-parsed" <> help helpShowParsed)
+    <*> switch (long "show-elaborated" <> help helpShowElaborated)
+    <*> switch (long "show-inferred" <> help helpShowInferred)
+    <*> switch (long "stats-only" <> help helpStatsOnly)
 
 surfaceArgumentParser :: Parser Surface.Entrypoint.Argument
 surfaceArgumentParser =
   Surface.Entrypoint.Argument
     <$> strArgument (metavar "INPUT-FILE-PATH")
     <*> option auto (short 's' <> long "stub" <> value "stub.lbam" <> help helpStub)
-    <*> switch (short 'O' <> long "optimize" <> help helpOptimize)
-    <*> switch (short 'D' <> long "distribute-if" <> help helpDistributeIf)
+    <*> switch (long "insert-trivial" <> help helpInsertTrivial)
+    <*> switch (long "suppress-if-distribution" <> help helpSuppressIfDistribution)
     <*> option auto (short 'w' <> long "display-width" <> value defaultDisplayWidth <> help helpDisplayWidth)
     <*> switch (short 'c' <> long "compile-time-only" <> help helpCompileTimeOnly)
-    <*> switch (short 'd' <> long "default-to-stage-0" <> help "Make ambiguous binding times default to 0, which promotes inlining")
+    <*> switch (short 'd' <> long "default-to-stage-0" <> help helpDefaultToStage0)
+    <*> switch (long "show-parsed" <> help helpShowParsed)
+    <*> switch (long "show-elaborated" <> help helpShowElaborated)
+    <*> switch (long "show-inferred" <> help helpShowInferred)
+    <*> switch (long "show-binding-time" <> help helpShowBindingTime)
+    <*> switch (long "stats-only" <> help helpStatsOnly)
 
 main :: IO ()
 main = do

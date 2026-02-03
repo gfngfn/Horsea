@@ -137,7 +137,7 @@ end
 
 module Unix = struct
   val gettimeofday : Unit -> Int
-    external (builtin = "unix___gettimeofday", surface = "gettimeofday")
+    external (builtin = "unix__gettimeofday", surface = "gettimeofday")
 end
 
 module Device = struct

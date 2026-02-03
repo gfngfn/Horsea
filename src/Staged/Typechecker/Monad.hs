@@ -3,6 +3,7 @@ module Staged.Typechecker.Monad
     TypecheckState (..),
     ImplicitArgLogF (..),
     ImplicitArgLog,
+    ShapeAnnotLog (..),
     M,
     M',
     run,
@@ -13,6 +14,7 @@ module Staged.Typechecker.Monad
     typeError,
     mapTypeError,
     logImplicitArg,
+    logShapeAnnot,
     generateFreshVar,
     generateFreshTypeVar,
   )
@@ -29,6 +31,7 @@ import Staged.Syntax
 import Staged.TypeError
 import Util.Elaborator
 import Util.LocationInFile (SourceSpec, SpanInFile)
+import Util.TokenUtil (Span)
 import Prelude
 
 data TypecheckConfig = TypecheckConfig
@@ -42,7 +45,8 @@ data TypecheckState = TypecheckState
     assVarDisplay :: Map StaticVar Text,
     nextTypeVarIndex :: Int,
     assTypeVarDisplay :: Map AssTypeVar Text,
-    implicitArgLogRev :: [ImplicitArgLog]
+    implicitArgLogRev :: [ImplicitArgLog],
+    shapeAnnotLogRev :: [ShapeAnnotLog]
   }
 
 data ImplicitArgLogF sv
@@ -51,6 +55,8 @@ data ImplicitArgLogF sv
   deriving stock (Functor, Generic)
 
 type ImplicitArgLog = ImplicitArgLogF StaticVar
+
+newtype ShapeAnnotLog = ShapeAnnotLog Span
 
 type M' err trav a = Elaborator TypecheckState TypecheckConfig err trav a
 
@@ -66,6 +72,11 @@ logImplicitArg :: ImplicitArgLog -> M trav ()
 logImplicitArg impArgLog = do
   tcState@TypecheckState {implicitArgLogRev} <- getState
   putState $ tcState {implicitArgLogRev = impArgLog : implicitArgLogRev}
+
+logShapeAnnot :: ShapeAnnotLog -> M trav ()
+logShapeAnnot shapeAnnotLog = do
+  tcState@TypecheckState {shapeAnnotLogRev} <- getState
+  putState $ tcState {shapeAnnotLogRev = shapeAnnotLog : shapeAnnotLogRev}
 
 generateFreshVar :: Maybe Text -> M' err trav StaticVar
 generateFreshVar maybeName = do
