@@ -4,6 +4,7 @@ module Surface.Entrypoint
   )
 where
 
+import Control.Monad (when)
 import Control.Monad.Trans.Reader
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
@@ -30,7 +31,9 @@ data Argument = Argument
     suppressIfDistribution :: Bool,
     displayWidth :: Int,
     compileTimeOnly :: Bool,
-    fallBackToBindingTime0 :: Bool
+    fallBackToBindingTime0 :: Bool,
+    showParsed :: Bool,
+    showBtaResult :: Bool
   }
 
 makeBindingTimeEnvFromStub :: SigRecord -> BindingTimeEnv
@@ -131,19 +134,29 @@ handle arg = do
                       putRenderedLines err
                       failure ExitByParseError
                     Right e -> do
-                      putSectionLine "parsed expression:"
-                      putRenderedLines e
+                      when showParsed $ do
+                        putSectionLine "parsed expression:"
+                        putRenderedLines e
                       case BindingTime.analyze sourceSpecOfInput fallBackToBindingTime0 initialBindingTimeEnv e of
                         Left analyErr -> do
                           putSectionLine "binding-time analysis error:"
                           putRenderedLines analyErr
                           failure ExitByAnalysisError
                         Right (bce, lwe) -> do
-                          putSectionLine "result of binding-time analysis:"
-                          putRenderedLines bce
-                          putSectionLine "result of staging:"
-                          putRenderedLinesAtStage0 lwe
-                          runReaderT (Staged.Entrypoint.typecheckAndEvalInput stateAfterTraversingStub sourceSpecOfInput tyEnvStub abinds lwe) lwArg
+                          when showBtaResult $ do
+                            putSectionLine "result of binding-time analysis:"
+                            putRenderedLines bce
+                            putSectionLine "result of staging:"
+                            putRenderedLinesAtStage0 lwe
+                          runReaderT
+                            ( Staged.Entrypoint.typecheckAndEvalInput
+                                stateAfterTraversingStub
+                                sourceSpecOfInput
+                                tyEnvStub
+                                abinds
+                                lwe
+                            )
+                            lwArg
   where
     Argument
       { inputFilePath,
@@ -152,7 +165,9 @@ handle arg = do
         suppressIfDistribution,
         displayWidth,
         compileTimeOnly,
-        fallBackToBindingTime0
+        fallBackToBindingTime0,
+        showParsed,
+        showBtaResult
       } = arg
 
     lwArg =
