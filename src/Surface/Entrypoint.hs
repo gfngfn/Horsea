@@ -4,7 +4,6 @@ module Surface.Entrypoint
   )
 where
 
-import Control.Monad (when)
 import Control.Monad.Trans.Reader
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
@@ -12,16 +11,20 @@ import Staged.Entrypoint qualified
 import Staged.Formatter (Disp)
 import Staged.Formatter qualified as Formatter
 import Staged.Parser qualified as StagedParser
+import Staged.SrcSyntax qualified as StagedSyntax
 import Staged.Typechecker.Monad (TypecheckState (..))
 import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Surface.BindingTime qualified as BindingTime
 import Surface.BindingTime.Core
+import Surface.BindingTime.Stager (BCExprF)
 import Surface.Parser qualified as Parser
+import Surface.Syntax
 import Util.FailureReason (FailureReason (..))
 import Util.IO (readFileEither)
 import Util.LocationInFile (SourceSpec (SourceSpec))
 import Util.LocationInFile qualified as LocationInFile
+import Util.TokenUtil (Span)
 import Prelude
 
 data Argument = Argument
@@ -90,13 +93,49 @@ makeBindingTimeEnvFromStub =
     )
     Map.empty
 
+putNormalLine :: String -> IO ()
+putNormalLine = putStrLn
+
+putSectionLine :: String -> IO ()
+putSectionLine s = putStrLn ("-------- " ++ s ++ " --------")
+
+putRenderedLines :: (Disp a) => Argument -> a -> IO ()
+putRenderedLines Argument {displayWidth} =
+  Formatter.putRenderedLines displayWidth
+
+putRenderedLinesAtStage0 :: (Disp a) => Argument -> a -> IO ()
+putRenderedLinesAtStage0 Argument {displayWidth} =
+  Formatter.putRenderedLinesAtStage0 displayWidth
+
+putSkipped :: String -> IO ()
+putSkipped option =
+  putNormalLine $ "  Skipped; specify " ++ option ++ " to see this"
+
+displayParsed :: Argument -> Expr -> IO ()
+displayParsed arg@Argument {showParsed} e = do
+  putSectionLine "parsed expression:"
+  if showParsed
+    then putRenderedLines arg e
+    else putSkipped "--show-parsed"
+
+displayBtaResult :: Argument -> BCExprF Span -> StagedSyntax.Expr -> IO ()
+displayBtaResult arg@Argument {showBtaResult} bce lwe = do
+  putSectionLine "result of binding-time analysis:"
+  if showBtaResult
+    then putRenderedLines arg bce
+    else putSkipped "--show-binding-time"
+  putSectionLine "result of staging:"
+  if showBtaResult
+    then putRenderedLinesAtStage0 arg lwe
+    else putSkipped "--show-binding-time"
+
 handle :: Argument -> IO (Maybe FailureReason)
 handle arg = do
-  putStrLn "Staged Shape-Dependent Types (Horsea)"
+  putNormalLine "Staged Shape-Dependent Types (Horsea)"
   stub_ <- readFileEither stubFilePath
   case stub_ of
     Left err -> do
-      putStrLn $ "IO error: " ++ err
+      putNormalLine $ "IO error: " ++ err
       failure ExitByIOError
     Right stub -> do
       let sourceSpecOfStub =
@@ -107,7 +146,7 @@ handle arg = do
       case StagedParser.parseBinds sourceSpecOfStub stub of
         Left err -> do
           putSectionLine "parse error of stub:"
-          putRenderedLines err
+          putRenderedLines arg err
           failure ExitByParseError
         Right declsInStub -> do
           (r, stateAfterTraversingStub@TypecheckState {assVarDisplay}) <-
@@ -115,14 +154,14 @@ handle arg = do
           case r of
             Left tyErr -> do
               putSectionLine "type error of stub:"
-              putRenderedLines (fmap (Staged.Entrypoint.showVar assVarDisplay) tyErr)
+              putRenderedLines arg (fmap (Staged.Entrypoint.showVar assVarDisplay) tyErr)
               failure ExitByTypeError
             Right (tyEnvStub, sigr, abinds) -> do
               let initialBindingTimeEnv = makeBindingTimeEnvFromStub sigr
               source_ <- readFileEither inputFilePath
               case source_ of
                 Left err -> do
-                  putStrLn $ "IO error: " ++ err
+                  putNormalLine $ "IO error: " ++ err
                   failure ExitByIOError
                 Right source -> do
                   let sourceSpecOfInput =
@@ -133,23 +172,17 @@ handle arg = do
                   case Parser.parseExpr sourceSpecOfInput source of
                     Left err -> do
                       putSectionLine "parse error:"
-                      putRenderedLines err
+                      putRenderedLines arg err
                       failure ExitByParseError
                     Right e -> do
-                      when showParsed $ do
-                        putSectionLine "parsed expression:"
-                        putRenderedLines e
+                      displayParsed arg e
                       case BindingTime.analyze sourceSpecOfInput fallBackToBindingTime0 initialBindingTimeEnv e of
                         Left analyErr -> do
                           putSectionLine "binding-time analysis error:"
-                          putRenderedLines analyErr
+                          putRenderedLines arg analyErr
                           failure ExitByAnalysisError
                         Right (bce, lwe) -> do
-                          when showBtaResult $ do
-                            putSectionLine "result of binding-time analysis:"
-                            putRenderedLines bce
-                            putSectionLine "result of staging:"
-                            putRenderedLinesAtStage0 lwe
+                          displayBtaResult arg bce lwe
                           runReaderT
                             ( Staged.Entrypoint.typecheckAndEvalInput
                                 stateAfterTraversingStub
@@ -170,8 +203,7 @@ handle arg = do
         fallBackToBindingTime0,
         showParsed,
         showElaborated,
-        showInferred,
-        showBtaResult
+        showInferred
       } = arg
 
     lwArg =
@@ -186,14 +218,5 @@ handle arg = do
           Staged.Entrypoint.showElaborated = showElaborated,
           Staged.Entrypoint.showInferred = showInferred
         }
-
-    putSectionLine :: String -> IO ()
-    putSectionLine s = putStrLn ("-------- " ++ s ++ " --------")
-
-    putRenderedLines :: (Disp a) => a -> IO ()
-    putRenderedLines = Formatter.putRenderedLines displayWidth
-
-    putRenderedLinesAtStage0 :: (Disp a) => a -> IO ()
-    putRenderedLinesAtStage0 = Formatter.putRenderedLinesAtStage0 displayWidth
 
     failure = return . Just
