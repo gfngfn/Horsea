@@ -1730,6 +1730,7 @@ typecheckTypeExpr1 trav tyEnv (TypeExpr loc tyeMain) = do
           a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat e2
           pure $ A1TyPrim (a1TyMat a0e1 a0e2)
         ("Tensor", [arg]) -> do
+          logShapeAnnot (ShapeAnnotLog loc)
           e <- validatePersistentExprArg1 trav arg
           a0eList <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) e
           pure $ A1TyPrim (A1TyTensor a0eList)

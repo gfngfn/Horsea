@@ -25,7 +25,7 @@ import Staged.SrcSyntax
 import Staged.Syntax
 import Staged.TypeError (TypeError)
 import Staged.Typechecker qualified as Typechecker
-import Staged.Typechecker.Monad (ImplicitArgLogF (..), TypecheckConfig (..), TypecheckState (..))
+import Staged.Typechecker.Monad (ImplicitArgLogF (..), ShapeAnnotLog (..), TypecheckConfig (..), TypecheckState (..))
 import Staged.Typechecker.SigRecord (SigRecord)
 import Staged.Typechecker.TypeEnv (TypeEnv)
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
@@ -98,7 +98,8 @@ typecheckStub sourceSpecOfStub bindsInStub = do
             assVarDisplay = Map.empty,
             nextTypeVarIndex = 0,
             assTypeVarDisplay = Map.empty,
-            implicitArgLogRev = []
+            implicitArgLogRev = [],
+            shapeAnnotLogRev = []
           }
       initialTypeEnv = TypeEnv.empty
   pure $
@@ -158,12 +159,11 @@ displayGenerated assVarDisplay a1v = do
     putSectionLine "generated code:"
     putRenderedLinesAtStage1 (fmap (showVar assVarDisplay) a1v)
 
-displayStats :: [ImplicitArgLogF Text] -> M ()
-displayStats impArgLogs = do
+displayStats :: [ImplicitArgLogF Text] -> [ShapeAnnotLog] -> M ()
+displayStats impArgLogs shapeAnnotLogs = do
   putSectionLine "stats:"
-  putNormalLine "- implicit arguments:"
-  putNormalLine $ "  * total:    " ++ show numTotal
-  putNormalLine $ "  * inferred: " ++ show numInferred
+  putNormalLine $ "- Implicit arguments: total = " ++ show numTotal ++ ", inferred = " ++ show numInferred
+  putNormalLine $ "- Number of shapes in type annotations: " ++ show (length shapeAnnotLogs)
   where
     numTotal = length impArgLogs
     numInferred = length $ filter (isJust . (^? #_LogInferredArg)) impArgLogs
@@ -171,10 +171,11 @@ displayStats impArgLogs = do
 typecheckAndEvalInput :: TypecheckState -> SourceSpec -> TypeEnv -> [AssBind] -> Expr -> M (Maybe FailureReason)
 typecheckAndEvalInput tcStateAfterStub sourceSpecOfInput tyEnvStub abinds e = do
   Argument {compileTimeOnly} <- ask
-  let tcState = tcStateAfterStub {implicitArgLogRev = []}
-  (r, TypecheckState {assVarDisplay, implicitArgLogRev}) <-
+  let tcState = tcStateAfterStub {implicitArgLogRev = [], shapeAnnotLogRev = []}
+  (r, TypecheckState {assVarDisplay, implicitArgLogRev, shapeAnnotLogRev}) <-
     typecheckInput sourceSpecOfInput tcState tyEnvStub e
   let implicitArgLog = map (fmap (showVar assVarDisplay)) $ reverse implicitArgLogRev
+  let shapeAnnotLog = reverse shapeAnnotLogRev
   case r of
     Left tyErr -> do
       putSectionLine "type error:"
@@ -194,7 +195,7 @@ typecheckAndEvalInput tcStateAfterStub sourceSpecOfInput tyEnvStub abinds e = do
           case a0v of
             A0ValBracket a1v -> do
               displayGenerated assVarDisplay a1v
-              displayStats implicitArgLog
+              displayStats implicitArgLog shapeAnnotLog
               if compileTimeOnly
                 then success
                 else do
