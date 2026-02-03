@@ -86,17 +86,8 @@ makeBindingTimeEnvFromStub =
     Map.empty
 
 handle :: Argument -> IO (Maybe FailureReason)
-handle Argument {inputFilePath, stubFilePath, insertTrivial, suppressIfDistribution, displayWidth, compileTimeOnly, fallBackToBindingTime0} = do
+handle arg = do
   putStrLn "Lightweight Dependent Types via Staging (Surface Language)"
-  let lwArg =
-        Staged.Entrypoint.Argument
-          { Staged.Entrypoint.inputFilePath = inputFilePath,
-            Staged.Entrypoint.stubFilePath = stubFilePath,
-            Staged.Entrypoint.insertTrivial = insertTrivial,
-            Staged.Entrypoint.suppressIfDistribution = suppressIfDistribution,
-            Staged.Entrypoint.displayWidth = displayWidth,
-            Staged.Entrypoint.compileTimeOnly = compileTimeOnly
-          }
   stub_ <- readFileEither stubFilePath
   case stub_ of
     Left err -> do
@@ -154,6 +145,26 @@ handle Argument {inputFilePath, stubFilePath, insertTrivial, suppressIfDistribut
                           putRenderedLinesAtStage0 lwe
                           runReaderT (Staged.Entrypoint.typecheckAndEvalInput stateAfterTraversingStub sourceSpecOfInput tyEnvStub abinds lwe) lwArg
   where
+    Argument
+      { inputFilePath,
+        stubFilePath,
+        insertTrivial,
+        suppressIfDistribution,
+        displayWidth,
+        compileTimeOnly,
+        fallBackToBindingTime0
+      } = arg
+
+    lwArg =
+      Staged.Entrypoint.Argument
+        { Staged.Entrypoint.inputFilePath = inputFilePath,
+          Staged.Entrypoint.stubFilePath = stubFilePath,
+          Staged.Entrypoint.insertTrivial = insertTrivial,
+          Staged.Entrypoint.suppressIfDistribution = suppressIfDistribution,
+          Staged.Entrypoint.displayWidth = displayWidth,
+          Staged.Entrypoint.compileTimeOnly = compileTimeOnly
+        }
+
     putSectionLine :: String -> IO ()
     putSectionLine s = putStrLn ("-------- " ++ s ++ " --------")
 
