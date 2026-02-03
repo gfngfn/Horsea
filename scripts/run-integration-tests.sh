@@ -22,16 +22,17 @@ TESTS_STAGED_RUN=(
     examples/vec_higher_order_explicit.lba
 )
 TESTS_STAGED_COMPILE=(
+    examples/ocaml-torch/char_rnn/char_rnn.lba
+    examples/ocaml-torch/gan/mnist_cgan.lba
+    examples/ocaml-torch/gan/mnist_dcgan.lba
+    examples/ocaml-torch/gan/mnist_gan.lba
     examples/ocaml-torch/jit/load_and_run.lba
+    examples/ocaml-torch/min-gpt/mingpt.lba
     examples/ocaml-torch/mnist/conv.lba
     examples/ocaml-torch/mnist/linear.lba
     examples/ocaml-torch/mnist/linear_as.lba
     examples/ocaml-torch/pretrained/finetuning.lba
     examples/ocaml-torch/pretrained/predict.lba
-    examples/ocaml-torch/char_rnn/char_rnn.lba
-    examples/ocaml-torch/gan/mnist_cgan.lba
-    examples/ocaml-torch/gan/mnist_dcgan.lba
-    examples/ocaml-torch/gan/mnist_gan.lba
 )
 TESTS_STAGED_FAILURE=(
     examples/failure/error-bracket.lba
@@ -67,16 +68,17 @@ TESTS_SURFACE_RUN=(
     examples/tensor_add_mat.hrs
 )
 TESTS_SURFACE_COMPILE=(
+    examples/ocaml-torch/char_rnn/char_rnn.hrs
+    examples/ocaml-torch/gan/mnist_cgan.hrs
+    examples/ocaml-torch/gan/mnist_dcgan.hrs
+    examples/ocaml-torch/gan/mnist_gan.hrs
     examples/ocaml-torch/jit/load_and_run.hrs
+    examples/ocaml-torch/min-gpt/mingpt.hrs
     examples/ocaml-torch/mnist/conv.hrs
     examples/ocaml-torch/mnist/linear.hrs
     examples/ocaml-torch/mnist/linear_as.hrs
     examples/ocaml-torch/pretrained/finetuning.hrs
     examples/ocaml-torch/pretrained/predict.hrs
-    examples/ocaml-torch/char_rnn/char_rnn.hrs
-    examples/ocaml-torch/gan/mnist_cgan.hrs
-    examples/ocaml-torch/gan/mnist_dcgan.hrs
-    examples/ocaml-torch/gan/mnist_gan.hrs
 )
 TESTS_SURFACE_FAILURE=(
     examples/failure/error-stage.hrs

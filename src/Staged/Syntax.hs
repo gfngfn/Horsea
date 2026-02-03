@@ -209,22 +209,24 @@ data AssPrimBaseType
   | ATyPrimChar
   | ATyPrimClipGrad
   | ATyPrimOutChannel
+  | ATyPrimVarStoreInit
   deriving stock (Eq, Show)
 
 validatePrimBaseType :: Text -> Maybe AssPrimBaseType
 validatePrimBaseType = \case
-  "Int" -> Just ATyPrimInt
-  "Float" -> Just ATyPrimFloat
-  "Unit" -> Just ATyPrimUnit
-  "Bool" -> Just ATyPrimBool
-  "String" -> Just ATyPrimString
-  "Device" -> Just ATyPrimDevice
-  "Activation" -> Just ATyPrimActivation
-  "VarStore" -> Just ATyPrimVarStore
-  "Optimizer" -> Just ATyPrimOptimizer
-  "Char" -> Just ATyPrimChar
-  "ClipGrad" -> Just ATyPrimClipGrad
-  "OutChannel" -> Just ATyPrimOutChannel
+  "Int" -> pure ATyPrimInt
+  "Float" -> pure ATyPrimFloat
+  "Unit" -> pure ATyPrimUnit
+  "Bool" -> pure ATyPrimBool
+  "String" -> pure ATyPrimString
+  "Device" -> pure ATyPrimDevice
+  "Activation" -> pure ATyPrimActivation
+  "VarStore" -> pure ATyPrimVarStore
+  "Optimizer" -> pure ATyPrimOptimizer
+  "Char" -> pure ATyPrimChar
+  "ClipGrad" -> pure ATyPrimClipGrad
+  "OutChannel" -> pure ATyPrimOutChannel
+  "VarStoreInit" -> pure ATyPrimVarStoreInit
   _ -> Nothing
 
 data Ass0PrimType

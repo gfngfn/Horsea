@@ -20,7 +20,7 @@ let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (mode
               &(fun(batch_images : Tensor %[actual_batch_size, imgdim, 107, 203]) -> (* TODO *)
                 fun(batch_labels : Tensor %[actual_batch_size]) ->
                   let activations =
-                    ~Layer.gen_forward_ pretrained_model batch_images #is_training false
+                    ~Layer.gen_forward_ pretrained_model #is_training false batch_images
                   in
                   (~Tensor.gen_copy activations, batch_labels)
               )
@@ -52,6 +52,7 @@ let model_path = "path/to/model" in
           ~Layer.gen_forward
             (~(Layer.gen_linear {ns} #input_dim 512 #output_dim (List.length classes))
                 train_vs
+                #use_bias true
                 Layer.Activation.none
             )
             xs
@@ -73,7 +74,7 @@ let model_path = "path/to/model" in
                       #targets batch_labels
                   in
                   ~Tensor.gen_add_update sum_loss loss;
-                  Optimizer.backward_step sgd #loss loss
+                  Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none sgd #loss loss
               )
             )
         )
@@ -92,7 +93,7 @@ let model_path = "path/to/model" in
         in
         print_string "train loss:";
         print_float
-          (Tensor.float_value sum_loss /
+          (~Tensor.gen_float_value sum_loss /
             float (~(DatasetHelper.gen_batches_per_epoch #batch_size batch_size) dataset));
         print_string "test accuracy:";
         print_float test_accuracy

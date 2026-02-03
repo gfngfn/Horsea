@@ -65,7 +65,7 @@ print_string "Loading weights from";
 print_string (lift_string weight_path);
 Serialize.load_multi_ #filename weight_path #named_tensors (VarStore.all_vars {vars_shape} vs);
 let probabilities =
-  Layer.forward_ model image #is_training false
+  Layer.forward_ model #is_training false image
     |> Tensor.softmax #dim -1
 in
 TorchVision.Imagenet.Classes.top #k 5 probabilities

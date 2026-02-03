@@ -33,7 +33,7 @@ let sample {labels : Nat} {input_size : Nat} {hidden_size : Nat}
           let sampled_y =
             Layer.forward linear h
               |> Tensor.softmax #dim -1
-              |> Tensor.multinomial {[1]} {labels} #num_samples 1 #replacement false
+              |> Tensor.multinomial #num_samples 1 #replacement false
           in
           let sampled_label =
             Tensor.get {1} {[] as List Nat}
@@ -61,8 +61,11 @@ print_int (TextHelper.total_length dataset);
 print_string "labels:";
 print_int (lift_int labels);
 let lstm = Layer.Lstm.create #input_dim labels #hidden_size hidden_size vs in
-let linear =
-  Layer.linear {[1]} #input_dim hidden_size #output_dim labels vs Layer.Activation.none
+let linear (shape : List Nat) =
+  Layer.linear {shape} #input_dim hidden_size #output_dim labels
+    vs
+    #use_bias true
+    Layer.Activation.none
 in
 let adam = Optimizer.adam vs #learning_rate learning_rate in
 let batches_per_epoch =
@@ -77,10 +80,12 @@ Checkpointing.loop
   (fun #index (epoch_idx : Int) ->
     IO.write_all
       ("out.txt." ++ show_int epoch_idx)
-      #data (sample #dataset dataset #lstm lstm #linear linear #device device);
+      #data (sample #dataset dataset #lstm lstm #linear (linear [1]) #device device);
     let start_time = Unix.gettimeofday () in
     let sum_loss = Tensor.f 0.0 in
-    TextHelper.iter #seq_len seq_len #batch_size batch_size
+    TextHelper.iter
+      #seq_len seq_len
+      #batch_size batch_size
       ( fun (batch_idx : Int) ->
         fun #xs (xs : Tensor [batch_size, seq_len]) ->
         fun #ys (ys : Tensor [batch_size, seq_len]) ->
@@ -91,8 +96,8 @@ Checkpointing.loop
             Tensor.zeros [batch_size, seq_len, labels] (* #device device *)
             |> Tensor.scatter_ #dim 2 #src one #index xs
           in
-          let (lstm_out, dummy) = Layer.Lstm.seq lstm onehot #is_training true in
-          let logits = Layer.forward linear lstm_out in
+          let (lstm_out, dummy) = Layer.Lstm.seq #is_training true lstm onehot in
+          let logits = Layer.forward (linear [batch_size, seq_len]) lstm_out in
           (* Compute the cross-entropy loss. *)
           let loss =
             Tensor.cross_entropy_for_logits
@@ -100,9 +105,9 @@ Checkpointing.loop
               #targets (Tensor.view #size [batch_size * seq_len] ys)
           in
           (let open Tensor in sum_loss += loss);
-          print_int (lift_int batch_idx);
+          print_int batch_idx;
           print_int batches_per_epoch;
-          print_float (Tensor.float_value sum_loss / float (1 + (lift_int batch_idx)));
+          print_float (Tensor.float_value sum_loss / float (1 + batch_idx));
           Tensor.backward loss;
           Optimizer.step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam
       )

@@ -19,7 +19,7 @@ let precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (model_pa
         fun(batch_images : Tensor [actual_batch_size, imgdim, 107, 203]) -> (* TODO *)
           fun(batch_labels : Tensor [actual_batch_size]) ->
             let activations =
-              Layer.forward_ pretrained_model batch_images #is_training false
+              Layer.forward_ pretrained_model #is_training false batch_images
             in
             (Tensor.copy activations, batch_labels)
       )
@@ -44,7 +44,11 @@ let dataset =
   let train_vs = VarStore.create #frozen false #name "rn-vs" #device Device.cpu () in
   let model {ns : List Nat} (xs : Tensor ns) =
     Layer.forward
-      (Layer.linear {ns} #input_dim 512 #output_dim (List.length classes) train_vs Layer.Activation.none)
+      ( Layer.linear {ns} #input_dim 512 #output_dim (List.length classes)
+          train_vs
+          #use_bias true
+          Layer.Activation.none
+      )
       xs
   in
   let sgd = Optimizer.sgd train_vs #learning_rate 0.001 #momentum 0.9 in
@@ -63,7 +67,7 @@ let dataset =
                 #targets batch_labels
             in
             (let open Tensor in sum_loss += loss);
-            Optimizer.backward_step sgd #loss loss
+            Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none sgd #loss loss
       )
       Device.cpu
       dataset;

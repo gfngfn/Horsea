@@ -547,6 +547,7 @@ instance Disp AssPrimBaseType where
     ATyPrimChar -> "Char"
     ATyPrimClipGrad -> "ClipGrad"
     ATyPrimOutChannel -> "OutChannel"
+    ATyPrimVarStoreInit -> "VarStoreInit"
 
 instance Disp Ass0PrimType where
   dispGen req = \case
@@ -639,7 +640,7 @@ instance Disp Matrix.ConstructionError where
 instance (Disp sv) => Disp (TypeErrorF sv) where
   dispGen _ = \case
     Unsupported spanInFile detail ->
-      "Unsupported;" <+> disp detail <+> disp spanInFile
+      "Unsupported feature" <+> disp spanInFile <> hardline <+> disp detail
     UnboundVar spanInFile ms x ->
       "Unbound variable" <+> dispLongName ms x <+> disp spanInFile
     UnboundTypeVar spanInFile (TypeVar a) ->
@@ -1094,8 +1095,8 @@ instance (Disp sv) => Disp (BugF sv) where
       "Not a vector:" <+> disp a0v
     NotAMatrix a0v ->
       "Not a matrix:" <+> disp a0v
-    NotABoolean a0v ->
-      "Not a Boolean:" <+> disp a0v
+    NotABoolean msg a0v ->
+      "Not a Boolean:" <+> disp a0v <+> "(" <> disp msg <> ")"
     NotAFloat a0v ->
       "Not a float:" <+> disp a0v
     NotAUnit a0v ->

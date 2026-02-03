@@ -14,6 +14,7 @@ let create_generator {shape : {s : List Nat | List.length s > 0}} (vs : VarStore
       #input_dim (latent_dim + label_count)
       #output_dim generator_hidden_nodes
       vs
+      #use_bias true
       Layer.Activation.leaky_relu
   in
   let linear2 =
@@ -21,6 +22,7 @@ let create_generator {shape : {s : List Nat | List.length s > 0}} (vs : VarStore
       #input_dim generator_hidden_nodes
       #output_dim image_dim
       vs
+      #use_bias true
       Layer.Activation.tanh
   in
   fun (rand_input : Tensor shape) ->
@@ -36,6 +38,7 @@ let create_discriminator
       #input_dim (image_dim + label_count)
       #output_dim discriminator_hidden_nodes
       vs
+      #use_bias true
       Layer.Activation.leaky_relu
   in
   let linear2 =
@@ -43,6 +46,7 @@ let create_discriminator
       #input_dim discriminator_hidden_nodes
       #output_dim 1
       vs
+      #use_bias true
       Layer.Activation.sigmoid
   in
   fun (xs : Tensor shape) ->
@@ -120,11 +124,11 @@ let one = Tensor.ones ([] as List Nat) in
     bce #labels 0.9 (create_discriminator discriminator_vs real_input)
       + bce #labels 0.0 (random () |> generator |> create_discriminator discriminator_vs)
   in
-  Optimizer.backward_step opt_d #loss discriminator_loss;
+  Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none opt_d #loss discriminator_loss;
   let generator_loss =
     bce #labels 1.0 (random () |> generator |> create_discriminator discriminator_vs)
   in
-  Optimizer.backward_step opt_g #loss generator_loss;
+  Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none opt_g #loss generator_loss;
   if mod batch_idx 100 == 0 then
     ( print_string "batch";
       print_int batch_idx;

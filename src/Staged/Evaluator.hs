@@ -19,6 +19,7 @@ import Data.Map qualified as Map
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Safe (atMay)
 import Staged.BuiltIn.CompileTime (deriveDeltaReduction)
 import Staged.BuiltIn.Core
 import Staged.BuiltIn.Definitions (definitions)
@@ -83,10 +84,10 @@ validateIntLiteral = \case
   A0ValLiteral (ALitInt n) -> pure n
   a0v -> bug $ NotAnInteger a0v
 
-validateBoolLiteral :: Ass0Val -> M Bool
-validateBoolLiteral = \case
+validateBoolLiteral :: Text -> Ass0Val -> M Bool
+validateBoolLiteral msg = \case
   A0ValLiteral (ALitBool b) -> pure b
-  a0v -> bug $ NotABoolean a0v
+  a0v -> bug $ NotABoolean msg a0v
 
 validateFloatLiteral :: Ass0Val -> M Double
 validateFloatLiteral = \case
@@ -159,6 +160,34 @@ dropAt :: Int -> [a] -> [a]
 dropAt _ [] = []
 dropAt n (v : vs) = if n <= 0 then vs else v : dropAt (n - 1) vs
 
+-- The implementation of the built-in function `swap`.
+swap :: Int -> Int -> [a] -> Maybe [a]
+swap n1' n2' xs = do
+  v1 <- atMay xs n1
+  v2 <- atMay xs n2
+  pure $
+    zipWith
+      (\i v -> if i == n1 then v2 else if i == n2 then v1 else v)
+      [0 ..]
+      xs
+  where
+    n1 = normalize n1'
+    n2 = normalize n2'
+    normalize n = if n < 0 then len + n else n
+    len = length xs
+
+-- The implementation of the built-in function `dim_matmul`.
+dimMatmul :: [Int] -> [Int] -> Maybe [Int]
+dimMatmul xs ys =
+  case (xs, ys) of
+    ([], _) -> Nothing
+    (_, []) -> Nothing
+    ([x0], [y0, y1]) -> if x0 == y0 then Just [y1] else Nothing
+    ([x0, x1], [y0]) -> if x1 == y0 then Just [x0] else Nothing
+    ([x0, x1], [y0, y1]) -> if x1 == y0 then Just [x0, y1] else Nothing
+    (_ : _ : xs', _ : _ : ys') -> dimMatmul xs' ys'
+    (_, _) -> Nothing
+
 -- The implementation of the built-in function `broadcast`.
 broadcast :: [Int] -> [Int] -> Maybe [Int]
 broadcast ns1' ns2' = reverse <$> go (reverse ns1', reverse ns2')
@@ -177,10 +206,10 @@ arithmetic f a0v1 a0v2 = do
   n2 <- validateIntLiteral a0v2
   pure (f n1 n2)
 
-logical :: (Bool -> Bool -> Ass0Val) -> Ass0Val -> Ass0Val -> M Ass0Val
-logical f a0v1 a0v2 = do
-  b1 <- validateBoolLiteral a0v1
-  b2 <- validateBoolLiteral a0v2
+logical :: Text -> (Bool -> Bool -> Ass0Val) -> Ass0Val -> Ass0Val -> M Ass0Val
+logical msg f a0v1 a0v2 = do
+  b1 <- validateBoolLiteral ("logical1, " <> msg) a0v1
+  b2 <- validateBoolLiteral ("logical2, " <> msg) a0v2
   pure (f b1 b2)
 
 $(deriveDeltaReduction definitions)
@@ -316,7 +345,7 @@ evalExpr0 env = \case
     pure $ A0ValTuple a0v1 a0v2
   A0IfThenElse a0e0 a0e1 a0e2 -> do
     a0v0 <- evalExpr0 env a0e0
-    b <- validateBoolLiteral a0v0
+    b <- validateBoolLiteral "if" a0v0
     if b
       then evalExpr0 env a0e1
       else evalExpr0 env a0e2
@@ -337,7 +366,7 @@ evalExpr0 env = \case
   A0RefinementAssert loc a0ePred a0eTarget -> do
     a0vPred <- evalExpr0 env a0ePred
     a0vTarget <- evalExpr0 env a0eTarget
-    b <- validateBoolLiteral =<< reduceBeta a0vPred a0vTarget
+    b <- validateBoolLiteral "refinement assertion" =<< reduceBeta a0vPred a0vTarget
     if b
       then
         pure a0vTarget
