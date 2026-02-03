@@ -1735,6 +1735,7 @@ typecheckTypeExpr1 trav tyEnv (TypeExpr loc tyeMain) = do
           a0eList <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) e
           pure $ A1TyPrim (A1TyTensor a0eList)
         ("Dataset", [arg1, arg2, arg3, arg4]) -> do
+          logShapeAnnot (ShapeAnnotLog loc)
           e1 <- validatePersistentExprArg1 trav arg1
           e2 <- validatePersistentExprArg1 trav arg2
           e3 <- validatePersistentExprArg1 trav arg3
@@ -1752,12 +1753,14 @@ typecheckTypeExpr1 trav tyEnv (TypeExpr loc tyeMain) = do
                   }
           pure $ A1TyPrim (A1TyDataset datasetParam)
         ("Lstm", [arg1, arg2]) -> do
+          logShapeAnnot (ShapeAnnotLog loc)
           e1 <- validatePersistentExprArg1 trav arg1
           e2 <- validatePersistentExprArg1 trav arg2
           a0eInputSize <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
           a0eHiddenSize <- forceExpr0 trav tyEnv BuiltIn.tyNat e2
           pure $ A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize)
         ("TextHelper", [arg1]) -> do
+          logShapeAnnot (ShapeAnnotLog loc)
           e1 <- validatePersistentExprArg1 trav arg1
           a0eLabels <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
           pure $ A1TyPrim (A1TyTextHelper a0eLabels)
