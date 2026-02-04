@@ -3,23 +3,23 @@
 # Must be run at the root of the repository
 
 TESTS_STAGED_RUN=(
-    examples/gen_vrepeat.lba
-    examples/gen_vrepeat_explicit.lba
-    examples/mat.lba
-    examples/mat_explicit.lba
-    examples/mat_concat_vert.lba
-    examples/mat_concat_vert_explicit.lba
-    examples/polymorphic.lba
-    examples/polymorphic_higher_order.lba
-    examples/repeat_and_add.lba
-    examples/repeat_and_add_explicit.lba
-    examples/simple_rec.lba
-    examples/tensor_add.lba
-    examples/tensor_add_mat.lba
-    examples/vec.lba
-    examples/vec_explicit.lba
-    examples/vec_higher_order.lba
-    examples/vec_higher_order_explicit.lba
+    examples/small/gen_vrepeat.lba
+    examples/small/gen_vrepeat_explicit.lba
+    examples/small/mat.lba
+    examples/small/mat_explicit.lba
+    examples/small/mat_concat_vert.lba
+    examples/small/mat_concat_vert_explicit.lba
+    examples/small/polymorphic.lba
+    examples/small/polymorphic_higher_order.lba
+    examples/small/repeat_and_add.lba
+    examples/small/repeat_and_add_explicit.lba
+    examples/small/simple_rec.lba
+    examples/small/tensor_add.lba
+    examples/small/tensor_add_mat.lba
+    examples/small/vec.lba
+    examples/small/vec_explicit.lba
+    examples/small/vec_higher_order.lba
+    examples/small/vec_higher_order_explicit.lba
 )
 TESTS_STAGED_COMPILE=(
     examples/ocaml-torch/char_rnn/char_rnn.lba
@@ -55,17 +55,17 @@ TESTS_STAGED_FAILURE=(
     examples/failure/error-labeled-3.lba
 )
 TESTS_SURFACE_RUN=(
-    examples/gen_vrepeat.hrs
-    examples/gen_vrepeat_explicit.hrs
-    examples/mat.hrs
-    examples/mat_explicit.hrs
-    examples/mat_concat_vert.hrs
-    examples/mat_concat_vert_explicit.hrs
-    examples/repeat_and_add_explicit.hrs
-    examples/repeat_and_add.hrs
-    examples/simple_rec.hrs
-    examples/tensor_add.hrs
-    examples/tensor_add_mat.hrs
+    examples/small/gen_vrepeat.hrs
+    examples/small/gen_vrepeat_explicit.hrs
+    examples/small/mat.hrs
+    examples/small/mat_explicit.hrs
+    examples/small/mat_concat_vert.hrs
+    examples/small/mat_concat_vert_explicit.hrs
+    examples/small/repeat_and_add_explicit.hrs
+    examples/small/repeat_and_add.hrs
+    examples/small/simple_rec.hrs
+    examples/small/tensor_add.hrs
+    examples/small/tensor_add_mat.hrs
 )
 TESTS_SURFACE_COMPILE=(
     examples/ocaml-torch/char_rnn/char_rnn.hrs
