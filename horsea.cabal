@@ -29,7 +29,7 @@ version:            0.1.0.0
 -- description:
 
 -- The license under which the package is released.
-license:            MIT
+license:            BSD-3-Clause
 
 -- The file containing the license text.
 license-file:       LICENSE
@@ -45,7 +45,7 @@ maintainer:         bd.gfngfn@gmail.com
 build-type:         Simple
 
 -- Extra doc files to be distributed with the package, such as a CHANGELOG or a README.
-extra-doc-files:    CHANGELOG.md
+extra-doc-files:
 
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
 -- extra-source-files:
