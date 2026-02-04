@@ -1,4 +1,4 @@
-# Horsea: Compile-Time Tensor Shape Checking via Staging
+# Compile-Time Tensor Shape Checking via Staged Shape-Dependent Types
 
 ## How to Use
 
@@ -11,31 +11,36 @@ $ cabal build
 
 ### How to run
 
-#### The staged language (`staged`)
+#### The staged language λ⟨⟩⦇⦈ (`staged`)
 
 ```console
-$ cabal run horsea -- staged -w 80 --optimize examples/mat.lwsd
+$ cabal run horsea -- staged examples/mat.lba
 ```
 
 Options:
 
-* `-O`, `--optimize`: Inserts only non-trivial cast assertions
-* `-c`, `--compile-time-only`: Stops after the compile-time evaluation
-* `-w`, `--display-width`: Sets the length of the terminal width for displaying texts. Default: `80`
+* `-c`, `--compile-time-only`: Stops after the compile-time evaluation.
+* `-w`, `--display-width`: Sets the length of the terminal width for displaying texts. Default: `120`
+* `-s`, `--stub`: Specify the location of the stub file. Default: `stub.lbam`
+* `--show-parsed`: Displays the parsed program.
+* `--show-elaborated`: Displays the elaborated program.
+* `--show-inferred`: Displays the inferred argument for each implicit parameter.
+* `--stats-only`: Prints only statistics.
+* `--insert-trivial`: Inserts trivial cast assertions as well as non-trivial ones.
+* `--suppress-if-distribution`: Does not perform fine-grained merging of types when checking `if`-expressions.
 
 
-#### The non-staged surface language (`surface`)
+#### The non-staged surface language Horsea (`surface`)
 
 ```console
-$ cabal run horsea -- surface examples/mat.surf
+$ cabal run horsea -- surface examples/mat.hrs
 ```
 
 Options:
 
-* `-d`, `--default-to-stage-0`: Makes ambiguous binding times default to 0, which promotes inlining
-* `-O`, `--optmize`: Same as `staged`
-* `-c`, `--compile-time-only`: Same as `staged`
-* `-w`, `--display-width`: Same as `staged`
+* `-d`, `--default-to-stage-0`: Makes ambiguous binding times default to 0, which promotes inlining.
+* `--show-binding-time`: Displays the result of binding-time analysis.
+* The other options are the same as `staged`.
 
 
 ## Memos for Development
@@ -44,6 +49,10 @@ Options:
 
 ```console
 $ cabal test
+```
+
+```console
+$ ./scripts/run-integration-tests.sh
 ```
 
 
