@@ -8,5 +8,9 @@ package horsea
   tests: True
   test-show-details: direct
 
-extra-packages:
-  ormolu-0.7.4.0
+-- The following commenting out is a workaround for
+-- a bug of `cabal install` in Cabal 3.10.3.0;
+-- See https://github.com/haskell/cabal/issues/8848 for details.
+
+-- extra-packages:
+--   ormolu-0.7.4.0
