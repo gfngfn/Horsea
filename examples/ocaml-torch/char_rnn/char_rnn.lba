@@ -33,9 +33,8 @@ let gen_sample {labels : Nat} {input_size : Nat} {hidden_size : Nat} =
                   |> ~(Tensor.gen_multinomial #num_samples 1) #replacement false
               in
               let sampled_label =
-                ~(Tensor.gen_get {1} {[] as List Nat})
-                  (~(Tensor.gen_get {1} {[1]}) sampled_y 0) 0
-                    |> ~Tensor.gen_int_value
+                ~Tensor.gen_get (~Tensor.gen_get sampled_y 0) 0
+                  |> ~Tensor.gen_int_value
               in
               loop (sampled_label, seq) state (i - 1)
             )

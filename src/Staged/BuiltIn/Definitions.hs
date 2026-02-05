@@ -362,6 +362,14 @@ definitions =
                     zipped
           pure $ A0ValLiteral (ALitBool b)
         |],
+    versatile ["list"] "tail" ForStage0 1 $
+      [|
+        do
+          a0vs <- validateListValue a0v1
+          case a0vs of
+            [] -> evalError $ Bug $ GeneralBuiltInError "List.tail; empty list"
+            _ : a0vs' -> pure $ A0ValLiteral (ALitList a0vs')
+        |],
     versatile ["list"] "init" ForStage0 1 $
       [|
         do
@@ -482,7 +490,7 @@ definitions =
     gen ["tensor"] "tril" [ParamIntList],
     gen ["tensor"] "contiguous" [ParamIntList],
     gen ["tensor"] "eq_scalar" [ParamIntList],
-    gen ["tensor"] "get" [ParamInt, ParamIntList],
+    gen ["tensor"] "get" [ParamIntList],
     gen ["tensor"] "get_float2_unsafe" [ParamIntList],
     gen ["tensor"] "fill_float" [ParamIntList],
     gen ["tensor"] "dropout" [ParamIntList],

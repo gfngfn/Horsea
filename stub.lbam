@@ -111,6 +111,8 @@ module List = struct
     external (builtin = "list__initialize", surface = "initialize")
   val %equal : forall 'a -> ('a -> 'a -> Bool) -> List 'a -> List 'a -> Bool
     external (builtin = "list__equal", surface = "equal")
+  val ~tail : forall 'a -> {xs : List 'a | length xs >= 1} -> List 'a
+    external (builtin = "list__tail", surface = "tail")
   val ~init : forall 'a -> {xs : List 'a | length xs >= 1} -> List 'a
     external (builtin = "list__init", surface = "init")
   val ~last : forall 'a -> {xs : List 'a | length xs >= 1} -> 'a
@@ -273,9 +275,8 @@ module Tensor = struct
     )
     external (builtin = "tensor__gen_eq_scalar", surface = "eq_scalar")
   val ~gen_get :
-    {n : Nat} ->
     {shape : List Nat} ->
-    &(Tensor %(n :: shape) -> Int -> Tensor %shape)
+    &(Tensor %shape -> Int -> Tensor %(List.tail shape))
     external (builtin = "tensor__gen_get", surface = "get")
   (* Note: MAY FAIL AT RUNTIME DUE TO INDICES OUT OF BOUNDS!: *)
   val ~gen_get_float2_unsafe :
