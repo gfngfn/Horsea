@@ -786,14 +786,12 @@ module TorchVision = struct
   end
   module Vgg = struct
     val ~gen_vgg11 :
-      {num_images : Nat} ->
-      {height : Nat} ->
-      {width : Nat} ->
+      {image_shape : {s : List Nat | List.length s == 4 && List.nth 1 s == 3}} ->
       #num_classes (num_classes : Nat) ->
       &(VarStore ->
         #is_training Bool ->
-        Tensor %[num_images, 3, height, width] ->
-        Tensor %[num_images, num_classes]
+        Tensor %image_shape ->
+        Tensor %[List.nth 0 image_shape, num_classes]
       )
       external (builtin = "torch_vision__vgg__gen_vgg11", surface = "vgg11")
   end
