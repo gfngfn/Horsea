@@ -137,7 +137,7 @@ validateIntPairLiteral a0v = do
   pure (n1, n2)
 
 discardValue :: Ass0Val -> M ()
-discardValue = const $ pure ()
+discardValue a0v = a0v `seq` pure ()
 
 validateVec0 :: Ass0Val -> M Vector
 validateVec0 = \case

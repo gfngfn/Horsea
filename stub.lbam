@@ -652,10 +652,9 @@ module DatasetHelper = struct
     {labeldim : List Nat} ->
     {n : Nat} ->
     #batch_size (batch_size : Nat) ->
-    #predict ((actual_batch_size : Nat) ->
-      &(Tensor %(actual_batch_size :: imgdim) -> Tensor %[actual_batch_size, n])
-    ) ->
-    &(Device -> Dataset %ntrain %ntest %imgdim %labeldim -> Float)
+    &(#predict (Tensor %(batch_size :: imgdim) -> Tensor %[batch_size, n]) ->
+      Device -> Dataset %ntrain %ntest %imgdim %labeldim -> Float
+    )
     external (builtin = "dataset_helper__gen_batch_accuracy", surface = "batch_accuracy")
   val ~gen_batches_per_epoch :
     {ntrain : Nat} ->
@@ -671,10 +670,11 @@ module DatasetHelper = struct
     {imgdim : List Nat} ->
     {labeldim : List Nat} ->
     #batch_size (batch_size : Nat) ->
-    ((actual_batch_size : Nat) ->
-      &(Tensor %(actual_batch_size :: imgdim) -> Tensor %(actual_batch_size :: labeldim) -> Unit)
-    ) ->
-    &(Device -> Dataset %ntrain %ntest %imgdim %labeldim -> Unit)
+    &((Tensor %(batch_size :: imgdim) -> Tensor %(batch_size :: labeldim) -> Unit) ->
+      Device ->
+      Dataset %ntrain %ntest %imgdim %labeldim ->
+      Unit
+    )
     external (builtin = "dataset_helper__gen_iter", surface = "iter")
   val ~gen_map :
     {ntrain : Nat} ->
@@ -682,12 +682,14 @@ module DatasetHelper = struct
     {imgdim : List Nat} ->
     {labeldim : List Nat} ->
     #batch_size (batch_size : Nat) ->
-    ((actual_batch_size : Nat) ->
-      &(Tensor %(actual_batch_size :: imgdim) -> Tensor %(actual_batch_size :: labeldim) ->
-          Tensor %(actual_batch_size :: imgdim) * Tensor %(actual_batch_size :: labeldim)
-      )
-    ) ->
-    &(Device -> Dataset %ntrain %ntest %imgdim %labeldim -> Dataset %ntrain %ntest %imgdim %labeldim)
+    &(( Tensor %(batch_size :: imgdim) ->
+        Tensor %(batch_size :: labeldim) ->
+        Tensor %(batch_size :: imgdim) * Tensor %(batch_size :: labeldim)
+      ) ->
+      Device ->
+      Dataset %ntrain %ntest %imgdim %labeldim ->
+      Dataset %ntrain %ntest %imgdim %labeldim
+    )
     external (builtin = "dataset_helper__gen_map", surface = "map")
   val ~gen_print_summary :
     {ntrain : Nat} ->
