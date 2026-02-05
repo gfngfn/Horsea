@@ -3,11 +3,12 @@ let classes = ["ants", "bees"] in
 
 (* Precompute the last layer of the pre-trained model on the whole dataset. *)
 let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (model_path : String) =
+  let image_shape = [2, 3, imgdim, 4] in (* TODO *)
   &(fun(dataset0 : Dataset %ntrain %ntest %[imgdim] %[]) ->
       let dataset1 =
         let frozen_vs = VarStore.create #frozen true #name "rn" #device Device.cpu () in
         let pretrained_model =
-          ~(TorchVision.Resnet.gen_resnet18 {2} {imgdim} {4} #num_classes 512) frozen_vs (* TODO *)
+          ~(TorchVision.Resnet.gen_resnet18 {image_shape} #num_classes 512) frozen_vs
         in
         print_string "Loading weights from";
         print_string ~(lift_string model_path);

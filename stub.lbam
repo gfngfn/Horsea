@@ -746,14 +746,12 @@ end
 module TorchVision = struct
   module Resnet = struct
     val ~gen_resnet18 :
-      {num_images : Nat} ->
-      {height : Nat} ->
-      {width : Nat} ->
+      {image_shape : {s : List Nat | List.length s == 4 && List.nth 1 s == 3}} ->
       #num_classes (num_classes : Nat) -> (* default: 512 *)
       &(VarStore ->
         #is_training Bool ->
-        Tensor %[num_images, 3, height, width] ->
-        Tensor %[num_images, num_classes]
+        Tensor %image_shape ->
+        Tensor %[List.nth 0 image_shape, num_classes]
       )
       external (builtin = "torch_vision__resnet__gen_resnet18", surface = "resnet18")
   end
