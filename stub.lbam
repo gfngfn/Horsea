@@ -35,11 +35,11 @@ val %sqrt : Float -> Float
 val %float : Int -> Float
   external (builtin = "float", surface = "float")
 val neg_infinity = float -1 / 0.0
-val %print_int : Int -> Unit
+val print_int : Int -> Unit
   external (builtin = "print_int", surface = "print_int")
-val %print_float : Float -> Unit
+val print_float : Float -> Unit
   external (builtin = "print_float", surface = "print_float")
-val %print_string : String -> Unit
+val print_string : String -> Unit
   external (builtin = "print_string", surface = "print_string")
 val %range : Int -> Int -> List Int
   external (builtin = "range", surface = "range")
@@ -111,6 +111,8 @@ module List = struct
     external (builtin = "list__initialize", surface = "initialize")
   val %equal : forall 'a -> ('a -> 'a -> Bool) -> List 'a -> List 'a -> Bool
     external (builtin = "list__equal", surface = "equal")
+  val ~tail : forall 'a -> {xs : List 'a | length xs >= 1} -> List 'a
+    external (builtin = "list__tail", surface = "tail")
   val ~init : forall 'a -> {xs : List 'a | length xs >= 1} -> List 'a
     external (builtin = "list__init", surface = "init")
   val ~last : forall 'a -> {xs : List 'a | length xs >= 1} -> 'a
@@ -225,8 +227,8 @@ module Tensor = struct
   val ~gen_argmax : {shape : List Nat} -> (dim : Nat) -> &(Tensor %shape -> Tensor %(drop_at dim shape))
     external (builtin = "tensor__gen_argmax", surface = "argmax")
   val ~gen_cross_entropy_for_logits :
-    {m : Nat} -> {n : Nat} ->
-    &(Tensor %[m, n] -> #targets Tensor %[m] -> Tensor %[])
+    {shape : {s : List Nat | List.length s == 2}} ->
+    &(Tensor %shape -> #targets Tensor %[List.nth 0 shape] -> Tensor %[])
     external (builtin = "tensor__gen_cross_entropy_for_logits", surface = "cross_entropy_for_logits")
   val ~gen_multinomial :
     {shape : {s : List Nat | List.length s >= 1}} ->
@@ -273,9 +275,8 @@ module Tensor = struct
     )
     external (builtin = "tensor__gen_eq_scalar", surface = "eq_scalar")
   val ~gen_get :
-    {n : Nat} ->
     {shape : List Nat} ->
-    &(Tensor %(n :: shape) -> Int -> Tensor %shape)
+    &(Tensor %shape -> Int -> Tensor %(List.tail shape))
     external (builtin = "tensor__gen_get", surface = "get")
   (* Note: MAY FAIL AT RUNTIME DUE TO INDICES OUT OF BOUNDS!: *)
   val ~gen_get_float2_unsafe :
@@ -371,15 +372,17 @@ module Tensor = struct
     )
     external (builtin = "tensor__gen_masked_fill", surface = "masked_fill")
   val ~gen_max_pool2d :
-    {k : Nat} ->
-    {l : Nat} ->
-    {m : Nat} ->
-    {n : Nat} ->
+    {shape : {s : List Nat | List.length s == 4}} ->
     #padding (padding : Int * Int) ->
     #ksize (ksize : Int * Int) ->
     #stride (stride : Int * Int) ->
-    &(Tensor %[k, l, m, n] ->
-      Tensor %[k, l, (m + 2 * fst padding - fst ksize) // fst stride + 1, (n + 2 * snd padding - snd ksize) // snd stride + 1]
+    &(Tensor %shape ->
+      Tensor %[
+        List.nth 0 shape,
+        List.nth 1 shape,
+        (List.nth 2 shape + 2 * fst padding - fst ksize) // fst stride + 1,
+        (List.nth 3 shape + 2 * snd padding - snd ksize) // snd stride + 1
+      ]
     )
     external (builtin = "tensor__gen_max_pool2d", surface = "max_pool2d")
   val ~gen_softmax :
@@ -472,18 +475,21 @@ module Layer = struct
     )
     external (builtin = "layer__gen_of_fn_", surface = "of_fn_")
   val ~gen_conv2d_ :
-    {l : Nat} ->
-    {m : Nat} ->
-    {n : Nat} ->
     #ksize (ksize : Int) ->
     #stride (stride : Int) ->
     #padding (padding : Int) ->
     #input_dim (input_dim : Nat) ->
     #output_dim (output_dim : Nat) ->
+    {shape : {s : List Nat | List.length s == 4 && List.nth 1 s == input_dim}} ->
     &(VarStore ->
       Activation ->
-      Tensor %[l, input_dim, m, n] ->
-      Tensor %[l, output_dim, (m + 2 * padding - ksize) // stride + 1, (n + 2 * padding - ksize) // stride + 1]
+      Tensor %shape ->
+      Tensor %[
+        List.nth 0 shape,
+        output_dim,
+        (List.nth 2 shape + 2 * padding - ksize) // stride + 1,
+        (List.nth 3 shape + 2 * padding - ksize) // stride + 1
+      ]
     )
     external (builtin = "layer__gen_conv2d_", surface = "conv2d_")
   val ~gen_conv_transpose2d_ :
@@ -509,15 +515,15 @@ module Layer = struct
     )
     external (builtin = "layer__gen_conv_transpose2d_", surface = "conv_transpose2d_")
   val ~gen_linear :
-    {ns : List Nat} ->
     #input_dim (input_dim : Nat) ->
     #output_dim (output_dim : Nat) ->
+    {shape : {s : List Nat | List.length s >= 1 && List.last s == input_dim}} ->
     &(VarStore ->
       #use_bias Bool -> (* default: true *)
       (* #w_init VarStore.Init -> *)
       Activation ->
-      Tensor %(List.append ns [input_dim]) ->
-      Tensor %(List.append ns [output_dim])
+      Tensor %shape ->
+      Tensor %(List.append (List.init shape) [output_dim])
     )
     external (builtin = "layer__gen_linear", surface = "linear")
   val ~gen_layer_norm :
@@ -645,16 +651,17 @@ module DatasetHelper = struct
     )
     external (builtin = "dataset_helper__gen_train_batch", surface = "train_batch")
   val ~gen_batch_accuracy :
+    {n : Nat} ->
     {ntrain : Nat} ->
     {ntest : Nat} ->
     {imgdim : List Nat} ->
     {labeldim : List Nat} ->
-    {n : Nat} ->
     #batch_size (batch_size : Nat) ->
-    #predict ((actual_batch_size : Nat) ->
-      &(Tensor %(actual_batch_size :: imgdim) -> Tensor %[actual_batch_size, n])
-    ) ->
-    &(Device -> Dataset %ntrain %ntest %imgdim %labeldim -> Float)
+    &(#predict (Tensor %(batch_size :: imgdim) -> Tensor %[batch_size, n]) ->
+      Device ->
+      Dataset %ntrain %ntest %imgdim %labeldim ->
+      Float
+    )
     external (builtin = "dataset_helper__gen_batch_accuracy", surface = "batch_accuracy")
   val ~gen_batches_per_epoch :
     {ntrain : Nat} ->
@@ -670,23 +677,28 @@ module DatasetHelper = struct
     {imgdim : List Nat} ->
     {labeldim : List Nat} ->
     #batch_size (batch_size : Nat) ->
-    ((actual_batch_size : Nat) ->
-      &(Tensor %(actual_batch_size :: imgdim) -> Tensor %(actual_batch_size :: labeldim) -> Unit)
-    ) ->
-    &(Device -> Dataset %ntrain %ntest %imgdim %labeldim -> Unit)
+    &((Tensor %(batch_size :: imgdim) -> Tensor %(batch_size :: labeldim) -> Unit) ->
+      Device ->
+      Dataset %ntrain %ntest %imgdim %labeldim ->
+      Unit
+    )
     external (builtin = "dataset_helper__gen_iter", surface = "iter")
   val ~gen_map :
     {ntrain : Nat} ->
     {ntest : Nat} ->
-    {imgdim : List Nat} ->
-    {labeldim : List Nat} ->
+    {imgdim1 : List Nat} ->
+    {labeldim1 : List Nat} ->
+    {imgdim2 : List Nat} ->
+    {labeldim2 : List Nat} ->
     #batch_size (batch_size : Nat) ->
-    ((actual_batch_size : Nat) ->
-      &(Tensor %(actual_batch_size :: imgdim) -> Tensor %(actual_batch_size :: labeldim) ->
-          Tensor %(actual_batch_size :: imgdim) * Tensor %(actual_batch_size :: labeldim)
-      )
-    ) ->
-    &(Device -> Dataset %ntrain %ntest %imgdim %labeldim -> Dataset %ntrain %ntest %imgdim %labeldim)
+    &(( Tensor %(batch_size :: imgdim1) ->
+        Tensor %(batch_size :: labeldim1) ->
+        Tensor %(batch_size :: imgdim2) * Tensor %(batch_size :: labeldim2)
+      ) ->
+      Device ->
+      Dataset %ntrain %ntest %imgdim1 %labeldim1 ->
+      Dataset %ntrain %ntest %imgdim2 %labeldim2
+    )
     external (builtin = "dataset_helper__gen_map", surface = "map")
   val ~gen_print_summary :
     {ntrain : Nat} ->
@@ -745,14 +757,12 @@ end
 module TorchVision = struct
   module Resnet = struct
     val ~gen_resnet18 :
-      {num_images : Nat} ->
-      {height : Nat} ->
-      {width : Nat} ->
+      {image_shape : {s : List Nat | List.length s == 4 && List.nth 1 s == 3}} ->
       #num_classes (num_classes : Nat) -> (* default: 512 *)
       &(VarStore ->
         #is_training Bool ->
-        Tensor %[num_images, 3, height, width] ->
-        Tensor %[num_images, num_classes]
+        Tensor %image_shape ->
+        Tensor %[List.nth 0 image_shape, num_classes]
       )
       external (builtin = "torch_vision__resnet__gen_resnet18", surface = "resnet18")
   end
@@ -760,11 +770,12 @@ module TorchVision = struct
     val ~gen_load_dataset :
       {ntrain : Nat} ->
       {ntest : Nat} ->
-      {imgdim : Nat} ->
+      {imgdim : List Nat} ->
+      {labels : List Nat} ->
       #dir String ->
       #classes List String ->
       (* #with_cache String -> *)
-      &(Unit -> Dataset %ntrain %ntest %[imgdim] %[]) (* TODO: generalize this type *)
+      &(Unit -> Dataset %ntrain %ntest %imgdim %labels)
       external (builtin = "torch_vision__imagenet__gen_load_dataset", surface = "load_dataset")
     val ~gen_load_image :
       {ns : List Nat} ->
@@ -785,14 +796,12 @@ module TorchVision = struct
   end
   module Vgg = struct
     val ~gen_vgg11 :
-      {num_images : Nat} ->
-      {height : Nat} ->
-      {width : Nat} ->
+      {image_shape : {s : List Nat | List.length s == 4 && List.nth 1 s == 3}} ->
       #num_classes (num_classes : Nat) ->
       &(VarStore ->
         #is_training Bool ->
-        Tensor %[num_images, 3, height, width] ->
-        Tensor %[num_images, num_classes]
+        Tensor %image_shape ->
+        Tensor %[List.nth 0 image_shape, num_classes]
       )
       external (builtin = "torch_vision__vgg__gen_vgg11", surface = "vgg11")
   end

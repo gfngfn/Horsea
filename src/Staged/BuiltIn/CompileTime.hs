@@ -59,7 +59,6 @@ data ParamSpec
   | ParamString
   | ParamStringList
   | ParamFloatList
-  | ParamDiscarded
 
 allArities :: [Int]
 allArities = [1 .. 8]
@@ -206,7 +205,6 @@ makeParam = \case
   ParamString -> TH.ConT ''Text
   ParamStringList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Text)
   ParamFloatList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Double)
-  ParamDiscarded -> TH.ConT ''()
 
 filterGen :: [BuiltInSpec] -> [(Common, GenSpec)]
 filterGen =
@@ -296,7 +294,6 @@ deriveDeltaReductionPerArity allBiSpecs arity = do
                     ParamString -> "validateStringLiteral"
                     ParamStringList -> "validateStringListLiteral"
                     ParamFloatList -> "validateFloatListLiteral"
-                    ParamDiscarded -> "discardValue"
 
         retVal :: TH.Exp
         retVal =
@@ -357,7 +354,6 @@ makeParamDisp (pName, paramSpec) =
         ParamString -> "dispStringLiteral"
         ParamStringList -> "dispStringListLiteral"
         ParamFloatList -> "dispListLiteral"
-        ParamDiscarded -> "dispDiscarded"
 
 -- | Generates the following two kinds of instances:
 -- * `instance Disp BuiltInArity{n} where ...` for each arity, and

@@ -36,8 +36,7 @@ let sample {labels : Nat} {input_size : Nat} {hidden_size : Nat}
               |> Tensor.multinomial #num_samples 1 #replacement false
           in
           let sampled_label =
-            Tensor.get {1} {[] as List Nat}
-              (Tensor.get {1} {[1]} sampled_y 0) 0
+            Tensor.get (Tensor.get sampled_y 0) 0
                 |> Tensor.int_value
           in
           loop (sampled_label, seq) state (i - 1)
@@ -62,7 +61,7 @@ print_string "labels:";
 print_int (lift_int labels);
 let lstm = Layer.Lstm.create #input_dim labels #hidden_size hidden_size vs in
 let linear (shape : List Nat) =
-  Layer.linear {shape} #input_dim hidden_size #output_dim labels
+  Layer.linear #input_dim hidden_size #output_dim labels {List.append shape [hidden_size]}
     vs
     #use_bias true
     Layer.Activation.none

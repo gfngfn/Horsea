@@ -136,9 +136,6 @@ validateIntPairLiteral a0v = do
   n2 <- validateIntLiteral a0v2
   pure (n1, n2)
 
-discardValue :: Ass0Val -> M ()
-discardValue = const $ pure ()
-
 validateVec0 :: Ass0Val -> M Vector
 validateVec0 = \case
   A0ValLiteral (ALitVec v) -> pure v

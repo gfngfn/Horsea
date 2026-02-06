@@ -17,7 +17,7 @@ let gen_causal_self_attention
     fun #embd_pdrop (cfg_embd_pdrop : Float) ->
     fun(vs : VarStore) ->
       let linear (n : String) =
-        ~(Layer.gen_linear {[b, seq_len]} #input_dim cfg_n_embd #output_dim cfg_n_embd)
+        ~(Layer.gen_linear #input_dim cfg_n_embd #output_dim cfg_n_embd {[b, seq_len, cfg_n_embd]})
           (let open VarStore in vs / n)
           #use_bias true
           Layer.Activation.none
@@ -98,18 +98,20 @@ let gen_block
           vs
       in
       let lin1 =
-        ~(Layer.gen_linear {[b, seq_len]}
+        ~(Layer.gen_linear
             #input_dim cfg_n_embd
             #output_dim (4 * cfg_n_embd)
+            {[b, seq_len, cfg_n_embd]}
           )
           (let open VarStore in vs / "lin1")
           #use_bias true
           Layer.Activation.none
       in
       let lin2 =
-        ~(Layer.gen_linear {[b, seq_len]}
+        ~(Layer.gen_linear
             #input_dim (4 * cfg_n_embd)
             #output_dim cfg_n_embd
+            {[b, seq_len, 4 * cfg_n_embd]}
           )
           (let open VarStore in vs / "lin2")
           #use_bias true
@@ -160,7 +162,7 @@ let gen_gpt
           (let open VarStore in vs / "ln_f")
       in
       let head =
-        ~(Layer.gen_linear {[b, seq_len]} #input_dim cfg_n_embd #output_dim cfg_vocab_size)
+        ~(Layer.gen_linear #input_dim cfg_n_embd #output_dim cfg_vocab_size {[b, seq_len, cfg_n_embd]})
           (let open VarStore in vs / "head")
           #use_bias false
           Layer.Activation.none

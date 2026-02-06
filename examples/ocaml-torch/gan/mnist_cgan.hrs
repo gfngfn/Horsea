@@ -10,17 +10,19 @@ let batch_size = 256 in
 (* The generator receives as input both some noise and a one-hot encoding of labels. *)
 let create_generator {shape : {s : List Nat | List.length s > 0}} (vs : VarStore) =
   let linear1 =
-    Layer.linear {List.init shape}
+    Layer.linear
       #input_dim (latent_dim + label_count)
       #output_dim generator_hidden_nodes
+      {shape}
       vs
       #use_bias true
       Layer.Activation.leaky_relu
   in
   let linear2 =
-    Layer.linear {List.init shape}
+    Layer.linear
       #input_dim generator_hidden_nodes
       #output_dim image_dim
+      {List.append (List.init shape) [generator_hidden_nodes]}
       vs
       #use_bias true
       Layer.Activation.tanh
@@ -34,17 +36,19 @@ let create_discriminator
     {shape : {s : List Nat | List.length s > 0 && List.last s == image_dim + label_count}}
     (vs : VarStore) =
   let linear1 =
-    Layer.linear {List.init shape}
+    Layer.linear
       #input_dim (image_dim + label_count)
       #output_dim discriminator_hidden_nodes
+      {shape}
       vs
       #use_bias true
       Layer.Activation.leaky_relu
   in
   let linear2 =
-    Layer.linear {List.init shape}
+    Layer.linear
       #input_dim discriminator_hidden_nodes
       #output_dim 1
+      {List.append (List.init shape) [discriminator_hidden_nodes]}
       vs
       #use_bias true
       Layer.Activation.sigmoid

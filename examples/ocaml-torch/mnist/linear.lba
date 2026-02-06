@@ -9,7 +9,7 @@
   in
 &(List.iter (fun(i : Int) ->
     let loss =
-      ~(Tensor.gen_cross_entropy_for_logits _ {MnistHelper.label_count})
+      ~Tensor.gen_cross_entropy_for_logits
         (~gen_model MnistHelper.train_images)
         #targets MnistHelper.train_labels
     in

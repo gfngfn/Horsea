@@ -295,9 +295,6 @@ dispPairLiteral :: (Disp e) => (e, e) -> Doc Ann
 dispPairLiteral (e1, e2) =
   "(" <> disp e1 <> "," <+> disp e2 <> ")"
 
-dispDiscarded :: () -> Doc Ann
-dispDiscarded () = "*"
-
 dispVectorLiteral :: [Int] -> Doc Ann
 dispVectorLiteral ns =
   encloseSep ("[|" <> space) (space <> "|]") (";" <> softline) (disp <$> ns)

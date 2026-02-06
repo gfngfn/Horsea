@@ -1,30 +1,28 @@
-let batch_size = 8 in
-let classes = ["ants", "bees"] in
+let num_classes = 512 in
+let image_height = 326 in (* TODO *)
+let image_width = 437 in (* TODO *)
+let image_dim = [3, image_height, image_width] in
 
 (* Precompute the last layer of the pre-trained model on the whole dataset. *)
-let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (model_path : String) =
-  &(fun(dataset0 : Dataset %ntrain %ntest %[imgdim] %[]) ->
+let gen_precompute_activations {ntrain : Nat} {ntest : Nat} (model_path : String) =
+  &(fun(dataset0 : Dataset %ntrain %ntest %image_dim %[]) ->
       let dataset1 =
         let frozen_vs = VarStore.create #frozen true #name "rn" #device Device.cpu () in
         let pretrained_model =
-          ~(TorchVision.Resnet.gen_resnet18 {2} {imgdim} {4} #num_classes 512) frozen_vs (* TODO *)
+          ~(TorchVision.Resnet.gen_resnet18 {4 :: image_dim} #num_classes num_classes) frozen_vs
         in
         print_string "Loading weights from";
         print_string ~(lift_string model_path);
         ~(Serialize.gen_load_multi_ #filename model_path)
           #named_tensors (~(VarStore.gen_all_vars {[13]}) frozen_vs); (* TODO *)
         print_string "Precomputing activations, this can take a minute...";
-        ~(DatasetHelper.gen_map
-            #batch_size 4
-            (fun(actual_batch_size : Nat) ->
-              &(fun(batch_images : Tensor %[actual_batch_size, imgdim, 107, 203]) -> (* TODO *)
-                fun(batch_labels : Tensor %[actual_batch_size]) ->
-                  let activations =
-                    ~Layer.gen_forward_ pretrained_model #is_training false batch_images
-                  in
-                  (~Tensor.gen_copy activations, batch_labels)
-              )
-            )
+        ~(DatasetHelper.gen_map _ _ _ _ {[num_classes]} {[] as List Nat} #batch_size 4)
+          ( fun(batch_images : Tensor %(4 :: image_dim)) ->
+            fun(batch_labels : Tensor %[4]) ->
+              let activations =
+                ~Layer.gen_forward_ pretrained_model #is_training false batch_images
+              in
+              (~Tensor.gen_copy activations, batch_labels)
           )
           Device.cpu
           dataset0
@@ -34,12 +32,14 @@ let gen_precompute_activations {ntrain : Nat} {ntest : Nat} {imgdim : Nat} (mode
   )
 in
 
+let batch_size = 8 in
+let classes = ["ants", "bees"] in
 let dataset_dir = "path/to/dataset/" in
 let model_path = "path/to/model" in
 
 &(let dataset =
     ~(TorchVision.Imagenet.gen_load_dataset
-        {306} {407} {508} (* TODO *)
+        {306} {407} {image_dim} {[] as List Nat} (* TODO *)
         #dir dataset_dir #classes classes
     )
       ()
@@ -47,57 +47,46 @@ let model_path = "path/to/model" in
   ~DatasetHelper.gen_print_summary dataset;
   let dataset = ~(gen_precompute_activations model_path) dataset in
   let train_vs = VarStore.create #frozen false #name "rn-vs" #device Device.cpu () in
-  ~(let gen_model {ns : List Nat} =
-      &(fun(xs : Tensor %ns) ->
-          ~Layer.gen_forward
-            (~(Layer.gen_linear {ns} #input_dim 512 #output_dim (List.length classes))
-                train_vs
-                #use_bias true
-                Layer.Activation.none
-            )
-            xs
+  let model (xs : Tensor %[batch_size, num_classes]) =
+    ~Layer.gen_forward
+      (~(Layer.gen_linear #input_dim num_classes #output_dim (List.length classes) {[batch_size, num_classes]})
+          train_vs
+          #use_bias true
+          Layer.Activation.none
       )
+      xs
+  in
+  let sgd = Optimizer.sgd train_vs #learning_rate 0.001 #momentum 0.9 in
+  List.iter (fun(epoch_idx : Int) ->
+    let sum_loss = Tensor.f 0.0 in
+    ~(DatasetHelper.gen_iter #batch_size batch_size)
+      ( fun(batch_images : Tensor %[batch_size, num_classes]) ->
+        fun(batch_labels : Tensor %[batch_size]) ->
+          let predicted = model batch_images in
+          (* Compute the cross-entropy loss. *)
+          let loss =
+            ~Tensor.gen_cross_entropy_for_logits
+              predicted
+              #targets batch_labels
+          in
+          ~Tensor.gen_add_update sum_loss loss;
+          Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none sgd #loss loss
+      )
+      Device.cpu
+      dataset;
+    (* Compute the validation error. *)
+    let test_accuracy =
+      ~(DatasetHelper.gen_batch_accuracy {2} #batch_size batch_size)
+        (* `test *)
+        #predict model
+        Device.cpu
+        dataset
     in
-    &(let sgd = Optimizer.sgd train_vs #learning_rate 0.001 #momentum 0.9 in
-      List.iter (fun(epoch_idx : Int) ->
-        let sum_loss = Tensor.f 0.0 in
-        ~(DatasetHelper.gen_iter
-            #batch_size batch_size
-            (fun(actual_batch_size : Nat) ->
-              &(fun(batch_images : Tensor %(batch_size :: [601, 702, 803])) -> (* TODO *)
-                fun(batch_labels : Tensor %[batch_size]) ->
-                  let predicted = ~gen_model batch_images in
-                  (* Compute the cross-entropy loss. *)
-                  let loss =
-                    ~(Tensor.gen_cross_entropy_for_logits {904} {1105}) (* TODO *)
-                      predicted
-                      #targets batch_labels
-                  in
-                  ~Tensor.gen_add_update sum_loss loss;
-                  Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none sgd #loss loss
-              )
-            )
-        )
-          Device.cpu
-          dataset;
-        (* Compute the validation error. *)
-        let test_accuracy =
-          ~(DatasetHelper.gen_batch_accuracy
-              _ _ _ _ {1408} (* TODO *)
-              #batch_size batch_size
-              (* `test *)
-              #predict (fun(actual_batch_size : Nat) -> gen_model {[1206, 1307]}) (* TODO *)
-          )
-            Device.cpu
-            dataset
-        in
-        print_string "train loss:";
-        print_float
-          (~Tensor.gen_float_value sum_loss /
-            float (~(DatasetHelper.gen_batches_per_epoch #batch_size batch_size) dataset));
-        print_string "test accuracy:";
-        print_float test_accuracy
-      ) (range 1 20)
-    )
-  )
+    print_string "train loss:";
+    print_float
+      (~Tensor.gen_float_value sum_loss /
+        float (~(DatasetHelper.gen_batches_per_epoch #batch_size batch_size) dataset));
+    print_string "test accuracy:";
+    print_float test_accuracy
+  ) (range 1 20)
 )

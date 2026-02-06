@@ -122,19 +122,19 @@ definitions =
           n <- validateIntLiteral a0v1
           pure $ A0ValLiteral (ALitFloat (fromIntegral n))
         |],
-    versatile [] "print_int" ForBothStages 1 $
+    versatile [] "print_int" ForStage1 1 $
       [|
         do
           _r <- validateFloatLiteral a0v1
           error "UNIMPLEMENTED: print_int"
         |],
-    versatile [] "print_float" ForBothStages 1 $
+    versatile [] "print_float" ForStage1 1 $
       [|
         do
           _r <- validateFloatLiteral a0v1
           error "UNIMPLEMENTED: print_float"
         |],
-    versatile [] "print_string" ForBothStages 1 $
+    versatile [] "print_string" ForStage1 1 $
       [|
         do
           _s <- validateStringLiteral a0v1
@@ -362,6 +362,14 @@ definitions =
                     zipped
           pure $ A0ValLiteral (ALitBool b)
         |],
+    versatile ["list"] "tail" ForStage0 1 $
+      [|
+        do
+          a0vs <- validateListValue a0v1
+          case a0vs of
+            [] -> evalError $ Bug $ GeneralBuiltInError "List.tail; empty list"
+            _ : a0vs' -> pure $ A0ValLiteral (ALitList a0vs')
+        |],
     versatile ["list"] "init" ForStage0 1 $
       [|
         do
@@ -456,7 +464,7 @@ definitions =
     gen ["tensor"] "sub_update" [ParamIntList],
     gen ["tensor"] "scatter_" [ParamIntList, ParamIntList, ParamIntList, ParamInt],
     gen ["tensor"] "argmax" [ParamIntList, ParamInt],
-    gen ["tensor"] "cross_entropy_for_logits" [ParamInt, ParamInt],
+    gen ["tensor"] "cross_entropy_for_logits" [ParamIntList],
     gen ["tensor"] "multinomial" [ParamIntList, ParamInt],
     gen ["tensor"] "count_equal" [ParamIntList],
     versatile ["tensor"] "f" ForStage1 1 $
@@ -482,7 +490,7 @@ definitions =
     gen ["tensor"] "tril" [ParamIntList],
     gen ["tensor"] "contiguous" [ParamIntList],
     gen ["tensor"] "eq_scalar" [ParamIntList],
-    gen ["tensor"] "get" [ParamInt, ParamIntList],
+    gen ["tensor"] "get" [ParamIntList],
     gen ["tensor"] "get_float2_unsafe" [ParamIntList],
     gen ["tensor"] "fill_float" [ParamIntList],
     gen ["tensor"] "dropout" [ParamIntList],
@@ -496,7 +504,7 @@ definitions =
     gen ["tensor"] "transpose" [ParamIntList, ParamInt, ParamInt],
     gen ["tensor"] "matmul" [ParamIntList, ParamIntList],
     gen ["tensor"] "masked_fill" [ParamIntList, ParamIntList],
-    gen ["tensor"] "max_pool2d" [ParamInt, ParamInt, ParamInt, ParamInt, ParamIntPair, ParamIntPair, ParamIntPair],
+    gen ["tensor"] "max_pool2d" [ParamIntList, ParamIntPair, ParamIntPair, ParamIntPair],
     gen ["tensor"] "softmax" [ParamIntList, ParamInt],
     gen ["tensor"] "const_batch_norm" [ParamIntList],
     versatile ["var_store"] "create" ForStage1 4 $
@@ -547,9 +555,9 @@ definitions =
     gen ["layer"] "forward" [ParamIntList, ParamIntList],
     gen ["layer"] "forward_" [ParamIntList, ParamIntList],
     gen ["layer"] "of_fn_" [ParamIntList, ParamIntList],
-    gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt],
+    gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamIntList],
     gen ["layer"] "conv_transpose2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamIntList],
-    gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt],
+    gen ["layer"] "linear" [ParamInt, ParamInt, ParamIntList],
     gen ["layer"] "layer_norm" [ParamInt, ParamIntList],
     gen ["layer"] "embeddings" [ParamIntList, ParamInt, ParamInt],
     gen ["layer", "lstm"] "create" [ParamInt, ParamInt],
@@ -592,10 +600,10 @@ definitions =
     versatile ["checkpointing"] "loop" ForStage1 6 $
       [|error "UNIMPLEMENTED: Checkpointing.loop"|],
     gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
-    gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt, ParamDiscarded],
+    gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "batches_per_epoch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
-    gen ["dataset_helper"] "iter" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamDiscarded],
-    gen ["dataset_helper"] "map" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamDiscarded],
+    gen ["dataset_helper"] "iter" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
+    gen ["dataset_helper"] "map" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "print_summary" [ParamInt, ParamInt, ParamIntList, ParamIntList],
     versatile ["mnist_helper"] "dataset" ForStage1 0 $
       [|error "UNIMPLEMENTED: MnistHelper.dataset"|],
@@ -613,11 +621,11 @@ definitions =
     gen ["text_helper"] "char" [ParamInt],
     gen ["text_helper"] "total_length" [ParamInt],
     gen ["text_helper"] "iter" [ParamInt, ParamInt, ParamInt],
-    gen ["torch_vision", "resnet"] "resnet18" [ParamInt, ParamInt, ParamInt, ParamInt],
-    gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamInt, ParamString, ParamStringList],
+    gen ["torch_vision", "resnet"] "resnet18" [ParamIntList, ParamInt],
+    gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamString, ParamStringList],
     gen ["torch_vision", "imagenet"] "load_image" [ParamIntList, ParamString],
     -- TODO: support `TorchVision.Imagenet.Classes.names`
     gen ["torch_vision", "imagenet", "classes"] "top" [ParamIntList, ParamInt],
-    gen ["torch_vision", "vgg"] "vgg11" [ParamInt, ParamInt, ParamInt, ParamInt],
+    gen ["torch_vision", "vgg"] "vgg11" [ParamIntList, ParamInt],
     gen ["serialize"] "load_multi_" [ParamIntList, ParamString]
   ]

@@ -29,8 +29,8 @@ let image_shape = [1, 3, image_height, image_width] in
 &(let image = ~(TorchVision.Imagenet.gen_load_image {image_shape} image_path) in
   let vs = VarStore.create #frozen false #name "rn" #device Device.cpu () in
   let model =
-    ~(TorchVision.Vgg.gen_vgg11 {1} {image_height} {image_width} #num_classes 1000) vs
-(* TODO: support case expressions *) (*
+    ~(TorchVision.Vgg.gen_vgg11 {image_shape} #num_classes 1000) vs
+(* TODO: support case-expressions *) (*
     case basename weight_path of
     | "vgg11.ot" -> Vgg.vgg11 vs #num_classes 1000
     | "vgg13.ot" -> Vgg.vgg13 vs #num_classes 1000

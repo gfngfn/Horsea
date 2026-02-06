@@ -7,7 +7,7 @@ let model {n : Nat} (xs : Tensor [n, MnistHelper.image_dim]) =
 in
 List.iter (fun(i : Int) ->
   let loss =
-    Tensor.cross_entropy_for_logits _ {MnistHelper.label_count}
+    Tensor.cross_entropy_for_logits
       (model MnistHelper.train_images)
       #targets MnistHelper.train_labels
   in

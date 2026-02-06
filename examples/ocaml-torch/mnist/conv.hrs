@@ -4,44 +4,44 @@ let learning_rate = 0.001 in
 
 let device = Device.cuda_if_available () in
 let vs = VarStore.create #frozen false #name "cnn" #device device () in
-let conv2d1 {size : Nat} (t : Tensor [size, 1, 28, 28]) =
+let conv2d1 (t : Tensor [batch_size, 1, 28, 28]) =
   Layer.conv2d_ #ksize 5 #stride 1 #padding 0 #input_dim 1 #output_dim 32
     vs
     Layer.Activation.none
     t
 in
-let conv2d2 {size : Nat} (t : Tensor [size, 32, 12, 12]) =
+let conv2d2 (t : Tensor [batch_size, 32, 12, 12]) =
   Layer.conv2d_ #ksize 5 #stride 1 #padding 0 #input_dim 32 #output_dim 64
     vs
     Layer.Activation.none
     t
 in
-let linear1 {size : Nat} =
-  Layer.linear {[size]} #input_dim 1024 #output_dim 1024
+let linear1 =
+  Layer.linear #input_dim 1024 #output_dim 1024 {[batch_size, 1024]}
     vs
     #use_bias true
     Layer.Activation.relu
 in
-let linear2 {size : Nat} =
-  Layer.linear {[size]} #input_dim 1024 #output_dim MnistHelper.label_count
+let linear2 =
+  Layer.linear #input_dim 1024 #output_dim MnistHelper.label_count {[batch_size, 1024]}
     vs
     #use_bias true
     Layer.Activation.none
 in
 let adam = Optimizer.adam vs #learning_rate learning_rate in
-let model (size : Nat) #is_training (is_training : Bool) (xs : Tensor [size, MnistHelper.image_dim]) =
-  Tensor.reshape #shape [size, 1, 28, 28] xs
-  |> Layer.forward (conv2d1 {size})
+let model #is_training (is_training : Bool) (xs : Tensor [batch_size, MnistHelper.image_dim]) =
+  Tensor.reshape #shape [batch_size, 1, 28, 28] xs
+  |> Layer.forward conv2d1
   |> Tensor.max_pool2d #padding (0, 0) #ksize (2, 2) #stride (2, 2)
-  |> Layer.forward (conv2d2 {size})
+  |> Layer.forward conv2d2
   |> Tensor.max_pool2d #padding (0, 0) #ksize (2, 2) #stride (2, 2)
-  |> Tensor.reshape #shape [size, 1024]
-  |> Layer.forward (linear1 {size})
+  |> Tensor.reshape #shape [batch_size, 1024]
+  |> Layer.forward linear1
   |> Tensor.dropout #p 0.5 #is_training is_training
-  |> Layer.forward (linear2 {size})
+  |> Layer.forward linear2
 in
-let train_model (size : Nat) = model size #is_training true in
-let test_model (size : Nat) = model size #is_training false in
+let train_model = model #is_training true in
+let test_model = model #is_training false in
 (range 1 epochs) |> List.iter (fun(batch_idx : Int) ->
   let (batch_images, batch_labels) =
     DatasetHelper.train_batch
@@ -52,15 +52,13 @@ let test_model (size : Nat) = model size #is_training false in
   in
   let loss =
     Tensor.cross_entropy_for_logits
-      {batch_size} {MnistHelper.label_count}
-      (train_model batch_size batch_images)
+      (train_model batch_images)
       #targets batch_labels
   in
   Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none adam #loss loss;
   if mod batch_idx 50 == 0 then
     let test_accuracy =
-      DatasetHelper.batch_accuracy
-        _ _ _ _ {MnistHelper.label_count}
+      DatasetHelper.batch_accuracy {MnistHelper.label_count}
         #batch_size batch_size
         #predict test_model
         device

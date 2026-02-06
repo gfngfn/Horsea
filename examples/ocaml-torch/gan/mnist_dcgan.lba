@@ -53,31 +53,34 @@ let gen_create_generator {shape : {s : List Nat | List.length s == 4 && List.nth
   )
 in
 
-let gen_create_discriminator {shape : List Nat} =
+let gen_create_discriminator {shape : {s : List Nat | List.length s == 4}} =
   &(fun(vs : VarStore) ->
       let conv1 =
-        ~(Layer.gen_conv2d_ {List.nth 0 shape} {List.nth 2 shape} {List.nth 3 shape}
+        ~(Layer.gen_conv2d_
             #ksize 4 #stride 2 #padding 1
             #input_dim 1
             #output_dim 32
+            {shape}
           )
           vs
           Layer.Activation.none
       in
       let conv2 =
-        ~(Layer.gen_conv2d_ {List.nth 0 shape} {List.nth 2 shape // 2} {List.nth 3 shape // 2}
+        ~(Layer.gen_conv2d_
             #ksize 4 #stride 2 #padding 1
             #input_dim 32
             #output_dim 64
+            {[List.nth 0 shape, 32, List.nth 2 shape // 2, List.nth 3 shape // 2]}
           )
           vs
           Layer.Activation.none
       in
       let conv3 =
-        ~(Layer.gen_conv2d_ {List.nth 0 shape} {List.nth 2 shape // 4} {List.nth 3 shape // 4}
+        ~(Layer.gen_conv2d_
             #ksize 7 #stride 1 #padding 0
             #input_dim 64
             #output_dim 1
+            {[List.nth 0 shape, 64, List.nth 2 shape // 4, List.nth 3 shape // 4]}
           )
           vs
           Layer.Activation.sigmoid
