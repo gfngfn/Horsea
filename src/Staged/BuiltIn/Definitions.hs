@@ -600,7 +600,7 @@ definitions =
     versatile ["checkpointing"] "loop" ForStage1 6 $
       [|error "UNIMPLEMENTED: Checkpointing.loop"|],
     gen ["dataset_helper"] "train_batch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
-    gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt],
+    gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "batches_per_epoch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "iter" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "map" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamIntList, ParamIntList, ParamInt],

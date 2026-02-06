@@ -646,11 +646,11 @@ module DatasetHelper = struct
     )
     external (builtin = "dataset_helper__gen_train_batch", surface = "train_batch")
   val ~gen_batch_accuracy :
+    {n : Nat} ->
     {ntrain : Nat} ->
     {ntest : Nat} ->
     {imgdim : List Nat} ->
     {labeldim : List Nat} ->
-    {n : Nat} ->
     #batch_size (batch_size : Nat) ->
     &(#predict (Tensor %(batch_size :: imgdim) -> Tensor %[batch_size, n]) ->
       Device -> Dataset %ntrain %ntest %imgdim %labeldim -> Float
