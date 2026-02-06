@@ -10,17 +10,19 @@ let create_generator
     {shape : {s : List Nat | List.length s > 0 && List.last s == latent_dim}}
     (vs : VarStore) =
   let linear1 =
-    Layer.linear {List.init shape}
+    Layer.linear
       #input_dim latent_dim
       #output_dim generator_hidden_nodes
+      {shape}
       vs
       #use_bias true
       Layer.Activation.leaky_relu
   in
   let linear2 =
-    Layer.linear {List.init shape}
+    Layer.linear
       #input_dim generator_hidden_nodes
       #output_dim image_dim
+      {List.append (List.init shape) [generator_hidden_nodes]}
       vs
       #use_bias true
       Layer.Activation.tanh
@@ -33,17 +35,19 @@ let create_discriminator
     {shape : {s : List Nat | List.length s > 0 && List.last s == image_dim}}
     (vs : VarStore) =
   let linear1 =
-    Layer.linear {List.init shape}
+    Layer.linear
       #input_dim image_dim
       #output_dim discriminator_hidden_nodes
+      {shape}
       vs
       #use_bias true
       Layer.Activation.leaky_relu
   in
   let linear2 =
-    Layer.linear {List.init shape}
+    Layer.linear
       #input_dim discriminator_hidden_nodes
       #output_dim 1
+      {List.append (List.init shape) [discriminator_hidden_nodes]}
       vs
       #use_bias true
       Layer.Activation.sigmoid

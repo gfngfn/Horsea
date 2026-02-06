@@ -17,13 +17,13 @@ let conv2d2 (t : Tensor [batch_size, 32, 12, 12]) =
     t
 in
 let linear1 =
-  Layer.linear {[batch_size]} #input_dim 1024 #output_dim 1024
+  Layer.linear #input_dim 1024 #output_dim 1024 {[batch_size, 1024]}
     vs
     #use_bias true
     Layer.Activation.relu
 in
 let linear2 =
-  Layer.linear {[batch_size]} #input_dim 1024 #output_dim MnistHelper.label_count
+  Layer.linear #input_dim 1024 #output_dim MnistHelper.label_count {[batch_size, 1024]}
     vs
     #use_bias true
     Layer.Activation.none

@@ -17,7 +17,7 @@ let causal_self_attention
     #embd_pdrop (cfg_embd_pdrop : Float)
     (vs : VarStore) =
   let linear (n : String) =
-    Layer.linear {[b, seq_len]} #input_dim cfg_n_embd #output_dim cfg_n_embd
+    Layer.linear #input_dim cfg_n_embd #output_dim cfg_n_embd {[b, seq_len, cfg_n_embd]}
       (let open VarStore in vs / n)
       #use_bias true
       Layer.Activation.none
@@ -95,18 +95,18 @@ let block
   in
   let lin1 =
     Layer.linear
-      {[b, seq_len]}
       #input_dim cfg_n_embd
       #output_dim (4 * cfg_n_embd)
+      {[b, seq_len, cfg_n_embd]}
       (let open VarStore in vs / "lin1")
       #use_bias true
       Layer.Activation.none
   in
   let lin2 =
     Layer.linear
-      {[b, seq_len]}
       #input_dim (4 * cfg_n_embd)
       #output_dim cfg_n_embd
+      {[b, seq_len, 4 * cfg_n_embd]}
       (let open VarStore in vs / "lin2")
       #use_bias true
       Layer.Activation.none
@@ -154,7 +154,7 @@ let gpt
       (let open VarStore in vs / "ln_f")
   in
   let head =
-    Layer.linear {[b, seq_len]} #input_dim cfg_n_embd #output_dim cfg_vocab_size
+    Layer.linear #input_dim cfg_n_embd #output_dim cfg_vocab_size {[b, seq_len, cfg_n_embd]}
       (let open VarStore in vs / "head")
       #use_bias false
       Layer.Activation.none

@@ -17,13 +17,13 @@ let batch_size = 256 in
       t
   in
   let linear1 =
-    ~(Layer.gen_linear {[batch_size]} #input_dim 1024 #output_dim 1024)
+    ~(Layer.gen_linear #input_dim 1024 #output_dim 1024 {[batch_size, 1024]})
       vs
       #use_bias true
       Layer.Activation.relu
   in
   let linear2 =
-    ~(Layer.gen_linear {[batch_size]} #input_dim 1024 #output_dim MnistHelper.label_count)
+    ~(Layer.gen_linear #input_dim 1024 #output_dim MnistHelper.label_count {[batch_size, 1024]})
       vs
       #use_bias true
       Layer.Activation.none

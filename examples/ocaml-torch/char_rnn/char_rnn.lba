@@ -59,7 +59,7 @@ in
   print_int ~(lift_int labels);
   let lstm = ~(Layer.Lstm.gen_create #input_dim labels #hidden_size hidden_size) vs in
   ~(let gen_linear (shape : List Nat) =
-      &(~(Layer.gen_linear {shape} #input_dim hidden_size #output_dim labels)
+      &(~(Layer.gen_linear #input_dim hidden_size #output_dim labels {List.append shape [hidden_size]})
           vs
           #use_bias true
           Layer.Activation.none

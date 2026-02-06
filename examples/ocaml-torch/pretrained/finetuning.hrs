@@ -46,7 +46,7 @@ let dataset =
   let train_vs = VarStore.create #frozen false #name "rn-vs" #device Device.cpu () in
   let model (xs : Tensor [batch_size, num_classes]) =
     Layer.forward
-      ( Layer.linear {[batch_size]} #input_dim num_classes #output_dim (List.length classes)
+      ( Layer.linear #input_dim num_classes #output_dim (List.length classes) {[batch_size, num_classes]}
           train_vs
           #use_bias true
           Layer.Activation.none

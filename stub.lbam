@@ -515,15 +515,15 @@ module Layer = struct
     )
     external (builtin = "layer__gen_conv_transpose2d_", surface = "conv_transpose2d_")
   val ~gen_linear :
-    {ns : List Nat} ->
     #input_dim (input_dim : Nat) ->
     #output_dim (output_dim : Nat) ->
+    {shape : {s : List Nat | List.length s >= 1 && List.last s == input_dim}} ->
     &(VarStore ->
       #use_bias Bool -> (* default: true *)
       (* #w_init VarStore.Init -> *)
       Activation ->
-      Tensor %(List.append ns [input_dim]) ->
-      Tensor %(List.append ns [output_dim])
+      Tensor %shape ->
+      Tensor %(List.append (List.init shape) [output_dim])
     )
     external (builtin = "layer__gen_linear", surface = "linear")
   val ~gen_layer_norm :
