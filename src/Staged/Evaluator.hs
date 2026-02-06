@@ -228,8 +228,6 @@ reduceDelta pba a0vArg =
       partial $ A0PartialBuiltInAppArity5 (PartialBuiltInAppArity5Cons pba6 a0vArg)
     A0PartialBuiltInAppArity7 pba7 ->
       partial $ A0PartialBuiltInAppArity6 (PartialBuiltInAppArity6Cons pba7 a0vArg)
-    A0PartialBuiltInAppArity8 pba8 ->
-      partial $ A0PartialBuiltInAppArity7 (PartialBuiltInAppArity7Cons pba8 a0vArg)
   where
     partial = pure . A0ValPartialBuiltInApp
 
@@ -261,10 +259,6 @@ reduceDelta pba a0vArg =
                               case pba7 of
                                 PartialBuiltInAppArity7Nil bi7 ->
                                   reduceDeltaArity7 bi7 v7 v6 v5 v4 v3 v2 v1
-                                PartialBuiltInAppArity7Cons pba8 v8 ->
-                                  case pba8 of
-                                    PartialBuiltInAppArity8Nil bi8 ->
-                                      reduceDeltaArity8 bi8 v8 v7 v6 v5 v4 v3 v2 v1
 
 reduceBeta :: Ass0Val -> Ass0Val -> M Ass0Val
 reduceBeta a0vFun a0vArg =
@@ -308,7 +302,6 @@ evalExpr0 env = \case
         BuiltInArity5 bi5 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity5 (PartialBuiltInAppArity5Nil bi5))
         BuiltInArity6 bi6 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity6 (PartialBuiltInAppArity6Nil bi6))
         BuiltInArity7 bi7 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity7 (PartialBuiltInAppArity7Nil bi7))
-        BuiltInArity8 bi8 -> A0ValPartialBuiltInApp (A0PartialBuiltInAppArity8 (PartialBuiltInAppArity8Nil bi8))
         BuiltInOther s -> error $ "BuiltInOther: " ++ Text.unpack s
   A0Lam Nothing (x, a0tye1) a0e2 -> do
     a0tyv1 <- evalTypeExpr0 env a0tye1
