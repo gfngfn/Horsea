@@ -52,7 +52,6 @@ let test_model = model #is_training false in
   in
   let loss =
     Tensor.cross_entropy_for_logits
-      {batch_size} {MnistHelper.label_count}
       (train_model batch_images)
       #targets batch_labels
   in

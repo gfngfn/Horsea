@@ -464,7 +464,7 @@ definitions =
     gen ["tensor"] "sub_update" [ParamIntList],
     gen ["tensor"] "scatter_" [ParamIntList, ParamIntList, ParamIntList, ParamInt],
     gen ["tensor"] "argmax" [ParamIntList, ParamInt],
-    gen ["tensor"] "cross_entropy_for_logits" [ParamInt, ParamInt],
+    gen ["tensor"] "cross_entropy_for_logits" [ParamIntList],
     gen ["tensor"] "multinomial" [ParamIntList, ParamInt],
     gen ["tensor"] "count_equal" [ParamIntList],
     versatile ["tensor"] "f" ForStage1 1 $

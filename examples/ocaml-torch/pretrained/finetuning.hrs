@@ -63,7 +63,7 @@ let dataset =
           let predicted = model batch_images in
           (* Compute the cross-entropy loss. *)
           let loss =
-            Tensor.cross_entropy_for_logits {batch_size} {2}
+            Tensor.cross_entropy_for_logits
               predicted
               #targets batch_labels
           in

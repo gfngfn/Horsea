@@ -50,7 +50,7 @@ let batch_size = 256 in
         batch_idx
     in
     let loss =
-      ~(Tensor.gen_cross_entropy_for_logits {batch_size} {MnistHelper.label_count})
+      ~Tensor.gen_cross_entropy_for_logits
         (train_model batch_images)
         #targets batch_labels
     in

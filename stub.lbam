@@ -227,8 +227,8 @@ module Tensor = struct
   val ~gen_argmax : {shape : List Nat} -> (dim : Nat) -> &(Tensor %shape -> Tensor %(drop_at dim shape))
     external (builtin = "tensor__gen_argmax", surface = "argmax")
   val ~gen_cross_entropy_for_logits :
-    {m : Nat} -> {n : Nat} ->
-    &(Tensor %[m, n] -> #targets Tensor %[m] -> Tensor %[])
+    {shape : {s : List Nat | List.length s == 2}} ->
+    &(Tensor %shape -> #targets Tensor %[List.nth 0 shape] -> Tensor %[])
     external (builtin = "tensor__gen_cross_entropy_for_logits", surface = "cross_entropy_for_logits")
   val ~gen_multinomial :
     {shape : {s : List Nat | List.length s >= 1}} ->
