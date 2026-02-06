@@ -61,7 +61,7 @@ data ParamSpec
   | ParamFloatList
 
 allArities :: [Int]
-allArities = [1 .. 8]
+allArities = [1 .. 7]
 
 ass1builtInTypeName :: TH.Name
 ass1builtInTypeName = TH.mkName "Ass1BuiltIn"
