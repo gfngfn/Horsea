@@ -293,7 +293,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
               (btenv & Map.insert xL (EntryLocallyBound btL bityL) & Map.insert xR (EntryLocallyBound btR bityR))
               e2
           let e' = Expr (bt, ann) (LetTupleIn xL xR e1' e2')
-          pure (e', bity2, constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
+          pure (e', bity2, constraints1 ++ constraints2 ++ [CEqual ann bt bt1, CLeq ann bt bt2])
         _ -> do
           let Expr ann1 _ = e1
           spanInFile1 <- askSpanInFile ann1

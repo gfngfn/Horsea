@@ -35,11 +35,11 @@ val %sqrt : Float -> Float
 val %float : Int -> Float
   external (builtin = "float", surface = "float")
 val neg_infinity = float -1 / 0.0
-val %print_int : Int -> Unit
+val print_int : Int -> Unit
   external (builtin = "print_int", surface = "print_int")
-val %print_float : Float -> Unit
+val print_float : Float -> Unit
   external (builtin = "print_float", surface = "print_float")
-val %print_string : String -> Unit
+val print_string : String -> Unit
   external (builtin = "print_string", surface = "print_string")
 val %range : Int -> Int -> List Int
   external (builtin = "range", surface = "range")
@@ -473,18 +473,21 @@ module Layer = struct
     )
     external (builtin = "layer__gen_of_fn_", surface = "of_fn_")
   val ~gen_conv2d_ :
-    {l : Nat} ->
-    {m : Nat} ->
-    {n : Nat} ->
     #ksize (ksize : Int) ->
     #stride (stride : Int) ->
     #padding (padding : Int) ->
     #input_dim (input_dim : Nat) ->
     #output_dim (output_dim : Nat) ->
+    {shape : {s : List Nat | List.length s == 4 && List.nth 1 s == input_dim}} ->
     &(VarStore ->
       Activation ->
-      Tensor %[l, input_dim, m, n] ->
-      Tensor %[l, output_dim, (m + 2 * padding - ksize) // stride + 1, (n + 2 * padding - ksize) // stride + 1]
+      Tensor %shape ->
+      Tensor %[
+        List.nth 0 shape,
+        output_dim,
+        (List.nth 2 shape + 2 * padding - ksize) // stride + 1,
+        (List.nth 3 shape + 2 * padding - ksize) // stride + 1
+      ]
     )
     external (builtin = "layer__gen_conv2d_", surface = "conv2d_")
   val ~gen_conv_transpose2d_ :

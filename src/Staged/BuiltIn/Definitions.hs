@@ -122,19 +122,19 @@ definitions =
           n <- validateIntLiteral a0v1
           pure $ A0ValLiteral (ALitFloat (fromIntegral n))
         |],
-    versatile [] "print_int" ForBothStages 1 $
+    versatile [] "print_int" ForStage1 1 $
       [|
         do
           _r <- validateFloatLiteral a0v1
           error "UNIMPLEMENTED: print_int"
         |],
-    versatile [] "print_float" ForBothStages 1 $
+    versatile [] "print_float" ForStage1 1 $
       [|
         do
           _r <- validateFloatLiteral a0v1
           error "UNIMPLEMENTED: print_float"
         |],
-    versatile [] "print_string" ForBothStages 1 $
+    versatile [] "print_string" ForStage1 1 $
       [|
         do
           _s <- validateStringLiteral a0v1
@@ -555,7 +555,7 @@ definitions =
     gen ["layer"] "forward" [ParamIntList, ParamIntList],
     gen ["layer"] "forward_" [ParamIntList, ParamIntList],
     gen ["layer"] "of_fn_" [ParamIntList, ParamIntList],
-    gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt],
+    gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamIntList],
     gen ["layer"] "conv_transpose2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamIntList],
     gen ["layer"] "linear" [ParamIntList, ParamInt, ParamInt],
     gen ["layer"] "layer_norm" [ParamInt, ParamIntList],
