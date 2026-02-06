@@ -679,16 +679,18 @@ module DatasetHelper = struct
   val ~gen_map :
     {ntrain : Nat} ->
     {ntest : Nat} ->
-    {imgdim : List Nat} ->
-    {labeldim : List Nat} ->
+    {imgdim1 : List Nat} ->
+    {labeldim1 : List Nat} ->
+    {imgdim2 : List Nat} ->
+    {labeldim2 : List Nat} ->
     #batch_size (batch_size : Nat) ->
-    &(( Tensor %(batch_size :: imgdim) ->
-        Tensor %(batch_size :: labeldim) ->
-        Tensor %(batch_size :: imgdim) * Tensor %(batch_size :: labeldim)
+    &(( Tensor %(batch_size :: imgdim1) ->
+        Tensor %(batch_size :: labeldim1) ->
+        Tensor %(batch_size :: imgdim2) * Tensor %(batch_size :: labeldim2)
       ) ->
       Device ->
-      Dataset %ntrain %ntest %imgdim %labeldim ->
-      Dataset %ntrain %ntest %imgdim %labeldim
+      Dataset %ntrain %ntest %imgdim1 %labeldim1 ->
+      Dataset %ntrain %ntest %imgdim2 %labeldim2
     )
     external (builtin = "dataset_helper__gen_map", surface = "map")
   val ~gen_print_summary :
@@ -761,11 +763,12 @@ module TorchVision = struct
     val ~gen_load_dataset :
       {ntrain : Nat} ->
       {ntest : Nat} ->
-      {imgdim : Nat} ->
+      {imgdim : List Nat} ->
+      {labels : List Nat} ->
       #dir String ->
       #classes List String ->
       (* #with_cache String -> *)
-      &(Unit -> Dataset %ntrain %ntest %[imgdim] %[]) (* TODO: generalize this type *)
+      &(Unit -> Dataset %ntrain %ntest %imgdim %labels)
       external (builtin = "torch_vision__imagenet__gen_load_dataset", surface = "load_dataset")
     val ~gen_load_image :
       {ns : List Nat} ->

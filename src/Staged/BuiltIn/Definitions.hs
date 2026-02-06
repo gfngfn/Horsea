@@ -603,7 +603,7 @@ definitions =
     gen ["dataset_helper"] "batch_accuracy" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt, ParamInt],
     gen ["dataset_helper"] "batches_per_epoch" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "iter" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
-    gen ["dataset_helper"] "map" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamInt],
+    gen ["dataset_helper"] "map" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamIntList, ParamIntList, ParamInt],
     gen ["dataset_helper"] "print_summary" [ParamInt, ParamInt, ParamIntList, ParamIntList],
     versatile ["mnist_helper"] "dataset" ForStage1 0 $
       [|error "UNIMPLEMENTED: MnistHelper.dataset"|],
@@ -622,7 +622,7 @@ definitions =
     gen ["text_helper"] "total_length" [ParamInt],
     gen ["text_helper"] "iter" [ParamInt, ParamInt, ParamInt],
     gen ["torch_vision", "resnet"] "resnet18" [ParamIntList, ParamInt],
-    gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamInt, ParamString, ParamStringList],
+    gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamString, ParamStringList],
     gen ["torch_vision", "imagenet"] "load_image" [ParamIntList, ParamString],
     -- TODO: support `TorchVision.Imagenet.Classes.names`
     gen ["torch_vision", "imagenet", "classes"] "top" [ParamIntList, ParamInt],
