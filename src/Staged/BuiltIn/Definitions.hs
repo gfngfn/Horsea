@@ -504,7 +504,7 @@ definitions =
     gen ["tensor"] "transpose" [ParamIntList, ParamInt, ParamInt],
     gen ["tensor"] "matmul" [ParamIntList, ParamIntList],
     gen ["tensor"] "masked_fill" [ParamIntList, ParamIntList],
-    gen ["tensor"] "max_pool2d" [ParamInt, ParamInt, ParamInt, ParamInt, ParamIntPair, ParamIntPair, ParamIntPair],
+    gen ["tensor"] "max_pool2d" [ParamIntList, ParamIntPair, ParamIntPair, ParamIntPair],
     gen ["tensor"] "softmax" [ParamIntList, ParamInt],
     gen ["tensor"] "const_batch_norm" [ParamIntList],
     versatile ["var_store"] "create" ForStage1 4 $

@@ -372,15 +372,17 @@ module Tensor = struct
     )
     external (builtin = "tensor__gen_masked_fill", surface = "masked_fill")
   val ~gen_max_pool2d :
-    {k : Nat} ->
-    {l : Nat} ->
-    {m : Nat} ->
-    {n : Nat} ->
+    {shape : {s : List Nat | List.length s == 4}} ->
     #padding (padding : Int * Int) ->
     #ksize (ksize : Int * Int) ->
     #stride (stride : Int * Int) ->
-    &(Tensor %[k, l, m, n] ->
-      Tensor %[k, l, (m + 2 * fst padding - fst ksize) // fst stride + 1, (n + 2 * snd padding - snd ksize) // snd stride + 1]
+    &(Tensor %shape ->
+      Tensor %[
+        List.nth 0 shape,
+        List.nth 1 shape,
+        (List.nth 2 shape + 2 * fst padding - fst ksize) // fst stride + 1,
+        (List.nth 3 shape + 2 * snd padding - snd ksize) // snd stride + 1
+      ]
     )
     external (builtin = "tensor__gen_max_pool2d", surface = "max_pool2d")
   val ~gen_softmax :
