@@ -653,7 +653,9 @@ module DatasetHelper = struct
     {labeldim : List Nat} ->
     #batch_size (batch_size : Nat) ->
     &(#predict (Tensor %(batch_size :: imgdim) -> Tensor %[batch_size, n]) ->
-      Device -> Dataset %ntrain %ntest %imgdim %labeldim -> Float
+      Device ->
+      Dataset %ntrain %ntest %imgdim %labeldim ->
+      Float
     )
     external (builtin = "dataset_helper__gen_batch_accuracy", surface = "batch_accuracy")
   val ~gen_batches_per_epoch :

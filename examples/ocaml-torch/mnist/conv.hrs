@@ -59,8 +59,7 @@ let test_model = model #is_training false in
   Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none adam #loss loss;
   if mod batch_idx 50 == 0 then
     let test_accuracy =
-      DatasetHelper.batch_accuracy
-        _ _ _ _ {MnistHelper.label_count}
+      DatasetHelper.batch_accuracy {MnistHelper.label_count}
         #batch_size batch_size
         #predict test_model
         device

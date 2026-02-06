@@ -57,10 +57,7 @@ let batch_size = 256 in
     Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none adam #loss loss;
     if mod batch_idx 50 == 0 then
       let test_accuracy =
-        ~(DatasetHelper.gen_batch_accuracy
-            _ _ _ _ {MnistHelper.label_count}
-            #batch_size batch_size
-        )
+        ~(DatasetHelper.gen_batch_accuracy {MnistHelper.label_count} #batch_size batch_size)
           #predict test_model
           device
           MnistHelper.dataset
