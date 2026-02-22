@@ -47,7 +47,7 @@ stageExpr0Main = \case
   LetIn _x (_ : _) _e1 _e2 ->
     error "Bug: Stager.stageExpr0Main, non-empty parameter sequence"
   LetIn x [] e1 e2 ->
-    Staged.LetIn x [] (stageExpr0 e1) (stageExpr0 e2)
+    Staged.LetIn x [] Nothing (stageExpr0 e1) (stageExpr0 e2)
   LetRecIn _x _params _tye _e1 _e2 ->
     error "Bug: Stager.stageExpr0Main, LetRecIn"
   LetTupleIn xL xR e1 e2 ->
@@ -90,7 +90,7 @@ stageExpr1Main = \case
   LetIn _x (_ : _) _e1 _e2 ->
     error "Bug: Stager.stageExpr0Main, non-empty parameter sequence"
   LetIn x [] e1 e2 ->
-    Staged.LetIn x [] (stageExpr1 e1) (stageExpr1 e2)
+    Staged.LetIn x [] Nothing (stageExpr1 e1) (stageExpr1 e2)
   LetRecIn _x _params _tye _e1 _e2 ->
     error "Bug: Stager.stageExpr0Main, LetRecIn"
   LetTupleIn xL xR e1 e2 ->

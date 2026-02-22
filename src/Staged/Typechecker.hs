@@ -859,7 +859,7 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
           a0es <- mapM (forceExpr0 trav tyEnv a0tyeElem) es
           pure $ A0Literal (ALitList a0es)
         _ ->
-          typeError trav $ CannotForceType spanInFile a0tyeReq
+          typeError trav $ CannotForceType0 spanInFile a0tyeReq
     _ -> do
       (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
       (cast, _varSolution, _tyvar0Solution) <- makeAssertiveCast trav loc Set.empty Set.empty a0tye a0tyeReq
@@ -1008,10 +1008,10 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A0App a0e1 a0eInferred)
           _ -> do
             bug "stage-0, AppImpOmitted, not a FillInferred0"
-      LetIn x params e1 e2 -> do
+      LetIn x params tyeBodyOpt e1 e2 -> do
         svX <- generateFreshVar (Just x)
         let ax = AssVarStatic svX
-        (a0tye1, a0e1) <- typecheckLetInBody0 trav tyEnv params e1
+        (a0tye1, a0e1) <- typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1
         (result2, a0e2) <- do
           let tyEnv' = TypeEnv.addVal x (Ass0Entry a0tye1 (Right svX)) tyEnv
           typecheckExpr0 trav tyEnv' appCtx e2
@@ -1039,7 +1039,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                 tyEnv
                   & TypeEnv.addVal f (Ass0Entry a0tye1Rec (Right svFInner))
                   & TypeEnv.addVal x0 (Ass0Entry a0tyeParam0 (Right svX0))
-          typecheckLetInBody0 trav tyEnv' paramsRest eBody
+          typecheckLetInBody0 trav tyEnv' paramsRest (Just tyeBody) eBody
         let a0tye1Synth = A0TyArrow labelOpt (Just ax0, a0tyeParam0) a0tyeRestSynth
         (cast, _varSolution, _tyvar0Solution) <-
           makeAssertiveCast trav loc Set.empty Set.empty a0tye1Synth a0tye1Rec
@@ -1179,24 +1179,45 @@ constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
     a0tyeBody
     params
 
-typecheckLetInBody0 :: trav -> TypeEnv -> [LamBinder] -> Expr -> M trav (Ass0TypeExpr, Ass0Expr)
-typecheckLetInBody0 trav tyEnv params e1 =
+typecheckLetInBody0 :: trav -> TypeEnv -> [LamBinder] -> Maybe TypeExpr -> Expr -> M trav (Ass0TypeExpr, Ass0Expr)
+typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
   case params of
-    [] -> do
-      (a0tye1, a0e1) <- typecheckExpr0Single trav tyEnv e1
-      pure (a0tye1, a0e1)
+    [] ->
+      case tyeBodyOpt of
+        Just tyeBody -> do
+          a0tye1req <- typecheckTypeExpr0 trav tyEnv tyeBody
+          a0e1 <- forceExpr0 trav tyEnv a0tye1req e1
+          pure (a0tye1req, a0e1)
+        Nothing -> do
+          typecheckExpr0Single trav tyEnv e1
     MandatoryBinder labelOpt (x, tye) : params' -> do
       a0tye <- typecheckTypeExpr0 trav tyEnv tye
       svX <- generateFreshVar (Just x)
-      (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' e1
+      (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A0TyArrow labelOpt (Just ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
     ImplicitBinder (x, tye) : params' -> do
       a0tye <- typecheckTypeExpr0 trav tyEnv tye
       svX <- generateFreshVar (Just x)
-      (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' e1
+      (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A0TyImpArrow (ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
+
+forceExpr1 :: trav -> TypeEnv -> Ass1TypeExpr -> Expr -> M trav Ass1Expr
+forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
+  spanInFile <- askSpanInFile loc
+  case eMain of
+    Literal (LitList es) ->
+      case a1tyeReq of
+        A1TyList a1tyeElem -> do
+          a1es <- mapM (forceExpr1 trav tyEnv a1tyeElem) es
+          pure $ A1Literal (ALitList a1es)
+        _ ->
+          typeError trav $ CannotForceType1 spanInFile a1tyeReq
+    _ -> do
+      (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
+      (eq, _varSolution, _tyvar1Solution) <- makeEquation1 trav loc Set.empty Set.empty a1tye a1tyeReq
+      pure $ applyEquationCast loc eq a1e
 
 typecheckExpr1Single :: trav -> TypeEnv -> Expr -> M trav (Ass1TypeExpr, Ass1Expr)
 typecheckExpr1Single trav tyEnv e@(Expr loc _) = do
@@ -1322,9 +1343,9 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         typeError trav $ CannotUseAppImpGivenAtStage1 spanInFile
       AppImpOmitted _ ->
         typeError trav $ CannotUseAppImpOmittedAtStage1 spanInFile
-      LetIn x params eBody e2 -> do
+      LetIn x params tyeBodyOpt eBody e2 -> do
         svX <- generateFreshVar (Just x)
-        (a1tye1, a1e1) <- typecheckLetInBody1 trav tyEnv params eBody
+        (a1tye1, a1e1) <- typecheckLetInBody1 trav tyEnv params tyeBodyOpt eBody
         (result2, a1e2) <-
           typecheckExpr1 trav (TypeEnv.addVal x (Ass1Entry a1tye1 (Right svX)) tyEnv) appCtx e2
         let ax = AssVarStatic svX
@@ -1351,7 +1372,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                 tyEnv
                   & TypeEnv.addVal f (Ass1Entry a1tye1Rec (Right svFInner))
                   & TypeEnv.addVal x0 (Ass1Entry a1tyeParam0 (Right svX0))
-          typecheckLetInBody1 trav tyEnv' paramsRest eBody
+          typecheckLetInBody1 trav tyEnv' paramsRest (Just tyeBody) eBody
         let a1tye1Synth = A1TyArrow labelOpt a1tyeParam0 a1tyeRestSynth
         (eq, _varSolution, _tyvar1Solution) <- makeEquation1 trav loc Set.empty Set.empty a1tye1Synth a1tye1Rec
         let a1e1 = applyEquationCast loc eq (A1Lam (Just (afInner, a1tye1Rec)) (ax0, a1tyeParam0) a1eRest)
@@ -1426,6 +1447,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
       As e1 tye2 ->
         -- The following is a very ad-hoc branching.
         -- TODO: fix this with "truly" bidirectional type-checking
+        -- TODO: use `forceExpr1`
         case e1 of
           Expr _loc1 (Literal (LitList [])) ->
             case appCtx of
@@ -1463,16 +1485,21 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         _ ->
           pair
 
-typecheckLetInBody1 :: trav -> TypeEnv -> [LamBinder] -> Expr -> M trav (Ass1TypeExpr, Ass1Expr)
-typecheckLetInBody1 trav tyEnv params e1 =
+typecheckLetInBody1 :: trav -> TypeEnv -> [LamBinder] -> Maybe TypeExpr -> Expr -> M trav (Ass1TypeExpr, Ass1Expr)
+typecheckLetInBody1 trav tyEnv params tyeBodyOpt e1 =
   case params of
     [] -> do
-      (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
-      pure (a1tye1, a1e1)
+      case tyeBodyOpt of
+        Just tyeBody -> do
+          a1tye1req <- typecheckTypeExpr1 trav tyEnv tyeBody
+          a1e1 <- forceExpr1 trav tyEnv a1tye1req e1
+          pure (a1tye1req, a1e1)
+        Nothing -> do
+          typecheckExpr1Single trav tyEnv e1
     MandatoryBinder labelOpt (x, tye) : params' -> do
       a1tye <- typecheckTypeExpr1 trav tyEnv tye
       svX <- generateFreshVar (Just x)
-      (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv) params' e1
+      (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A1TyArrow labelOpt a1tye a1tye', A1Lam Nothing (ax, a1tye) a1e')
     ImplicitBinder (_x, tye) : _params' -> do

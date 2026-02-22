@@ -167,6 +167,13 @@ dispLetIn req x params e1 e2 =
   where
     d = sep (disp x : map disp params)
 
+dispLetInWithParamsAndAnnot :: (Disp var, Disp param, Disp ty, Disp expr) => Associativity -> var -> [param] -> ty -> expr -> expr -> Doc Ann
+dispLetInWithParamsAndAnnot req x params tye e1 e2 =
+  deepenParenWhen (req <= FunDomain) $
+    group ("let" <+> d <+> ":" <+> disp tye <+> "=" <> nest 2 (line <> disp e1) <+> "in" <> line <> disp e2)
+  where
+    d = sep (disp x : map disp params)
+
 dispLetRecIn :: (Disp var, Disp param, Disp ty, Disp expr) => Associativity -> var -> [param] -> ty -> expr -> expr -> Doc Ann
 dispLetRecIn req x params tye e1 e2 =
   deepenParenWhen (req <= FunDomain) $
@@ -370,7 +377,8 @@ instance Disp (ExprMainF ann) where
     LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
     AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
     AppImpOmitted e1 -> dispAppImpOmitted req e1
-    LetIn x params e1 e2 -> dispLetIn req x params e1 e2
+    LetIn x params Nothing e1 e2 -> dispLetIn req x params e1 e2
+    LetIn x params (Just tye) e1 e2 -> dispLetInWithParamsAndAnnot req x params tye e1 e2
     LetRecIn x params tye e1 e2 -> dispLetRecIn req x params tye e1 e2
     LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2
     LetOpenIn m e -> dispLetOpenIn req m e
@@ -842,8 +850,10 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Recursive function definitions require at least one parameter" <+> disp spanInFile
     CannotSynthesizeTypeFromExpr spanInFile ->
       "Cannot synthesize the type of the expression; consider using `as`" <+> disp spanInFile
-    CannotForceType spanInFile a0tye ->
-      "Cannot force type" <+> disp a0tye <+> "on the expression" <+> disp spanInFile
+    CannotForceType0 spanInFile a0tye ->
+      "Cannot force type" <+> stage0Style (disp a0tye) <+> "on the expression" <+> disp spanInFile
+    CannotForceType1 spanInFile a1tye ->
+      "Cannot force type" <+> stage1Style (disp a1tye) <+> "on the expression" <+> disp spanInFile
     ApplicationLabelMismatch spanInFile appCtx labelOptGot labelOptExpected ->
       "Label mismatch"
         <+> disp spanInFile
