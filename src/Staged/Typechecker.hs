@@ -1445,22 +1445,13 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             spanInFile0 <- askSpanInFile loc0
             typeError trav $ NotABoolTypeForStage1 spanInFile0 a1tye0
       As e1 tye2 ->
-        -- The following is a very ad-hoc branching.
-        -- TODO: fix this with "truly" bidirectional type-checking
-        -- TODO: use `forceExpr1`
-        case e1 of
-          Expr _loc1 (Literal (LitList [])) ->
-            case appCtx of
-              [] -> do
-                a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
-                pure (Pure a1tye2, A1Literal (ALitList []))
-              _ : _ ->
-                typeError trav $ CannotApplyLiteral spanInFile
-          _ -> do
-            (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
+        case appCtx of
+          [] -> do
             a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
-            (eq, _varSolution, _tyvar1Solution) <- makeEquation1 trav loc Set.empty Set.empty a1tye1 a1tye2
-            pure (Pure a1tye2, applyEquationCast loc eq a1e1)
+            a1e1 <- forceExpr1 trav tyEnv a1tye2 e1
+            pure (Pure a1tye2, a1e1)
+          _ : _ ->
+            typeError trav $ Unsupported spanInFile $ AsWithArguments appCtx
       Bracket _ ->
         typeError trav $ CannotUseBracketAtStage1 spanInFile
       Escape e1 -> do
