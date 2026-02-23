@@ -452,7 +452,8 @@ instance Disp Surface.ExprMain where
     Surface.Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Surface.Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
     Surface.App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
-    Surface.LetIn x params eBody e2 -> dispLetIn req x params eBody e2
+    Surface.LetIn x params Nothing eBody e2 -> dispLetIn req x params eBody e2
+    Surface.LetIn x params (Just tyeBody) eBody e2 -> dispLetInWithParamsAndAnnot req x params tyeBody eBody e2
     Surface.LetRecIn f params tyeBody eBody e2 -> dispLetRecIn req f params tyeBody eBody e2
     Surface.LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2
     Surface.LetOpenIn m e -> dispLetOpenIn req m e
@@ -1248,7 +1249,8 @@ instance Disp (Bta.BCExprMainF ann) where
     Surface.Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Surface.Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
     Surface.App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
-    Surface.LetIn x params eBody e2 -> dispLetIn req x params eBody e2
+    Surface.LetIn x params Nothing eBody e2 -> dispLetIn req x params eBody e2
+    Surface.LetIn x params (Just tyeBody) eBody e2 -> dispLetInWithParamsAndAnnot req x params tyeBody eBody e2
     Surface.LetRecIn f params tyeBody eBody e2 -> dispLetRecIn req f params tyeBody eBody e2
     Surface.LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2
     Surface.LetOpenIn m e -> dispLetOpenIn req m e
