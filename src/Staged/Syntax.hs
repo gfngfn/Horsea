@@ -175,6 +175,8 @@ data Ass0TypeExprF sv
     A0TyArrow (Maybe Label) (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | -- | Function types with an implicit parameter.
     A0TyImpArrow (AssVarF sv, Ass0TypeExprF sv) (Ass0TypeExprF sv)
+  | -- | Function types with an omissible parameter.
+    A0TyOmsArrow (Maybe (AssVarF sv), Ass0TypeExprF sv, Ass0ExprF sv) (Ass0TypeExprF sv)
   | A0TyCode (Ass1TypeExprF sv)
   | -- | Polymorphic types.
     A0TyImplicitForAll AssTypeVar (Ass0TypeExprF sv)
@@ -434,6 +436,7 @@ strictify = \case
   A0TyArrow _labelOpt (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, strictify a0tye1) (strictify a0tye2)
   A0TyCode a1tye1 -> SA0TyCode a1tye1
   A0TyImpArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictify a0tye1) (strictify a0tye2)
+  A0TyOmsArrow (x1opt, a0tye1, _a0e1) a0tye2 -> SA0TyArrow (x1opt, strictify a0tye1) (strictify a0tye2)
   A0TyImplicitForAll atyvar a0tye -> SA0TyExplicitForAll atyvar (strictify a0tye)
 
 a0TyVec :: Int -> Ass0PrimType

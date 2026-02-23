@@ -90,6 +90,8 @@ data UnsupportedF sv
   | AsWithArguments (AppContextF sv)
   | LamWithArguments (AppContextF sv)
   | LamImpWithArguments (AppContextF sv)
+  | PersistentFunWithOms
+  | HigherOrderUseOfFunWithOms0 (Ass0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 type TypeError = TypeErrorF StaticVar

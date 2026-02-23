@@ -259,6 +259,10 @@ makeAssertiveCast trav loc =
               (applySolution0 varSolutionCod tyvar0SolutionCod <$> castDom)
               castCod
           pure (cast, varSolution, tyvar0Solution)
+        (A0TyOmsArrow _ _, _) -> do
+          typeError trav $ Unsupported spanInFile $ HigherOrderUseOfFunWithOms0 a0tye1
+        (_, A0TyOmsArrow _ _) -> do
+          typeError trav $ Unsupported spanInFile $ HigherOrderUseOfFunWithOms0 a0tye2
         (A0TyCode a1tye1, A0TyCode a1tye2) -> do
           (eq, varSolution, _tyvar1Solution) <- makeEquation1 trav loc varsToInfer Set.empty a1tye1 a1tye2
           let tyvar0Solution = Map.empty
@@ -1852,23 +1856,26 @@ typecheckTypeExpr1 trav tyEnv (TypeExpr loc tyeMain) = do
 validatePersistentType :: trav -> Span -> Ass0TypeExpr -> M trav AssPersTypeExpr
 validatePersistentType trav loc a0tye =
   case go a0tye of
-    Just aPtye ->
+    Right aPtye ->
       pure aPtye
-    Nothing -> do
+    Left unsupportedOpt -> do
       spanInFile <- askSpanInFile loc
-      typeError trav $ InvalidPersistentType spanInFile a0tye
+      typeError trav $
+        case unsupportedOpt of
+          Nothing -> InvalidPersistentType spanInFile a0tye
+          Just u -> Unsupported spanInFile u
   where
     go = \case
       A0TyPrim a0tyPrim maybePred ->
         case maybePred of
           Nothing -> pure $ APersTyPrim a0tyPrim
-          Just _ -> Nothing
+          Just _ -> Left Nothing
       A0TyVar atyvar ->
         pure $ APersTyVar atyvar
       A0TyList a0tye' maybePred ->
         case maybePred of
           Nothing -> APersTyList <$> go a0tye'
-          Just _ -> Nothing
+          Just _ -> Left Nothing
       A0TyProduct a0tye1 a0tye2 ->
         APersTyProduct <$> go a0tye1 <*> go a0tye2
       A0TyArrow labelOpt (Nothing, a0tye1) a0tye2 -> do
@@ -1876,11 +1883,15 @@ validatePersistentType trav loc a0tye =
         aPtye2 <- go a0tye2
         pure $ APersTyArrow labelOpt aPtye1 aPtye2
       A0TyArrow _labelOpt (Just _x, _a0tye1) _a0tye2 -> do
-        Nothing
+        Left Nothing
       A0TyImpArrow (_x, _a0tye1) _a0tye2 -> do
-        Nothing
+        Left Nothing
+      A0TyOmsArrow (Nothing, _a0tye1, _a0e1) _a0tye2 -> do
+        Left (Just PersistentFunWithOms)
+      A0TyOmsArrow (Just _, _a0tye1, _a0e1) _a0tye2 -> do
+        Left Nothing
       A0TyCode _ ->
-        Nothing
+        Left Nothing
       A0TyImplicitForAll atyvar a0tye' -> do
         aPtye' <- go a0tye'
         pure $ APersTyImplicitForAll atyvar aPtye'
