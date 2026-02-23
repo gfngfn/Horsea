@@ -14,6 +14,7 @@ module Staged.Syntax
     ListEquationF (..),
     DatasetParamEquationF (..),
     Ass0TypeExprF (..),
+    Ass0TypeExprNegF (..),
     StrictAss0TypeExprF (..),
     AssPrimBaseType (..),
     validatePrimBaseType,
@@ -21,7 +22,8 @@ module Staged.Syntax
     Ass1TypeExprF (..),
     Ass1PrimTypeF (..),
     AssPersTypeExpr (..),
-    persistentTypeTo0,
+    persistentTypeTo0Pos,
+    persistentTypeTo0Neg,
     persistentTypeTo1,
     liftPrimType,
     Ass0ValF (..),
@@ -37,7 +39,8 @@ module Staged.Syntax
     a1TyMat,
     mapAssLiteral,
     mapMAssLiteral,
-    strictify,
+    strictifyPos,
+    strictifyNeg,
     makeTrivialEquationFromType1,
     decomposeType1Equation,
     decomposeListEquation,
@@ -51,6 +54,7 @@ module Staged.Syntax
     Type1Equation,
     ListEquation,
     Ass0TypeExpr,
+    Ass0TypeExprNeg,
     StrictAss0TypeExpr,
     Ass1TypeExpr,
     Ass0Val,
@@ -172,14 +176,31 @@ data Ass0TypeExprF sv
   | A0TyVar AssTypeVar
   | A0TyProduct (Ass0TypeExprF sv) (Ass0TypeExprF sv) -- TODO: generalize product types
   | -- | (Possibly dependent) function types.
-    A0TyArrow (Maybe Label) (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
+    A0TyArrow (Maybe Label) (Maybe (AssVarF sv), Ass0TypeExprNegF sv) (Ass0TypeExprF sv)
   | -- | Function types with an implicit parameter.
-    A0TyInfArrow (AssVarF sv, Ass0TypeExprF sv) (Ass0TypeExprF sv)
+    A0TyInfArrow (AssVarF sv, Ass0TypeExprNegF sv) (Ass0TypeExprF sv)
   | -- | Function types with an omissible parameter.
-    A0TyOmsArrow (Maybe (AssVarF sv), Ass0TypeExprF sv, Ass0ExprF sv) (Ass0TypeExprF sv)
+    A0TyOmsArrow (Maybe (AssVarF sv), Ass0TypeExprNegF sv, Ass0ExprF sv) (Ass0TypeExprF sv)
   | A0TyCode (Ass1TypeExprF sv)
   | -- | Polymorphic types.
     A0TyImplicitForAll AssTypeVar (Ass0TypeExprF sv)
+  deriving stock (Eq, Show, Functor)
+
+-- | The type of internal stage-0 type expressions for typechecking.
+data Ass0TypeExprNegF sv
+  = -- | Primitive types possibly equipped with a refinement predicate.
+    A0TyNegPrim Ass0PrimType (Maybe (Ass0ExprF sv))
+  | -- | List types possibly equipped with a refinement predicate.
+    A0TyNegList (Ass0TypeExprNegF sv) (Maybe (Ass0ExprF sv))
+  | A0TyNegVar AssTypeVar
+  | A0TyNegProduct (Ass0TypeExprNegF sv) (Ass0TypeExprNegF sv) -- TODO: generalize product types
+  | -- | (Possibly dependent) function types.
+    A0TyNegArrow (Maybe Label) (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprNegF sv)
+  | -- | Function types with an implicit parameter.
+    A0TyNegImpArrow (AssVarF sv, Ass0TypeExprF sv) (Ass0TypeExprNegF sv)
+  | A0TyNegCode (Ass1TypeExprF sv)
+  | -- | Polymorphic types.
+    A0TyNegImplicitForAll AssTypeVar (Ass0TypeExprNegF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of type annotations in target terms.
@@ -267,14 +288,23 @@ data AssPersTypeExpr
   | APersTyImplicitForAll AssTypeVar AssPersTypeExpr
   deriving stock (Eq, Show)
 
-persistentTypeTo0 :: AssPersTypeExpr -> Ass0TypeExprF sv
-persistentTypeTo0 = \case
+persistentTypeTo0Pos :: AssPersTypeExpr -> Ass0TypeExprF sv
+persistentTypeTo0Pos = \case
   APersTyPrim a0tyPrim -> A0TyPrim a0tyPrim Nothing
   APersTyVar atyvar -> A0TyVar atyvar
-  APersTyList aPtye -> A0TyList (persistentTypeTo0 aPtye) Nothing
-  APersTyProduct aPtye1 aPtye2 -> A0TyProduct (persistentTypeTo0 aPtye1) (persistentTypeTo0 aPtye2)
-  APersTyArrow labelOpt aPtye1 aPtye2 -> A0TyArrow labelOpt (Nothing, persistentTypeTo0 aPtye1) (persistentTypeTo0 aPtye2)
-  APersTyImplicitForAll atyvar aPtye -> A0TyImplicitForAll atyvar (persistentTypeTo0 aPtye)
+  APersTyList aPtye -> A0TyList (persistentTypeTo0Pos aPtye) Nothing
+  APersTyProduct aPtye1 aPtye2 -> A0TyProduct (persistentTypeTo0Pos aPtye1) (persistentTypeTo0Pos aPtye2)
+  APersTyArrow labelOpt aPtye1 aPtye2 -> A0TyArrow labelOpt (Nothing, persistentTypeTo0Neg aPtye1) (persistentTypeTo0Pos aPtye2)
+  APersTyImplicitForAll atyvar aPtye -> A0TyImplicitForAll atyvar (persistentTypeTo0Pos aPtye)
+
+persistentTypeTo0Neg :: AssPersTypeExpr -> Ass0TypeExprNegF sv
+persistentTypeTo0Neg = \case
+  APersTyPrim a0tyPrim -> A0TyNegPrim a0tyPrim Nothing
+  APersTyVar atyvar -> A0TyNegVar atyvar
+  APersTyList aPtye -> A0TyNegList (persistentTypeTo0Neg aPtye) Nothing
+  APersTyProduct aPtye1 aPtye2 -> A0TyNegProduct (persistentTypeTo0Neg aPtye1) (persistentTypeTo0Neg aPtye2)
+  APersTyArrow labelOpt aPtye1 aPtye2 -> A0TyNegArrow labelOpt (Nothing, persistentTypeTo0Pos aPtye1) (persistentTypeTo0Neg aPtye2)
+  APersTyImplicitForAll atyvar aPtye -> A0TyNegImplicitForAll atyvar (persistentTypeTo0Neg aPtye)
 
 persistentTypeTo1 :: AssPersTypeExpr -> Ass1TypeExprF sv
 persistentTypeTo1 = \case
@@ -427,17 +457,28 @@ mapMAssLiteral eval = \case
   ALitVec vec -> pure $ ALitVec vec
   ALitMat mat -> pure $ ALitMat mat
 
-strictify :: Ass0TypeExprF sv -> StrictAss0TypeExprF sv
-strictify = \case
+strictifyPos :: Ass0TypeExprF sv -> StrictAss0TypeExprF sv
+strictifyPos = \case
   A0TyPrim a0tyPrim maybePred -> SA0TyPrim a0tyPrim maybePred
   A0TyVar atyvar -> SA0TyVar atyvar
-  A0TyList a0tye maybePred -> SA0TyList (strictify a0tye) maybePred
-  A0TyProduct a0tye1 a0tye2 -> SA0TyProduct (strictify a0tye1) (strictify a0tye2)
-  A0TyArrow _labelOpt (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, strictify a0tye1) (strictify a0tye2)
+  A0TyList a0tye maybePred -> SA0TyList (strictifyPos a0tye) maybePred
+  A0TyProduct a0tye1 a0tye2 -> SA0TyProduct (strictifyPos a0tye1) (strictifyPos a0tye2)
+  A0TyArrow _labelOpt (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, strictifyNeg a0tye1) (strictifyPos a0tye2)
   A0TyCode a1tye1 -> SA0TyCode a1tye1
-  A0TyInfArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictify a0tye1) (strictify a0tye2)
-  A0TyOmsArrow (x1opt, a0tye1, _a0e1) a0tye2 -> SA0TyArrow (x1opt, strictify a0tye1) (strictify a0tye2)
-  A0TyImplicitForAll atyvar a0tye -> SA0TyExplicitForAll atyvar (strictify a0tye)
+  A0TyInfArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictifyNeg a0tye1) (strictifyPos a0tye2)
+  A0TyOmsArrow (x1opt, a0tye1, _a0e1) a0tye2 -> SA0TyArrow (x1opt, strictifyNeg a0tye1) (strictifyPos a0tye2)
+  A0TyImplicitForAll atyvar a0tye -> SA0TyExplicitForAll atyvar (strictifyPos a0tye)
+
+strictifyNeg :: Ass0TypeExprNegF sv -> StrictAss0TypeExprF sv
+strictifyNeg = \case
+  A0TyNegPrim a0tyPrim maybePred -> SA0TyPrim a0tyPrim maybePred
+  A0TyNegVar atyvar -> SA0TyVar atyvar
+  A0TyNegList a0tye maybePred -> SA0TyList (strictifyNeg a0tye) maybePred
+  A0TyNegProduct a0tye1 a0tye2 -> SA0TyProduct (strictifyNeg a0tye1) (strictifyNeg a0tye2)
+  A0TyNegArrow _labelOpt (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, strictifyPos a0tye1) (strictifyNeg a0tye2)
+  A0TyNegCode a1tye1 -> SA0TyCode a1tye1
+  A0TyNegImpArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictifyPos a0tye1) (strictifyNeg a0tye2)
+  A0TyNegImplicitForAll atyvar a0tye -> SA0TyExplicitForAll atyvar (strictifyNeg a0tye)
 
 a0TyVec :: Int -> Ass0PrimType
 a0TyVec n = A0TyTensor [n]
@@ -554,12 +595,12 @@ data AppContextEntryF sv
 -- | The type of the results of the "Let arguments go first" traversal.
 data ResultF af sv
   = Pure (af sv)
-  | Cast0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprF sv) (ResultF af sv)
+  | Cast0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprNegF sv) (ResultF af sv)
   | Cast1 (Maybe (Ass0ExprF sv)) (Ass1TypeExprF sv) (ResultF af sv)
-  | CastGiven0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprF sv) (ResultF af sv)
+  | CastGiven0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprNegF sv) (ResultF af sv)
   | FillInferred0 (Ass0ExprF sv) (ResultF af sv)
   | InsertInferred0 (Ass0ExprF sv) (ResultF af sv)
-  | InsertInferredType0 (Ass0TypeExprF sv) (ResultF af sv)
+  | InsertInferredType0 (Ass0TypeExprNegF sv) (ResultF af sv)
   | InsertType1 (Ass1TypeExprF sv) (ResultF af sv)
   deriving (Eq, Show, Functor)
 
@@ -576,6 +617,8 @@ type Type1Equation = Type1EquationF StaticVar
 type ListEquation = ListEquationF StaticVar
 
 type Ass0TypeExpr = Ass0TypeExprF StaticVar
+
+type Ass0TypeExprNeg = Ass0TypeExprNegF StaticVar
 
 type StrictAss0TypeExpr = StrictAss0TypeExprF StaticVar
 

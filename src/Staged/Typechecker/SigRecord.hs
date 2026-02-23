@@ -40,7 +40,7 @@ data AssPersMetadata = AssPersMetadata
   }
 
 data ValEntry
-  = Ass0Entry Ass0TypeExpr (Either Ass0Metadata StaticVar)
+  = Ass0Entry Ass0TypeExprNeg (Either Ass0Metadata StaticVar)
   | Ass1Entry Ass1TypeExpr (Either Ass1Metadata StaticVar)
   | AssPersEntry AssPersTypeExpr AssPersMetadata
 
