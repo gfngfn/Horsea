@@ -160,19 +160,16 @@ dispAppType req e1 tye2 =
   deepenParenWhen (req <= Atomic) $
     group (dispGen FunDomain e1 <> nest 2 (line <> dispGen Atomic tye2))
 
-dispLetIn :: (Disp var, Disp param, Disp expr) => Associativity -> var -> [param] -> expr -> expr -> Doc Ann
-dispLetIn req x params e1 e2 =
+dispLetIn :: (Disp var, Disp param, Disp ty, Disp expr) => Associativity -> var -> [param] -> Maybe ty -> expr -> expr -> Doc Ann
+dispLetIn req x params tyeOpt e1 e2 =
   deepenParenWhen (req <= FunDomain) $
-    group ("let" <+> d <+> "=" <> nest 2 (line <> disp e1) <+> "in" <> line <> disp e2)
+    group ("let" <+> dp <+> dt <+> "=" <> nest 2 (line <> disp e1) <+> "in" <> line <> disp e2)
   where
-    d = sep (disp x : map disp params)
-
-dispLetInWithParamsAndAnnot :: (Disp var, Disp param, Disp ty, Disp expr) => Associativity -> var -> [param] -> ty -> expr -> expr -> Doc Ann
-dispLetInWithParamsAndAnnot req x params tye e1 e2 =
-  deepenParenWhen (req <= FunDomain) $
-    group ("let" <+> d <+> ":" <+> disp tye <+> "=" <> nest 2 (line <> disp e1) <+> "in" <> line <> disp e2)
-  where
-    d = sep (disp x : map disp params)
+    dp = sep (disp x : map disp params)
+    dt =
+      case tyeOpt of
+        Just tye -> ":" <+> disp tye
+        Nothing -> mempty
 
 dispLetRecIn :: (Disp var, Disp param, Disp ty, Disp expr) => Associativity -> var -> [param] -> ty -> expr -> expr -> Doc Ann
 dispLetRecIn req x params tye e1 e2 =
@@ -377,8 +374,7 @@ instance Disp (ExprMainF ann) where
     LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
     AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
     AppImpOmitted e1 -> dispAppImpOmitted req e1
-    LetIn x params Nothing e1 e2 -> dispLetIn req x params e1 e2
-    LetIn x params (Just tye) e1 e2 -> dispLetInWithParamsAndAnnot req x params tye e1 e2
+    LetIn x params tyeOpt e1 e2 -> dispLetIn req x params tyeOpt e1 e2
     LetRecIn x params tye e1 e2 -> dispLetRecIn req x params tye e1 e2
     LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2
     LetOpenIn m e -> dispLetOpenIn req m e
@@ -452,8 +448,7 @@ instance Disp Surface.ExprMain where
     Surface.Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Surface.Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
     Surface.App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
-    Surface.LetIn x params Nothing eBody e2 -> dispLetIn req x params eBody e2
-    Surface.LetIn x params (Just tyeBody) eBody e2 -> dispLetInWithParamsAndAnnot req x params tyeBody eBody e2
+    Surface.LetIn x params tyeBodyOpt eBody e2 -> dispLetIn req x params tyeBodyOpt eBody e2
     Surface.LetRecIn f params tyeBody eBody e2 -> dispLetRecIn req f params tyeBody eBody e2
     Surface.LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2
     Surface.LetOpenIn m e -> dispLetOpenIn req m e
@@ -1249,8 +1244,7 @@ instance Disp (Bta.BCExprMainF ann) where
     Surface.Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Surface.Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
     Surface.App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
-    Surface.LetIn x params Nothing eBody e2 -> dispLetIn req x params eBody e2
-    Surface.LetIn x params (Just tyeBody) eBody e2 -> dispLetInWithParamsAndAnnot req x params tyeBody eBody e2
+    Surface.LetIn x params tyeBodyOpt eBody e2 -> dispLetIn req x params tyeBodyOpt eBody e2
     Surface.LetRecIn f params tyeBody eBody e2 -> dispLetRecIn req f params tyeBody eBody e2
     Surface.LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2
     Surface.LetOpenIn m e -> dispLetOpenIn req m e
