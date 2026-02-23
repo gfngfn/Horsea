@@ -238,7 +238,7 @@ makeAssertiveCast trav loc =
                   (applySolution0 varSolutionCod tyvar0Solution <$> castDom)
                   castCod
               pure (cast, varSolution, tyvar0Solution)
-        (A0TyImpArrow (x1, a0tye11) a0tye12, A0TyImpArrow (x2, a0tye21) a0tye22withX2) -> do
+        (A0TyInfArrow (x1, a0tye11) a0tye12, A0TyInfArrow (x2, a0tye21) a0tye22withX2) -> do
           (castDom, varSolutionDom, tyvar0SolutionDom) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
           let (x, a0tye22) = (x1, subst0 (A0Var x1) x2 a0tye22withX2)
           (castCod, varSolutionCod, tyvar0SolutionCod) <-
@@ -259,6 +259,10 @@ makeAssertiveCast trav loc =
               (applySolution0 varSolutionCod tyvar0SolutionCod <$> castDom)
               castCod
           pure (cast, varSolution, tyvar0Solution)
+        (A0TyOmsArrow _ _, _) -> do
+          typeError trav $ Unsupported spanInFile $ HigherOrderUseOfFunWithOms0 a0tye1
+        (_, A0TyOmsArrow _ _) -> do
+          typeError trav $ Unsupported spanInFile $ HigherOrderUseOfFunWithOms0 a0tye2
         (A0TyCode a1tye1, A0TyCode a1tye2) -> do
           (eq, varSolution, _tyvar1Solution) <- makeEquation1 trav loc varsToInfer Set.empty a1tye1 a1tye2
           let tyvar0Solution = Map.empty
@@ -541,10 +545,10 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
               pure $ A0TyArrow labelOpt1 (xu, a0tye1u) a0tye2u
         (A0TyCode a1tye1, A0TyCode a1tye2) ->
           A0TyCode <$> go1 a1tye1 a1tye2
-        (A0TyImpArrow (x1, a0tye11) a0tye12, A0TyImpArrow (x2, a0tye21) a0tye22) -> do
+        (A0TyInfArrow (x1, a0tye11) a0tye12, A0TyInfArrow (x2, a0tye21) a0tye22) -> do
           a0tye1u <- go0 a0tye11 a0tye21
           a0tye2u <- go0 a0tye12 (subst0 (A0Var x1) x2 a0tye22)
-          pure $ A0TyImpArrow (x1, a0tye1u) a0tye2u
+          pure $ A0TyInfArrow (x1, a0tye1u) a0tye2u
         _ ->
           typeError trav $ CannotMerge0 a0tye1 a0tye2
 
@@ -736,7 +740,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
               let a0tye1s = applySolution0 varSolution tyvar0Solution a0tye1
               let result = Cast0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
               pure (result, varSolution, tyvar0Solution)
-        (appCtxEntry : appCtx', A0TyImpArrow (x, a0tye1) a0tye2) ->
+        (appCtxEntry : appCtx', A0TyInfArrow (x, a0tye1) a0tye2) ->
           case appCtxEntry of
             AppArgImpGiven0 a0e1' a0tye1' -> do
               (cast, varSolution1, tyvar0Solution1) <-
@@ -1006,7 +1010,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
               let tyEnv' = TypeEnv.addVal x1 (Ass0Entry a0tye1 (Right svX1)) tyEnv
               typecheckExpr0Single trav tyEnv' e2
             let sa0tye1 = strictify a0tye1
-            pure (Pure (A0TyImpArrow (ax1, a0tye1) a0tye2), A0Lam Nothing (ax1, sa0tye1) a0e2)
+            pure (Pure (A0TyInfArrow (ax1, a0tye1) a0tye2), A0Lam Nothing (ax1, sa0tye1) a0e2)
           _ : _ ->
             -- TODO: consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamImpWithArguments appCtx
@@ -1174,7 +1178,7 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
               let ax = AssVarStatic svX
               a0tye <- typecheckTypeExpr0 trav tyEnv0 tye
               let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
-              let f1 = f0 . A0TyImpArrow (ax, a0tye)
+              let f1 = f0 . A0TyInfArrow (ax, a0tye)
               pure (tyEnv1, f1)
       )
       (tyEnv, id)
@@ -1220,7 +1224,7 @@ typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
       svX <- generateFreshVar (Just x)
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
-      pure (A0TyImpArrow (ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
+      pure (A0TyInfArrow (ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
 
 forceExpr1 :: trav -> TypeEnv -> Ass1TypeExpr -> Expr -> M trav Ass1Expr
 forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
@@ -1685,7 +1689,7 @@ typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
         let tyEnv' = TypeEnv.addVal x (Ass0Entry a0tye1 (Right svX)) tyEnv
         typecheckTypeExpr0 trav tyEnv' tye2
       let ax = AssVarStatic svX
-      pure $ A0TyImpArrow (ax, a0tye1) a0tye2
+      pure $ A0TyInfArrow (ax, a0tye1) a0tye2
     TyRefinement x tye1 e2 -> do
       a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
       svX <- generateFreshVar (Just x)
@@ -1852,23 +1856,26 @@ typecheckTypeExpr1 trav tyEnv (TypeExpr loc tyeMain) = do
 validatePersistentType :: trav -> Span -> Ass0TypeExpr -> M trav AssPersTypeExpr
 validatePersistentType trav loc a0tye =
   case go a0tye of
-    Just aPtye ->
+    Right aPtye ->
       pure aPtye
-    Nothing -> do
+    Left unsupportedOpt -> do
       spanInFile <- askSpanInFile loc
-      typeError trav $ InvalidPersistentType spanInFile a0tye
+      typeError trav $
+        case unsupportedOpt of
+          Nothing -> InvalidPersistentType spanInFile a0tye
+          Just u -> Unsupported spanInFile u
   where
     go = \case
       A0TyPrim a0tyPrim maybePred ->
         case maybePred of
           Nothing -> pure $ APersTyPrim a0tyPrim
-          Just _ -> Nothing
+          Just _ -> Left Nothing
       A0TyVar atyvar ->
         pure $ APersTyVar atyvar
       A0TyList a0tye' maybePred ->
         case maybePred of
           Nothing -> APersTyList <$> go a0tye'
-          Just _ -> Nothing
+          Just _ -> Left Nothing
       A0TyProduct a0tye1 a0tye2 ->
         APersTyProduct <$> go a0tye1 <*> go a0tye2
       A0TyArrow labelOpt (Nothing, a0tye1) a0tye2 -> do
@@ -1876,11 +1883,15 @@ validatePersistentType trav loc a0tye =
         aPtye2 <- go a0tye2
         pure $ APersTyArrow labelOpt aPtye1 aPtye2
       A0TyArrow _labelOpt (Just _x, _a0tye1) _a0tye2 -> do
-        Nothing
-      A0TyImpArrow (_x, _a0tye1) _a0tye2 -> do
-        Nothing
+        Left Nothing
+      A0TyInfArrow (_x, _a0tye1) _a0tye2 -> do
+        Left Nothing
+      A0TyOmsArrow (Nothing, _a0tye1, _a0e1) _a0tye2 -> do
+        Left (Just PersistentFunWithOms)
+      A0TyOmsArrow (Just _, _a0tye1, _a0e1) _a0tye2 -> do
+        Left Nothing
       A0TyCode _ ->
-        Nothing
+        Left Nothing
       A0TyImplicitForAll atyvar a0tye' -> do
         aPtye' <- go a0tye'
         pure $ APersTyImplicitForAll atyvar aPtye'

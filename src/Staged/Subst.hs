@@ -355,11 +355,22 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
        in (var0set, var1set)
     A0TyCode a1tye1 ->
       frees a1tye1
-    A0TyImpArrow (y, a0tye1) a0tye2 ->
+    A0TyInfArrow (y, a0tye1) a0tye2 ->
       let (var0set1, var1set1) = frees a0tye1
           (var0set2, var1set2) = frees a0tye2
           var0set = Set.union var0set1 (Set.delete y var0set2)
           var1set = Set.union var1set1 var1set2
+       in (var0set, var1set)
+    A0TyOmsArrow (yOpt, a0tye1, a0e0) a0tye2 ->
+      let (var0set1, var1set1) = frees a0tye1
+          (var0set0, var1set0) = frees a0e0
+          (var0set2, var1set2) = frees a0tye2
+          var0set =
+            Set.union (Set.union var0set1 var0set0) $
+              case yOpt of
+                Just y -> Set.delete y var0set2
+                Nothing -> var0set2
+          var1set = Set.unions [var1set1, var1set0, var1set2]
        in (var0set, var1set)
     A0TyImplicitForAll _atyvar a0tye ->
       frees a0tye
@@ -381,11 +392,17 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
           (_, Subst1 _ _) -> go a0tye2
     A0TyCode a1tye1 ->
       A0TyCode (go a1tye1)
-    A0TyImpArrow (y, a0tye1) a0tye2 ->
-      A0TyImpArrow (y, go a0tye1) $
+    A0TyInfArrow (y, a0tye1) a0tye2 ->
+      A0TyInfArrow (y, go a0tye1) $
         case s of
           Subst0 x _ -> if y == x then a0tye2 else go a0tye2
           Subst1 _ _ -> go a0tye2
+    A0TyOmsArrow (yOpt, a0tye1, a0e0) a0tye2 ->
+      A0TyOmsArrow (yOpt, go a0tye1, go a0e0) $
+        case (yOpt, s) of
+          (Just y, Subst0 x _) -> if y == x then a0tye2 else go a0tye2
+          (Nothing, _) -> go a0tye2
+          (_, Subst1 _ _) -> go a0tye2
     A0TyImplicitForAll atyvar a0tye ->
       A0TyImplicitForAll atyvar (go a0tye)
     where
@@ -415,8 +432,20 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
               go a0tye12 (subst0 (A0Var y1) y2 a0tye22)
       (A0TyCode a1tye1, A0TyCode a1tye2) ->
         go a1tye1 a1tye2
-      (A0TyImpArrow (y1, a0tye11) a0tye12, A0TyImpArrow (y2, a0tye21) a0tye22) ->
+      (A0TyInfArrow (y1, a0tye11) a0tye12, A0TyInfArrow (y2, a0tye21) a0tye22) ->
         go a0tye11 a0tye21 && go a0tye12 (subst0 (A0Var y1) y2 a0tye22)
+      (A0TyOmsArrow (y1opt, a0tye11, a0e10) a0tye12, A0TyOmsArrow (y2opt, a0tye21, a0e20) a0tye22) ->
+        go a0tye11 a0tye21
+          && go a0e10 a0e20
+          && case (y1opt, y2opt) of
+            (Nothing, Nothing) ->
+              go a0tye12 a0tye22
+            (Just y1, Nothing) ->
+              not (occurs0 y1 a0tye12) && go a0tye12 a0tye22
+            (Nothing, Just y2) ->
+              not (occurs0 y2 a0tye22) && go a0tye12 a0tye22
+            (Just y1, Just y2) ->
+              go a0tye12 (subst0 (A0Var y1) y2 a0tye22)
       (A0TyImplicitForAll atyvar1 a0tye1', A0TyImplicitForAll atyvar2 a0tye2') ->
         -- TODO: true alpha-equivalence
         atyvar1 == atyvar2 && go a0tye1' a0tye2'
