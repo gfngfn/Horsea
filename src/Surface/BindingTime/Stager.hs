@@ -44,10 +44,10 @@ stageExpr0Main = \case
     Staged.Lam (Just (f, stageTypeExpr0 tyeRec)) labelOpt (x, stageTypeExpr0 tye1) (stageExpr0 e2)
   App e1 labelOpt e2 ->
     Staged.App (stageExpr0 e1) labelOpt (stageExpr0 e2)
-  LetIn _x (_ : _) _e1 _e2 ->
+  LetIn _x (_ : _) _tyeOpt _e1 _e2 ->
     error "Bug: Stager.stageExpr0Main, non-empty parameter sequence"
-  LetIn x [] e1 e2 ->
-    Staged.LetIn x [] (stageExpr0 e1) (stageExpr0 e2)
+  LetIn x [] tyeOpt e1 e2 ->
+    Staged.LetIn x [] (stageTypeExpr0 <$> tyeOpt) (stageExpr0 e1) (stageExpr0 e2)
   LetRecIn _x _params _tye _e1 _e2 ->
     error "Bug: Stager.stageExpr0Main, LetRecIn"
   LetTupleIn xL xR e1 e2 ->
@@ -87,10 +87,12 @@ stageExpr1Main = \case
     Staged.Lam (Just (f, stageTypeExpr1 tyeRec)) labelOpt (x, stageTypeExpr1 tye1) (stageExpr1 e2)
   App e1 labelOpt e2 ->
     Staged.App (stageExpr1 e1) labelOpt (stageExpr1 e2)
-  LetIn _x (_ : _) _e1 _e2 ->
+  LetIn _x (_ : _) _tyeOpt _e1 _e2 ->
     error "Bug: Stager.stageExpr0Main, non-empty parameter sequence"
-  LetIn x [] e1 e2 ->
-    Staged.LetIn x [] (stageExpr1 e1) (stageExpr1 e2)
+  LetIn _x [] (Just _) _e1 _e2 ->
+    error "Bug: Stager.stageExpr0Main, type annotation"
+  LetIn x [] Nothing e1 e2 ->
+    Staged.LetIn x [] Nothing (stageExpr1 e1) (stageExpr1 e2)
   LetRecIn _x _params _tye _e1 _e2 ->
     error "Bug: Stager.stageExpr0Main, LetRecIn"
   LetTupleIn xL xR e1 e2 ->

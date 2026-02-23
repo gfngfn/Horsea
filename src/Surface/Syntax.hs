@@ -44,7 +44,7 @@ data ExprMainF ann
   | Var ([Var], Var)
   | Lam (Maybe (Var, TypeExprF ann)) (Maybe Label) (Var, TypeExprF ann) (ExprF ann)
   | App (ExprF ann) (Maybe Label) (ExprF ann)
-  | LetIn Var [LamBinderF ann] (ExprF ann) (ExprF ann)
+  | LetIn Var [LamBinderF ann] (Maybe (TypeExprF ann)) (ExprF ann) (ExprF ann)
   | LetRecIn Var [LamBinderF ann] (TypeExprF ann) (ExprF ann) (ExprF ann)
   | LetTupleIn Var Var (ExprF ann) (ExprF ann)
   | LetOpenIn Var (ExprF ann)

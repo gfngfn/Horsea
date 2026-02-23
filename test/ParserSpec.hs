@@ -92,7 +92,7 @@ spec = do
       parseExpr "x (y z)"
         `shouldBe` pure (app (var "x") (app (var "y") (var "z")))
     it "parses applications (4)" $ do
-      let eBody = expr (LetIn "z" [] (litInt 1) (app (var "y") (var "z")))
+      let eBody = expr (LetIn "z" [] Nothing (litInt 1) (app (var "y") (var "z")))
       parseExpr "Foo.bar (fun(y : Y) -> let z = 1 in y z)"
         `shouldBe` pure (app (longVar ["Foo"] "bar") (nonrecLam ("y", typ (TyName "Y" [])) eBody))
     it "parses applications with labels (1)" $
@@ -126,19 +126,23 @@ spec = do
     it "parses let-expressions (1)" $ do
       let ty = tyDepFun "n" tyInt tyBool
       parseExpr "let f = fun (x : (n : Int) -> Bool) -> x y in f"
-        `shouldBe` pure (expr (LetIn "f" [] (nonrecLam ("x", ty) (app (var "x") (var "y"))) (var "f")))
+        `shouldBe` pure (expr (LetIn "f" [] Nothing (nonrecLam ("x", ty) (app (var "x") (var "y"))) (var "f")))
     it "parses let-expressions (2)" $ do
       let ty = tyDepFun "n" tyInt tyBool
       parseExpr "let f (x : (n : Int) -> Bool) = x y in f"
-        `shouldBe` pure (expr (LetIn "f" [MandatoryBinder Nothing ("x", ty)] (app (var "x") (var "y")) (var "f")))
+        `shouldBe` pure (expr (LetIn "f" [MandatoryBinder Nothing ("x", ty)] Nothing (app (var "x") (var "y")) (var "f")))
     it "parses let-expressions (3)" $ do
       let params = [ImplicitBinder ("n", tyInt), MandatoryBinder Nothing ("x", tyPersVec (var "n"))]
       parseExpr "let f {n : Int} (x : Vec %n) = g x in f"
-        `shouldBe` pure (expr (LetIn "f" params (app (var "g") (var "x")) (var "f")))
+        `shouldBe` pure (expr (LetIn "f" params Nothing (app (var "g") (var "x")) (var "f")))
     it "parses let-expressions (4)" $ do
       let params = [ImplicitBinder ("n", tyInt), MandatoryBinder (Just "foo") ("x", tyPersVec (var "n"))]
       parseExpr "let f {n : Int} #foo (x : Vec %n) = g x in f"
-        `shouldBe` pure (expr (LetIn "f" params (app (var "g") (var "x")) (var "f")))
+        `shouldBe` pure (expr (LetIn "f" params Nothing (app (var "g") (var "x")) (var "f")))
+    it "parses let-expressions (5)" $ do
+      let params = [ImplicitBinder ("n", tyInt), MandatoryBinder (Just "foo") ("x", tyPersVec (var "n"))]
+      parseExpr "let f {n : Int} #foo (x : Vec %n) : Bool = g x in f"
+        `shouldBe` pure (expr (LetIn "f" params (Just tyBool) (app (var "g") (var "x")) (var "f")))
     it "parses let-open-expressions" $
       parseExpr "let open X in f 42"
         `shouldBe` pure (expr (LetOpenIn "X" (app (var "f") (litInt 42))))
@@ -204,13 +208,13 @@ spec = do
         `shouldBe` pure (expr (Sequential (var "x") (expr (Sequential (var "y") (var "z")))))
     it "parses sequentials (3)" $
       parseExpr "let x = y in f 42; z"
-        `shouldBe` pure (expr (LetIn "x" [] (var "y") (expr (Sequential (app (var "f") (litInt 42)) (var "z")))))
+        `shouldBe` pure (expr (LetIn "x" [] Nothing (var "y") (expr (Sequential (app (var "f") (litInt 42)) (var "z")))))
     it "parses sequentials (4)" $
       parseExpr "f 42; let x = y in z"
-        `shouldBe` pure (expr (Sequential (app (var "f") (litInt 42)) (expr (LetIn "x" [] (var "y") (var "z")))))
+        `shouldBe` pure (expr (Sequential (app (var "f") (litInt 42)) (expr (LetIn "x" [] Nothing (var "y") (var "z")))))
     it "parses sequentials (5)" $
       parseExpr "f 42; g 57; let x = y in z"
-        `shouldBe` pure (expr (Sequential (app (var "f") (litInt 42)) (expr (Sequential (app (var "g") (litInt 57)) (expr (LetIn "x" [] (var "y") (var "z")))))))
+        `shouldBe` pure (expr (Sequential (app (var "f") (litInt 42)) (expr (Sequential (app (var "g") (litInt 57)) (expr (LetIn "x" [] Nothing (var "y") (var "z")))))))
     it "parses sequentials (6)" $
       parseExpr "f 42; if p 57 then x else y"
         `shouldBe` pure (expr (Sequential (app (var "f") (litInt 42)) (expr (IfThenElse (app (var "p") (litInt 57)) (var "x") (var "y")))))

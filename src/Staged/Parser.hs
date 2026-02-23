@@ -250,12 +250,12 @@ exprAtom, expr :: P Expr
     letInMain :: P (ExprMain, Span)
     letInMain =
       try (makeLetTupleIn <$> paren ((,) <$> (noLoc boundIdent <* token TokComma) <*> noLoc boundIdent) <*> (token TokEqual *> expr) <*> (token TokIn *> expr))
-        <|> (makeLetIn <$> noLoc boundIdent <*> many lamBinder <*> (token TokEqual *> expr) <*> (token TokIn *> expr))
+        <|> (makeLetIn <$> noLoc boundIdent <*> many lamBinder <*> optional (token TokColon *> typeExpr) <*> (token TokEqual *> expr) <*> (token TokIn *> expr))
         <|> (makeLetRecIn <$> (token TokRec *> noLoc boundIdent) <*> many lamBinder <*> (token TokColon *> typeExpr) <*> (token TokEqual *> expr) <*> (token TokIn *> expr))
         <|> (makeLetOpenIn <$> (token TokOpen *> noLoc upper) <*> (token TokIn *> expr))
       where
         makeLetTupleIn (Located _ (x1, x2)) e1 e2@(Expr locLast _) = (LetTupleIn x1 x2 e1 e2, locLast)
-        makeLetIn x params e1 e2@(Expr locLast _) = (LetIn x params e1 e2, locLast)
+        makeLetIn x params tyeOpt e1 e2@(Expr locLast _) = (LetIn x params tyeOpt e1 e2, locLast)
         makeLetRecIn x params tye e1 e2@(Expr locLast _) = (LetRecIn x params tye e1 e2, locLast)
         makeLetOpenIn m e@(Expr locLast _) = (LetOpenIn m e, locLast)
 

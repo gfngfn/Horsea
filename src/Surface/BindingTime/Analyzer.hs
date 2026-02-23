@@ -55,10 +55,28 @@ freshBITypeVar = do
   putState $ st {nextBITypeVarIndex = j + 1}
   pure $ BITypeVar j
 
-makeLam :: [LamBinder] -> Expr -> Expr
-makeLam params eBody = do
-  foldr go eBody params
+reconstructBodyType :: [LamBinder] -> BIType -> BIType
+reconstructBodyType params bity =
+  case (params, bity) of
+    ([], _) ->
+      bity
+    (MandatoryBinder _ _ : params', BIType _ (BITyArrow _ bity')) ->
+      reconstructBodyType params' bity'
+    (ImplicitBinder _ : params', BIType _ (BITyImpArrow _ bity')) ->
+      reconstructBodyType params' bity'
+    (_, _) ->
+      error "Bug: reconstructBodyType"
+
+makeLam :: [LamBinder] -> Maybe TypeExpr -> Expr -> Expr
+makeLam params tyeBodyOpt eBody = do
+  foldr go eBody' params
   where
+    -- TODO (enhance): give better range:
+    eBody' =
+      case tyeBodyOpt of
+        Just tyeBody@(TypeExpr ann _) -> Expr ann (As eBody tyeBody)
+        Nothing -> eBody
+
     go :: LamBinder -> Expr -> Expr
     go (MandatoryBinder labelOpt (x, ty@(TypeExpr loc1 _))) e@(Expr loc2 _) =
       -- TODO (enhance): give better range:
@@ -267,21 +285,29 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
             spanInFile1 <- askSpanInFile ann1
             analysisError trav $ NotAFunction spanInFile1 bity1
       pure (Expr (bt, ann) (App e1' labelOpt e2'), bity, constraints)
-    LetIn x params eBody e2 -> do
-      let e1 = makeLam params eBody
+    LetIn x params tyeBodyOpt eBody e2 -> do
+      let e1 = makeLam params tyeBodyOpt eBody
       -- Not confident. TODO: check the validity of the following
       (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr trav btenv e1
       (e2', bity2@(BIType bt2 _), constraints2) <-
         extractConstraintsFromExpr trav (Map.insert x (EntryLocallyBound bt bity1) btenv) e2
-      let e' = Expr (bt, ann) (LetIn x [] e1' e2')
-      pure (e', bity2, constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
+      constraints0 <-
+        case tyeBodyOpt of
+          Just tye0 -> do
+            (_btye0', bity0, constraints0') <- extractConstraintsFromTypeExpr trav btenv tye0
+            constraintsEq <- makeConstraintsFromBITypeEquation trav ann bity0 (reconstructBodyType params bity1)
+            pure $ constraints0' ++ constraintsEq
+          Nothing ->
+            pure []
+      let e' = Expr (bt, ann) (LetIn x [] Nothing e1' e2')
+      pure (e', bity2, constraints0 ++ constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
     LetRecIn x params tye eBody e2 -> do
       e1 <- makeRecLam trav ann x params tye eBody
       -- Not confident. TODO: check the validity of the following
       (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr trav btenv e1
       (e2', bity2@(BIType bt2 _), constraints2) <-
         extractConstraintsFromExpr trav (Map.insert x (EntryLocallyBound bt bity1) btenv) e2
-      let e' = Expr (bt, ann) (LetIn x [] e1' e2')
+      let e' = Expr (bt, ann) (LetIn x [] Nothing e1' e2')
       pure (e', bity2, constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
     LetTupleIn xL xR e1 e2 -> do
       (e1', bity1@(BIType bt1 bityMain1), constraints1) <- extractConstraintsFromExpr trav btenv e1
@@ -335,9 +361,9 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
           let Expr ann0 _ = e0
           spanInFile0 <- askSpanInFile ann0
           analysisError trav $ NotABase spanInFile0 bity0
-    As e1 btye2 -> do
+    As e1 tye2 -> do
       (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr trav btenv e1
-      (btye2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromTypeExpr trav btenv btye2
+      (btye2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromTypeExpr trav btenv tye2
       constraintsEq <- makeConstraintsFromBITypeEquation trav ann bity1 bity2
       let constraints = constraints1 ++ constraints2 ++ constraintsEq ++ [CLeq ann bt bt1, CLeq ann bt bt2]
       pure (Expr (bt, ann) (As e1' btye2'), bity2, constraints)

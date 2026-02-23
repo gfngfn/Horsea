@@ -72,7 +72,8 @@ data TypeErrorF sv
   | LetRecParamsCannotStartWithImplicit SpanInFile
   | LetRecRequiresNonEmptyParams SpanInFile
   | CannotSynthesizeTypeFromExpr SpanInFile
-  | CannotForceType SpanInFile (Ass0TypeExprF sv)
+  | CannotForceType0 SpanInFile (Ass0TypeExprF sv)
+  | CannotForceType1 SpanInFile (Ass1TypeExprF sv)
   | ApplicationLabelMismatch SpanInFile (AppContextF sv) (Maybe Label) (Maybe Label)
   | NotAStage0TypeVar SpanInFile TypeVar
   | NotAStage1TypeVar SpanInFile TypeVar
