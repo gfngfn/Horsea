@@ -860,6 +860,25 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
           pure $ A0Literal (ALitList a0es)
         _ ->
           typeError trav $ CannotForceType0 spanInFile a0tyeReq
+    Tuple e1 e2 -> do
+      case a0tyeReq of
+        A0TyProduct a0tye1req a0tye2req -> do
+          a0e1 <- forceExpr0 trav tyEnv a0tye1req e1
+          a0e2 <- forceExpr0 trav tyEnv a0tye2req e2
+          pure $ A0Tuple a0e1 a0e2
+        _ -> do
+          typeError trav $ CannotForceType0 spanInFile a0tyeReq
+    IfThenElse e0 e1 e2 -> do
+      (a0tye0, a0e0) <- typecheckExpr0Single trav tyEnv e0
+      case a0tye0 of
+        A0TyPrim (A0TyPrimBase ATyPrimBool) _maybePred -> do
+          a0e1 <- forceExpr0 trav tyEnv a0tyeReq e1
+          a0e2 <- forceExpr0 trav tyEnv a0tyeReq e2
+          pure $ A0IfThenElse a0e0 a0e1 a0e2
+        _ -> do
+          let Expr loc0 _ = e0
+          spanInFile0 <- askSpanInFile loc0
+          typeError trav $ NotABoolTypeForStage0 spanInFile0 a0tye0
     _ -> do
       (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
       (cast, _varSolution, _tyvar0Solution) <- makeAssertiveCast trav loc Set.empty Set.empty a0tye a0tyeReq
@@ -1214,6 +1233,25 @@ forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
           pure $ A1Literal (ALitList a1es)
         _ ->
           typeError trav $ CannotForceType1 spanInFile a1tyeReq
+    Tuple e1 e2 -> do
+      case a1tyeReq of
+        A1TyProduct a1tye1req a1tye2req -> do
+          a1e1 <- forceExpr1 trav tyEnv a1tye1req e1
+          a1e2 <- forceExpr1 trav tyEnv a1tye2req e2
+          pure $ A1Tuple a1e1 a1e2
+        _ -> do
+          typeError trav $ CannotForceType1 spanInFile a1tyeReq
+    IfThenElse e0 e1 e2 -> do
+      (a1tye0, a1e0) <- typecheckExpr1Single trav tyEnv e0
+      case a1tye0 of
+        A1TyPrim (A1TyPrimBase ATyPrimBool) -> do
+          a1e1 <- forceExpr1 trav tyEnv a1tyeReq e1
+          a1e2 <- forceExpr1 trav tyEnv a1tyeReq e2
+          pure $ A1IfThenElse a1e0 a1e1 a1e2
+        _ -> do
+          let Expr loc0 _ = e0
+          spanInFile0 <- askSpanInFile loc0
+          typeError trav $ NotABoolTypeForStage1 spanInFile0 a1tye0
     _ -> do
       (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
       (eq, _varSolution, _tyvar1Solution) <- makeEquation1 trav loc Set.empty Set.empty a1tye a1tyeReq
