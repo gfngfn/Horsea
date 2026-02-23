@@ -117,7 +117,7 @@ fromStaged0 = goPoly 0 Map.empty
               wrap0 <$> (BITyProduct <$> go a0tye1 <*> go a0tye2)
             Staged.A0TyArrow _labelOpt (_, a0tye1) a0tye2 ->
               wrap0 <$> (BITyArrow <$> go a0tye1 <*> go a0tye2)
-            Staged.A0TyImpArrow (_, a0tye1) a0tye2 ->
+            Staged.A0TyInfArrow (_, a0tye1) a0tye2 ->
               wrap0 <$> (BITyImpArrow <$> go a0tye1 <*> go a0tye2)
             Staged.A0TyOmsArrow (_, _a0tye1, _) _a0tye2 ->
               error "TODO: fromStaged0, Staged.A0TyOmsArrow"
