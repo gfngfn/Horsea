@@ -58,6 +58,9 @@ instance HasTypeVar Ass0TypeExprF where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
 
+instance HasTypeVar Ass0TypeExprNegF where
+  tySubst = error "TODO: tySubst"
+
 instance HasTypeVar StrictAss0TypeExprF where
   tySubst :: forall sv. TypeSubstF sv -> StrictAss0TypeExprF sv -> StrictAss0TypeExprF sv
   tySubst s = \case
@@ -65,7 +68,7 @@ instance HasTypeVar StrictAss0TypeExprF where
       SA0TyPrim a0tyPrim ((unMaybe1 . go . Maybe1) maybePred)
     SA0TyVar atyvar ->
       case s of
-        TypeSubst0 atyvar' a0tye' -> if atyvar == atyvar' then strictify a0tye' else SA0TyVar atyvar
+        TypeSubst0 atyvar' a0tye' -> if atyvar == atyvar' then strictifyPos a0tye' else SA0TyVar atyvar
         TypeSubst1 _ _ -> SA0TyVar atyvar
     SA0TyList sa0tye1 maybePred ->
       SA0TyList (go sa0tye1) ((unMaybe1 . go . Maybe1) maybePred)

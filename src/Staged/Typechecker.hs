@@ -1156,7 +1156,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
               logImplicitArg $ LogInferredArg spanInFile a0eInferred
               go (result', A0App a0e a0eInferred)
             InsertInferredType0 a0tyeInferred result' ->
-              go (result', A0AppType a0e (strictify a0tyeInferred))
+              go (result', A0AppType a0e (strictifyNeg a0tyeInferred))
             _ ->
               pure pair
 
@@ -1169,14 +1169,14 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
             MandatoryBinder labelOpt (x, tye) -> do
               svX <- generateFreshVar (Just x)
               let ax = AssVarStatic svX
-              a0tye <- typecheckTypeExpr0 trav tyEnv0 tye
+              a0tye <- typecheckTypeExpr0Neg trav tyEnv0 tye
               let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
               let f1 = f0 . A0TyArrow labelOpt (Just ax, a0tye)
               pure (tyEnv1, f1)
             ImplicitBinder (x, tye) -> do
               svX <- generateFreshVar (Just x)
               let ax = AssVarStatic svX
-              a0tye <- typecheckTypeExpr0 trav tyEnv0 tye
+              a0tye <- typecheckTypeExpr0Neg trav tyEnv0 tye
               let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
               let f1 = f0 . A0TyInfArrow (ax, a0tye)
               pure (tyEnv1, f1)
@@ -1214,17 +1214,17 @@ typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
         Nothing -> do
           typecheckExpr0Single trav tyEnv e1
     MandatoryBinder labelOpt (x, tye) : params' -> do
-      a0tye <- typecheckTypeExpr0 trav tyEnv tye
+      a0tye <- typecheckTypeExpr0Neg trav tyEnv tye
       svX <- generateFreshVar (Just x)
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
-      pure (A0TyArrow labelOpt (Just ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
+      pure (A0TyArrow labelOpt (Just ax, a0tye) a0tye', A0Lam Nothing (ax, strictifyNeg a0tye) a0e')
     ImplicitBinder (x, tye) : params' -> do
-      a0tye <- typecheckTypeExpr0 trav tyEnv tye
+      a0tye <- typecheckTypeExpr0Neg trav tyEnv tye
       svX <- generateFreshVar (Just x)
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
-      pure (A0TyInfArrow (ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
+      pure (A0TyInfArrow (ax, a0tye) a0tye', A0Lam Nothing (ax, strictifyNeg a0tye) a0e')
 
 forceExpr1 :: trav -> TypeEnv -> Ass1TypeExpr -> Expr -> M trav Ass1Expr
 forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
@@ -1596,6 +1596,9 @@ data IntermediateArgForAss0Type
   = IA0ExprArg Ass0Expr
   | IA0TypeArg Ass0TypeExpr
 
+typecheckTypeExpr0Neg :: trav -> TypeEnv -> TypeExpr -> M trav Ass0TypeExprNeg
+typecheckTypeExpr0Neg = error "TODO: typecheckTypeExpr0Neg"
+
 typecheckTypeExpr0 :: trav -> TypeEnv -> TypeExpr -> M trav Ass0TypeExpr
 typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
@@ -1668,7 +1671,7 @@ typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
         TypeVarEntry0 atyvar -> pure $ A0TyVar atyvar
         TypeVarEntry1 _ -> typeError trav $ NotAStage0TypeVar spanInFile tyvar
     TyArrow labelOpt (xOpt, tye1) tye2 -> do
-      a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
+      a0tye1 <- typecheckTypeExpr0Neg trav tyEnv tye1
       (tyEnv', svXOpt) <-
         case xOpt of
           Just x -> do
@@ -1683,7 +1686,7 @@ typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
       a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
       pure $ A0TyCode a1tye1
     TyImpArrow (x, tye1) tye2 -> do
-      a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
+      a0tye1 <- typecheckTypeExpr0Neg trav tyEnv tye1
       svX <- generateFreshVar (Just x)
       a0tye2 <- do
         let tyEnv' = TypeEnv.addVal x (Ass0Entry a0tye1 (Right svX)) tyEnv
@@ -1691,7 +1694,7 @@ typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
       let ax = AssVarStatic svX
       pure $ A0TyInfArrow (ax, a0tye1) a0tye2
     TyRefinement x tye1 e2 -> do
-      a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
+      a0tye1 <- typecheckTypeExpr0Neg trav tyEnv tye1
       svX <- generateFreshVar (Just x)
       (a0tye2, a0e2) <- do
         let tyEnv' = TypeEnv.addVal x (Ass0Entry a0tye1 (Right svX)) tyEnv
@@ -1700,23 +1703,23 @@ typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
         A0TyPrim (A0TyPrimBase ATyPrimBool) _maybePredForBool -> do
           let ax = AssVarStatic svX
           case a0tye1 of
-            A0TyPrim a0tyPrim Nothing -> do
+            A0TyNegPrim a0tyPrim Nothing -> do
               pure $
                 A0TyPrim a0tyPrim . Just $
-                  A0Lam Nothing (ax, strictify a0tye1) a0e2
-            A0TyPrim a0tyPrim (Just a0ePredForBase) -> do
+                  A0Lam Nothing (ax, strictifyNeg a0tye1) a0e2
+            A0TyNegPrim a0tyPrim (Just a0ePredForBase) -> do
               pure $
                 A0TyPrim a0tyPrim . Just $
-                  A0Lam Nothing (ax, strictify a0tye1) $
+                  A0Lam Nothing (ax, strictifyNeg a0tye1) $
                     A0App (A0App ass0exprAnd (A0App a0ePredForBase (A0Var ax))) a0e2
-            A0TyList a0tyeElem Nothing -> do
+            A0TyNegList a0tyeElem Nothing -> do
               pure $
                 A0TyList a0tyeElem . Just $
-                  A0Lam Nothing (ax, strictify a0tye1) a0e2
-            A0TyList a0tyeElem (Just a0ePredForBase) -> do
+                  A0Lam Nothing (ax, strictifyNeg a0tye1) a0e2
+            A0TyNegList a0tyeElem (Just a0ePredForBase) -> do
               pure $
                 A0TyList a0tyeElem . Just $
-                  A0Lam Nothing (ax, strictify a0tye1) $
+                  A0Lam Nothing (ax, strictifyNeg a0tye1) $
                     A0App (A0App ass0exprAnd (A0App a0ePredForBase (A0Var ax))) a0e2
             _ -> do
               let TypeExpr loc1 _ = tye1
@@ -1879,7 +1882,7 @@ validatePersistentType trav loc a0tye =
       A0TyProduct a0tye1 a0tye2 ->
         APersTyProduct <$> go a0tye1 <*> go a0tye2
       A0TyArrow labelOpt (Nothing, a0tye1) a0tye2 -> do
-        aPtye1 <- go a0tye1
+        aPtye1 <- goNeg a0tye1
         aPtye2 <- go a0tye2
         pure $ APersTyArrow labelOpt aPtye1 aPtye2
       A0TyArrow _labelOpt (Just _x, _a0tye1) _a0tye2 -> do
@@ -1914,7 +1917,7 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
       let surfaceName = extractFromExternal "surface" ext
       case stage of
         Stage0 -> do
-          a0tye <- typecheckTypeExpr0 trav tyEnv tye
+          a0tye <- typecheckTypeExpr0Neg trav tyEnv tye
           ass0builtInName <-
             case validateExternalName0 extName of
               Just a0builtInName' ->
@@ -1953,7 +1956,7 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
       case stage of
         Stage0 -> do
           (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
-          let sa0tye = strictify a0tye
+          let sa0tye = strictifyPos a0tye
           pure (SigRecord.singletonVal x (Ass0Entry a0tye (Right svX)), [ABind0 (ax, sa0tye) a0e])
         Stage1 -> do
           (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e

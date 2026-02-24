@@ -455,6 +455,11 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
 
+instance (Ord sv) => HasVar sv Ass0TypeExprNegF where
+  frees = error "TODO: frees"
+  subst = error "TODO: subst"
+  alphaEquivalent = error "TODO: alphaEquivalent"
+
 instance (Ord sv) => HasVar sv Ass1TypeExprF where
   frees = \case
     A1TyPrim a1tyPrim ->
