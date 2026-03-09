@@ -59,6 +59,7 @@ library
 
     -- Modules exported by the library.
     exposed-modules:
+      Data.List.TwoOrMore,
       Staged.BuiltIn,
       Staged.BuiltIn.CompileTime,
       Staged.BuiltIn.Core,

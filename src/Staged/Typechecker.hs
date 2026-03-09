@@ -16,6 +16,7 @@ import Data.Function
 import Data.Functor.Identity
 import Data.List qualified as List
 import Data.List.Extra qualified as List
+import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set, (\\))
@@ -913,8 +914,8 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         error "TODO (error): typecheckExpr0, TyForAll"
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr0, Constructor"
-      TyProduct _ _ ->
-        error "TODO: typecheckExpr0, TyProduct"
+      Product _ ->
+        error "TODO: typecheckExpr0, Product"
       Literal lit ->
         case appCtx of
           [] -> do
@@ -1302,8 +1303,8 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         error "TODO (error): typecheckExpr1, TyForAll"
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr1, Constructor"
-      TyProduct _ _ ->
-        error "TODO: typecheckExpr1, TyProduct"
+      Product _ ->
+        error "TODO: typecheckExpr1, Product"
       Literal lit ->
         case appCtx of
           [] -> do
@@ -1783,10 +1784,15 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           let Expr loc2 _ = e2
           spanInFile2 <- askSpanInFile loc2
           typeError trav $ NotABoolTypeForStage0 spanInFile2 a0tye2
-    TyProduct tye1 tye2 -> do
-      a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
-      a0tye2 <- typecheckTypeExpr0 trav tyEnv tye2
-      pure $ A0TyProduct a0tye1 a0tye2
+    Product tyes -> do
+      let (tye1, tye2, tyesRest) = TwoOrMore.decompose tyes
+      case tyesRest of
+        [] -> do
+          a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
+          a0tye2 <- typecheckTypeExpr0 trav tyEnv tye2
+          pure $ A0TyProduct a0tye1 a0tye2
+        _ : _ ->
+          error "TODO: typecheckTypeExpr0, Product"
     TyForAll tyvar tye1 -> do
       atyvar <- generateFreshTypeVar tyvar
       a0tye1 <- do
@@ -1938,10 +1944,15 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
       typeError trav $ CannotUseCodeTypeAtStage1 spanInFile
     TyRefinement _ _ _ -> do
       typeError trav $ CannotUseRefinementTypeAtStage1 spanInFile
-    TyProduct tye1 tye2 -> do
-      a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
-      a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
-      pure $ A1TyProduct a1tye1 a1tye2
+    Product tyes -> do
+      let (tye1, tye2, tyesRest) = TwoOrMore.decompose tyes
+      case tyesRest of
+        [] -> do
+          a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
+          a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
+          pure $ A1TyProduct a1tye1 a1tye2
+        _ : _ ->
+          error "TODO: typecheckTypeExpr1, Product of more than two"
     TyForAll tyvar tye1 -> do
       atyvar <- generateFreshTypeVar tyvar
       a1tye1 <- do

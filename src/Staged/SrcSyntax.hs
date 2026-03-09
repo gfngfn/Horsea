@@ -24,9 +24,10 @@ module Staged.SrcSyntax
   )
 where
 
-import Data.Functor.Classes
+import Data.Functor.Classes (Eq1, Show1)
+import Data.List.TwoOrMore (TwoOrMore)
 import Data.Text (Text)
-import Generic.Data
+import Generic.Data (Generic, Generic1, Generically1 (..))
 import Generic.Data.Orphans ()
 import Staged.Core
 import Util.TokenUtil (Span)
@@ -70,12 +71,12 @@ data ExprMainF ann
   | LetOpenIn Var (ExprF ann)
   | Sequential (ExprF ann) (ExprF ann)
   | Tuple (ExprF ann) (ExprF ann) -- TODO: generalize tuples
+  | Product (TwoOrMore (TypeExprF ann))
   | Persistent (ExprF ann)
   | TyVar TypeVar
   | TyArrow (Maybe Text) (Maybe Var, TypeExprF ann) (TypeExprF ann)
   | TyImpArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)
-  | TyProduct (TypeExprF ann) (TypeExprF ann)
   | TyForAll TypeVar (TypeExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
   deriving (Eq1, Show1) via (Generically1 ExprMainF)

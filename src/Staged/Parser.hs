@@ -11,6 +11,8 @@ import Data.Functor
 import Data.Generics.Labels ()
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Text (Text)
 import Staged.SrcSyntax
 import Staged.Token (Token (..))
@@ -163,7 +165,7 @@ expr = letin
         arg :: P FunArg
         arg =
           (FunArgOptOmitted <$> token TokUnderscore)
-            <|> (FunArgOptGiven <$> brace expr)
+            <|> (FunArgOptGiven <$> try (brace expr))
             <|> (FunArgMandatory . Just <$> label <*> staged)
             <|> (FunArgMandatory Nothing <$> staged)
 
@@ -195,11 +197,18 @@ expr = letin
     -- TODO: optimize the following
     mult :: P Expr
     mult =
-      try (makeProduct <$> app <*> (token TokProd *> app))
+      try (makeProduct <$> (con `sepBy1` token TokProd))
         <|> binSep makeBinOpApp multOp con
       where
-        makeProduct ty1@(Expr loc1 _) ty2@(Expr loc2 _) =
-          Expr (mergeSpan loc1 loc2) (TyProduct ty1 ty2)
+        makeProduct tys' =
+          case TwoOrMore.fromNonEmpty tys' of
+            Nothing ->
+              NonEmpty.head tys'
+            Just tys ->
+              Expr (mergeSpan locFirst locLast) (Product tys)
+              where
+                Expr locFirst _ = TwoOrMore.head tys
+                Expr locLast _ = TwoOrMore.last tys
 
     add :: P Expr
     add = binSep makeBinOpApp addOp mult

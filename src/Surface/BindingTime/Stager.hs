@@ -10,6 +10,7 @@ module Surface.BindingTime.Stager
 where
 
 import Data.List (foldl')
+import Data.List.TwoOrMore qualified as TwoOrMore
 import Staged.SrcSyntax qualified as Staged
 import Surface.BindingTime.Core
 import Surface.Syntax
@@ -145,7 +146,7 @@ stageTypeExpr0Main = \case
   TyRefinement x tye1 e2 ->
     Staged.TyRefinement x (stageTypeExpr0 tye1) (stageExpr0 e2)
   TyProduct tye1 tye2 ->
-    Staged.TyProduct (stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
+    Staged.Product (TwoOrMore.make (stageTypeExpr0 tye1) (stageTypeExpr0 tye2) [])
 
 stageArgForType0 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
 stageArgForType0 = \case
@@ -164,7 +165,7 @@ stageTypeExpr1Main = \case
   TyArrow labelOpt (_xOpt, tye1) tye2 -> Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
   TyImpArrow (_x, _tye1) _tye2 -> error "bug: stageTypeExpr1Main, TyImpArrow"
   TyRefinement _x _tye _e -> error "bug: stageTypeExpr1Main, TyRefinement"
-  TyProduct tye1 tye2 -> Staged.TyProduct (stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
+  TyProduct tye1 tye2 -> Staged.Product (TwoOrMore.make (stageTypeExpr1 tye1) (stageTypeExpr1 tye2) [])
 
 stageArgForType1 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
 stageArgForType1 = \case
