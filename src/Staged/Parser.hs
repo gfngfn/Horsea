@@ -11,7 +11,6 @@ import Data.Functor
 import Data.Generics.Labels ()
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text (Text)
 import Staged.SrcSyntax
 import Staged.Token (Token (..))
@@ -112,8 +111,12 @@ data FunArg
   | FunArgOptGiven (Located Expr)
   | FunArgOptOmitted Span
 
-exprAtom, expr :: P Expr
-(exprAtom, expr) = (atom, letin)
+data DomainSpec
+  = DomMandatory (Maybe (Located Text)) (Maybe (Span, Var), TypeExpr)
+  | DomImplicit ((Span, Var), TypeExpr)
+
+expr :: P Expr
+expr = letin
   where
     atom :: P Expr
     atom =
@@ -126,21 +129,28 @@ exprAtom, expr :: P Expr
         <|> (makeBool True <$> token TokTrue)
         <|> (makeBool False <$> token TokFalse)
         <|> (located Var <$> longOrShortLower)
+        <|> (makeConstructor <$> upper)
+        <|> (makeTypeVar <$> typeVar)
         <|> try (located (\x -> Var ([], x)) <$> standaloneOp)
         <|> try (makeLitUnit <$> token TokLeftParen <*> token TokRightParen)
         <|> try (makeTuple <$> paren ((,) <$> (expr <* token TokComma) <*> expr))
         <|> (makeEnclosed <$> paren expr)
+        <|> (makeRefinement <$> brace ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (fun <* token TokBar) <*> expr))
       where
         located constructor (Located loc e) = Expr loc (constructor e)
         makeLitUnit loc1 loc2 = Expr (mergeSpan loc1 loc2) (Literal LitUnit)
         makeTuple (Located loc (e1, e2)) = Expr loc (Tuple e1 e2)
         makeEnclosed (Located loc (Expr _ eMain)) = Expr loc eMain
         makeBool b loc = Expr loc (Literal (LitBool b))
+        makeConstructor (Located loc t) = Expr loc (Constructor ([], t))
+        makeTypeVar (Located loc a) = Expr loc (TyVar a)
+        makeRefinement (Located loc (x, tye, e)) = Expr loc (TyRefinement x tye e)
 
     staged :: P Expr
     staged =
       (makeStaged Bracket <$> token TokBracket <*> staged)
         <|> (makeStaged Escape <$> token TokEscape <*> staged)
+        <|> (makeStaged Persistent <$> token TokPersistent <*> staged)
         <|> atom
       where
         makeStaged constructor loc1 e@(Expr loc2 _) =
@@ -172,18 +182,24 @@ exprAtom, expr :: P Expr
 
     as :: P Expr
     as =
-      makeAs <$> app <*> optional (token TokAs *> typeExpr)
+      makeAs <$> app <*> optional (token TokAs *> app)
       where
         makeAs :: Expr -> Maybe TypeExpr -> Expr
         makeAs e1@(Expr loc1 _) = \case
           Nothing -> e1
-          Just tye2@(TypeExpr loc2 _) -> Expr (mergeSpan loc1 loc2) (As e1 tye2)
+          Just tye2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (As e1 tye2)
 
     con :: P Expr
     con = binSep makeBinOpApp consOp as
 
+    -- TODO: optimize the following
     mult :: P Expr
-    mult = binSep makeBinOpApp multOp con
+    mult =
+      try (makeProduct <$> app <*> (token TokProd *> app))
+        <|> binSep makeBinOpApp multOp con
+      where
+        makeProduct ty1@(Expr loc1 _) ty2@(Expr loc2 _) =
+          Expr (mergeSpan loc1 loc2) (TyProduct ty1 ty2)
 
     add :: P Expr
     add = binSep makeBinOpApp addOp mult
@@ -205,6 +221,52 @@ exprAtom, expr :: P Expr
             ( \eArg@(Expr locArg _) eFun@(Expr locFun _) ->
                 Expr (mergeSpan locArg locFun) (App eFun Nothing eArg)
             )
+
+    fun :: P TypeExpr
+    fun =
+      try (makeTyArrow <$> funDom <*> (token TokArrow *> fun))
+        <|> (makeForAll <$> (token TokForall *> typeVar) <*> (token TokArrow *> fun))
+        <|> flipApp
+      where
+        makeTyArrow funDomSpec tye2@(Expr loc2 _) =
+          case funDomSpec of
+            DomMandatory locLabelOpt (varOpt, tye1@(Expr locTye1 _)) ->
+              let loc1 =
+                    case locLabelOpt of
+                      Just (Located locLabel _) ->
+                        locLabel
+                      Nothing ->
+                        case varOpt of
+                          Just (locDom, _) -> locDom
+                          Nothing -> locTye1
+                  xOpt = fmap snd varOpt
+                  labelOpt = fmap (\(Located _ l) -> l) locLabelOpt
+               in Expr (mergeSpan loc1 loc2) (TyArrow labelOpt (xOpt, tye1) tye2)
+            DomImplicit ((loc1, x), tye1) ->
+              Expr (mergeSpan loc1 loc2) (TyImpArrow (x, tye1) tye2)
+        makeForAll (Located loc1 tyvar) tye@(Expr loc2 _) =
+          Expr (mergeSpan loc1 loc2) (TyForAll tyvar tye)
+
+    funDom :: P DomainSpec
+    funDom =
+      (DomMandatory . Just <$> label <*> mandatoryFunDom)
+        <|> (DomMandatory Nothing <$> mandatoryFunDom)
+        <|> (DomImplicit <$> implicitFunDom)
+      where
+        mandatoryFunDom :: P (Maybe (Span, Var), TypeExpr)
+        mandatoryFunDom =
+          try (makeFunDom <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> fun))
+            <|> ((Nothing,) <$> flipApp)
+          where
+            makeFunDom (Located loc (x, tyeDom)) =
+              (Just (loc, x), tyeDom)
+
+        implicitFunDom :: P ((Span, Var), TypeExpr)
+        implicitFunDom =
+          makeFunDom <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> fun)
+          where
+            makeFunDom (Located loc (x, tyeDom)) =
+              ((loc, x), tyeDom)
 
     lam :: P Expr
     lam =
@@ -260,105 +322,7 @@ exprAtom, expr :: P Expr
         makeLetOpenIn m e@(Expr locLast _) = (LetOpenIn m e, locLast)
 
 typeExpr :: P TypeExpr
-typeExpr = fun
-  where
-    atom :: P TypeExpr
-    atom =
-      (makeNamed <$> upper)
-        <|> (makeTypeVar <$> typeVar)
-        <|> try (makeRefinement <$> brace ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (fun <* token TokBar) <*> expr))
-        <|> (makeEnclosed <$> paren fun)
-      where
-        makeNamed (Located loc t) = TypeExpr loc (TyName t [])
-        makeTypeVar (Located loc a) = TypeExpr loc (TyVar a)
-        makeRefinement (Located loc (x, tye, e)) = TypeExpr loc (TyRefinement x tye e)
-        makeEnclosed (Located loc (TypeExpr _ tyeMain)) = TypeExpr loc tyeMain
-
-    staged :: P TypeExpr
-    staged =
-      (makeTyCode <$> token TokBracket <*> staged)
-        <|> atom
-      where
-        makeTyCode loc1 tye@(TypeExpr loc2 _) =
-          TypeExpr (mergeSpan loc1 loc2) (TyCode tye)
-
-    app :: P TypeExpr
-    app =
-      try (makeTyName <$> upper <*> some argForType)
-        <|> staged
-      where
-        makeTyName (Located locFirst t) args =
-          let loc =
-                mergeSpan locFirst $
-                  case NonEmpty.last args of
-                    ExprArgPersistent (Expr locLast _) -> locLast
-                    ExprArgNormal (Expr locLast _) -> locLast
-                    TypeArg (TypeExpr locLast _) -> locLast
-           in TypeExpr loc (TyName t (NonEmpty.toList args))
-
-    argForType :: P ArgForType
-    argForType =
-      (ExprArgPersistent <$> (token TokPersistent *> exprAtom))
-        <|> try (ExprArgNormal <$> exprAtom)
-        <|> (TypeArg <$> atom)
-
-    prod :: P TypeExpr
-    prod =
-      try (makeProduct <$> app <*> (token TokProd *> app))
-        <|> app
-      where
-        makeProduct ty1@(TypeExpr loc1 _) ty2@(TypeExpr loc2 _) =
-          TypeExpr (mergeSpan loc1 loc2) (TyProduct ty1 ty2)
-
-    fun :: P TypeExpr
-    fun =
-      try (makeTyArrow <$> funDom <*> (token TokArrow *> fun))
-        <|> (makeForAll <$> (token TokForall *> typeVar) <*> (token TokArrow *> fun))
-        <|> prod
-      where
-        makeTyArrow funDomSpec tye2@(TypeExpr loc2 _) =
-          case funDomSpec of
-            DomMandatory locLabelOpt (varOpt, tye1@(TypeExpr locTye1 _)) ->
-              let loc1 =
-                    case locLabelOpt of
-                      Just (Located locLabel _) ->
-                        locLabel
-                      Nothing ->
-                        case varOpt of
-                          Just (locDom, _) -> locDom
-                          Nothing -> locTye1
-                  xOpt = fmap snd varOpt
-                  labelOpt = fmap (\(Located _ l) -> l) locLabelOpt
-               in TypeExpr (mergeSpan loc1 loc2) (TyArrow labelOpt (xOpt, tye1) tye2)
-            DomImplicit ((loc1, x), tye1) ->
-              TypeExpr (mergeSpan loc1 loc2) (TyImpArrow (x, tye1) tye2)
-        makeForAll (Located loc1 tyvar) tye@(TypeExpr loc2 _) =
-          TypeExpr (mergeSpan loc1 loc2) (TyForAll tyvar tye)
-
-    funDom :: P DomainSpec
-    funDom =
-      (DomMandatory . Just <$> label <*> mandatoryFunDom)
-        <|> (DomMandatory Nothing <$> mandatoryFunDom)
-        <|> (DomImplicit <$> implicitFunDom)
-      where
-        mandatoryFunDom :: P (Maybe (Span, Var), TypeExpr)
-        mandatoryFunDom =
-          try (makeFunDom <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> fun))
-            <|> ((Nothing,) <$> prod)
-          where
-            makeFunDom (Located loc (x, tyeDom)) =
-              (Just (loc, x), tyeDom)
-
-        implicitFunDom :: P ((Span, Var), TypeExpr)
-        implicitFunDom =
-          makeFunDom <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> fun)
-          where
-            makeFunDom (Located loc (x, tyeDom)) =
-              ((loc, x), tyeDom)
-
-data DomainSpec
-  = DomMandatory (Maybe (Located Text)) (Maybe (Span, Var), TypeExpr)
-  | DomImplicit ((Span, Var), TypeExpr)
+typeExpr = expr
 
 bind :: P Bind
 bind =
