@@ -367,6 +367,7 @@ instance Disp (ExprF ann) where
 instance Disp (ExprMainF ann) where
   dispGen req = \case
     Literal lit -> dispGen req lit
+    Constructor (ms, ctor) -> dispLongName ms ctor
     Var (ms, x) -> dispLongName ms x
     Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
@@ -384,32 +385,19 @@ instance Disp (ExprMainF ann) where
     As e1 tye2 -> dispAs req e1 tye2
     Bracket e1 -> dispBracket e1
     Escape e1 -> dispEscape e1
+    Persistent e1 -> dispPersistent e1
+    TyVar (TypeVar tyvar) -> "'" <> disp tyvar
+    TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
+    TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
+    TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
+    TyProduct tye1 tye2 -> dispProductType req tye1 tye2
+    TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
 
 instance Disp (LamBinderF ann) where
   dispGen _ = \case
     MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
     MandatoryBinder (Just label) (x, tye) -> "(#" <> disp label <+> disp x <+> ":" <+> disp tye <> ")"
     ImplicitBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
-
-instance Disp (TypeExprF ann) where
-  dispGen req (TypeExpr _ann typeExprMain) = dispGen req typeExprMain
-
-instance Disp (TypeExprMainF ann) where
-  dispGen req = \case
-    TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
-    TyVar (TypeVar tyvar) -> "'" <> disp tyvar
-    TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
-    TyCode tye1 -> dispBracket tye1
-    TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
-    TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
-    TyProduct tye1 tye2 -> dispProductType req tye1 tye2
-    TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
-
-instance Disp (ArgForTypeF ann) where
-  dispGen req = \case
-    ExprArgPersistent e -> dispPersistent e
-    ExprArgNormal e -> dispGen req e
-    TypeArg tye -> dispGen req tye
 
 $(deriveDisp definitions)
 

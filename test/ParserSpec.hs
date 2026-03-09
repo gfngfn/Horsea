@@ -26,7 +26,7 @@ exprLoc :: Int -> Int -> ExprMainF Span -> Expr
 exprLoc start end = Expr (Span start end)
 
 typLoc :: Int -> Int -> TypeExprMainF Span -> TypeExpr
-typLoc start end = TypeExpr (Span start end)
+typLoc start end = Expr (Span start end)
 
 spec :: Spec
 spec = do
@@ -94,7 +94,7 @@ spec = do
     it "parses applications (4)" $ do
       let eBody = expr (LetIn "z" [] Nothing (litInt 1) (app (var "y") (var "z")))
       parseExpr "Foo.bar (fun(y : Y) -> let z = 1 in y z)"
-        `shouldBe` pure (app (longVar ["Foo"] "bar") (nonrecLam ("y", typ (TyName "Y" [])) eBody))
+        `shouldBe` pure (app (longVar ["Foo"] "bar") (nonrecLam ("y", typ (Constructor ([], "Y"))) eBody))
     it "parses applications with labels (1)" $
       parseExpr "x #foo y"
         `shouldBe` pure (appWithLabel (var "x") "foo" (var "y"))
@@ -369,8 +369,8 @@ spec = do
             typLoc 9 26 $
               TyArrow
                 Nothing
-                (Just "n", typLoc 14 17 $ TyName "Int" [])
-                (typLoc 22 26 $ TyName "Bool" [])
+                (Just "n", typLoc 14 17 $ Constructor ([], "Int"))
+                (typLoc 22 26 $ Constructor ([], "Bool"))
           e =
             exprLoc 0 34 $
               Lam Nothing Nothing ("x", ty) $

@@ -12,25 +12,25 @@ type ExprVoid = ExprF ()
 type BindVoid = BindF ()
 
 typ :: TypeExprMainF () -> TypeExprVoid
-typ = TypeExpr ()
+typ = Expr ()
 
 tyInt :: TypeExprVoid
-tyInt = typ (TyName "Int" [])
+tyInt = typ (Constructor ([], "Int"))
 
 tyBool :: TypeExprVoid
-tyBool = typ (TyName "Bool" [])
+tyBool = typ (Constructor ([], "Bool"))
 
 tyVar :: Text -> TypeExprVoid
 tyVar a = typ (TyVar (TypeVar a))
 
 tyNormalVec :: ExprVoid -> TypeExprVoid
-tyNormalVec e = typ (TyName "Vec" [ExprArgNormal e])
+tyNormalVec e = typ (App (typ (Constructor ([], "Vec"))) Nothing e)
 
 tyPersVec :: ExprVoid -> TypeExprVoid
-tyPersVec e = typ (TyName "Vec" [ExprArgPersistent e])
+tyPersVec e = typ (App (typ (Constructor ([], "Vec"))) Nothing (typ (Persistent e)))
 
 tyCode :: TypeExprVoid -> TypeExprVoid
-tyCode = typ . TyCode
+tyCode = typ . Bracket
 
 tyDepFun :: Var -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
 tyDepFun x tye1 tye2 = typ (TyArrow Nothing (Just x, tye1) tye2)
