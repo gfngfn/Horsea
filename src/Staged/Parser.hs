@@ -135,7 +135,7 @@ expr = letin
         <|> try (makeLitUnit <$> token TokLeftParen <*> token TokRightParen)
         <|> try (makeTuple <$> paren ((,) <$> (expr <* token TokComma) <*> expr))
         <|> (makeEnclosed <$> paren expr)
-        <|> (makeRefinement <$> brace ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (fun <* token TokBar) <*> expr))
+        <|> (makeRefinement <$> brace ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (typeExpr <* token TokBar) <*> expr))
       where
         located constructor (Located loc e) = Expr loc (constructor e)
         makeLitUnit loc1 loc2 = Expr (mergeSpan loc1 loc2) (Literal LitUnit)
@@ -222,10 +222,10 @@ expr = letin
                 Expr (mergeSpan locArg locFun) (App eFun Nothing eArg)
             )
 
-    fun :: P TypeExpr
-    fun =
-      try (makeTyArrow <$> funDom <*> (token TokArrow *> fun))
-        <|> (makeForAll <$> (token TokForall *> typeVar) <*> (token TokArrow *> fun))
+    arrow :: P TypeExpr
+    arrow =
+      try (makeTyArrow <$> arrowDom <*> (token TokArrow *> arrow))
+        <|> (makeForAll <$> (token TokForall *> typeVar) <*> (token TokArrow *> arrow))
         <|> flipApp
       where
         makeTyArrow funDomSpec tye2@(Expr loc2 _) =
@@ -247,15 +247,15 @@ expr = letin
         makeForAll (Located loc1 tyvar) tye@(Expr loc2 _) =
           Expr (mergeSpan loc1 loc2) (TyForAll tyvar tye)
 
-    funDom :: P DomainSpec
-    funDom =
+    arrowDom :: P DomainSpec
+    arrowDom =
       (DomMandatory . Just <$> label <*> mandatoryFunDom)
         <|> (DomMandatory Nothing <$> mandatoryFunDom)
         <|> (DomImplicit <$> implicitFunDom)
       where
         mandatoryFunDom :: P (Maybe (Span, Var), TypeExpr)
         mandatoryFunDom =
-          try (makeFunDom <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> fun))
+          try (makeFunDom <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr))
             <|> ((Nothing,) <$> flipApp)
           where
             makeFunDom (Located loc (x, tyeDom)) =
@@ -263,7 +263,7 @@ expr = letin
 
         implicitFunDom :: P ((Span, Var), TypeExpr)
         implicitFunDom =
-          makeFunDom <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> fun)
+          makeFunDom <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr)
           where
             makeFunDom (Located loc (x, tyeDom)) =
               ((loc, x), tyeDom)
@@ -273,7 +273,7 @@ expr = letin
       (makeNonrecLam <$> token TokFun <*> (lamBinder <* token TokArrow) <*> expr)
         <|> (makeRecLam <$> token TokRec <*> (mandatoryBinder <* token TokArrow <* token TokFun) <*> (mandatoryBinder <* token TokArrow) <*> expr)
         <|> (makeIf <$> token TokIf <*> expr <*> (token TokThen *> expr) <*> (token TokElse *> expr))
-        <|> flipApp
+        <|> arrow
       where
         makeNonrecLam locFirst xBinder' e@(Expr locLast _) =
           Expr (mergeSpan locFirst locLast) $
