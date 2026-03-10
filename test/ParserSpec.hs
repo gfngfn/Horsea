@@ -273,6 +273,9 @@ spec = do
     it "parses dependent function types (3)" $
       parseTypeExpr "(f : (n : Int) -> Int) -> Bool"
         `shouldBe` pure (tyDepFun "f" (tyDepFun "n" tyInt tyInt) tyBool)
+    it "parses implicit function types" $
+      parseTypeExpr "{n : Int} -> Bool"
+        `shouldBe` pure (tyImpFun "n" tyInt tyBool)
     it "parses dependent function types with labels" $
       parseTypeExpr "#foo (n : Int) -> Bool"
         `shouldBe` pure (tyDepFunWithLabel "foo" "n" tyInt tyBool)

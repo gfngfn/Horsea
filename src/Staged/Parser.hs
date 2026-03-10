@@ -137,7 +137,7 @@ expr = letin
         <|> try (makeLitUnit <$> token TokLeftParen <*> token TokRightParen)
         <|> try (makeTuple <$> paren ((,) <$> (expr <* token TokComma) <*> expr))
         <|> (makeEnclosed <$> paren expr)
-        <|> (makeRefinement <$> brace ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (typeExpr <* token TokBar) <*> expr))
+        <|> (makeRefinement <$> try (brace ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (typeExpr <* token TokBar) <*> expr)))
       where
         located constructor (Located loc e) = Expr loc (constructor e)
         makeLitUnit loc1 loc2 = Expr (mergeSpan loc1 loc2) (Literal LitUnit)
