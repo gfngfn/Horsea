@@ -1841,7 +1841,14 @@ validatePersistentExprArg1 trav (Expr loc eMain) =
       typeError trav $ CannotUseNormalArgAtStage1 spanInFile
 
 collectArgs :: trav -> TypeExprMain -> M trav (TypeName, [Expr])
-collectArgs = error "TODO: collectArgs"
+collectArgs trav = \case
+  App (Expr _ eFunMain) Nothing eArg -> do
+    (tyName, eArgs) <- collectArgs trav eFunMain
+    pure $ (tyName, eArgs ++ [eArg])
+  Constructor ([], tyName) -> do
+    pure (tyName, [])
+  _ ->
+    error "TODO (error): collectArgs"
 
 typecheckTypeExpr1 :: trav -> TypeEnv -> TypeExpr -> M trav Ass1TypeExpr
 typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do

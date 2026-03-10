@@ -116,8 +116,8 @@ stageExpr1Main = \case
   AppImpOmitted _e1 ->
     error "bug: stageExpr1Main, AppImpOmitted"
 
-tyCode :: ann -> Staged.TypeExprF ann -> Staged.TypeExprF ann
-tyCode ann ty = Staged.Expr ann (Staged.Bracket ty)
+tyCode :: Staged.TypeExprF ann -> Staged.TypeExprMainF ann
+tyCode = Staged.Bracket
 
 tyNameWithArgs :: TypeName -> [Staged.ExprF ann] -> Staged.TypeExprMainF ann
 tyNameWithArgs tyName =
@@ -130,7 +130,7 @@ tyNameWithArgs tyName =
 stageTypeExpr0 :: (Show ann) => BCTypeExprF ann -> Staged.TypeExprF ann
 stageTypeExpr0 (TypeExpr (btc, ann) typeExprMain) =
   case btc of
-    BT1 -> tyCode ann (Staged.Expr ann (stageTypeExpr1Main typeExprMain))
+    BT1 -> Staged.Expr ann (tyCode (Staged.Expr ann (stageTypeExpr1Main typeExprMain)))
     BT0 -> Staged.Expr ann (stageTypeExpr0Main typeExprMain)
 
 stageTypeExpr0Main :: (Show ann) => BCTypeExprMainF ann -> Staged.TypeExprMainF ann
@@ -151,7 +151,7 @@ stageTypeExpr0Main = \case
 stageArgForType0 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
 stageArgForType0 = \case
   ExprArg e -> stageExpr0 e
-  TypeArg tye -> stageTypeExpr1 tye
+  TypeArg tye -> stageTypeExpr0 tye
 
 stageTypeExpr1 :: (Show ann) => BCTypeExprF ann -> Staged.TypeExprF ann
 stageTypeExpr1 (TypeExpr (btc, ann) typeExprMain) =
