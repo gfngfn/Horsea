@@ -16,7 +16,7 @@ import Data.Function
 import Data.Functor.Identity
 import Data.List qualified as List
 import Data.List.Extra qualified as List
-import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set, (\\))
@@ -914,27 +914,27 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         error "TODO (error): typecheckExpr0, TyForAll"
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr0, Constructor"
-      Product es ->
+      Product e1 rest ->
         case appCtx of
           [] -> do
-            (a0tyeOp, a0eOp) <- typecheckValVar0 trav loc tyEnv [] "*"
-            pairs <- mapM (typecheckExpr0Single trav tyEnv) es
-            let (pairsInit, pairLast) = TwoOrMore.initAndLast pairs
+            (a0tye1, a0e1) <- typecheckExpr0Single trav tyEnv e1
             (a0tye, a0e) <-
-              foldrM
-                ( \(a0tyeArg, a0eArg) (a0tyeAcc, a0eAcc) -> do
-                    let appCtxOp = [AppArg0 Nothing a0eArg a0tyeArg, AppArg0 Nothing a0eAcc a0tyeAcc]
+              foldM
+                ( \(a0tyeLeftAcc, a0eLeftAcc) (op, eRightArg) -> do
+                    (a0tyeOp, a0eOp) <- typecheckValVar0 trav loc tyEnv [] op
+                    (a0tyeRightArg, a0eRightArg) <- typecheckExpr0Single trav tyEnv eRightArg
+                    let appCtxOp = [AppArg0 Nothing a0eLeftAcc a0tyeLeftAcc, AppArg0 Nothing a0eRightArg a0tyeRightArg]
                     result <- instantiateGuidedByAppContext0 trav loc appCtxOp a0tyeOp
                     case result of
-                      Cast0 castArg _ (Cast0 castAcc _ (Pure a0tyeRes)) -> do
-                        let a0eArg' = applyCast castArg a0eArg
-                        let a0eAcc' = applyCast castAcc a0eAcc
-                        pure (a0tyeRes, A0App (A0App a0eOp a0eArg') a0eAcc')
+                      Cast0 castLeftAcc _ (Cast0 castRightArg _ (Pure a0tyeRes)) -> do
+                        let a0eLeftAcc' = applyCast castLeftAcc a0eLeftAcc
+                        let a0eRightArg' = applyCast castRightArg a0eRightArg
+                        pure (a0tyeRes, A0App (A0App a0eOp a0eLeftAcc') a0eRightArg')
                       _ ->
                         bug "stage-1, Product, not a (Cast1 (Cast1 Pure))"
                 )
-                pairLast
-                pairsInit
+                (a0tye1, a0e1)
+                rest
             pure (Pure a0tye, a0e)
           _ : _ ->
             error "TODO: typecheckExpr1, Product, non-empty appCtx"
@@ -1348,27 +1348,27 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         error "TODO (error): typecheckExpr1, TyForAll"
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr1, Constructor"
-      Product es ->
+      Product e1 rest ->
         case appCtx of
           [] -> do
-            (a1tyeOp, a1eOp) <- typecheckValVar1 trav loc tyEnv [] "*"
-            pairs <- mapM (typecheckExpr1Single trav tyEnv) es
-            let (pairsInit, pairLast) = TwoOrMore.initAndLast pairs
+            (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
             (a1tye, a1e) <-
-              foldrM
-                ( \(a1tyeArg, a1eArg) (a1tyeAcc, a1eAcc) -> do
-                    let appCtxOp = [AppArg1 Nothing a1tyeArg, AppArg1 Nothing a1tyeAcc]
+              foldM
+                ( \(a1tyeLeftAcc, a1eLeftAcc) (op, eRightArg) -> do
+                    (a1tyeOp, a1eOp) <- typecheckValVar1 trav loc tyEnv [] op
+                    (a1tyeRightArg, a1eRightArg) <- typecheckExpr1Single trav tyEnv eRightArg
+                    let appCtxOp = [AppArg1 Nothing a1tyeLeftAcc, AppArg1 Nothing a1tyeRightArg]
                     (result, _) <- instantiateGuidedByAppContext1 trav loc Set.empty appCtxOp a1tyeOp
                     case result of
-                      Cast1 castArg _ (Cast1 castAcc _ (Pure a1tyeRes)) -> do
-                        let a1eArg' = applyCast1 castArg a1eArg
-                        let a1eAcc' = applyCast1 castAcc a1eAcc
-                        pure (a1tyeRes, A1App (A1App a1eOp a1eArg') a1eAcc')
+                      Cast1 castLeftAcc _ (Cast1 castRightArg _ (Pure a1tyeRes)) -> do
+                        let a1eLeftAcc' = applyCast1 castLeftAcc a1eLeftAcc
+                        let a1eRightArg' = applyCast1 castRightArg a1eRightArg
+                        pure (a1tyeRes, A1App (A1App a1eOp a1eLeftAcc') a1eRightArg')
                       _ ->
                         bug "stage-1, Product, not a (Cast1 (Cast1 Pure))"
                 )
-                pairLast
-                pairsInit
+                (a1tye1, a1e1)
+                rest
             pure (Pure a1tye, a1e)
           _ : _ ->
             error "TODO: typecheckExpr1, Product, non-empty appCtx"
@@ -1810,14 +1810,13 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           let Expr loc2 _ = e2
           spanInFile2 <- askSpanInFile loc2
           typeError trav $ NotABoolTypeForStage0 spanInFile2 a0tye2
-    Product tyes -> do
-      let (tye1, tye2, tyesRest) = TwoOrMore.decompose tyes
-      case tyesRest of
-        [] -> do
+    Product tye1 rest -> do
+      case rest of
+        ("*", tye2) :| [] -> do
           a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
           a0tye2 <- typecheckTypeExpr0 trav tyEnv tye2
           pure $ A0TyProduct a0tye1 a0tye2
-        _ : _ ->
+        _ ->
           error "TODO: typecheckTypeExpr0, Product, generalized"
     TyForAll tyvar tye1 -> do
       atyvar <- generateFreshTypeVar tyvar
@@ -1957,14 +1956,13 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
       typeError trav $ CannotUseCodeTypeAtStage1 spanInFile
     TyRefinement _ _ _ -> do
       typeError trav $ CannotUseRefinementTypeAtStage1 spanInFile
-    Product tyes -> do
-      let (tye1, tye2, tyesRest) = TwoOrMore.decompose tyes
-      case tyesRest of
-        [] -> do
+    Product tye1 rest -> do
+      case rest of
+        ("*", tye2) :| [] -> do
           a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
           a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
           pure $ A1TyProduct a1tye1 a1tye2
-        _ : _ ->
+        _ ->
           error "TODO: typecheckTypeExpr1, Product of more than two"
     TyForAll tyvar tye1 -> do
       atyvar <- generateFreshTypeVar tyvar

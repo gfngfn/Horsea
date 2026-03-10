@@ -10,9 +10,8 @@ import Data.Either.Extra
 import Data.Functor
 import Data.Generics.Labels ()
 import Data.List.Extra qualified as List
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Text (Text)
 import Staged.SrcSyntax
 import Staged.Token (Token (..))
@@ -84,6 +83,7 @@ operator = orOp <|> andOp <|> compOp <|> addOp <|> multOp <|> consOp
 consOp :: P (Located Var)
 consOp = fmap (const "::") <$> expectToken (^? #_TokColonColon)
 
+-- | Parses multiplicative operators, including the exact `"*"`.
 multOp :: P (Located Var)
 multOp =
   (fmap (const "*") <$> expectToken (^? #_TokProd))
@@ -194,21 +194,18 @@ expr = letin
     con :: P Expr
     con = binSep makeBinOpApp consOp as
 
-    -- TODO: optimize the following
     mult :: P Expr
     mult =
-      try (makeProduct <$> (con `sepBy1` token TokProd))
-        <|> binSep makeBinOpApp multOp con
+      makeProduct <$> con <*> many ((,) <$> noLoc multOp <*> con)
       where
-        makeProduct tys' =
-          case TwoOrMore.fromNonEmpty tys' of
+        makeProduct :: Expr -> [(Var, Expr)] -> Expr
+        makeProduct e1@(Expr locFirst _) rest' =
+          case nonEmpty rest' of
             Nothing ->
-              NonEmpty.head tys'
-            Just tys ->
-              Expr (mergeSpan locFirst locLast) (Product tys)
-              where
-                Expr locFirst _ = TwoOrMore.head tys
-                Expr locLast _ = TwoOrMore.last tys
+              e1
+            Just rest ->
+              let (_, Expr locLast _) = NonEmpty.last rest
+               in Expr (mergeSpan locFirst locLast) (Product e1 rest)
 
     add :: P Expr
     add = binSep makeBinOpApp addOp mult

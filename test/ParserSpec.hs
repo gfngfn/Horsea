@@ -161,46 +161,58 @@ spec = do
     it "parses escapes (2)" $
       parseExpr "f ~(g x)"
         `shouldBe` pure (app (var "f") (escape (app (var "g") (var "x"))))
-    it "parses binary operators (1)" $
+    it "parses binary operators, addition" $
       parseExpr "2 + 3"
         `shouldBe` pure (add (litInt 2) (litInt 3))
-    it "parses binary operators (2)" $
+    it "parses binary operators, subtraction" $
       parseExpr "4 - 3 - 2"
         `shouldBe` pure (sub (sub (litInt 4) (litInt 3)) (litInt 2))
-    it "parses binary operators (3-1)" $
+    it "parses binary operators, multiplication (1)" $
       parseExpr "2 + 3 * 4"
         `shouldBe` pure (add (litInt 2) (mult (litInt 3) (litInt 4) []))
-    it "parses binary operators (3-2)" $
+    it "parses binary operators, multiplication (2)" $
       parseExpr "2 + 3 * 4 * 5"
         `shouldBe` pure (add (litInt 2) (mult (litInt 3) (litInt 4) [litInt 5]))
-    it "parses binary operators (4)" $
+    it "parses binary operators, multiplication (3)" $
+      parseExpr "2 + 3 *-* 4"
+        `shouldBe` pure (add (litInt 2) (prods (litInt 3) ("*-*", litInt 4) []))
+    it "parses binary operators, division (1)" $
+      parseExpr "3 / 4"
+        `shouldBe` pure (divi (litInt 3) (litInt 4))
+    it "parses binary operators, division (2)" $
+      parseExpr "2 + 3 / 4"
+        `shouldBe` pure (add (litInt 2) (divi (litInt 3) (litInt 4)))
+    it "parses binary operators, multiplication and division" $
+      parseExpr "2 + 3 * 4 / 5"
+        `shouldBe` pure (add (litInt 2) (prods (litInt 3) ("*", litInt 4) [("/", litInt 5)]))
+    it "parses binary operators, application and addition (1)" $
       parseExpr "f 2 + 3"
         `shouldBe` pure (add (app (var "f") (litInt 2)) (litInt 3))
-    it "parses binary operators (5)" $
+    it "parses binary operators, application and addition (2)" $
       parseExpr "2 + f 3"
         `shouldBe` pure (add (litInt 2) (app (var "f") (litInt 3)))
-    it "parses binary operators (6)" $
+    it "parses binary operators, application and addition (3)" $
       parseExpr "2 +=+ f 3"
         `shouldBe` pure (app (app (var "+=+") (litInt 2)) (app (var "f") (litInt 3)))
-    it "parses binary operators (7)" $
+    it "parses binary operators, application and comparison (1)" $
       parseExpr "2 == f 3"
         `shouldBe` pure (app (app (var "==") (litInt 2)) (app (var "f") (litInt 3)))
-    it "parses binary operators (8)" $
+    it "parses binary operators, application and comparison (2)" $
       parseExpr "2 <= f 3"
         `shouldBe` pure (app (app (var "<=") (litInt 2)) (app (var "f") (litInt 3)))
-    it "parses binary operators (9)" $
+    it "parses binary operators, comparison and conjunction" $
       parseExpr "x == 1 && b"
         `shouldBe` pure (app (app (var "&&") (app (app (var "==") (var "x")) (litInt 1))) (var "b"))
     it "parses upcasts" $
       parseExpr "[| |] as Vec %n"
         `shouldBe` pure (upcast (litVec []) (tyPersVec (var "n")))
-    it "parses optional applications (1)" $
+    it "parses applications of implicit parameters (1)" $
       parseExpr "x {y}"
         `shouldBe` pure (appOptGiven (var "x") (var "y"))
-    it "parses optional applications (2)" $
+    it "parses applications of implicit parameters (2)" $
       parseExpr "x {y} {z}"
         `shouldBe` pure (appOptGiven (appOptGiven (var "x") (var "y")) (var "z"))
-    it "parses optional applications (3)" $
+    it "parses applications of implicit parameters (3)" $
       parseExpr "x {y + 1} {z}"
         `shouldBe` pure (appOptGiven (appOptGiven (var "x") (add (var "y") (litInt 1))) (var "z"))
     it "parses sequentials (1)" $
