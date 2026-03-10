@@ -901,7 +901,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
   completeInferredImplicit spanInFile
     =<< case eMain of
       Persistent _ ->
-        error "TODO (error): typecheckExpr0, Persistent"
+        typeError trav $ CannotUsePersistent spanInFile
       TyVar _ ->
         error "TODO (error): typecheckExpr0, TyVar"
       TyArrow _ _ _ ->

@@ -698,8 +698,8 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Cannot use implicit function types at stage 1" <+> disp spanInFile
     CannotUseRefinementTypeAtStage1 spanInFile ->
       "Cannot use refinement types at stage 1" <+> disp spanInFile
-    CannotUsePersistentArgAtStage0 spanInFile ->
-      "Cannot use persistent arguments at stage 0" <+> disp spanInFile
+    CannotUsePersistent spanInFile ->
+      "Cannot use persistence here" <+> disp spanInFile
     CannotUseNormalArgAtStage1 spanInFile ->
       "Cannot use normal arguments at stage 1" <+> disp spanInFile
     CannotUseTypeVarAtStage1 spanInFile ->
