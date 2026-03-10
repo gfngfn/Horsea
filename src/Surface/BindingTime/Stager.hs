@@ -9,6 +9,8 @@ module Surface.BindingTime.Stager
   )
 where
 
+import Data.List (foldl')
+import Data.List.NonEmpty (NonEmpty (..))
 import Staged.SrcSyntax qualified as Staged
 import Surface.BindingTime.Core
 import Surface.Syntax
@@ -114,23 +116,29 @@ stageExpr1Main = \case
   AppImpOmitted _e1 ->
     error "bug: stageExpr1Main, AppImpOmitted"
 
+tyCode :: Staged.TypeExprF ann -> Staged.TypeExprMainF ann
+tyCode = Staged.Bracket
+
+tyNameWithArgs :: TypeName -> [Staged.ExprF ann] -> Staged.TypeExprMainF ann
+tyNameWithArgs tyName =
+  foldl'
+    (\eMain argExpr -> Staged.App (Staged.Expr ann eMain) Nothing argExpr)
+    (Staged.Constructor ([], tyName))
+  where
+    ann = error "TODO: tyNameWithArgs, ann"
+
 stageTypeExpr0 :: (Show ann) => BCTypeExprF ann -> Staged.TypeExprF ann
 stageTypeExpr0 (TypeExpr (btc, ann) typeExprMain) =
   case btc of
-    BT1 -> Staged.TypeExpr ann (Staged.TyCode (Staged.TypeExpr ann (stageTypeExpr1Main typeExprMain)))
-    BT0 -> Staged.TypeExpr ann (stageTypeExpr0Main typeExprMain)
+    BT1 -> Staged.Expr ann (tyCode (Staged.Expr ann (stageTypeExpr1Main typeExprMain)))
+    BT0 -> Staged.Expr ann (stageTypeExpr0Main typeExprMain)
 
 stageTypeExpr0Main :: (Show ann) => BCTypeExprMainF ann -> Staged.TypeExprMainF ann
 stageTypeExpr0Main = \case
   TyName tyName args ->
     -- TODO: check that `ExprArg` only contains literals
-    Staged.TyName tyName $
-      map
-        ( \case
-            TypeArg tye -> Staged.TypeArg (stageTypeExpr0 tye)
-            ExprArg e -> Staged.ExprArgNormal (stageExpr0 e)
-        )
-        args
+    tyNameWithArgs tyName $
+      map stageArgForType0 args
   TyArrow labelOpt (xOpt, tye1) tye2 ->
     Staged.TyArrow labelOpt (xOpt, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
   TyImpArrow (x, tye1) tye2 ->
@@ -138,26 +146,31 @@ stageTypeExpr0Main = \case
   TyRefinement x tye1 e2 ->
     Staged.TyRefinement x (stageTypeExpr0 tye1) (stageExpr0 e2)
   TyProduct tye1 tye2 ->
-    Staged.TyProduct (stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
+    Staged.Product (stageTypeExpr0 tye1) (("*", stageTypeExpr0 tye2) :| [])
+
+stageArgForType0 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
+stageArgForType0 = \case
+  ExprArg e -> stageExpr0 e
+  TypeArg tye -> stageTypeExpr0 tye
 
 stageTypeExpr1 :: (Show ann) => BCTypeExprF ann -> Staged.TypeExprF ann
 stageTypeExpr1 (TypeExpr (btc, ann) typeExprMain) =
   case btc of
     BT0 -> error $ "bug: stageTypeExpr1, BT0; " ++ show typeExprMain
-    BT1 -> Staged.TypeExpr ann (stageTypeExpr1Main typeExprMain)
+    BT1 -> Staged.Expr ann (stageTypeExpr1Main typeExprMain)
 
 stageTypeExpr1Main :: (Show ann) => BCTypeExprMainF ann -> Staged.TypeExprMainF ann
 stageTypeExpr1Main = \case
-  TyName tyName args -> Staged.TyName tyName (map stageArgForType1 args)
+  TyName tyName args -> tyNameWithArgs tyName (map stageArgForType1 args)
   TyArrow labelOpt (_xOpt, tye1) tye2 -> Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
   TyImpArrow (_x, _tye1) _tye2 -> error "bug: stageTypeExpr1Main, TyImpArrow"
   TyRefinement _x _tye _e -> error "bug: stageTypeExpr1Main, TyRefinement"
-  TyProduct tye1 tye2 -> Staged.TyProduct (stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
+  TyProduct tye1 tye2 -> Staged.Product (stageTypeExpr1 tye1) (("*", stageTypeExpr1 tye2) :| [])
 
-stageArgForType1 :: (Show ann) => BCArgForTypeF ann -> Staged.ArgForTypeF ann
+stageArgForType1 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
 stageArgForType1 = \case
-  ExprArg e -> Staged.ExprArgPersistent (stageExpr0 e)
-  TypeArg tye -> Staged.TypeArg (stageTypeExpr1 tye)
+  ExprArg e@(Expr (_btc, ann) _) -> Staged.Expr ann (Staged.Persistent (stageExpr0 e))
+  TypeArg tye -> stageTypeExpr1 tye
 
 convertLiteral :: (se -> le) -> Literal se -> Staged.Literal le
 convertLiteral conv = \case

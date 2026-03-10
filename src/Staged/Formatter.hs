@@ -12,6 +12,7 @@ where
 
 import Data.Functor.Identity
 import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Prettyprinter
@@ -244,10 +245,10 @@ dispListType req tye =
   deepenParenWhen (req <= Atomic) $
     group ("List" <+> dispGen Atomic tye)
 
-dispProductType :: (Disp ty) => Associativity -> ty -> ty -> Doc Ann
-dispProductType req tye1 tye2 =
+dispProductType :: (Disp ty) => Associativity -> ty -> NonEmpty (Text, ty) -> Doc Ann
+dispProductType req tye1 rest =
   deepenParenWhen (req <= Atomic) $
-    group (dispGen Atomic tye1 <+> "*" <+> dispGen Atomic tye2)
+    group (dispGen Atomic tye1 <+> foldl1 (<+>) (fmap (\(op, tye) -> disp op <+> dispGen Atomic tye) rest))
 
 dispArrowType :: (Disp var, Disp ty1, Disp ty2) => Associativity -> Maybe Label -> Maybe var -> ty1 -> ty2 -> Doc Ann
 dispArrowType req labelOpt xOpt tye1 tye2 =
@@ -367,6 +368,7 @@ instance Disp (ExprF ann) where
 instance Disp (ExprMainF ann) where
   dispGen req = \case
     Literal lit -> dispGen req lit
+    Constructor (ms, ctor) -> dispLongName ms ctor
     Var (ms, x) -> dispLongName ms x
     Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
@@ -384,32 +386,19 @@ instance Disp (ExprMainF ann) where
     As e1 tye2 -> dispAs req e1 tye2
     Bracket e1 -> dispBracket e1
     Escape e1 -> dispEscape e1
+    Persistent e1 -> dispPersistent e1
+    TyVar (TypeVar tyvar) -> "'" <> disp tyvar
+    TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
+    TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
+    TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
+    Product tye1 rest -> dispProductType req tye1 rest
+    TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
 
 instance Disp (LamBinderF ann) where
   dispGen _ = \case
     MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
     MandatoryBinder (Just label) (x, tye) -> "(#" <> disp label <+> disp x <+> ":" <+> disp tye <> ")"
     ImplicitBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
-
-instance Disp (TypeExprF ann) where
-  dispGen req (TypeExpr _ann typeExprMain) = dispGen req typeExprMain
-
-instance Disp (TypeExprMainF ann) where
-  dispGen req = \case
-    TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
-    TyVar (TypeVar tyvar) -> "'" <> disp tyvar
-    TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
-    TyCode tye1 -> dispBracket tye1
-    TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
-    TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
-    TyProduct tye1 tye2 -> dispProductType req tye1 tye2
-    TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
-
-instance Disp (ArgForTypeF ann) where
-  dispGen req = \case
-    ExprArgPersistent e -> dispPersistent e
-    ExprArgNormal e -> dispGen req e
-    TypeArg tye -> dispGen req tye
 
 $(deriveDisp definitions)
 
@@ -475,7 +464,7 @@ instance Disp Surface.TypeExprMain where
     Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
     Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
-    Surface.TyProduct tye1 tye2 -> dispProductType req tye1 tye2
+    Surface.TyProduct tye1 tye2 -> dispProductType req tye1 (("*", tye2) :| [])
 
 instance Disp Surface.ArgForType where
   dispGen req = \case
@@ -566,7 +555,7 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyVar atyvar -> disp atyvar
     A0TyList a0tye Nothing -> dispListType req a0tye
     A0TyList a0tye (Just a0ePred) -> dispInternalRefinementListType req a0tye a0ePred
-    A0TyProduct a0tye1 a0tye2 -> dispProductType req a0tye1 a0tye2
+    A0TyProduct a0tye1 a0tye2 -> dispProductType req a0tye1 (("*", a0tye2) :| [])
     A0TyArrow labelOpt (xOpt, a0tye1) a0tye2 -> dispArrowType req labelOpt xOpt a0tye1 a0tye2
     A0TyCode a1tye1 -> dispBracket a1tye1
     A0TyImpArrow (x, a0tye1) a0tye2 -> dispImpArrowType req x a0tye1 a0tye2
@@ -579,7 +568,7 @@ instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
     SA0TyVar atyvar -> disp atyvar
     SA0TyList sa0tye Nothing -> dispListType req sa0tye
     SA0TyList sa0tye (Just a0ePred) -> dispInternalRefinementListType req sa0tye a0ePred
-    SA0TyProduct sa0tye1 sa0tye2 -> dispProductType req sa0tye1 sa0tye2
+    SA0TyProduct sa0tye1 sa0tye2 -> dispProductType req sa0tye1 (("*", sa0tye2) :| [])
     SA0TyArrow (xOpt, sa0tye1) sa0tye2 -> dispArrowType req Nothing xOpt sa0tye1 sa0tye2
     SA0TyCode a1tye1 -> dispBracket a1tye1
     SA0TyExplicitForAll atyvar sa0tye -> dispForAllType req atyvar sa0tye
@@ -605,7 +594,7 @@ instance (Disp sv) => Disp (Ass1TypeExprF sv) where
     A1TyPrim a1tyPrim -> dispGen req a1tyPrim
     A1TyList a1tye -> dispListType req a1tye
     A1TyVar atyvar -> disp atyvar
-    A1TyProduct a1tye1 a1tye2 -> dispProductType req a1tye1 a1tye2
+    A1TyProduct a1tye1 a1tye2 -> dispProductType req a1tye1 (("*", a1tye2) :| [])
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2
     A1TyImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
 
@@ -709,8 +698,8 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Cannot use implicit function types at stage 1" <+> disp spanInFile
     CannotUseRefinementTypeAtStage1 spanInFile ->
       "Cannot use refinement types at stage 1" <+> disp spanInFile
-    CannotUsePersistentArgAtStage0 spanInFile ->
-      "Cannot use persistent arguments at stage 0" <+> disp spanInFile
+    CannotUsePersistent spanInFile ->
+      "Cannot use persistence here" <+> disp spanInFile
     CannotUseNormalArgAtStage1 spanInFile ->
       "Cannot use normal arguments at stage 1" <+> disp spanInFile
     CannotUseTypeVarAtStage1 spanInFile ->
@@ -1017,7 +1006,7 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
     A0TyValVar atyvar -> disp atyvar
     A0TyValList a0tyv1 Nothing -> dispListType req a0tyv1
     A0TyValList a0tyv1 (Just a0vPred) -> dispInternalRefinementListType req a0tyv1 a0vPred
-    A0TyValProduct a0tyv1 a0tyv2 -> dispProductType req a0tyv1 a0tyv2
+    A0TyValProduct a0tyv1 a0tyv2 -> dispProductType req a0tyv1 (("*", a0tyv2) :| [])
     A0TyValArrow (xOpt, a0tyv1) a0tye2 -> dispArrowType req Nothing xOpt a0tyv1 a0tye2
     A0TyValCode a1tyv1 -> dispBracket a1tyv1
     A0TyValExplicitForAll atyvar sa0tye1 -> dispForAllType req atyvar sa0tye1
@@ -1027,7 +1016,7 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
     A1TyValPrim a1tyvPrim -> dispGen req a1tyvPrim
     A1TyValList a1tyv -> dispListType req a1tyv
     A1TyValVar atyvar -> disp atyvar
-    A1TyValProduct a1tyv1 a1tyv2 -> dispProductType req a1tyv1 a1tyv2
+    A1TyValProduct a1tyv1 a1tyv2 -> dispProductType req a1tyv1 (("*", a1tyv2) :| [])
     A1TyValArrow labelOpt a1tyv1 a1tyv2 -> dispNondepArrowType req labelOpt a1tyv1 a1tyv2
     A1TyValImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
 
@@ -1272,7 +1261,7 @@ instance Disp (Bta.BCTypeExprMainF ann) where
     Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
     Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
-    Surface.TyProduct tye1 tye2 -> dispProductType req tye1 tye2
+    Surface.TyProduct tye1 tye2 -> dispProductType req tye1 (("*", tye2) :| [])
 
 instance Disp (Bta.BCArgForTypeF ann) where
   dispGen req = \case

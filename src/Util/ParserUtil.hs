@@ -10,6 +10,7 @@ module Util.ParserUtil
     some,
     many,
     sepBy,
+    sepBy1,
     expectToken,
     token,
     noLoc,
@@ -91,6 +92,13 @@ many = Mp.many
 
 sepBy :: (Ord token) => GenP token a -> GenP token sep -> GenP token [a]
 sepBy = Mp.sepBy
+
+sepBy1 :: (Ord token) => GenP token a -> GenP token sep -> GenP token (NonEmpty a)
+sepBy1 pElem pSep = do
+  xs <- pElem `Mp.sepBy1` pSep
+  case xs of
+    [] -> error "bug: Text.Megaparsec.sepBy1 returned the empty list"
+    x : xs' -> pure (x :| xs')
 
 expectToken :: (Ord token) => (token -> Maybe a) -> GenP token (Located a)
 expectToken f =

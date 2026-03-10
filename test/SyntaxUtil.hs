@@ -1,5 +1,6 @@
 module SyntaxUtil where
 
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (Text)
 import Staged.Core
 import Staged.SrcSyntax
@@ -12,25 +13,25 @@ type ExprVoid = ExprF ()
 type BindVoid = BindF ()
 
 typ :: TypeExprMainF () -> TypeExprVoid
-typ = TypeExpr ()
+typ = Expr ()
 
 tyInt :: TypeExprVoid
-tyInt = typ (TyName "Int" [])
+tyInt = typ (Constructor ([], "Int"))
 
 tyBool :: TypeExprVoid
-tyBool = typ (TyName "Bool" [])
+tyBool = typ (Constructor ([], "Bool"))
 
 tyVar :: Text -> TypeExprVoid
 tyVar a = typ (TyVar (TypeVar a))
 
 tyNormalVec :: ExprVoid -> TypeExprVoid
-tyNormalVec e = typ (TyName "Vec" [ExprArgNormal e])
+tyNormalVec e = typ (App (typ (Constructor ([], "Vec"))) Nothing e)
 
 tyPersVec :: ExprVoid -> TypeExprVoid
-tyPersVec e = typ (TyName "Vec" [ExprArgPersistent e])
+tyPersVec e = typ (App (typ (Constructor ([], "Vec"))) Nothing (typ (Persistent e)))
 
 tyCode :: TypeExprVoid -> TypeExprVoid
-tyCode = typ . TyCode
+tyCode = typ . Bracket
 
 tyDepFun :: Var -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
 tyDepFun x tye1 tye2 = typ (TyArrow Nothing (Just x, tye1) tye2)
@@ -43,6 +44,9 @@ tyNondepFun tye1 tye2 = typ (TyArrow Nothing (Nothing, tye1) tye2)
 
 tyNondepFunWithLabel :: Label -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
 tyNondepFunWithLabel label tye1 tye2 = typ (TyArrow (Just label) (Nothing, tye1) tye2)
+
+tyImpFun :: Var -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
+tyImpFun x tye1 tye2 = typ (TyImpArrow (x, tye1) tye2)
 
 tyRefinement :: Var -> TypeExprVoid -> ExprVoid -> TypeExprVoid
 tyRefinement x tye1 e2 = typ (TyRefinement x tye1 e2)
@@ -95,10 +99,18 @@ appOptGiven e1 e2 = expr (AppImpGiven e1 e2)
 binOp :: Var -> ExprVoid -> ExprVoid -> ExprVoid
 binOp op e1 = app (app (var op) e1)
 
-add, sub, mult :: ExprVoid -> ExprVoid -> ExprVoid
+add, sub :: ExprVoid -> ExprVoid -> ExprVoid
 add = binOp "+"
 sub = binOp "-"
-mult = binOp "*"
+
+prods :: ExprVoid -> (Var, ExprVoid) -> [(Var, ExprVoid)] -> ExprVoid
+prods e1 pair2 rest = expr (Product e1 (pair2 :| rest))
+
+mult :: ExprVoid -> ExprVoid -> [ExprVoid] -> ExprVoid
+mult e1 e2 esRest = expr (Product e1 (fmap ("*",) (e2 :| esRest)))
+
+divi :: ExprVoid -> ExprVoid -> ExprVoid
+divi e1 e2 = expr (Product e1 (fmap ("/",) (e2 :| [])))
 
 upcast :: ExprVoid -> TypeExprVoid -> ExprVoid
 upcast e1 tye2 = expr (As e1 tye2)

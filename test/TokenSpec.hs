@@ -16,3 +16,6 @@ spec = do
     it "tokenizes &&" $ do
       lex "x == 1 && b"
         `shouldBe` pure [TokLower "x", TokOpComp "==", TokInt 1, TokOpAnd "&&", TokLower "b"]
+    it "tokenizes /" $ do
+      lex "float -1 / x"
+        `shouldBe` pure [TokLower "float", TokInt (-1), TokOpMult "/", TokLower "x"]

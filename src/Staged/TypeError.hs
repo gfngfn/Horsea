@@ -44,7 +44,7 @@ data TypeErrorF sv
   | CannotUseCodeTypeAtStage1 SpanInFile
   | CannotUseImpArrowTypeAtStage1 SpanInFile
   | CannotUseRefinementTypeAtStage1 SpanInFile
-  | CannotUsePersistentArgAtStage0 SpanInFile
+  | CannotUsePersistent SpanInFile
   | CannotUseNormalArgAtStage1 SpanInFile
   | CannotUseTypeVarAtStage1 SpanInFile
   | VarOccursFreelyInAss0Type SpanInFile Var (ResultF Ass0TypeExprF sv)

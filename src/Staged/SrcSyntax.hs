@@ -9,12 +9,10 @@ module Staged.SrcSyntax
     LamBinder,
     TypeName,
     TypeVar (..),
-    TypeExprF (..),
-    TypeExprMainF (..),
+    TypeExprF,
+    TypeExprMainF,
     TypeExpr,
     TypeExprMain,
-    ArgForTypeF (..),
-    ArgForType,
     BindF (..),
     BindMainF (..),
     Bind,
@@ -26,9 +24,10 @@ module Staged.SrcSyntax
   )
 where
 
-import Data.Functor.Classes
+import Data.Functor.Classes (Eq1, Show1)
+import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
-import Generic.Data
+import Generic.Data (Generic, Generic1, Generically1 (..))
 import Generic.Data.Orphans ()
 import Staged.Core
 import Util.TokenUtil (Span)
@@ -56,6 +55,7 @@ data ExprF ann = Expr ann (ExprMainF ann)
 data ExprMainF ann
   = Literal (Literal (ExprF ann))
   | Var ([Var], Var) -- A module name chain and a value identifier
+  | Constructor ([Var], Text)
   | Lam (Maybe (Var, TypeExprF ann)) (Maybe Label) (Var, TypeExprF ann) (ExprF ann)
   | App (ExprF ann) (Maybe Label) (ExprF ann)
   | LetIn Var [LamBinderF ann] (Maybe (TypeExprF ann)) (ExprF ann) (ExprF ann)
@@ -71,6 +71,13 @@ data ExprMainF ann
   | LetOpenIn Var (ExprF ann)
   | Sequential (ExprF ann) (ExprF ann)
   | Tuple (ExprF ann) (ExprF ann) -- TODO: generalize tuples
+  | Product (ExprF ann) (NonEmpty (Var, ExprF ann))
+  | Persistent (ExprF ann)
+  | TyVar TypeVar
+  | TyArrow (Maybe Text) (Maybe Var, TypeExprF ann) (TypeExprF ann)
+  | TyImpArrow (Var, TypeExprF ann) (TypeExprF ann)
+  | TyRefinement Var (TypeExprF ann) (ExprF ann)
+  | TyForAll TypeVar (TypeExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
   deriving (Eq1, Show1) via (Generically1 ExprMainF)
 
@@ -91,35 +98,13 @@ type TypeName = Text
 newtype TypeVar = TypeVar Text
   deriving stock (Eq, Show)
 
--- | The type of ASTs for type expressions obtained by parsing source programs.
-data TypeExprF ann = TypeExpr ann (TypeExprMainF ann)
-  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
-  deriving (Eq1, Show1) via (Generically1 TypeExprF)
+type TypeExprF = ExprF
 
-data TypeExprMainF ann
-  = TyName TypeName [ArgForTypeF ann]
-  | TyVar TypeVar
-  | TyArrow (Maybe Text) (Maybe Var, TypeExprF ann) (TypeExprF ann)
-  | TyCode (TypeExprF ann)
-  | TyImpArrow (Var, TypeExprF ann) (TypeExprF ann)
-  | TyRefinement Var (TypeExprF ann) (ExprF ann)
-  | TyProduct (TypeExprF ann) (TypeExprF ann)
-  | TyForAll TypeVar (TypeExprF ann)
-  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
-  deriving (Eq1, Show1) via (Generically1 TypeExprMainF)
+type TypeExprMainF = ExprMainF
 
 type TypeExpr = TypeExprF Span
 
-type TypeExprMain = TypeExprMainF Span
-
-data ArgForTypeF ann
-  = ExprArgPersistent (ExprF ann)
-  | ExprArgNormal (ExprF ann)
-  | TypeArg (TypeExprF ann)
-  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
-  deriving (Eq1, Show1) via (Generically1 ArgForTypeF)
-
-type ArgForType = ArgForTypeF Span
+type TypeExprMain = ExprMainF Span
 
 data BindF ann = Bind ann (BindMainF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
