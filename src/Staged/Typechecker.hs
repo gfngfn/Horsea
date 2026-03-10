@@ -1631,24 +1631,6 @@ mapMPure f = go
     go (InsertInferredType0 a0tye r) = InsertInferredType0 a0tye <$> go r
     go (InsertType1 a1tye r) = InsertType1 a1tye <$> go r
 
-{-
-validateExprArg0 :: trav -> (IntermediateArgForAss0Type, Span) -> M trav Ass0Expr
-validateExprArg0 trav = \case
-  (IA0ExprArg a0e, _loc) ->
-    pure a0e
-  (IA0TypeArg _a0tye, loc) -> do
-    spanInFile <- askSpanInFile loc
-    typeError trav $ NotAValueArg spanInFile
-
-validateTypeArg0 :: trav -> (IntermediateArgForAss0Type, Span) -> M trav Ass0TypeExpr
-validateTypeArg0 trav = \case
-  (IA0ExprArg _, loc) -> do
-    spanInFile <- askSpanInFile loc
-    typeError trav $ NotATypeArg spanInFile
-  (IA0TypeArg a0tye, _loc) ->
-    pure a0tye
--}
-
 validateIntLiteral :: trav -> Span -> Ass0Expr -> M trav Int
 validateIntLiteral trav loc a0e =
   case a0e of
@@ -1672,12 +1654,6 @@ validateIntListLiteral trav loc a0e =
     _ -> do
       spanInFile <- askSpanInFile loc
       typeError trav $ NotAnIntListLitArgAtStage0 spanInFile a0e
-
-{-
-data IntermediateArgForAss0Type
-  = IA0ExprArg Ass0Expr
-  | IA0TypeArg Ass0TypeExpr
--}
 
 typecheckTypeExpr0 :: trav -> TypeEnv -> TypeExpr -> M trav Ass0TypeExpr
 typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
@@ -1864,19 +1840,6 @@ validatePersistentExprArg1 trav (Expr loc eMain) =
     _ -> do
       spanInFile <- askSpanInFile loc
       typeError trav $ CannotUseNormalArgAtStage1 spanInFile
-
-{-
-validateTypeArg1 :: trav -> ArgForType -> M trav TypeExpr
-validateTypeArg1 trav = \case
-  ExprArgPersistent (Expr loc _) -> do
-    spanInFile <- askSpanInFile loc
-    typeError trav $ NotATypeArg spanInFile
-  ExprArgNormal (Expr loc _) -> do
-    spanInFile <- askSpanInFile loc
-    typeError trav $ CannotUseNormalArgAtStage1 spanInFile
-  TypeArg tye ->
-    pure tye
--}
 
 collectArgs :: trav -> TypeExprMain -> M trav (TypeName, [Expr])
 collectArgs = error "TODO: collectArgs"
