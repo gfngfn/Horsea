@@ -167,9 +167,12 @@ spec = do
     it "parses binary operators (2)" $
       parseExpr "4 - 3 - 2"
         `shouldBe` pure (sub (sub (litInt 4) (litInt 3)) (litInt 2))
-    it "parses binary operators (3)" $
+    it "parses binary operators (3-1)" $
       parseExpr "2 + 3 * 4"
-        `shouldBe` pure (add (litInt 2) (mult (litInt 3) (litInt 4)))
+        `shouldBe` pure (add (litInt 2) (mult (litInt 3) (litInt 4) []))
+    it "parses binary operators (3-2)" $
+      parseExpr "2 + 3 * 4 * 5"
+        `shouldBe` pure (add (litInt 2) (mult (litInt 3) (litInt 4) [litInt 5]))
     it "parses binary operators (4)" $
       parseExpr "f 2 + 3"
         `shouldBe` pure (add (app (var "f") (litInt 2)) (litInt 3))

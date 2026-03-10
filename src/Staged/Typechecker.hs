@@ -914,8 +914,30 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         error "TODO (error): typecheckExpr0, TyForAll"
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr0, Constructor"
-      Product _ ->
-        error "TODO: typecheckExpr0, Product"
+      Product es ->
+        case appCtx of
+          [] -> do
+            (a0tyeOp, a0eOp) <- typecheckValVar0 trav loc tyEnv [] "*"
+            pairs <- mapM (typecheckExpr0Single trav tyEnv) es
+            let (pairsInit, pairLast) = TwoOrMore.initAndLast pairs
+            (a0tye, a0e) <-
+              foldrM
+                ( \(a0tyeArg, a0eArg) (a0tyeAcc, a0eAcc) -> do
+                    let appCtxOp = [AppArg0 Nothing a0eArg a0tyeArg, AppArg0 Nothing a0eAcc a0tyeAcc]
+                    result <- instantiateGuidedByAppContext0 trav loc appCtxOp a0tyeOp
+                    case result of
+                      Cast0 castArg _ (Cast0 castAcc _ (Pure a0tyeRes)) -> do
+                        let a0eArg' = applyCast castArg a0eArg
+                        let a0eAcc' = applyCast castAcc a0eAcc
+                        pure (a0tyeRes, A0App (A0App a0eOp a0eArg') a0eAcc')
+                      _ ->
+                        bug "stage-1, Product, not a (Cast1 (Cast1 Pure))"
+                )
+                pairLast
+                pairsInit
+            pure (Pure a0tye, a0e)
+          _ : _ ->
+            error "TODO: typecheckExpr1, Product, non-empty appCtx"
       Literal lit ->
         case appCtx of
           [] -> do
@@ -952,26 +974,9 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           _ : _ ->
             typeError trav $ CannotApplyLiteral spanInFile
       Var (ms, x) -> do
-        valEntry <- findValVar trav loc ms x tyEnv
-        (a0tye, builtInNameOrSv) <-
-          case valEntry of
-            Ass0Entry a0tye' a0metadataOrSv ->
-              pure $
-                (a0tye',) $
-                  case a0metadataOrSv of
-                    Left Ass0Metadata {ass0builtInName} -> Left ass0builtInName
-                    Right svx -> Right svx
-            AssPersEntry aPtye AssPersMetadata {assPbuiltInName} ->
-              pure (persistentTypeTo0 aPtye, Left (unliftBuiltInName assPbuiltInName))
-            Ass1Entry _ _ ->
-              typeError trav $ NotAStage0Var spanInFile x
+        (a0tye, a0e) <- typecheckValVar0 trav loc tyEnv ms x
         result <- instantiateGuidedByAppContext0 trav loc appCtx a0tye
-        case builtInNameOrSv of
-          Left builtInName ->
-            pure (result, A0BuiltInName builtInName)
-          Right svX -> do
-            let ax = AssVarStatic svX
-            pure (result, A0Var ax)
+        pure (result, a0e)
       Lam recOpt labelOpt (x1, tye1) e2 ->
         case appCtx of
           [] -> do
@@ -1215,6 +1220,46 @@ constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
     a0tyeBody
     params
 
+typecheckValVar0 :: trav -> Span -> TypeEnv -> [Var] -> Var -> M trav (Ass0TypeExpr, Ass0Expr)
+typecheckValVar0 trav loc tyEnv ms x = do
+  valEntry <- findValVar trav loc ms x tyEnv
+  (a0tye, builtInNameOrSv) <-
+    case valEntry of
+      Ass0Entry a0tye' a0metadataOrSv ->
+        pure . (a0tye',) $
+          case a0metadataOrSv of
+            Left Ass0Metadata {ass0builtInName} -> Left ass0builtInName
+            Right svx -> Right svx
+      AssPersEntry aPtye AssPersMetadata {assPbuiltInName} ->
+        pure (persistentTypeTo0 aPtye, Left (unliftBuiltInName assPbuiltInName))
+      Ass1Entry _ _ -> do
+        spanInFile <- askSpanInFile loc
+        typeError trav $ NotAStage0Var spanInFile x
+  pure . (a0tye,) $
+    case builtInNameOrSv of
+      Left builtInName -> A0BuiltInName builtInName
+      Right svX -> A0Var (AssVarStatic svX)
+
+typecheckValVar1 :: trav -> Span -> TypeEnv -> [Var] -> Var -> M trav (Ass1TypeExpr, Ass1Expr)
+typecheckValVar1 trav loc tyEnv ms x = do
+  valEntry <- findValVar trav loc ms x tyEnv
+  (a1tye, a1builtInNameOrSv) <-
+    case valEntry of
+      Ass0Entry _ _ -> do
+        spanInFile <- askSpanInFile loc
+        typeError trav $ NotAStage1Var spanInFile x
+      AssPersEntry aPtye AssPersMetadata {assPbuiltInName} ->
+        pure (persistentTypeTo1 aPtye, Left assPbuiltInName)
+      Ass1Entry a1tye' a1metadataOrSv ->
+        pure . (a1tye',) $
+          case a1metadataOrSv of
+            Left Ass1Metadata {ass1builtInName} -> Left ass1builtInName
+            Right svX -> Right svX
+  pure . (a1tye,) $
+    case a1builtInNameOrSv of
+      Left a1builtInName -> A1BuiltInName a1builtInName
+      Right svX -> A1Var (AssVarStatic svX)
+
 typecheckLetInBody0 :: trav -> TypeEnv -> [LamBinder] -> Maybe TypeExpr -> Expr -> M trav (Ass0TypeExpr, Ass0Expr)
 typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
   case params of
@@ -1303,8 +1348,30 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         error "TODO (error): typecheckExpr1, TyForAll"
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr1, Constructor"
-      Product _ ->
-        error "TODO: typecheckExpr1, Product"
+      Product es ->
+        case appCtx of
+          [] -> do
+            (a1tyeOp, a1eOp) <- typecheckValVar1 trav loc tyEnv [] "*"
+            pairs <- mapM (typecheckExpr1Single trav tyEnv) es
+            let (pairsInit, pairLast) = TwoOrMore.initAndLast pairs
+            (a1tye, a1e) <-
+              foldrM
+                ( \(a1tyeArg, a1eArg) (a1tyeAcc, a1eAcc) -> do
+                    let appCtxOp = [AppArg1 Nothing a1tyeArg, AppArg1 Nothing a1tyeAcc]
+                    (result, _) <- instantiateGuidedByAppContext1 trav loc Set.empty appCtxOp a1tyeOp
+                    case result of
+                      Cast1 castArg _ (Cast1 castAcc _ (Pure a1tyeRes)) -> do
+                        let a1eArg' = applyCast1 castArg a1eArg
+                        let a1eAcc' = applyCast1 castAcc a1eAcc
+                        pure (a1tyeRes, A1App (A1App a1eOp a1eArg') a1eAcc')
+                      _ ->
+                        bug "stage-1, Product, not a (Cast1 (Cast1 Pure))"
+                )
+                pairLast
+                pairsInit
+            pure (Pure a1tye, a1e)
+          _ : _ ->
+            error "TODO: typecheckExpr1, Product, non-empty appCtx"
       Literal lit ->
         case appCtx of
           [] -> do
@@ -1348,26 +1415,9 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           _ : _ ->
             typeError trav $ CannotApplyLiteral spanInFile
       Var (ms, x) -> do
-        valEntry <- findValVar trav loc ms x tyEnv
-        (a1tye, a1builtInNameOrSv) <-
-          case valEntry of
-            Ass0Entry _ _ ->
-              typeError trav $ NotAStage1Var spanInFile x
-            AssPersEntry aPtye AssPersMetadata {assPbuiltInName} ->
-              pure (persistentTypeTo1 aPtye, Left assPbuiltInName)
-            Ass1Entry a1tye' a1metadataOrSv ->
-              pure $
-                (a1tye',) $
-                  case a1metadataOrSv of
-                    Left Ass1Metadata {ass1builtInName} -> Left ass1builtInName
-                    Right svX -> Right svX
+        (a1tye, a1e) <- typecheckValVar1 trav loc tyEnv ms x
         (result, _) <- instantiateGuidedByAppContext1 trav loc Set.empty appCtx a1tye
-        case a1builtInNameOrSv of
-          Left a1builtInName ->
-            pure (result, A1BuiltInName a1builtInName)
-          Right svX -> do
-            let ax = AssVarStatic svX
-            pure (result, A1Var ax)
+        pure (result, a1e)
       Lam recOpt labelOpt (x1, tye1) e2 ->
         case appCtx of
           [] -> do
@@ -1792,7 +1842,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           a0tye2 <- typecheckTypeExpr0 trav tyEnv tye2
           pure $ A0TyProduct a0tye1 a0tye2
         _ : _ ->
-          error "TODO: typecheckTypeExpr0, Product"
+          error "TODO: typecheckTypeExpr0, Product, generalized"
     TyForAll tyvar tye1 -> do
       atyvar <- generateFreshTypeVar tyvar
       a0tye1 <- do
