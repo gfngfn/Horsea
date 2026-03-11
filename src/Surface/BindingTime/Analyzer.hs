@@ -7,6 +7,7 @@ where
 import Control.Monad
 import Data.Either.Extra (mapLeft)
 import Data.Function ((&))
+import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
@@ -128,7 +129,7 @@ enhanceBIType enhBt enhBitv (BIType bt bityMain) =
     case bityMain of
       BITyVar bitv -> BITyVar (enhBitv bitv)
       BITyBase bityBaseArgs -> BITyBase (map fBIType bityBaseArgs)
-      BITyProduct bity1 bity2 -> BITyProduct (fBIType bity1) (fBIType bity2)
+      BITyProduct bitys -> BITyProduct (fmap fBIType bitys)
       BITyArrow bity1 bity2 -> BITyArrow (fBIType bity1) (fBIType bity2)
       BITyImpArrow bity1 bity2 -> BITyImpArrow (fBIType bity1) (fBIType bity2)
   where
@@ -427,7 +428,7 @@ occurs bitv = goMain
     goMain = \case
       BITyVar bitv' -> bitv' == bitv
       BITyBase bitys -> any go bitys
-      BITyProduct bity1 bity2 -> go bity1 || go bity2
+      BITyProduct bitys -> any go bitys
       BITyArrow bity1 bity2 -> go bity1 || go bity2
       BITyImpArrow bity1 bity2 -> go bity1 || go bity2
     go (BIType _bt bityMain) =
@@ -481,10 +482,13 @@ makeConstraintsFromBITypeEquation trav ann bity1' bity2' = go bity1' bity2'
                   analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
                 Just zipped -> do
                   concat <$> mapM (uncurry go) zipped
-            (BITyProduct bity11 bity12, BITyProduct bity21 bity22) -> do
-              constraints1 <- go bity11 bity21
-              constraints2 <- go bity12 bity22
-              pure $ constraints1 ++ constraints2
+            (BITyProduct bitys1, BITyProduct bitys2) -> do
+              case zipExactMay (TwoOrMore.toList bitys1) (TwoOrMore.toList bitys2) of
+                Just zipped ->
+                  concat <$> mapM (uncurry go) zipped
+                Nothing -> do
+                  spanInFile <- askSpanInFile ann
+                  analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
             (BITyArrow bity11 bity12, BITyArrow bity21 bity22) -> do
               constraints1 <- go bity11 bity21
               constraints2 <- go bity12 bity22

@@ -11,6 +11,7 @@ where
 
 import Data.List (foldl')
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.TwoOrMore qualified as TwoOrMore
 import Staged.SrcSyntax qualified as Staged
 import Surface.BindingTime.Core
 import Surface.Syntax
@@ -53,13 +54,13 @@ stageExpr0Main = \case
   LetRecIn _x _params _tye _e1 _e2 ->
     error "Bug: Stager.stageExpr0Main, LetRecIn"
   LetTupleIn xL xR e1 e2 ->
-    Staged.LetTupleIn xL xR (stageExpr0 e1) (stageExpr0 e2)
+    Staged.LetTupleIn (TwoOrMore.make xL xR []) (stageExpr0 e1) (stageExpr0 e2)
   LetOpenIn m e ->
     Staged.LetOpenIn m (stageExpr0 e)
   Sequential e1 e2 ->
     Staged.Sequential (stageExpr0 e1) (stageExpr0 e2)
   Tuple e1 e2 ->
-    Staged.Tuple (stageExpr0 e1) (stageExpr0 e2)
+    Staged.Tuple (TwoOrMore.make (stageExpr0 e1) (stageExpr0 e2) [])
   IfThenElse e0 e1 e2 ->
     Staged.IfThenElse (stageExpr0 e0) (stageExpr0 e1) (stageExpr0 e2)
   As e1 tye2 ->
@@ -98,13 +99,13 @@ stageExpr1Main = \case
   LetRecIn _x _params _tye _e1 _e2 ->
     error "Bug: Stager.stageExpr0Main, LetRecIn"
   LetTupleIn xL xR e1 e2 ->
-    Staged.LetTupleIn xL xR (stageExpr1 e1) (stageExpr1 e2)
+    Staged.LetTupleIn (TwoOrMore.make xL xR []) (stageExpr1 e1) (stageExpr1 e2)
   LetOpenIn m e ->
     Staged.LetOpenIn m (stageExpr1 e)
   Sequential e1 e2 ->
     Staged.Sequential (stageExpr1 e1) (stageExpr1 e2)
   Tuple e1 e2 ->
-    Staged.Tuple (stageExpr1 e1) (stageExpr1 e2)
+    Staged.Tuple (TwoOrMore.make (stageExpr1 e1) (stageExpr1 e2) [])
   IfThenElse e0 e1 e2 ->
     Staged.IfThenElse (stageExpr1 e0) (stageExpr1 e1) (stageExpr1 e2)
   As e1 tye2 ->

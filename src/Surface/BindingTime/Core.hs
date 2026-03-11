@@ -22,6 +22,7 @@ module Surface.BindingTime.Core
   )
 where
 
+import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
@@ -60,7 +61,7 @@ data BIPolyTypeF bt = BIPolyType (Set BITypeBoundVar) (BITypeF bt BITypeBoundVar
 data BITypeMainF bt tv
   = BITyVar tv
   | BITyBase [BITypeF bt tv]
-  | BITyProduct (BITypeF bt tv) (BITypeF bt tv) -- TODO: generalize product types
+  | BITyProduct (TwoOrMore (BITypeF bt tv))
   | BITyArrow (BITypeF bt tv) (BITypeF bt tv)
   | BITyImpArrow (BITypeF bt tv) (BITypeF bt tv)
   deriving stock (Functor, Show)
@@ -113,8 +114,9 @@ fromStaged0 = goPoly 0 Map.empty
             Staged.A0TyList a0tye' _maybePred -> do
               bity <- go a0tye'
               pure . wrap0 $ BITyBase [bity]
-            Staged.A0TyProduct a0tye1 a0tye2 ->
-              wrap0 <$> (BITyProduct <$> go a0tye1 <*> go a0tye2)
+            Staged.A0TyProduct a0tyes -> do
+              bitys <- mapM go a0tyes
+              pure $ wrap0 (BITyProduct bitys)
             Staged.A0TyArrow _labelOpt (_, a0tye1) a0tye2 ->
               wrap0 <$> (BITyArrow <$> go a0tye1 <*> go a0tye2)
             Staged.A0TyImpArrow (_, a0tye1) a0tye2 ->
@@ -135,8 +137,8 @@ fromStaged1 = \case
   Staged.A1TyVar _atyvar ->
     -- Handles order-0 type variables only:
     wrap1 $ BITyBase []
-  Staged.A1TyProduct a1tye1 a1tye2 ->
-    wrap1 $ BITyProduct (fromStaged1 a1tye1) (fromStaged1 a1tye2)
+  Staged.A1TyProduct a1tyes ->
+    wrap1 $ BITyProduct (fmap fromStaged1 a1tyes)
   Staged.A1TyArrow _labelOpt a1tye1 a1tye2 ->
     wrap1 $ BITyArrow (fromStaged1 a1tye1) (fromStaged1 a1tye2)
   Staged.A1TyImplicitForAll _atyvar a1tye2 ->
@@ -167,8 +169,9 @@ fromStagedPers = goPoly 0 Map.empty
             Staged.APersTyList aPtye' -> do
               bity <- go aPtye'
               pure . wrapP $ BITyBase [bity]
-            Staged.APersTyProduct aPtye1 aPtye2 ->
-              wrapP <$> (BITyProduct <$> go aPtye1 <*> go aPtye2)
+            Staged.APersTyProduct aPtyes -> do
+              bitys <- mapM go aPtyes
+              pure $ wrapP (BITyProduct bitys)
             Staged.APersTyArrow _labelOpt aPtye1 aPtye2 ->
               wrapP <$> (BITyArrow <$> go aPtye1 <*> go aPtye2)
             Staged.APersTyImplicitForAll _atyvar _aPtye2 ->
