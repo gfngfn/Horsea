@@ -10,6 +10,7 @@ module Staged.Typechecker
 where
 
 import Control.Monad
+import Data.Bifunctor (bimap)
 import Data.Either.Extra
 import Data.Foldable (foldrM)
 import Data.Function
@@ -187,24 +188,40 @@ makeAssertiveCast trav loc =
                     A0Lam Nothing (ax, strictify a0tye1) $
                       A0App a0eCast2 (A0App a0eCast1 (A0Var ax))
           pure (castForList, varSolution, tyvar0Solution)
-        (A0TyProduct a0tye11 a0tye12, A0TyProduct a0tye21 a0tye22) -> do
-          (cast1, varSolution1, tyvar0Solution1) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
-          (cast2, varSolution2, tyvar0Solution2) <-
-            go
-              (varsToInfer \\ Map.keysSet varSolution1)
-              (tyvars0ToInfer \\ Map.keysSet tyvar0Solution1)
-              (applySolution0 varSolution1 tyvar0Solution1 a0tye12)
-              (applySolution0 varSolution1 tyvar0Solution1 a0tye22)
-          let varSolution = composeVarSolution varSolution1 varSolution2
-          let tyvar0Solution = composeTypeVar0Solution tyvar0Solution1 tyvar0Solution2
-          cast <-
-            makeProductTypeCast
-              trav
-              (applySolution0 varSolution tyvar0Solution a0tye11)
-              (applySolution0 varSolution tyvar0Solution a0tye12)
-              (applySolution0 varSolution2 tyvar0Solution <$> cast1)
-              cast2
-          pure (cast, varSolution, tyvar0Solution)
+        (A0TyProduct a0tyes1, A0TyProduct a0tyes2) -> do
+          zipped <-
+            case TwoOrMore.zipExact a0tyes1 a0tyes2 of
+              Just zipped' -> pure zipped'
+              Nothing -> typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
+          ((_, _, varSolutionRet, tyvar0SolutionRet), castAndDomTypePairs') <-
+            mapAccumM
+              ( \(varsToInfer', tyvars0ToInfer', varSolution', tyvar0Solution') (a0tye1', a0tye2') -> do
+                  (cast, varSolution, tyvar0Solution) <-
+                    go
+                      varsToInfer'
+                      tyvars0ToInfer'
+                      (applySolution0 varSolution' tyvar0Solution' a0tye1')
+                      (applySolution0 varSolution' tyvar0Solution' a0tye2')
+                  pure
+                    ( ( varsToInfer' \\ Map.keysSet varSolution,
+                        tyvars0ToInfer' \\ Map.keysSet tyvar0Solution,
+                        composeVarSolution varSolution' varSolution,
+                        composeTypeVar0Solution tyvar0Solution' tyvar0Solution
+                      ),
+                      (cast, a0tye1')
+                    )
+              )
+              (varsToInfer, tyvars0ToInfer, Map.empty, Map.empty)
+              zipped
+          let castAndDomTypePairs =
+                fmap
+                  ( bimap
+                      (fmap (applySolution0 varSolutionRet tyvar0SolutionRet))
+                      (applySolution0 varSolutionRet tyvar0SolutionRet)
+                  )
+                  castAndDomTypePairs'
+          cast <- makeProductTypeCast trav castAndDomTypePairs
+          pure (cast, varSolutionRet, tyvar0SolutionRet)
         (A0TyArrow labelOpt1 (x1opt, a0tye11) a0tye12, A0TyArrow labelOpt2 (x2opt, a0tye21) a0tye22withX2opt) -> do
           if labelOpt1 /= labelOpt2
             then
@@ -450,7 +467,12 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
           ((_, _, trivialRet, varSolutionRet, tyvar1SolutionRet), ty1eqs) <-
             mapAccumM
               ( \(varsToInfer', tyvars1ToInfer', trivial', varSolution', tyvar1Solution') (a1tye1', a1tye2') -> do
-                  (trivial, ty1eq, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1' a1tye2'
+                  (trivial, ty1eq, varSolution, tyvar1Solution) <-
+                    go
+                      varsToInfer'
+                      tyvars1ToInfer'
+                      (applySolution1 varSolution' tyvar1Solution' a1tye1')
+                      (applySolution1 varSolution' tyvar1Solution' a1tye2')
                   pure
                     ( ( varsToInfer' \\ Map.keysSet varSolution,
                         tyvars1ToInfer' \\ Map.keysSet tyvar1Solution,
@@ -463,7 +485,8 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
               )
               (varsToInfer, tyvars1ToInfer, True, Map.empty, Map.empty)
               zipped
-          pure (trivialRet, TyEq1Product ty1eqs, varSolutionRet, tyvar1SolutionRet)
+          let ty1eqsRet = applySolution1 varSolutionRet tyvar1SolutionRet <$> ty1eqs
+          pure (trivialRet, TyEq1Product ty1eqsRet, varSolutionRet, tyvar1SolutionRet)
         (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) -> do
           if labelOpt1 /= labelOpt2
             then
