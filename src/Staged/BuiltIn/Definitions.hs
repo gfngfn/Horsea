@@ -150,13 +150,13 @@ definitions =
     versatile [] "fst" ForBothStages 1 $
       [|
         do
-          (a0v11, _) <- validateTupleValue a0v1
+          (a0v11, _) <- validatePairValue a0v1
           pure a0v11
         |],
     versatile [] "snd" ForBothStages 1 $
       [|
         do
-          (_, a0v12) <- validateTupleValue a0v1
+          (_, a0v12) <- validatePairValue a0v1
           pure a0v12
         |],
     versatile [] "string_append" ForBothStages 2 $

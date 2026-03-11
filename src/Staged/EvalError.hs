@@ -6,6 +6,7 @@ module Staged.EvalError
   )
 where
 
+import Data.List.TwoOrMore (TwoOrMore)
 import Data.Text (Text)
 import Staged.BuiltIn.Core
 import Staged.Syntax
@@ -25,6 +26,8 @@ data BugF sv
   | NotAUnit (Ass0ValF sv)
   | NotAString (Ass0ValF sv)
   | NotATuple (Ass0ValF sv)
+  | NotAPair (Ass0ValF sv)
+  | TupleLengthMismatch (TwoOrMore (AssVarF sv)) (TwoOrMore (Ass0ValF sv))
   | FoundSymbol (AssVarF sv) Symbol
   | FoundAss0Val (AssVarF sv) (Ass0ValF sv)
   | InconsistentAppBuiltInArity1 BuiltInArity1 (Ass0ValF sv)

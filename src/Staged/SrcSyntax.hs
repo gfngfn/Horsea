@@ -26,6 +26,7 @@ where
 
 import Data.Functor.Classes (Eq1, Show1)
 import Data.List.NonEmpty (NonEmpty)
+import Data.List.TwoOrMore (TwoOrMore)
 import Data.Text (Text)
 import Generic.Data (Generic, Generic1, Generically1 (..))
 import Generic.Data.Orphans ()
@@ -60,7 +61,7 @@ data ExprMainF ann
   | App (ExprF ann) (Maybe Label) (ExprF ann)
   | LetIn Var [LamBinderF ann] (Maybe (TypeExprF ann)) (ExprF ann) (ExprF ann)
   | LetRecIn Var [LamBinderF ann] (TypeExprF ann) (ExprF ann) (ExprF ann)
-  | LetTupleIn Var Var (ExprF ann) (ExprF ann)
+  | LetTupleIn (TwoOrMore Var) (ExprF ann) (ExprF ann)
   | IfThenElse (ExprF ann) (ExprF ann) (ExprF ann)
   | As (ExprF ann) (TypeExprF ann)
   | Bracket (ExprF ann)
@@ -70,7 +71,7 @@ data ExprMainF ann
   | AppImpOmitted (ExprF ann)
   | LetOpenIn Var (ExprF ann)
   | Sequential (ExprF ann) (ExprF ann)
-  | Tuple (ExprF ann) (ExprF ann) -- TODO: generalize tuples
+  | Tuple (TwoOrMore (ExprF ann))
   | Product (ExprF ann) (NonEmpty (Var, ExprF ann))
   | Persistent (ExprF ann)
   | TyVar TypeVar

@@ -17,6 +17,7 @@ import Data.Functor.Identity
 import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set, (\\))
@@ -295,8 +296,8 @@ makeAssertiveCast trav loc =
           let f2 = applyCast cast2
           pure $
             Just $
-              A0Lam Nothing (x, strictify (A0TyProduct a0tye11 a0tye12)) $
-                A0Tuple
+              A0Lam Nothing (x, strictify (ass0typeExprPair a0tye11 a0tye12)) $
+                ass0exprPair
                   (f1 (A0App (A0BuiltInName (BuiltInArity1 BIFst)) (A0Var x)))
                   (f2 (A0App (A0BuiltInName (BuiltInArity1 BISnd)) (A0Var x)))
 
@@ -861,13 +862,16 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
           pure $ A0Literal (ALitList a0es)
         _ ->
           typeError trav $ CannotForceType0 spanInFile a0tyeReq
-    Tuple e1 e2 -> do
+    Tuple es -> do
       case a0tyeReq of
-        A0TyProduct a0tye1req a0tye2req -> do
-          a0e1 <- forceExpr0 trav tyEnv a0tye1req e1
-          a0e2 <- forceExpr0 trav tyEnv a0tye2req e2
-          pure $ A0Tuple a0e1 a0e2
-        _ -> do
+        A0TyProduct a0tyesReq -> do
+          case TwoOrMore.zipExact a0tyesReq es of
+            Just zipped -> do
+              a0es <- mapM (uncurry (forceExpr0 trav tyEnv)) zipped
+              pure $ A0Tuple a0es
+            Nothing ->
+              typeError trav $ CannotForceType0 spanInFile a0tyeReq
+        _ ->
           typeError trav $ CannotForceType0 spanInFile a0tyeReq
     IfThenElse e0 e1 e2 -> do
       (a0tye0, a0e0) <- typecheckExpr0Single trav tyEnv e0
@@ -1095,23 +1099,35 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             typeError trav $ VarOccursFreelyInAss0Type spanInFile f result2
           else do
             pure (result2, A0LetIn (afOuter, strictify a0tye1Rec) a0e1 a0e2)
-      LetTupleIn xL xR e1 e2 -> do
+      LetTupleIn xs e1@(Expr loc1 _) e2 -> do
         (a0tye1, a0e1) <- typecheckExpr0Single trav tyEnv e1
         case a0tye1 of
-          A0TyProduct a0tyeL a0tyeR -> do
-            svXL <- generateFreshVar (Just xL)
-            let axL = AssVarStatic svXL
-            svXR <- generateFreshVar (Just xR)
-            let axR = AssVarStatic svXR
+          A0TyProduct a0tyes -> do
+            zipped <-
+              case TwoOrMore.zipExact xs a0tyes of
+                Just zipped' ->
+                  pure zipped'
+                Nothing -> do
+                  spanInFile1 <- askSpanInFile loc1
+                  typeError trav $ LetTupleLengthMismatch0 spanInFile1 xs a0tyes
+            triples <-
+              mapM
+                ( \(x, a0tye) -> do
+                    svX <- generateFreshVar (Just x)
+                    pure ((x, a0tye), svX)
+                )
+                zipped
             (result2, a0e2) <- do
               let tyEnv' =
-                    tyEnv
-                      & TypeEnv.addVal xL (Ass0Entry a0tyeL (Right svXL))
-                      & TypeEnv.addVal xR (Ass0Entry a0tyeR (Right svXR))
+                    foldl
+                      ( \tyEnv' ((x, a0tye), svX) ->
+                          TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv'
+                      )
+                      tyEnv
+                      triples
               typecheckExpr0 trav tyEnv' appCtx e2
-            pure (result2, A0LetTupleIn axL axR a0e1 a0e2)
+            pure (result2, A0LetTupleIn (fmap (AssVarStatic . snd) triples) a0e1 a0e2)
           _ -> do
-            let Expr loc1 _ = e1
             spanInFile1 <- askSpanInFile loc1
             typeError trav $ NotATupleAtStage0 spanInFile1 a0tye1
       LetOpenIn m e -> do
@@ -1131,12 +1147,11 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             let Expr loc1 _ = e1
             spanInFile1 <- askSpanInFile loc1
             typeError trav $ NotAUnitTypeForStage0 spanInFile1 a0tye1
-      Tuple e1 e2 -> do
+      Tuple es -> do
         case appCtx of
           [] -> do
-            (a0tye1, a0e1) <- typecheckExpr0Single trav tyEnv e1
-            (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
-            pure (Pure (A0TyProduct a0tye1 a0tye2), (A0Tuple a0e1 a0e2))
+            pairs <- mapM (typecheckExpr0Single trav tyEnv) es
+            pure (Pure (A0TyProduct (fmap fst pairs)), A0Tuple (fmap snd pairs))
           _ : _ -> do
             typeError trav $ CannotApplyTuple spanInFile
       IfThenElse e0 e1 e2 -> do
@@ -1295,12 +1310,15 @@ forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
           pure $ A1Literal (ALitList a1es)
         _ ->
           typeError trav $ CannotForceType1 spanInFile a1tyeReq
-    Tuple e1 e2 -> do
+    Tuple es -> do
       case a1tyeReq of
-        A1TyProduct a1tye1req a1tye2req -> do
-          a1e1 <- forceExpr1 trav tyEnv a1tye1req e1
-          a1e2 <- forceExpr1 trav tyEnv a1tye2req e2
-          pure $ A1Tuple a1e1 a1e2
+        A1TyProduct a1tyesReq ->
+          case TwoOrMore.zipExact a1tyesReq es of
+            Just zipped -> do
+              a1es <- mapM (uncurry (forceExpr1 trav tyEnv)) zipped
+              pure $ A1Tuple a1es
+            Nothing ->
+              typeError trav $ CannotForceType1 spanInFile a1tyeReq
         _ -> do
           typeError trav $ CannotForceType1 spanInFile a1tyeReq
     IfThenElse e0 e1 e2 -> do
@@ -1505,21 +1523,34 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         if afOuter `occurs1` result2
           then typeError trav $ VarOccursFreelyInAss1Type spanInFile f result2
           else pure (result2, A1LetIn (afOuter, a1tye1Rec) a1e1 a1e2)
-      LetTupleIn xL xR e1 e2 -> do
+      LetTupleIn xs e1@(Expr loc1 _) e2 -> do
         (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
         case a1tye1 of
-          A1TyProduct a1tyeL a1tyeR -> do
-            svXL <- generateFreshVar (Just xL)
-            let axL = AssVarStatic svXL
-            svXR <- generateFreshVar (Just xR)
-            let axR = AssVarStatic svXR
+          A1TyProduct a1tyes -> do
+            zipped <-
+              case TwoOrMore.zipExact xs a1tyes of
+                Just zipped' ->
+                  pure zipped'
+                Nothing -> do
+                  spanInFile1 <- askSpanInFile loc1
+                  typeError trav $ LetTupleLengthMismatch1 spanInFile1 xs a1tyes
+            triples <-
+              mapM
+                ( \(x, a1tye) -> do
+                    svX <- generateFreshVar (Just x)
+                    pure ((x, a1tye), svX)
+                )
+                zipped
             (result2, a1e2) <- do
               let tyEnv' =
-                    tyEnv
-                      & TypeEnv.addVal xL (Ass1Entry a1tyeL (Right svXL))
-                      & TypeEnv.addVal xR (Ass1Entry a1tyeR (Right svXR))
+                    foldl
+                      ( \tyEnv' ((x, a1tye), svX) ->
+                          TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv'
+                      )
+                      tyEnv
+                      triples
               typecheckExpr1 trav tyEnv' appCtx e2
-            pure (result2, A1LetTupleIn axL axR a1e1 a1e2)
+            pure (result2, A1LetTupleIn (fmap (AssVarStatic . snd) triples) a1e1 a1e2)
           _ -> do
             let Expr loc1 _ = e1
             spanInFile1 <- askSpanInFile loc1
@@ -1541,12 +1572,11 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             let Expr loc1 _ = e1
             spanInFile1 <- askSpanInFile loc1
             typeError trav $ NotAUnitTypeForStage1 spanInFile1 a1tye1
-      Tuple e1 e2 -> do
+      Tuple es -> do
         case appCtx of
           [] -> do
-            (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
-            (a1tye2, a1e2) <- typecheckExpr1Single trav tyEnv e2
-            pure (Pure (A1TyProduct a1tye1 a1tye2), A1Tuple a1e1 a1e2)
+            pairs <- mapM (typecheckExpr1Single trav tyEnv) es
+            pure (Pure (A1TyProduct (fmap fst pairs)), A1Tuple (fmap snd pairs))
           _ : _ ->
             typeError trav $ CannotApplyTuple spanInFile
       IfThenElse e0 e1 e2 -> do
@@ -1669,7 +1699,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
       error "TODO (error): typecheckTypeExpr0, LetIn"
     LetRecIn _ _ _ _ _ ->
       error "TODO (error): typecheckTypeExpr0, LetRecIn"
-    LetTupleIn _ _ _ _ ->
+    LetTupleIn _ _ _ ->
       error "TODO (error): typecheckTypeExpr0, LetTupleIn"
     IfThenElse _ _ _ ->
       error "TODO (error): typecheckTypeExpr0, IfThenElse"
@@ -1687,7 +1717,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
       error "TODO (error): typecheckTypeExpr0, LetOpenIn"
     Sequential _ _ ->
       error "TODO (error): typecheckTypeExpr0, LetOpenIn"
-    Tuple _ _ ->
+    Tuple _ ->
       error "TODO (error): typecheckTypeExpr0, LetOpenIn"
     Persistent _ ->
       error "TODO (error): typecheckTypeExpr0, Persistent"
@@ -1811,13 +1841,16 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           spanInFile2 <- askSpanInFile loc2
           typeError trav $ NotABoolTypeForStage0 spanInFile2 a0tye2
     Product tye1 rest -> do
-      case rest of
-        ("*", tye2) :| [] -> do
-          a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
-          a0tye2 <- typecheckTypeExpr0 trav tyEnv tye2
-          pure $ A0TyProduct a0tye1 a0tye2
-        _ ->
-          error "TODO: typecheckTypeExpr0, Product, generalized"
+      a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
+      a0tyesRest <-
+        mapM
+          ( \(op, tye) ->
+              case op of
+                "*" -> typecheckTypeExpr0 trav tyEnv tye
+                _ -> error "TODO (error): typecheckTypeExpr0, Product, non-`*` op"
+          )
+          rest
+      pure $ A0TyProduct (TwoOrMore.make1 a0tye1 a0tyesRest)
     TyForAll tyvar tye1 -> do
       atyvar <- generateFreshTypeVar tyvar
       a0tye1 <- do
@@ -1830,6 +1863,12 @@ ass0exprAnd = A0BuiltInName (BuiltInArity2 BIAnd)
 
 ass0exprListMap :: Ass0Expr
 ass0exprListMap = A0BuiltInName (BuiltInArity2 BIListMap)
+
+ass0exprPair :: Ass0Expr -> Ass0Expr -> Ass0Expr
+ass0exprPair a0e1 a0e2 = A0Tuple (TwoOrMore.make a0e1 a0e2 [])
+
+ass0typeExprPair :: Ass0TypeExpr -> Ass0TypeExpr -> Ass0TypeExpr
+ass0typeExprPair a0tye1 a0tye2 = A0TyProduct (TwoOrMore.make a0tye1 a0tye2 [])
 
 validatePersistentExprArg1 :: trav -> Expr -> M trav Expr
 validatePersistentExprArg1 trav (Expr loc eMain) =
@@ -1864,7 +1903,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
       error "TODO (error): typecheckTypeExpr1, LetIn"
     LetRecIn _ _ _ _ _ ->
       error "TODO (error): typecheckTypeExpr1, LetRecIn"
-    LetTupleIn _ _ _ _ ->
+    LetTupleIn _ _ _ ->
       error "TODO (error): typecheckTypeExpr1, LetTupleIn"
     IfThenElse _ _ _ ->
       error "TODO (error): typecheckTypeExpr1, IfThenElse"
@@ -1882,7 +1921,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
       error "TODO (error): typecheckTypeExpr1, LetOpenIn"
     Sequential _ _ ->
       error "TODO (error): typecheckTypeExpr1, LetOpenIn"
-    Tuple _ _ ->
+    Tuple _ ->
       error "TODO (error): typecheckTypeExpr1, LetOpenIn"
     Persistent _ ->
       error "TODO (error): typecheckTypeExpr1, Persistent"
@@ -1964,13 +2003,16 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
     TyRefinement _ _ _ -> do
       typeError trav $ CannotUseRefinementTypeAtStage1 spanInFile
     Product tye1 rest -> do
-      case rest of
-        ("*", tye2) :| [] -> do
-          a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
-          a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
-          pure $ A1TyProduct a1tye1 a1tye2
-        _ ->
-          error "TODO: typecheckTypeExpr1, Product of more than two"
+      a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
+      a1tyesRest <-
+        mapM
+          ( \(op, tye) ->
+              case op of
+                "*" -> typecheckTypeExpr1 trav tyEnv tye
+                _ -> error "TODO (error): typecheckTypeExpr1, Product, non-`*` op"
+          )
+          rest
+      pure $ A1TyProduct (TwoOrMore.make1 a1tye1 a1tyesRest)
     TyForAll tyvar tye1 -> do
       atyvar <- generateFreshTypeVar tyvar
       a1tye1 <- do
@@ -1998,8 +2040,8 @@ validatePersistentType trav loc a0tye =
         case maybePred of
           Nothing -> APersTyList <$> go a0tye'
           Just _ -> Nothing
-      A0TyProduct a0tye1 a0tye2 ->
-        APersTyProduct <$> go a0tye1 <*> go a0tye2
+      A0TyProduct a0tyes ->
+        APersTyProduct <$> mapM go a0tyes
       A0TyArrow labelOpt (Nothing, a0tye1) a0tye2 -> do
         aPtye1 <- go a0tye1
         aPtye2 <- go a0tye2
