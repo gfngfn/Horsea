@@ -23,6 +23,7 @@ import Data.Map qualified as Map
 import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Data.Text (Text)
+import Data.Traversable.Compat (mapAccumM)
 import Data.Tuple.Extra
 import Safe.Exact
 import Staged.BuiltIn qualified as BuiltIn
@@ -441,17 +442,28 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
         (A1TyList a1tye1elem, A1TyList a1tye2elem) -> do
           (trivial, ty1eqElem, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1elem a1tye2elem
           pure (trivial, TyEq1List ty1eqElem, varSolution, tyvar1Solution)
-        (A1TyProduct a1tye11 a1tye12, A1TyProduct a1tye21 a1tye22) -> do
-          (trivial1, ty1eq1, varSolution1, tyvar1Solution1) <- go varsToInfer tyvars1ToInfer a1tye11 a1tye21
-          (trivial2, ty1eq2, varSolution2, tyvar1Solution2) <-
-            go
-              (varsToInfer \\ Map.keysSet varSolution1)
-              (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
-              a1tye12
-              (applyVarSolution varSolution1 a1tye22)
-          let varSolution = composeVarSolution varSolution1 varSolution2
-          let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2
-          pure (trivial1 && trivial2, TyEq1Product ty1eq1 ty1eq2, varSolution, tyvar1Solution)
+        (A1TyProduct a1tyes1, A1TyProduct a1tyes2) -> do
+          zipped <-
+            case TwoOrMore.zipExact a1tyes1 a1tyes2 of
+              Just zipped' -> pure zipped'
+              Nothing -> Left ()
+          ((_, _, trivialRet, varSolutionRet, tyvar1SolutionRet), ty1eqs) <-
+            mapAccumM
+              ( \(varsToInfer', tyvars1ToInfer', trivial', varSolution', tyvar1Solution') (a1tye1', a1tye2') -> do
+                  (trivial, ty1eq, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1' a1tye2'
+                  pure
+                    ( ( varsToInfer' \\ Map.keysSet varSolution,
+                        tyvars1ToInfer' \\ Map.keysSet tyvar1Solution,
+                        trivial' && trivial,
+                        composeVarSolution varSolution' varSolution,
+                        composeTypeVar1Solution tyvar1Solution' tyvar1Solution
+                      ),
+                      ty1eq
+                    )
+              )
+              (varsToInfer, tyvars1ToInfer, True, Map.empty, Map.empty)
+              zipped
+          pure (trivialRet, TyEq1Product ty1eqs, varSolutionRet, tyvar1SolutionRet)
         (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) -> do
           if labelOpt1 /= labelOpt2
             then
