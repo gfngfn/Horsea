@@ -7,6 +7,7 @@ module Staged.TypeError
   )
 where
 
+import Data.List.TwoOrMore (TwoOrMore)
 import Data.Text (Text)
 import Staged.Core
 import Staged.SrcSyntax
@@ -77,6 +78,8 @@ data TypeErrorF sv
   | ApplicationLabelMismatch SpanInFile (AppContextF sv) (Maybe Label) (Maybe Label)
   | NotAStage0TypeVar SpanInFile TypeVar
   | NotAStage1TypeVar SpanInFile TypeVar
+  | LetTupleLengthMismatch0 SpanInFile (TwoOrMore Var) (TwoOrMore (Ass0TypeExprF sv))
+  | LetTupleLengthMismatch1 SpanInFile (TwoOrMore Var) (TwoOrMore (Ass1TypeExprF sv))
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv

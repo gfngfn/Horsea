@@ -7,6 +7,7 @@ where
 
 import Data.List (intercalate)
 import Data.List qualified as List
+import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Text qualified as Text
 import Language.Haskell.TH qualified as TH
 import Safe (atMay, initMay, lastMay)
@@ -125,7 +126,7 @@ definitions =
     versatile [] "print_int" ForStage1 1 $
       [|
         do
-          _r <- validateFloatLiteral a0v1
+          _r <- validateIntLiteral a0v1
           error "UNIMPLEMENTED: print_int"
         |],
     versatile [] "print_float" ForStage1 1 $
@@ -147,16 +148,27 @@ definitions =
           n2 <- validateIntLiteral a0v2
           pure $ A0ValLiteral (ALitList (map (A0ValLiteral . ALitInt) [n1 .. n2]))
         |],
+    versatile [] "proj" (ForInternal [ParamInt, ParamInt]) 1 $
+      [|
+        do
+          a0vs <- TwoOrMore.toList <$> validateTupleValue a0v1
+          if length a0vs == p1
+            then case atMay a0vs p2 of
+              Just a0vRet -> pure a0vRet
+              Nothing -> bug $ InconsistentAppBuiltInArity1 bi1 a0v1
+            else
+              bug $ InconsistentAppBuiltInArity1 bi1 a0v1
+        |],
     versatile [] "fst" ForBothStages 1 $
       [|
         do
-          (a0v11, _) <- validateTupleValue a0v1
+          (a0v11, _) <- validatePairValue a0v1
           pure a0v11
         |],
     versatile [] "snd" ForBothStages 1 $
       [|
         do
-          (_, a0v12) <- validateTupleValue a0v1
+          (_, a0v12) <- validatePairValue a0v1
           pure a0v12
         |],
     versatile [] "string_append" ForBothStages 2 $

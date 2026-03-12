@@ -12,6 +12,7 @@ import Data.Generics.Labels ()
 import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Text (Text)
 import Staged.SrcSyntax
 import Staged.Token (Token (..))
@@ -135,14 +136,16 @@ expr = letin
         <|> (makeTypeVar <$> typeVar)
         <|> try (located (\x -> Var ([], x)) <$> standaloneOp)
         <|> try (makeLitUnit <$> token TokLeftParen <*> token TokRightParen)
-        <|> try (makeTuple <$> paren ((,) <$> (expr <* token TokComma) <*> expr))
-        <|> (makeEnclosed <$> paren expr)
+        <|> (makeEnclosed <$> paren ((,) <$> expr <*> many (token TokComma *> expr)))
         <|> (makeRefinement <$> try (brace ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (typeExpr <* token TokBar) <*> expr)))
       where
         located constructor (Located loc e) = Expr loc (constructor e)
         makeLitUnit loc1 loc2 = Expr (mergeSpan loc1 loc2) (Literal LitUnit)
-        makeTuple (Located loc (e1, e2)) = Expr loc (Tuple e1 e2)
-        makeEnclosed (Located loc (Expr _ eMain)) = Expr loc eMain
+        makeEnclosed (Located loc (e1@(Expr _ eMain), esRest')) =
+          Expr loc $
+            case nonEmpty esRest' of
+              Nothing -> eMain
+              Just esRest -> Tuple (TwoOrMore.make1 e1 esRest)
         makeBool b loc = Expr loc (Literal (LitBool b))
         makeConstructor (Located loc t) = Expr loc (Constructor ([], t))
         makeTypeVar (Located loc a) = Expr loc (TyVar a)
@@ -317,12 +320,12 @@ expr = letin
 
     letInMain :: P (ExprMain, Span)
     letInMain =
-      try (makeLetTupleIn <$> paren ((,) <$> (noLoc boundIdent <* token TokComma) <*> noLoc boundIdent) <*> (token TokEqual *> expr) <*> (token TokIn *> expr))
+      try (makeLetTupleIn <$> paren ((,) <$> noLoc boundIdent <*> some (token TokComma *> noLoc boundIdent)) <*> (token TokEqual *> expr) <*> (token TokIn *> expr))
         <|> (makeLetIn <$> noLoc boundIdent <*> many lamBinder <*> optional (token TokColon *> typeExpr) <*> (token TokEqual *> expr) <*> (token TokIn *> expr))
         <|> (makeLetRecIn <$> (token TokRec *> noLoc boundIdent) <*> many lamBinder <*> (token TokColon *> typeExpr) <*> (token TokEqual *> expr) <*> (token TokIn *> expr))
         <|> (makeLetOpenIn <$> (token TokOpen *> noLoc upper) <*> (token TokIn *> expr))
       where
-        makeLetTupleIn (Located _ (x1, x2)) e1 e2@(Expr locLast _) = (LetTupleIn x1 x2 e1 e2, locLast)
+        makeLetTupleIn (Located _ (x1, xsRest)) e1 e2@(Expr locLast _) = (LetTupleIn (TwoOrMore.make1 x1 xsRest) e1 e2, locLast)
         makeLetIn x params tyeOpt e1 e2@(Expr locLast _) = (LetIn x params tyeOpt e1 e2, locLast)
         makeLetRecIn x params tye e1 e2@(Expr locLast _) = (LetRecIn x params tye e1 e2, locLast)
         makeLetOpenIn m e@(Expr locLast _) = (LetOpenIn m e, locLast)

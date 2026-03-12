@@ -1,8 +1,13 @@
 module Data.List.TwoOrMore
   ( TwoOrMore,
     make,
+    make1,
     decompose,
+    decompose1,
     fromNonEmpty,
+    toList,
+    zipExact,
+    mapIndexed,
     head,
     last,
     initAndLast,
@@ -15,6 +20,7 @@ import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Generic.Data (Generic, Generic1, Generically1 (..))
 import Generic.Data.Orphans ()
+import Safe.Exact (zipExactMay)
 import Prelude hiding (foldl1, head, last)
 
 data TwoOrMore a = TwoOrMore
@@ -25,17 +31,40 @@ data TwoOrMore a = TwoOrMore
   deriving (Eq1, Show1) via (Generically1 TwoOrMore)
 
 make :: a -> a -> [a] -> TwoOrMore a
-make first second rest' =
-  TwoOrMore {first, rest = second :| rest'}
+make first second rest' = TwoOrMore {first, rest = second :| rest'}
+
+make1 :: a -> NonEmpty a -> TwoOrMore a
+make1 first rest = TwoOrMore {first, rest}
 
 decompose :: TwoOrMore a -> (a, a, [a])
 decompose TwoOrMore {first, rest = second :| rest'} =
   (first, second, rest')
 
+decompose1 :: TwoOrMore a -> (a, NonEmpty a)
+decompose1 TwoOrMore {first, rest} = (first, rest)
+
 fromNonEmpty :: NonEmpty a -> Maybe (TwoOrMore a)
 fromNonEmpty (first :| rest') = do
   rest <- nonEmpty rest'
   pure TwoOrMore {first, rest}
+
+toList :: TwoOrMore a -> [a]
+toList TwoOrMore {first, rest} = first : NonEmpty.toList rest
+
+zipExact :: TwoOrMore a -> TwoOrMore b -> Maybe (TwoOrMore (a, b))
+zipExact xs ys = do
+  rest <- zipExactMay xsRest ysRest
+  pure $ make (x1, y1) (x2, y2) rest
+  where
+    (x1, x2, xsRest) = decompose xs
+    (y1, y2, ysRest) = decompose ys
+
+mapIndexed :: (Int -> a -> b) -> TwoOrMore a -> TwoOrMore b
+mapIndexed f TwoOrMore {first, rest = second :| others} =
+  TwoOrMore
+    { first = f 0 first,
+      rest = f 1 second :| zipWith f [2 ..] others
+    }
 
 head :: TwoOrMore a -> a
 head xs = xs.first

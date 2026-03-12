@@ -7,6 +7,7 @@ where
 import Control.Monad
 import Data.Either.Extra (mapLeft)
 import Data.Function ((&))
+import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
@@ -128,7 +129,7 @@ enhanceBIType enhBt enhBitv (BIType bt bityMain) =
     case bityMain of
       BITyVar bitv -> BITyVar (enhBitv bitv)
       BITyBase bityBaseArgs -> BITyBase (map fBIType bityBaseArgs)
-      BITyProduct bity1 bity2 -> BITyProduct (fBIType bity1) (fBIType bity2)
+      BITyProduct bitys -> BITyProduct (fmap fBIType bitys)
       BITyArrow bity1 bity2 -> BITyArrow (fBIType bity1) (fBIType bity2)
       BITyImpArrow bity1 bity2 -> BITyImpArrow (fBIType bity1) (fBIType bity2)
   where
@@ -312,14 +313,19 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
     LetTupleIn xL xR e1 e2 -> do
       (e1', bity1@(BIType bt1 bityMain1), constraints1) <- extractConstraintsFromExpr trav btenv e1
       case bityMain1 of
-        BITyProduct bityL@(BIType btL _) bityR@(BIType btR _) -> do
-          (e2', bity2@(BIType bt2 _), constraints2) <-
-            extractConstraintsFromExpr
-              trav
-              (btenv & Map.insert xL (EntryLocallyBound btL bityL) & Map.insert xR (EntryLocallyBound btR bityR))
-              e2
-          let e' = Expr (bt, ann) (LetTupleIn xL xR e1' e2')
-          pure (e', bity2, constraints1 ++ constraints2 ++ [CEqual ann bt bt1, CLeq ann bt bt2])
+        BITyProduct bitys -> do
+          let (bityL@(BIType btL _), bityR@(BIType btR _), bitysRest) = TwoOrMore.decompose bitys
+          case bitysRest of
+            [] -> do
+              (e2', bity2@(BIType bt2 _), constraints2) <-
+                extractConstraintsFromExpr
+                  trav
+                  (btenv & Map.insert xL (EntryLocallyBound btL bityL) & Map.insert xR (EntryLocallyBound btR bityR))
+                  e2
+              let e' = Expr (bt, ann) (LetTupleIn xL xR e1' e2')
+              pure (e', bity2, constraints1 ++ constraints2 ++ [CEqual ann bt bt1, CLeq ann bt bt2])
+            _ : _ ->
+              error "TODO: extractConstraintsFromExpr, LetTupleIn, tuples longer than two"
         _ -> do
           let Expr ann1 _ = e1
           spanInFile1 <- askSpanInFile ann1
@@ -346,7 +352,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr trav btenv e1
       (e2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromExpr trav btenv e2
       let e' = Expr (bt, ann) (Tuple e1' e2')
-      let bity = BIType bt (BITyProduct bity1 bity2)
+      let bity = BIType bt (BITyProduct (TwoOrMore.make bity1 bity2 []))
       pure (e', bity, constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
     IfThenElse e0 e1 e2 -> do
       (e0', bity0@(BIType bt0 bityMain0), constraints0) <- extractConstraintsFromExpr trav btenv e0
@@ -427,7 +433,7 @@ occurs bitv = goMain
     goMain = \case
       BITyVar bitv' -> bitv' == bitv
       BITyBase bitys -> any go bitys
-      BITyProduct bity1 bity2 -> go bity1 || go bity2
+      BITyProduct bitys -> any go bitys
       BITyArrow bity1 bity2 -> go bity1 || go bity2
       BITyImpArrow bity1 bity2 -> go bity1 || go bity2
     go (BIType _bt bityMain) =
@@ -481,10 +487,13 @@ makeConstraintsFromBITypeEquation trav ann bity1' bity2' = go bity1' bity2'
                   analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
                 Just zipped -> do
                   concat <$> mapM (uncurry go) zipped
-            (BITyProduct bity11 bity12, BITyProduct bity21 bity22) -> do
-              constraints1 <- go bity11 bity21
-              constraints2 <- go bity12 bity22
-              pure $ constraints1 ++ constraints2
+            (BITyProduct bitys1, BITyProduct bitys2) -> do
+              case zipExactMay (TwoOrMore.toList bitys1) (TwoOrMore.toList bitys2) of
+                Just zipped ->
+                  concat <$> mapM (uncurry go) zipped
+                Nothing -> do
+                  spanInFile <- askSpanInFile ann
+                  analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
             (BITyArrow bity11 bity12, BITyArrow bity21 bity22) -> do
               constraints1 <- go bity11 bity21
               constraints2 <- go bity12 bity22
@@ -592,7 +601,7 @@ extractConstraintsFromTypeExpr trav btenv (TypeExpr ann typeExprMain) = do
       (tye2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromTypeExpr trav btenv tye2
       let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
       let tye' = TypeExpr (bt, ann) (TyProduct tye1' tye2')
-      pure (tye', BIType bt (BITyProduct bity1 bity2), constraints1 ++ constraints2 ++ constraints)
+      pure (tye', BIType bt (BITyProduct (TwoOrMore.make bity1 bity2 [])), constraints1 ++ constraints2 ++ constraints)
   where
     bityNat :: BIType
     bityNat = BIType (BTConst BT0) (BITyBase [])
