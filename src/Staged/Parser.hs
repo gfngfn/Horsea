@@ -326,7 +326,7 @@ expr = letin
         <|> (makeLetOpenIn <$> (token TokOpen *> noLoc upper) <*> (token TokIn *> expr))
       where
         makeLetTupleIn (Located _ (x1, xsRest)) e1 e2@(Expr locLast _) = (LetTupleIn (TwoOrMore.make1 x1 xsRest) e1 e2, locLast)
-        makeLetIn x params tyeOpt e1 e2@(Expr locLast _) = (LetIn x params tyeOpt e1 e2, locLast)
+        makeLetIn x params tyeBodyOpt e1 e2@(Expr locLast _) = (LetIn x params tyeBodyOpt e1 e2, locLast)
         makeLetRecIn x params tye e1 e2@(Expr locLast _) = (LetRecIn x params tye e1 e2, locLast)
         makeLetOpenIn m e@(Expr locLast _) = (LetOpenIn m e, locLast)
 
