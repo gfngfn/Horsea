@@ -3,6 +3,7 @@ module Data.List.TwoOrMore
     make,
     make1,
     decompose,
+    decompose1,
     fromNonEmpty,
     toList,
     zipExact,
@@ -38,6 +39,9 @@ make1 first rest = TwoOrMore {first, rest}
 decompose :: TwoOrMore a -> (a, a, [a])
 decompose TwoOrMore {first, rest = second :| rest'} =
   (first, second, rest')
+
+decompose1 :: TwoOrMore a -> (a, NonEmpty a)
+decompose1 TwoOrMore {first, rest} = (first, rest)
 
 fromNonEmpty :: NonEmpty a -> Maybe (TwoOrMore a)
 fromNonEmpty (first :| rest') = do
