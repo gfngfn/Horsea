@@ -153,10 +153,9 @@ definitions =
         do
           a0vs <- TwoOrMore.toList <$> validateTupleValue a0v1
           if length a0vs == p1
-            then
-              case atMay a0vs p2 of
-                Just a0vRet -> pure a0vRet
-                Nothing -> bug $ InconsistentAppBuiltInArity1 bi1 a0v1
+            then case atMay a0vs p2 of
+              Just a0vRet -> pure a0vRet
+              Nothing -> bug $ InconsistentAppBuiltInArity1 bi1 a0v1
             else
               bug $ InconsistentAppBuiltInArity1 bi1 a0v1
         |],
