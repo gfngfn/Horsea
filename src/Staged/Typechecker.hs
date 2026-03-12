@@ -17,7 +17,7 @@ import Data.Function
 import Data.Functor.Identity
 import Data.List qualified as List
 import Data.List.Extra qualified as List
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
@@ -303,21 +303,25 @@ makeAssertiveCast trav loc =
                 A0Lam Nothing (x, strictify a0tye21) $
                   A0App (A0Lam Nothing (x', strictify a0tye11) (fCod (A0App (A0Var f) (A0Var x')))) (fDom (A0Var x))
 
-    makeProductTypeCast :: trav -> Ass0TypeExpr -> Ass0TypeExpr -> Maybe Ass0Expr -> Maybe Ass0Expr -> M trav (Maybe Ass0Expr)
-    makeProductTypeCast _trav a0tye11 a0tye12 cast1 cast2 =
-      case (cast1, cast2) of
-        (Nothing, Nothing) ->
+    makeProductTypeCast :: trav -> TwoOrMore (Maybe Ass0Expr, Ass0TypeExpr) -> M trav (Maybe Ass0Expr)
+    makeProductTypeCast _trav castAndDomTypePairs =
+      if all ((== Nothing) . fst) castAndDomTypePairs
+        then
           pure Nothing
-        (_, _) -> do
+        else do
           x <- AssVarStatic <$> generateFreshVar Nothing
-          let f1 = applyCast cast1
-          let f2 = applyCast cast2
-          pure $
-            Just $
-              A0Lam Nothing (x, strictify (ass0typeExprPair a0tye11 a0tye12)) $
-                ass0exprPair
-                  (f1 (A0App (A0BuiltInName (BuiltInArity1 BIFst)) (A0Var x)))
-                  (f2 (A0App (A0BuiltInName (BuiltInArity1 BISnd)) (A0Var x)))
+          let a0tyeAnnot = A0TyProduct (fmap snd castAndDomTypePairs)
+          let n = length castAndDomTypePairs
+          pure . Just $
+            A0Lam Nothing (x, strictify a0tyeAnnot) $
+              A0Tuple $
+                TwoOrMore.mapIndexed
+                  ( \i (cast, _a0tye) ->
+                      applyCast
+                        cast
+                        (A0App (A0BuiltInName (BuiltInArity1 (BIProj n i))) (A0Var x))
+                  )
+                  castAndDomTypePairs
 
     castOrIdentityLam :: Maybe Ass0Expr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr)
     castOrIdentityLam maybePred2 a0tye1 = do
@@ -333,16 +337,16 @@ makeAssertiveCast trav loc =
 
 -- The core part of the cast insertion for stage 1.
 makeEquation1 :: forall trav. trav -> Span -> Set AssVar -> Set AssTypeVar -> Ass1TypeExpr -> Ass1TypeExpr -> M trav (Maybe Type1Equation, VarSolution, TypeVar1Solution)
-makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
+makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whole = do
   TypecheckConfig {optimizeTrivialAssertion} <- askConfig
   spanInFile <- askSpanInFile loc
-  case go varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' of
+  case go varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whole of
     Right (trivial, ty1eq, varSolution, tyvar1Solution) ->
       if trivial && optimizeTrivialAssertion
         then pure (Nothing, varSolution, tyvar1Solution)
         else pure (Just ty1eq, varSolution, tyvar1Solution)
     Left () ->
-      typeError trav $ TypeContradictionAtStage1 spanInFile a1tye1' a1tye2'
+      typeError trav $ TypeContradictionAtStage1 spanInFile a1tye1Whole a1tye2Whole
   where
     checkExprArgs :: Set AssVar -> (Ass0Expr, Ass0TypeExpr) -> Ass0Expr -> (Bool, Ass0Expr, VarSolution)
     checkExprArgs varsToInfer (a0e1, a0tye1) a0e2 =
@@ -1153,14 +1157,14 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                 )
                 zipped
             (result2, a0e2) <- do
-              let tyEnv' =
+              let tyEnv2 =
                     foldl
                       ( \tyEnv' ((x, a0tye), svX) ->
                           TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv'
                       )
                       tyEnv
                       triples
-              typecheckExpr0 trav tyEnv' appCtx e2
+              typecheckExpr0 trav tyEnv2 appCtx e2
             pure (result2, A0LetTupleIn (fmap (AssVarStatic . snd) triples) a0e1 a0e2)
           _ -> do
             spanInFile1 <- askSpanInFile loc1
@@ -1577,17 +1581,16 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                 )
                 zipped
             (result2, a1e2) <- do
-              let tyEnv' =
+              let tyEnv2 =
                     foldl
                       ( \tyEnv' ((x, a1tye), svX) ->
                           TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv'
                       )
                       tyEnv
                       triples
-              typecheckExpr1 trav tyEnv' appCtx e2
+              typecheckExpr1 trav tyEnv2 appCtx e2
             pure (result2, A1LetTupleIn (fmap (AssVarStatic . snd) triples) a1e1 a1e2)
           _ -> do
-            let Expr loc1 _ = e1
             spanInFile1 <- askSpanInFile loc1
             typeError trav $ NotATupleAtStage1 spanInFile1 a1tye1
       LetOpenIn m e -> do
@@ -1898,12 +1901,6 @@ ass0exprAnd = A0BuiltInName (BuiltInArity2 BIAnd)
 
 ass0exprListMap :: Ass0Expr
 ass0exprListMap = A0BuiltInName (BuiltInArity2 BIListMap)
-
-ass0exprPair :: Ass0Expr -> Ass0Expr -> Ass0Expr
-ass0exprPair a0e1 a0e2 = A0Tuple (TwoOrMore.make a0e1 a0e2 [])
-
-ass0typeExprPair :: Ass0TypeExpr -> Ass0TypeExpr -> Ass0TypeExpr
-ass0typeExprPair a0tye1 a0tye2 = A0TyProduct (TwoOrMore.make a0tye1 a0tye2 [])
 
 validatePersistentExprArg1 :: trav -> Expr -> M trav Expr
 validatePersistentExprArg1 trav (Expr loc eMain) =

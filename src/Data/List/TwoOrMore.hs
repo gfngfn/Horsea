@@ -6,6 +6,7 @@ module Data.List.TwoOrMore
     fromNonEmpty,
     toList,
     zipExact,
+    mapIndexed,
     head,
     last,
     initAndLast,
@@ -53,6 +54,13 @@ zipExact xs ys = do
   where
     (x1, x2, xsRest) = decompose xs
     (y1, y2, ysRest) = decompose ys
+
+mapIndexed :: (Int -> a -> b) -> TwoOrMore a -> TwoOrMore b
+mapIndexed f TwoOrMore {first, rest = second :| others} =
+  TwoOrMore
+    { first = f 0 first,
+      rest = f 1 second :| zipWith f [2 ..] others
+    }
 
 head :: TwoOrMore a -> a
 head xs = xs.first
