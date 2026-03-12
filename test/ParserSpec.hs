@@ -1,6 +1,7 @@
 module ParserSpec (spec) where
 
 import Data.Functor
+import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Text (Text)
 import Staged.Parser qualified as Parser
 import Staged.SrcSyntax
@@ -235,19 +236,25 @@ spec = do
         `shouldBe` pure (expr (Sequential (app (var "f") (litInt 42)) (expr (IfThenElse (app (var "p") (litInt 57)) (var "x") (var "y")))))
     it "parses tuples (1)" $
       parseExpr "(x, y)"
-        `shouldBe` pure (expr (Tuple (var "x") (var "y")))
+        `shouldBe` pure (expr (Tuple (TwoOrMore.make (var "x") (var "y") [])))
     it "parses tuples (2)" $
       parseExpr "(f x, y + 1)"
-        `shouldBe` pure (expr (Tuple (app (var "f") (var "x")) (add (var "y") (litInt 1))))
+        `shouldBe` pure (expr (Tuple (TwoOrMore.make (app (var "f") (var "x")) (add (var "y") (litInt 1)) [])))
     it "parses tuples (3)" $
       parseExpr "(x, (y, z))"
-        `shouldBe` pure (expr (Tuple (var "x") (expr (Tuple (var "y") (var "z")))))
+        `shouldBe` pure (expr (Tuple (TwoOrMore.make (var "x") (expr (Tuple (TwoOrMore.make (var "y") (var "z") []))) [])))
     it "parses tuples (4)" $
       parseExpr "((x, y), z)"
-        `shouldBe` pure (expr (Tuple (expr (Tuple (var "x") (var "y"))) (var "z")))
-    it "parses let-tuples" $
+        `shouldBe` pure (expr (Tuple (TwoOrMore.make (expr (Tuple (TwoOrMore.make (var "x") (var "y") []))) (var "z") [])))
+    it "parses tuples (5)" $
+      parseExpr "(x, y, z)"
+        `shouldBe` pure (expr (Tuple (TwoOrMore.make (var "x") (var "y") [var "z"])))
+    it "parses let-tuples (1)" $
       parseExpr "let (x, y) = s in t"
-        `shouldBe` pure (expr (LetTupleIn "x" "y" (var "s") (var "t")))
+        `shouldBe` pure (expr (LetTupleIn (TwoOrMore.make "x" "y" []) (var "s") (var "t")))
+    it "parses let-tuples (2)" $
+      parseExpr "let (x, y, z) = s in t"
+        `shouldBe` pure (expr (LetTupleIn (TwoOrMore.make "x" "y" ["z"]) (var "s") (var "t")))
     it "parses |> (1)" $
       parseExpr "x |> f"
         `shouldBe` pure (app (var "f") (var "x"))
