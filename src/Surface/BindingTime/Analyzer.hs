@@ -7,6 +7,7 @@ where
 import Control.Monad
 import Data.Either.Extra (mapLeft)
 import Data.Function ((&))
+import Data.List (foldl')
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
@@ -213,6 +214,46 @@ collectArgs trav = \case
   _ ->
     error "TODO (error): collectArgs"
 
+extractConstraintsFromVar :: trav -> BindingTimeEnv -> BindingTime -> Span -> [Var] -> Var -> M trav (Var, BIType, [Constraint Span])
+extractConstraintsFromVar trav btenv bt ann ms x = do
+  spanInFile <- askSpanInFile ann
+  case findVal btenv ms x of
+    Nothing ->
+      analysisError trav $ UnboundVar spanInFile ms x
+    Just (EntryBuiltInPersistent x' biptyVoid) -> do
+      let BIPolyType binders bityVoid = biptyVoid
+      instantiationMap <- makeInstantiationMap binders
+      let bity =
+            enhanceBIType
+              (\() -> bt)
+              ( \boundVar ->
+                  case Map.lookup boundVar instantiationMap of
+                    Nothing -> error "bug: extractConstraintsFromExpr, not found"
+                    Just bitv -> bitv
+              )
+              bityVoid
+      pure (x', bity, [])
+    Just (EntryBuiltInFixed0 x' biptyVoid) -> do
+      let BIPolyType binders bityVoid = biptyVoid
+      instantiationMap <- makeInstantiationMap binders
+      let bity =
+            enhanceBIType
+              BTConst
+              ( \boundVar ->
+                  case Map.lookup boundVar instantiationMap of
+                    Nothing -> error "bug: extractConstraintsFromExpr, not found"
+                    Just bitv -> bitv
+              )
+              bityVoid
+      pure (x', bity, [CEqual ann bt (BTConst BT0)])
+    Just (EntryBuiltInFixed1 x' bityVoid) -> do
+      let bity = enhanceBIType BTConst absurd bityVoid
+      pure (x', bity, [CEqual ann bt (BTConst BT1)])
+    Just (EntryLocallyBound bt' bity) ->
+      pure (x, bity, [CEqual ann bt bt'])
+    Just (EntryModule _) ->
+      analysisError trav $ NotAVal spanInFile ms x
+
 extractConstraintsFromExpr :: trav -> BindingTimeEnv -> Expr -> M trav (BExpr, BIType, [Constraint Span])
 extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
   btv <- freshBindingTimeVar
@@ -231,43 +272,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
     Constructor _ ->
       error "TODO: extractConstraintsFromExpr, Constructor"
     Var (ms, x) -> do
-      (x', bity, constraints) <-
-        case findVal btenv ms x of
-          Nothing ->
-            analysisError trav $ UnboundVar spanInFile ms x
-          Just (EntryBuiltInPersistent x' biptyVoid) -> do
-            let BIPolyType binders bityVoid = biptyVoid
-            instantiationMap <- makeInstantiationMap binders
-            let bity =
-                  enhanceBIType
-                    (\() -> bt)
-                    ( \boundVar ->
-                        case Map.lookup boundVar instantiationMap of
-                          Nothing -> error "bug: extractConstraintsFromExpr, not found"
-                          Just bitv -> bitv
-                    )
-                    bityVoid
-            pure (x', bity, [])
-          Just (EntryBuiltInFixed0 x' biptyVoid) -> do
-            let BIPolyType binders bityVoid = biptyVoid
-            instantiationMap <- makeInstantiationMap binders
-            let bity =
-                  enhanceBIType
-                    BTConst
-                    ( \boundVar ->
-                        case Map.lookup boundVar instantiationMap of
-                          Nothing -> error "bug: extractConstraintsFromExpr, not found"
-                          Just bitv -> bitv
-                    )
-                    bityVoid
-            pure (x', bity, [CEqual ann bt (BTConst BT0)])
-          Just (EntryBuiltInFixed1 x' bityVoid) -> do
-            let bity = enhanceBIType BTConst absurd bityVoid
-            pure (x', bity, [CEqual ann bt (BTConst BT1)])
-          Just (EntryLocallyBound bt' bity) ->
-            pure (x, bity, [CEqual ann bt bt'])
-          Just (EntryModule _) ->
-            analysisError trav $ NotAVal spanInFile ms x
+      (x', bity, constraints) <- extractConstraintsFromVar trav btenv bt ann ms x
       pure (BExpr (bt, ann) (BVar (ms, x')), bity, constraints)
     Lam Nothing labelOpt (x1, btye1) e2 -> do
       (btye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv btye1
@@ -305,8 +310,17 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
             spanInFile1 <- askSpanInFile ann1
             analysisError trav $ NotAFunction spanInFile1 bity1
       pure (BExpr (bt, ann) (BApp e1' labelOpt e2'), bity, constraints)
-    Product _e1 _rest ->
-      error "TODO: extractConstraintsFromExpr, Product"
+    Product e1 rest -> do
+      extractConstraintsFromExpr trav btenv $
+        foldl'
+          ( \eAcc@(Expr annAcc _) (op, eArg@(Expr annArg _)) ->
+              let annOp = error "TODO: annOp"
+               in Expr
+                    (mergeSpan annAcc annArg)
+                    (App (Expr (mergeSpan annAcc annOp) (App (Expr annOp (Var ([], op))) Nothing eAcc)) Nothing eArg)
+          )
+          e1
+          rest
     LetIn x params tyeBodyOpt eBody e2 -> do
       let e1 = makeLam params tyeBodyOpt eBody
       -- Not confident. TODO: check the validity of the following
