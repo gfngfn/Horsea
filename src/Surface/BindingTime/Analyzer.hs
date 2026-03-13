@@ -8,7 +8,7 @@ import Control.Monad
 import Data.Either.Extra (mapLeft)
 import Data.Function ((&))
 import Data.List (foldl')
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
@@ -686,15 +686,26 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
       let tye' = BTypeExpr (bt, ann) (BTyRefinement x tye1' e2')
       pure (tye', bity1, constraints1 ++ constraints2 ++ constraints)
     Product tye1 rest -> do
-      case rest of
-        ((locAster, "*"), tye2) :| [] -> do
-          (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
-          (tye2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromTypeExpr trav btenv tye2
-          let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
-          let tye' = BTypeExpr (bt, ann) (BTyProduct tye1' ((locAster, tye2') :| []))
-          pure (tye', BIType bt (BITyProduct (TwoOrMore.make bity1 bity2 [])), constraints1 ++ constraints2 ++ constraints)
-        _ ->
-          error "TODO: extractConstraintsFromTypeExpr, Product, more than two"
+      (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
+      quadsRest <-
+        mapM
+          ( \((locAster, op), tye) ->
+              case op of
+                "*" -> (locAster,) <$> extractConstraintsFromTypeExpr trav btenv tye
+                _ -> error "TODO (error): Product, non-`*` op"
+          )
+          rest
+      let constraintsRest =
+            concatMap
+              ( \(_locAster, (_tye', BIType bt' _, constraints')) ->
+                  CLeq ann bt bt' : constraints'
+              )
+              (NonEmpty.toList quadsRest)
+      let constraints = CLeq ann bt bt1 : constraints1 ++ constraintsRest
+      let rest' = fmap (\(locAster, (tye', _, _)) -> (locAster, tye')) quadsRest
+      let tye' = BTypeExpr (bt, ann) (BTyProduct tye1' rest')
+      let bitysRest = fmap (\(_, (_, bity, _)) -> bity) quadsRest
+      pure (tye', BIType bt (BITyProduct (TwoOrMore.make1 bity1 bitysRest)), constraints)
   where
     bityNat :: BIType
     bityNat = BIType (BTConst BT0) (BITyBase [])
