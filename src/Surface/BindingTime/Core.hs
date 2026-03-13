@@ -11,11 +11,16 @@ module Surface.BindingTime.Core
     BITypeMain,
     BindingTimeEnvEntry (..),
     BindingTimeEnv,
-    BExpr (..),
-    BExprMain (..),
-    BTypeExpr (..),
-    BTypeExprMain (..),
-    BArgForType (..),
+    BExprF (..),
+    BExprMainF (..),
+    BTypeExprF (..),
+    BTypeExprMainF (..),
+    BArgForTypeF (..),
+    BExpr,
+    BExprMain,
+    BTypeExpr,
+    BTypeExprMain,
+    BArgForType,
     BIPolyTypeVoid,
     BITypeVoid,
     fromStaged0,
@@ -83,44 +88,52 @@ data BindingTimeEnvEntry
 
 type BindingTimeEnv = Map Var BindingTimeEnvEntry
 
-type BLamBinder = () -- TODO: define this
+data BExprF ann = BExpr ann (BExprMainF ann)
+  deriving stock (Functor, Show)
 
-data BExpr = BExpr (BindingTime, Span) BExprMain
-  deriving stock (Show)
-
-data BExprMain
-  = BLiteral (Literal BExpr)
+data BExprMainF ann
+  = BLiteral (Literal (BExprF ann))
   | BVar ([Var], Var)
   | BConstructor ([Var], Var)
-  | BLam (Maybe (Var, BTypeExpr)) (Maybe Label) (Var, BTypeExpr) BExpr
-  | BApp BExpr (Maybe Label) BExpr
-  | BLetIn Var BExpr BExpr
-  | BLetTupleIn (TwoOrMore Var) BExpr BExpr
-  | BLetOpenIn Var BExpr
-  | BSequential BExpr BExpr
-  | BTuple (TwoOrMore BExpr)
-  | BIfThenElse BExpr BExpr BExpr
-  | BAs BExpr BTypeExpr
-  | BLamImp (Var, BTypeExpr) BExpr
-  | BAppImpGiven BExpr BExpr
-  | BAppImpOmitted BExpr
-  deriving stock (Show)
+  | BLam (Maybe (Var, BTypeExprF ann)) (Maybe Label) (Var, BTypeExprF ann) (BExprF ann)
+  | BApp (BExprF ann) (Maybe Label) (BExprF ann)
+  | BLetIn Var (BExprF ann) (BExprF ann)
+  | BLetTupleIn (TwoOrMore Var) (BExprF ann) (BExprF ann)
+  | BLetOpenIn Var (BExprF ann)
+  | BSequential (BExprF ann) (BExprF ann)
+  | BTuple (TwoOrMore (BExprF ann))
+  | BIfThenElse (BExprF ann) (BExprF ann) (BExprF ann)
+  | BAs (BExprF ann) (BTypeExprF ann)
+  | BLamImp (Var, BTypeExprF ann) (BExprF ann)
+  | BAppImpGiven (BExprF ann) (BExprF ann)
+  | BAppImpOmitted (BExprF ann)
+  deriving stock (Functor, Show)
 
-data BTypeExpr = BTypeExpr (BindingTime, Span) BTypeExprMain
-  deriving stock (Show)
+data BTypeExprF ann = BTypeExpr ann (BTypeExprMainF ann)
+  deriving stock (Functor, Show)
 
-data BTypeExprMain
-  = BTyName TypeName [BArgForType]
-  | BTyArrow (Maybe Label) (Maybe Var, BTypeExpr) BTypeExpr
-  | BTyImpArrow (Var, BTypeExpr) BTypeExpr
-  | BTyRefinement Var BTypeExpr BExpr
-  | BTyProduct (TwoOrMore BTypeExpr)
-  deriving stock (Show)
+data BTypeExprMainF ann
+  = BTyName TypeName [BArgForTypeF ann]
+  | BTyArrow (Maybe Label) (Maybe Var, BTypeExprF ann) (BTypeExprF ann)
+  | BTyImpArrow (Var, BTypeExprF ann) (BTypeExprF ann)
+  | BTyRefinement Var (BTypeExprF ann) (BExprF ann)
+  | BTyProduct (TwoOrMore (BTypeExprF ann))
+  deriving stock (Functor, Show)
 
-data BArgForType
-  = BExprArg BExpr
-  | BTypeExprArg BTypeExpr
-  deriving stock (Show)
+data BArgForTypeF ann
+  = BExprArg (BExprF ann)
+  | BTypeExprArg (BTypeExprF ann)
+  deriving stock (Functor, Show)
+
+type BExpr = BExprF (BindingTime, Span)
+
+type BExprMain = BExprMainF (BindingTime, Span)
+
+type BTypeExpr = BTypeExprF (BindingTime, Span)
+
+type BTypeExprMain = BTypeExprMainF (BindingTime, Span)
+
+type BArgForType = BArgForTypeF (BindingTime, Span)
 
 -- For built-in values.
 type BIPolyTypeVoid = BIPolyTypeF BindingTimeConst
