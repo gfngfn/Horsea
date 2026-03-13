@@ -17,6 +17,7 @@ import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Tuple.Extra (first)
 import Prettyprinter
 import Prettyprinter.Render.Terminal
 import Staged.BuiltIn.CompileTime (deriveDisp)
@@ -36,6 +37,7 @@ import Util.FrontError (FrontError (..))
 import Util.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
 import Util.Matrix qualified as Matrix
 import Util.ParserUtil (ParseError (..))
+import Util.TokenUtil (Located (..))
 import Util.Vector qualified as Vector
 import Prelude
 
@@ -111,7 +113,7 @@ disps = disps' disp
 disps' :: (a -> Doc Ann) -> [a] -> Doc Ann
 disps' f = \case
   [] -> mempty
-  first : rest -> List.foldl' (\doc x -> doc <> "," <+> f x) (f first) rest
+  first' : rest -> List.foldl' (\doc x -> doc <> "," <+> f x) (f first') rest
 
 deepenParenWhen :: Bool -> Doc Ann -> Doc Ann
 deepenParenWhen b doc = if b then "(" <> nest 2 doc <> ")" else doc
@@ -471,7 +473,7 @@ instance Disp Surface.ExprMain where
     Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
     Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
-    Surface.Product tye1 rest -> dispProduct req tye1 rest
+    Surface.Product tye1 rest -> dispProduct req tye1 (fmap (first (\(Located _ op) -> op)) rest)
 
 instance Disp Surface.LamBinder where
   dispGen _ = \case
