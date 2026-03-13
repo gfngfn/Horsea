@@ -11,9 +11,11 @@ module Surface.BindingTime.Core
     BITypeMain,
     BindingTimeEnvEntry (..),
     BindingTimeEnv,
-    BExpr,
-    BTypeExpr,
-    BArgForType,
+    BExpr (..),
+    BExprMain (..),
+    BTypeExpr (..),
+    BTypeExprMain (..),
+    BArgForType (..),
     BIPolyTypeVoid,
     BITypeVoid,
     fromStaged0,
@@ -29,6 +31,7 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Void (Void, vacuous)
 import GHC.Generics
+import Staged.Core (Label)
 import Staged.Syntax qualified as Staged
 import Surface.Syntax
 import Util.TokenUtil
@@ -80,11 +83,44 @@ data BindingTimeEnvEntry
 
 type BindingTimeEnv = Map Var BindingTimeEnvEntry
 
-type BExpr = ExprF (BindingTime, Span)
+type BLamBinder = () -- TODO: define this
 
-type BTypeExpr = TypeExprF (BindingTime, Span)
+data BExpr = BExpr (BindingTime, Span) BExprMain
+  deriving stock (Show)
 
-type BArgForType = ArgForTypeF (BindingTime, Span)
+data BExprMain
+  = BLiteral (Literal BExpr)
+  | BVar ([Var], Var)
+  | BConstructor ([Var], Var)
+  | BLam (Maybe (Var, BTypeExpr)) (Maybe Label) (Var, BTypeExpr) BExpr
+  | BApp BExpr (Maybe Label) BExpr
+  | BLetIn Var BExpr BExpr
+  | BLetTupleIn (TwoOrMore Var) BExpr BExpr
+  | BLetOpenIn Var BExpr
+  | BSequential BExpr BExpr
+  | BTuple (TwoOrMore BExpr)
+  | BIfThenElse BExpr BExpr BExpr
+  | BAs BExpr BTypeExpr
+  | BLamImp (Var, BTypeExpr) BExpr
+  | BAppImpGiven BExpr BExpr
+  | BAppImpOmitted BExpr
+  deriving stock (Show)
+
+data BTypeExpr = BTypeExpr (BindingTime, Span) BTypeExprMain
+  deriving stock (Show)
+
+data BTypeExprMain
+  = BTyName TypeName [BArgForType]
+  | BTyArrow (Maybe Label) (Maybe Var, BTypeExpr) BTypeExpr
+  | BTyImpArrow (Var, BTypeExpr) BTypeExpr
+  | BTyRefinement Var BTypeExpr BExpr
+  | BTyProduct (TwoOrMore BTypeExpr)
+  deriving stock (Show)
+
+data BArgForType
+  = BExprArg BExpr
+  | BTypeExprArg BTypeExpr
+  deriving stock (Show)
 
 -- For built-in values.
 type BIPolyTypeVoid = BIPolyTypeF BindingTimeConst

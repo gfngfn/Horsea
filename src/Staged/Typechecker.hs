@@ -1771,7 +1771,11 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
                 Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName 0
         _ : _ ->
           error "TODO (error): type name with module name prefixes"
-    App _ _ _ -> do
+    App _ labelOpt _ -> do
+      () <-
+        case labelOpt of
+          Nothing -> pure ()
+          Just _ -> error "TODO (error): labeled type applications"
       (tyName, args) <- collectArgs trav tyeMain
       case (tyName, args) of
         ("List", [arg1]) -> do
@@ -1965,7 +1969,11 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
             Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName 0
         _ : _ ->
           error "TODO (error): type names with module name prefixes"
-    App _ _ _ -> do
+    App _ labelOpt _ -> do
+      () <-
+        case labelOpt of
+          Nothing -> pure ()
+          Just _ -> error "TODO (error): labeled type applications"
       (tyName, args) <- collectArgs trav tyeMain
       case (tyName, args) of
         ("List", [tye]) -> do

@@ -19,7 +19,7 @@ data AnalysisError
   | BITypeContradiction SpanInFile BIType BIType BIType BIType
   | BITypeInclusionLeft SpanInFile BIType BIType BITypeVar BIType
   | BITypeInclusionRight SpanInFile BIType BIType BIType BITypeVar
-  | UnknownTypeOrInvalidArgs SpanInFile TypeName [ArgForType]
+  | UnknownTypeOrInvalidArgs SpanInFile TypeName [Expr]
   | NotATuple SpanInFile BIType
   | LetRecParamsCannotStartWithImplicit SpanInFile
   | LetRecRequiresNonEmptyParams SpanInFile
