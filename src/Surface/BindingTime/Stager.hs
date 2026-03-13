@@ -12,18 +12,17 @@ import Data.List (foldl')
 import Staged.SrcSyntax qualified as Staged
 import Surface.BindingTime.Core
 import Surface.Syntax
-import Util.TokenUtil (Located (..))
 import Prelude
 
-type BCExprF ann = BExprF (BindingTimeConst, ann)
+type BCExprF ann = BExprF ann BindingTimeConst
 
-type BCExprMainF ann = BExprMainF (BindingTimeConst, ann)
+type BCExprMainF ann = BExprMainF ann BindingTimeConst
 
-type BCTypeExprF ann = BTypeExprF (BindingTimeConst, ann)
+type BCTypeExprF ann = BTypeExprF ann BindingTimeConst
 
-type BCTypeExprMainF ann = BTypeExprMainF (BindingTimeConst, ann)
+type BCTypeExprMainF ann = BTypeExprMainF ann BindingTimeConst
 
-type BCArgForTypeF ann = BArgForTypeF (BindingTimeConst, ann)
+type BCArgForTypeF ann = BArgForTypeF ann BindingTimeConst
 
 stageExpr0 :: (Show ann) => BCExprF ann -> Staged.ExprF ann
 stageExpr0 (BExpr (btc, ann) exprMain) =
@@ -139,7 +138,7 @@ stageTypeExpr0Main = \case
   BTyProduct tye1 rest ->
     Staged.Product
       (stageTypeExpr0 tye1)
-      (fmap (\(locAster, tye) -> (Located locAster "*", stageTypeExpr0 tye)) rest)
+      (fmap (\(locAster, tye) -> ((locAster, "*"), stageTypeExpr0 tye)) rest)
 
 stageArgForType0 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
 stageArgForType0 = \case
@@ -161,7 +160,7 @@ stageTypeExpr1Main = \case
   BTyProduct tye1 rest ->
     Staged.Product
       (stageTypeExpr1 tye1)
-      (fmap (\(locAster, tye) -> (Located locAster "*", stageTypeExpr1 tye)) rest)
+      (fmap (\(locAster, tye) -> ((locAster, "*"), stageTypeExpr1 tye)) rest)
 
 stageArgForType1 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
 stageArgForType1 = \case

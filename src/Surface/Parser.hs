@@ -4,7 +4,7 @@ module Surface.Parser
   )
 where
 
-import Control.Lens
+import Control.Lens ((^?))
 import Data.Either.Extra
 import Data.Functor
 import Data.Generics.Labels ()
@@ -183,9 +183,9 @@ expr = letin
 
     mult :: P Expr
     mult =
-      makeProduct <$> con <*> many ((,) <$> multOp <*> con)
+      makeProduct <$> con <*> many ((\(Located locOp op) e -> ((locOp, op), e)) <$> multOp <*> con)
       where
-        makeProduct :: Expr -> [(Located Var, Expr)] -> Expr
+        makeProduct :: Expr -> [((Span, Var), Expr)] -> Expr
         makeProduct e1@(Expr locFirst _) rest' =
           case nonEmpty rest' of
             Nothing ->

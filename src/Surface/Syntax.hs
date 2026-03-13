@@ -18,7 +18,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Text (Text)
 import Staged.Core
-import Util.TokenUtil (Located, Span)
+import Util.TokenUtil (Span)
 import Prelude
 
 type Var = Text
@@ -57,7 +57,7 @@ data ExprMainF ann
   | TyArrow (Maybe Label) (Maybe Var, TypeExprF ann) (TypeExprF ann)
   | TyImpArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)
-  | Product (TypeExprF ann) (NonEmpty (Located Var, TypeExprF ann))
+  | Product (TypeExprF ann) (NonEmpty ((ann, Var), TypeExprF ann))
   deriving stock (Show, Functor)
 
 data LamBinderF ann

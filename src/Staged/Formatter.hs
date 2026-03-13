@@ -37,7 +37,6 @@ import Util.FrontError (FrontError (..))
 import Util.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
 import Util.Matrix qualified as Matrix
 import Util.ParserUtil (ParseError (..))
-import Util.TokenUtil (Located (..))
 import Util.Vector qualified as Vector
 import Prelude
 
@@ -412,7 +411,7 @@ instance Disp (ExprMainF ann) where
     TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
     TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
-    Product tye1 rest -> dispProduct req tye1 (fmap (first (\(Located _ tye) -> tye)) rest)
+    Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
     TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
 
 instance Disp (LamBinderF ann) where
@@ -473,7 +472,7 @@ instance Disp Surface.ExprMain where
     Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
     Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
-    Surface.Product tye1 rest -> dispProduct req tye1 (fmap (first (\(Located _ op) -> op)) rest)
+    Surface.Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
 
 instance Disp Surface.LamBinder where
   dispGen _ = \case

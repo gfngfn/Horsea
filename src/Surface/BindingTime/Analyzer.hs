@@ -313,7 +313,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
     Product e1 rest -> do
       extractConstraintsFromExpr trav btenv $
         foldl'
-          ( \eAcc@(Expr annAcc _) (Located annOp op, eArg@(Expr annArg _)) ->
+          ( \eAcc@(Expr annAcc _) ((annOp, op), eArg@(Expr annArg _)) ->
               Expr (mergeSpan annAcc annArg) $
                 App
                   ( Expr (mergeSpan annAcc annOp) (App (Expr annOp (Var ([], op))) Nothing eAcc)
@@ -687,7 +687,7 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
       pure (tye', bity1, constraints1 ++ constraints2 ++ constraints)
     Product tye1 rest -> do
       case rest of
-        (Located locAster "*", tye2) :| [] -> do
+        ((locAster, "*"), tye2) :| [] -> do
           (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
           (tye2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromTypeExpr trav btenv tye2
           let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]

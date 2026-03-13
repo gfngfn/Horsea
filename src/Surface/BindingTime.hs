@@ -7,6 +7,7 @@ where
 import Control.Lens
 import Data.Generics.Labels ()
 import Data.Map qualified as Map
+import Data.Maybe (fromMaybe)
 import Staged.SrcSyntax qualified as Staged
 import Surface.BindingTime.AnalysisError
 import Surface.BindingTime.Analyzer qualified as Analyzer
@@ -37,14 +38,9 @@ analyze sourceSpec fallBackToBindingTime0 btenv e = do
   let btcFallback = if fallBackToBindingTime0 then BT0 else BT1
   let bce =
         fmap
-          ( \(bt, ann) ->
-              case bt of
-                BTConst btc ->
-                  (btc, ann)
-                BTVar btv ->
-                  case Map.lookup btv solutionMap of
-                    Just btc -> (btc, ann)
-                    Nothing -> (btcFallback, ann)
+          ( \case
+              BTConst btc -> btc
+              BTVar btv -> fromMaybe btcFallback (Map.lookup btv solutionMap)
           )
           be'
   let lwe = stageExpr0 bce

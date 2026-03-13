@@ -6,7 +6,6 @@ import Data.Tuple.Extra (first)
 import Staged.Core
 import Staged.SrcSyntax
 import Staged.Syntax
-import Util.TokenUtil (Located (..), Span (..))
 
 type TypeExprVoid = TypeExprF ()
 
@@ -105,17 +104,14 @@ add, sub :: ExprVoid -> ExprVoid -> ExprVoid
 add = binOp "+"
 sub = binOp "-"
 
-dummyLoc :: Span
-dummyLoc = Span {start = 0, end = 0}
-
 prods :: ExprVoid -> (Var, ExprVoid) -> [(Var, ExprVoid)] -> ExprVoid
-prods e1 pair2 rest = expr (Product e1 (fmap (first (Located dummyLoc)) (pair2 :| rest)))
+prods e1 pair2 rest = expr (Product e1 (fmap (first ((),)) (pair2 :| rest)))
 
 mult :: ExprVoid -> ExprVoid -> [ExprVoid] -> ExprVoid
-mult e1 e2 esRest = expr (Product e1 (fmap (Located dummyLoc "*",) (e2 :| esRest)))
+mult e1 e2 esRest = expr (Product e1 (fmap (((), "*"),) (e2 :| esRest)))
 
 divi :: ExprVoid -> ExprVoid -> ExprVoid
-divi e1 e2 = expr (Product e1 (fmap (Located dummyLoc "/",) (e2 :| [])))
+divi e1 e2 = expr (Product e1 (fmap (((), "/"),) (e2 :| [])))
 
 upcast :: ExprVoid -> TypeExprVoid -> ExprVoid
 upcast e1 tye2 = expr (As e1 tye2)
