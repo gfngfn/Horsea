@@ -6,7 +6,6 @@ where
 
 import Control.Monad
 import Data.Either.Extra (mapLeft)
-import Data.Function ((&))
 import Data.List (foldl')
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
@@ -348,26 +347,25 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       let e' = BExpr (bt, ann) (BLetIn x e1' e2')
       pure (e', bity2, constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
     LetTupleIn xs e1 e2 -> do
-      let (xL, xR, xsRest) = TwoOrMore.decompose xs
-      () <-
-        case xsRest of
-          [] -> pure ()
-          _ : _ -> error "TODO: extractConstraintsFromExpr, LetTupleIn, tuples longer than two"
       (e1', bity1@(BIType bt1 bityMain1), constraints1) <- extractConstraintsFromExpr trav btenv e1
       case bityMain1 of
         BITyProduct bitys -> do
-          let (bityL@(BIType btL _), bityR@(BIType btR _), bitysRest) = TwoOrMore.decompose bitys
-          case bitysRest of
-            [] -> do
-              (e2', bity2@(BIType bt2 _), constraints2) <-
-                extractConstraintsFromExpr
-                  trav
-                  (btenv & Map.insert xL (EntryLocallyBound btL bityL) & Map.insert xR (EntryLocallyBound btR bityR))
-                  e2
+          case TwoOrMore.zipExact xs bitys of
+            Just zipped -> do
+              -- Not confident. TODO: check the validity of the following
+              (e2', bity2@(BIType bt2 _), constraints2) <- do
+                let btenv2 =
+                      foldl
+                        ( \btenv' (x, bityElem@(BIType btElem _)) ->
+                            Map.insert x (EntryLocallyBound btElem bityElem) btenv'
+                        )
+                        btenv
+                        zipped
+                extractConstraintsFromExpr trav btenv2 e2
               let e' = BExpr (bt, ann) (BLetTupleIn xs e1' e2')
               pure (e', bity2, constraints1 ++ constraints2 ++ [CEqual ann bt bt1, CLeq ann bt bt2])
-            _ : _ ->
-              error "TODO: extractConstraintsFromExpr, LetTupleIn, tuples longer than two"
+            Nothing ->
+              error "TODO (error): extractConstraintsFromExpr, LetTupleIn, tuple length mismatch"
         _ -> do
           let Expr ann1 _ = e1
           spanInFile1 <- askSpanInFile ann1
