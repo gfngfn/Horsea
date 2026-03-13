@@ -390,17 +390,15 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
           spanInFile1 <- askSpanInFile ann1
           analysisError trav $ NotABase spanInFile1 bity1
     Tuple es -> do
-      let (e1, e2, esRest) = TwoOrMore.decompose es
-      () <-
-        case esRest of
-          [] -> pure ()
-          _ : _ -> error "TODO: extractConstraintsFromExpr, Tuple, tuples longer than two"
       -- Not confident. TODO: check the validity of the following
-      (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr trav btenv e1
-      (e2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromExpr trav btenv e2
-      let e' = BExpr (bt, ann) (BTuple (TwoOrMore.make e1' e2' []))
-      let bity = BIType bt (BITyProduct (TwoOrMore.make bity1 bity2 []))
-      pure (e', bity, constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
+      triples <- mapM (extractConstraintsFromExpr trav btenv) es
+      let e' = BExpr (bt, ann) (BTuple (fmap (\(eElem, _, _) -> eElem) triples))
+      let bity = BIType bt (BITyProduct (fmap (\(_, bityElem, _) -> bityElem) triples))
+      let constraints =
+            concatMap
+              (\(_, BIType btElem _, constraintsElem) -> CLeq ann bt btElem : constraintsElem)
+              triples
+      pure (e', bity, constraints)
     IfThenElse e0 e1 e2 -> do
       (e0', bity0@(BIType bt0 bityMain0), constraints0) <- extractConstraintsFromExpr trav btenv e0
       case bityMain0 of
