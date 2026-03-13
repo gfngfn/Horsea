@@ -9,10 +9,10 @@ module Surface.BindingTime.Stager
 where
 
 import Data.List (foldl')
-import Data.List.TwoOrMore qualified as TwoOrMore
 import Staged.SrcSyntax qualified as Staged
 import Surface.BindingTime.Core
 import Surface.Syntax
+import Util.TokenUtil (Located (..))
 import Prelude
 
 type BCExprF ann = BExprF (BindingTimeConst, ann)
@@ -136,9 +136,10 @@ stageTypeExpr0Main = \case
     Staged.TyImpArrow (x, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
   BTyRefinement x tye1 e2 ->
     Staged.TyRefinement x (stageTypeExpr0 tye1) (stageExpr0 e2)
-  BTyProduct tyes ->
-    let (tye1, tyesRest) = TwoOrMore.decompose1 tyes
-     in Staged.Product (stageTypeExpr0 tye1) (fmap (("*",) . stageTypeExpr0) tyesRest)
+  BTyProduct tye1 rest ->
+    Staged.Product
+      (stageTypeExpr0 tye1)
+      (fmap (\(locAster, tye) -> (Located locAster "*", stageTypeExpr0 tye)) rest)
 
 stageArgForType0 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
 stageArgForType0 = \case
@@ -157,9 +158,10 @@ stageTypeExpr1Main = \case
   BTyArrow labelOpt (_xOpt, tye1) tye2 -> Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
   BTyImpArrow (_x, _tye1) _tye2 -> error "bug: stageTypeExpr1Main, TyImpArrow"
   BTyRefinement _x _tye _e -> error "bug: stageTypeExpr1Main, TyRefinement"
-  BTyProduct tyes ->
-    let (tye1, tyesRest) = TwoOrMore.decompose1 tyes
-     in Staged.Product (stageTypeExpr1 tye1) (fmap (("*",) . stageTypeExpr1) tyesRest)
+  BTyProduct tye1 rest ->
+    Staged.Product
+      (stageTypeExpr1 tye1)
+      (fmap (\(locAster, tye) -> (Located locAster "*", stageTypeExpr1 tye)) rest)
 
 stageArgForType1 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
 stageArgForType1 = \case

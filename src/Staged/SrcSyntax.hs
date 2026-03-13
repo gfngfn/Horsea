@@ -31,7 +31,7 @@ import Data.Text (Text)
 import Generic.Data (Generic, Generic1, Generically1 (..))
 import Generic.Data.Orphans ()
 import Staged.Core
-import Util.TokenUtil (Span)
+import Util.TokenUtil (Located, Span)
 import Prelude
 
 type Var = Text
@@ -72,7 +72,7 @@ data ExprMainF ann
   | LetOpenIn Var (ExprF ann)
   | Sequential (ExprF ann) (ExprF ann)
   | Tuple (TwoOrMore (ExprF ann))
-  | Product (ExprF ann) (NonEmpty (Var, ExprF ann))
+  | Product (ExprF ann) (NonEmpty (Located Var, ExprF ann))
   | Persistent (ExprF ann)
   | TyVar TypeVar
   | TyArrow (Maybe Text) (Maybe Var, TypeExprF ann) (TypeExprF ann)

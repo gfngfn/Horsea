@@ -43,7 +43,7 @@ import Staged.Typechecker.TypeEnv qualified as TypeEnv
 import Util.LocationInFile (SpanInFile, getSpanInFile)
 import Util.Matrix qualified as Matrix
 import Util.Maybe1
-import Util.TokenUtil (Span)
+import Util.TokenUtil (Located (..), Span)
 import Util.Vector qualified as Vector
 import Prelude
 
@@ -963,7 +963,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             (a0tye1, a0e1) <- typecheckExpr0Single trav tyEnv e1
             (a0tye, a0e) <-
               foldM
-                ( \(a0tyeLeftAcc, a0eLeftAcc) (op, eRightArg) -> do
+                ( \(a0tyeLeftAcc, a0eLeftAcc) (Located _locOp op, eRightArg) -> do
                     (a0tyeOp, a0eOp) <- typecheckValVar0 trav loc tyEnv [] op
                     (a0tyeRightArg, a0eRightArg) <- typecheckExpr0Single trav tyEnv eRightArg
                     let appCtxOp = [AppArg0 Nothing a0eLeftAcc a0tyeLeftAcc, AppArg0 Nothing a0eRightArg a0tyeRightArg]
@@ -1406,12 +1406,13 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr1, Constructor"
       Product e1 rest ->
+        -- TODO: consider simply falling back to `App`
         case appCtx of
           [] -> do
             (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
             (a1tye, a1e) <-
               foldM
-                ( \(a1tyeLeftAcc, a1eLeftAcc) (op, eRightArg) -> do
+                ( \(a1tyeLeftAcc, a1eLeftAcc) (Located _locOp op, eRightArg) -> do
                     (a1tyeOp, a1eOp) <- typecheckValVar1 trav loc tyEnv [] op
                     (a1tyeRightArg, a1eRightArg) <- typecheckExpr1Single trav tyEnv eRightArg
                     let appCtxOp = [AppArg1 Nothing a1tyeLeftAcc, AppArg1 Nothing a1tyeRightArg]
@@ -1886,7 +1887,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
       a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
       a0tyesRest <-
         mapM
-          ( \(op, tye) ->
+          ( \(Located _locOp op, tye) ->
               case op of
                 "*" -> typecheckTypeExpr0 trav tyEnv tye
                 _ -> error "TODO (error): typecheckTypeExpr0, Product, non-`*` op"
@@ -2046,7 +2047,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
       a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
       a1tyesRest <-
         mapM
-          ( \(op, tye) ->
+          ( \(Located _locOp op, tye) ->
               case op of
                 "*" -> typecheckTypeExpr1 trav tyEnv tye
                 _ -> error "TODO (error): typecheckTypeExpr1, Product, non-`*` op"

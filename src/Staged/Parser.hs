@@ -199,9 +199,9 @@ expr = letin
 
     mult :: P Expr
     mult =
-      makeProduct <$> con <*> many ((,) <$> noLoc multOp <*> con)
+      makeProduct <$> con <*> many ((,) <$> multOp <*> con)
       where
-        makeProduct :: Expr -> [(Var, Expr)] -> Expr
+        makeProduct :: Expr -> [(Located Var, Expr)] -> Expr
         makeProduct e1@(Expr locFirst _) rest' =
           case nonEmpty rest' of
             Nothing ->

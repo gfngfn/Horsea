@@ -412,7 +412,7 @@ instance Disp (ExprMainF ann) where
     TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
     TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
-    Product tye1 rest -> dispProduct req tye1 rest
+    Product tye1 rest -> dispProduct req tye1 (fmap (first (\(Located _ tye) -> tye)) rest)
     TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
 
 instance Disp (LamBinderF ann) where
@@ -1289,9 +1289,7 @@ instance Disp (Bta.BCTypeExprMainF ann) where
     Bta.BTyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     Bta.BTyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
     Bta.BTyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
-    Bta.BTyProduct tyes ->
-      let (tye1, tyesRest) = TwoOrMore.decompose1 tyes
-       in dispProduct req tye1 (fmap ("*",) tyesRest)
+    Bta.BTyProduct tye1 rest -> dispProduct req tye1 (fmap (first (const "*")) rest)
 
 instance Disp (Bta.BCArgForTypeF ann) where
   dispGen req = \case

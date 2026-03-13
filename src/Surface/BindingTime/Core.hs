@@ -29,6 +29,7 @@ module Surface.BindingTime.Core
   )
 where
 
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
 import Data.Map qualified as Map
@@ -117,7 +118,7 @@ data BTypeExprMainF ann
   | BTyArrow (Maybe Label) (Maybe Var, BTypeExprF ann) (BTypeExprF ann)
   | BTyImpArrow (Var, BTypeExprF ann) (BTypeExprF ann)
   | BTyRefinement Var (BTypeExprF ann) (BExprF ann)
-  | BTyProduct (TwoOrMore (BTypeExprF ann))
+  | BTyProduct (BTypeExprF ann) (NonEmpty (Span, BTypeExprF ann))
   deriving stock (Functor, Show)
 
 data BArgForTypeF ann

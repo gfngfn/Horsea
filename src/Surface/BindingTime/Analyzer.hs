@@ -687,11 +687,11 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
       pure (tye', bity1, constraints1 ++ constraints2 ++ constraints)
     Product tye1 rest -> do
       case rest of
-        (Located _ "*", tye2) :| [] -> do
+        (Located locAster "*", tye2) :| [] -> do
           (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
           (tye2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromTypeExpr trav btenv tye2
           let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
-          let tye' = BTypeExpr (bt, ann) (BTyProduct (TwoOrMore.make tye1' tye2' []))
+          let tye' = BTypeExpr (bt, ann) (BTyProduct tye1' ((locAster, tye2') :| []))
           pure (tye', BIType bt (BITyProduct (TwoOrMore.make bity1 bity2 [])), constraints1 ++ constraints2 ++ constraints)
         _ ->
           error "TODO: extractConstraintsFromTypeExpr, Product, more than two"
