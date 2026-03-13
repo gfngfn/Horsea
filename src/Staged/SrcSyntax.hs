@@ -24,11 +24,10 @@ module Staged.SrcSyntax
   )
 where
 
-import Data.Functor.Classes (Eq1, Show1)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Text (Text)
-import Generic.Data (Generic, Generic1, Generically1 (..))
+import Generic.Data (Generic)
 import Generic.Data.Orphans ()
 import Staged.Core
 import Util.TokenUtil (Span)
@@ -45,13 +44,11 @@ data Literal e
   | LitList [e]
   | LitVec [Int]
   | LitMat [[Int]]
-  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
-  deriving (Eq1, Show1) via (Generically1 Literal)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 -- | The type of ASTs for expressions obtained by parsing source programs.
 data ExprF ann = Expr ann (ExprMainF ann)
-  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
-  deriving (Eq1, Show1) via (Generically1 ExprF)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 data ExprMainF ann
   = Literal (Literal (ExprF ann))
@@ -72,21 +69,19 @@ data ExprMainF ann
   | LetOpenIn Var (ExprF ann)
   | Sequential (ExprF ann) (ExprF ann)
   | Tuple (TwoOrMore (ExprF ann))
-  | Product (ExprF ann) (NonEmpty (Var, ExprF ann))
+  | Product (ExprF ann) (NonEmpty ((ann, Var), ExprF ann))
   | Persistent (ExprF ann)
   | TyVar TypeVar
   | TyArrow (Maybe Text) (Maybe Var, TypeExprF ann) (TypeExprF ann)
   | TyImpArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)
   | TyForAll TypeVar (TypeExprF ann)
-  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
-  deriving (Eq1, Show1) via (Generically1 ExprMainF)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 data LamBinderF ann
   = MandatoryBinder (Maybe Label) (Var, TypeExprF ann)
   | ImplicitBinder (Var, TypeExprF ann)
-  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
-  deriving (Eq1, Show1) via (Generically1 LamBinderF)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 type Expr = ExprF Span
 
@@ -108,22 +103,19 @@ type TypeExpr = TypeExprF Span
 type TypeExprMain = ExprMainF Span
 
 data BindF ann = Bind ann (BindMainF ann)
-  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
-  deriving (Eq1, Show1) via (Generically1 BindF)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 data BindMainF ann
   = BindVal Stage Var (BindValF ann)
   | BindModule Var [BindF ann]
-  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
-  deriving (Eq1, Show1) via (Generically1 BindMainF)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 type Bind = BindF Span
 
 data BindValF ann
   = BindValExternal (TypeExprF ann) External
   | BindValNormal (ExprF ann)
-  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic, Generic1)
-  deriving (Eq1, Show1) via (Generically1 BindValF)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 type BindVal = BindValF Span
 

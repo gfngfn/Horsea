@@ -8,16 +8,14 @@ module Surface.Syntax
     ExprMain,
     LamBinder,
     TypeName,
-    TypeExprF (..),
-    TypeExprMainF (..),
-    ArgForTypeF (..),
+    TypeExprF,
     TypeExpr,
-    TypeExprMain,
-    ArgForType,
     mapMLiteral,
   )
 where
 
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.TwoOrMore (TwoOrMore)
 import Data.Text (Text)
 import Staged.Core
 import Util.TokenUtil (Span)
@@ -34,7 +32,7 @@ data Literal e
   | LitList [e]
   | LitVec [Int]
   | LitMat [[Int]]
-  deriving stock (Eq, Show, Functor)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable)
 
 data ExprF ann = Expr ann (ExprMainF ann)
   deriving stock (Show, Functor)
@@ -42,19 +40,24 @@ data ExprF ann = Expr ann (ExprMainF ann)
 data ExprMainF ann
   = Literal (Literal (ExprF ann))
   | Var ([Var], Var)
+  | Constructor ([Var], Var)
   | Lam (Maybe (Var, TypeExprF ann)) (Maybe Label) (Var, TypeExprF ann) (ExprF ann)
   | App (ExprF ann) (Maybe Label) (ExprF ann)
   | LetIn Var [LamBinderF ann] (Maybe (TypeExprF ann)) (ExprF ann) (ExprF ann)
   | LetRecIn Var [LamBinderF ann] (TypeExprF ann) (ExprF ann) (ExprF ann)
-  | LetTupleIn Var Var (ExprF ann) (ExprF ann)
+  | LetTupleIn (TwoOrMore Var) (ExprF ann) (ExprF ann)
   | LetOpenIn Var (ExprF ann)
   | Sequential (ExprF ann) (ExprF ann)
-  | Tuple (ExprF ann) (ExprF ann)
+  | Tuple (TwoOrMore (ExprF ann))
   | IfThenElse (ExprF ann) (ExprF ann) (ExprF ann)
   | As (ExprF ann) (TypeExprF ann)
   | LamImp (Var, TypeExprF ann) (ExprF ann)
   | AppImpGiven (ExprF ann) (ExprF ann)
   | AppImpOmitted (ExprF ann)
+  | TyArrow (Maybe Label) (Maybe Var, TypeExprF ann) (TypeExprF ann)
+  | TyImpArrow (Var, TypeExprF ann) (TypeExprF ann)
+  | TyRefinement Var (TypeExprF ann) (ExprF ann)
+  | Product (TypeExprF ann) (NonEmpty ((ann, Var), TypeExprF ann))
   deriving stock (Show, Functor)
 
 data LamBinderF ann
@@ -70,27 +73,9 @@ type LamBinder = LamBinderF Span
 
 type TypeName = Text
 
-data TypeExprF ann = TypeExpr ann (TypeExprMainF ann)
-  deriving stock (Show, Functor)
-
-data TypeExprMainF ann
-  = TyName TypeName [ArgForTypeF ann]
-  | TyArrow (Maybe Label) (Maybe Var, TypeExprF ann) (TypeExprF ann)
-  | TyImpArrow (Var, TypeExprF ann) (TypeExprF ann)
-  | TyRefinement Var (TypeExprF ann) (ExprF ann)
-  | TyProduct (TypeExprF ann) (TypeExprF ann)
-  deriving stock (Show, Functor)
-
-data ArgForTypeF ann
-  = ExprArg (ExprF ann)
-  | TypeArg (TypeExprF ann)
-  deriving stock (Show, Functor)
+type TypeExprF = ExprF
 
 type TypeExpr = TypeExprF Span
-
-type TypeExprMain = TypeExprMainF Span
-
-type ArgForType = ArgForTypeF Span
 
 mapMLiteral :: (Monad m) => (a -> m b) -> Literal a -> m (Literal b)
 mapMLiteral f = \case

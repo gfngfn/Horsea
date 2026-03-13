@@ -5,7 +5,7 @@ module Staged.Parser
   )
 where
 
-import Control.Lens
+import Control.Lens ((^?))
 import Data.Either.Extra
 import Data.Functor
 import Data.Generics.Labels ()
@@ -199,9 +199,9 @@ expr = letin
 
     mult :: P Expr
     mult =
-      makeProduct <$> con <*> many ((,) <$> noLoc multOp <*> con)
+      makeProduct <$> con <*> many ((\(Located locOp op) e -> ((locOp, op), e)) <$> multOp <*> con)
       where
-        makeProduct :: Expr -> [(Var, Expr)] -> Expr
+        makeProduct :: Expr -> [((Span, Var), Expr)] -> Expr
         makeProduct e1@(Expr locFirst _) rest' =
           case nonEmpty rest' of
             Nothing ->
@@ -326,7 +326,7 @@ expr = letin
         <|> (makeLetOpenIn <$> (token TokOpen *> noLoc upper) <*> (token TokIn *> expr))
       where
         makeLetTupleIn (Located _ (x1, xsRest)) e1 e2@(Expr locLast _) = (LetTupleIn (TwoOrMore.make1 x1 xsRest) e1 e2, locLast)
-        makeLetIn x params tyeOpt e1 e2@(Expr locLast _) = (LetIn x params tyeOpt e1 e2, locLast)
+        makeLetIn x params tyeBodyOpt e1 e2@(Expr locLast _) = (LetIn x params tyeBodyOpt e1 e2, locLast)
         makeLetRecIn x params tye e1 e2@(Expr locLast _) = (LetRecIn x params tye e1 e2, locLast)
         makeLetOpenIn m e@(Expr locLast _) = (LetOpenIn m e, locLast)
 

@@ -17,6 +17,7 @@ import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Tuple.Extra (first)
 import Prettyprinter
 import Prettyprinter.Render.Terminal
 import Staged.BuiltIn.CompileTime (deriveDisp)
@@ -111,7 +112,7 @@ disps = disps' disp
 disps' :: (a -> Doc Ann) -> [a] -> Doc Ann
 disps' f = \case
   [] -> mempty
-  first : rest -> List.foldl' (\doc x -> doc <> "," <+> f x) (f first) rest
+  first' : rest -> List.foldl' (\doc x -> doc <> "," <+> f x) (f first') rest
 
 deepenParenWhen :: Bool -> Doc Ann -> Doc Ann
 deepenParenWhen b doc = if b then "(" <> nest 2 doc <> ")" else doc
@@ -191,6 +192,11 @@ dispLetInWithAnnot :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> 
 dispLetInWithAnnot req x tye e1 e2 =
   deepenParenWhen (req <= FunDomain) $
     group ("let" <+> disp x <+> ":" <+> disp tye <+> "=" <> nest 2 (line <> disp e1) <+> "in" <> line <> disp e2)
+
+dispLetInWithoutAnnot :: (Disp var, Disp expr) => Associativity -> var -> expr -> expr -> Doc Ann
+dispLetInWithoutAnnot req x e1 e2 =
+  deepenParenWhen (req <= FunDomain) $
+    group ("let" <+> disp x <+> "=" <> nest 2 (line <> disp e1) <+> "in" <> line <> disp e2)
 
 dispLetOpenIn :: (Disp var, Disp expr) => Associativity -> var -> expr -> Doc Ann
 dispLetOpenIn req m e =
@@ -405,7 +411,7 @@ instance Disp (ExprMainF ann) where
     TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
     TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
-    Product tye1 rest -> dispProduct req tye1 rest
+    Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
     TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
 
 instance Disp (LamBinderF ann) where
@@ -447,43 +453,32 @@ instance Disp Surface.Expr where
 instance Disp Surface.ExprMain where
   dispGen req = \case
     Surface.Literal lit -> dispGen req lit
+    Surface.Constructor (ms, ctor) -> dispLongName ms ctor
     Surface.Var (ms, x) -> dispLongName ms x
     Surface.Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Surface.Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
     Surface.App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
     Surface.LetIn x params tyeBodyOpt eBody e2 -> dispLetIn req x params tyeBodyOpt eBody e2
     Surface.LetRecIn f params tyeBody eBody e2 -> dispLetRecIn req f params tyeBody eBody e2
-    Surface.LetTupleIn xL xR e1 e2 -> dispLetTupleIn req (TwoOrMore.make xL xR []) e1 e2
+    Surface.LetTupleIn xs e1 e2 -> dispLetTupleIn req xs e1 e2
     Surface.LetOpenIn m e -> dispLetOpenIn req m e
     Surface.Sequential e1 e2 -> dispSequential req e1 e2
-    Surface.Tuple e1 e2 -> dispTuple (TwoOrMore.make e1 e2 [])
+    Surface.Tuple es -> dispTuple es
     Surface.IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Surface.As e1 tye2 -> dispAs req e1 tye2
     Surface.LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
     Surface.AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
     Surface.AppImpOmitted e1 -> dispAppImpOmitted req e1
+    Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
+    Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
+    Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
+    Surface.Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
 
 instance Disp Surface.LamBinder where
   dispGen _ = \case
     Surface.MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
     Surface.MandatoryBinder (Just label) (x, tye) -> "#" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
     Surface.ImplicitBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
-
-instance Disp Surface.TypeExpr where
-  dispGen req (Surface.TypeExpr _ann typeExprMain) = dispGen req typeExprMain
-
-instance Disp Surface.TypeExprMain where
-  dispGen req = \case
-    Surface.TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
-    Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
-    Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
-    Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
-    Surface.TyProduct tye1 tye2 -> dispProduct req tye1 (("*", tye2) :| [])
-
-instance Disp Surface.ArgForType where
-  dispGen req = \case
-    Surface.ExprArg e -> dispGen req e
-    Surface.TypeArg tye -> dispGen req tye
 
 instance (Disp sv, Disp (af sv)) => Disp (AssLiteralF af sv) where
   dispGen _ = \case
@@ -1261,47 +1256,41 @@ dispWithBindingTime btc eMain =
         Bta.BT1 -> (bindingTime1Style, "$1")
 
 instance Disp (Bta.BCExprF ann) where
-  dispGen _ (Surface.Expr (btc, _ann) exprMain) =
+  dispGen _ (Bta.BExpr (btc, _ann) exprMain) =
     dispWithBindingTime btc exprMain
 
 instance Disp (Bta.BCExprMainF ann) where
   dispGen req = \case
-    Surface.Literal lit -> disp lit
-    Surface.Var (ms, x) -> dispLongName ms x
-    Surface.Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
-    Surface.Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
-    Surface.App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
-    Surface.LetIn x params tyeBodyOpt eBody e2 -> dispLetIn req x params tyeBodyOpt eBody e2
-    Surface.LetRecIn f params tyeBody eBody e2 -> dispLetRecIn req f params tyeBody eBody e2
-    Surface.LetTupleIn xL xR e1 e2 -> dispLetTupleIn req (TwoOrMore.make xL xR []) e1 e2
-    Surface.LetOpenIn m e -> dispLetOpenIn req m e
-    Surface.Sequential e1 e2 -> dispSequential req e1 e2
-    Surface.Tuple e1 e2 -> dispTuple (TwoOrMore.make e1 e2 [])
-    Surface.IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
-    Surface.As e1 tye2 -> dispAs req e1 tye2
-    Surface.LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
-    Surface.AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
-    Surface.AppImpOmitted e1 -> dispAppImpOmitted req e1
-
-instance Disp (Bta.BCLamBinderF ann) where
-  dispGen _ = \case
-    Surface.MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
-    Surface.MandatoryBinder (Just label) (x, tye) -> "#" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
-    Surface.ImplicitBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
+    Bta.BLiteral lit -> disp lit
+    Bta.BConstructor (ms, ctor) -> dispLongName ms ctor
+    Bta.BVar (ms, x) -> dispLongName ms x
+    Bta.BLam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
+    Bta.BLam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
+    Bta.BApp e1 labelOpt e2 -> dispApp req e1 labelOpt e2
+    Bta.BLetIn x eBody e2 -> dispLetInWithoutAnnot req x eBody e2
+    Bta.BLetTupleIn xs e1 e2 -> dispLetTupleIn req xs e1 e2
+    Bta.BLetOpenIn m e -> dispLetOpenIn req m e
+    Bta.BSequential e1 e2 -> dispSequential req e1 e2
+    Bta.BTuple es -> dispTuple es
+    Bta.BIfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
+    Bta.BAs e1 tye2 -> dispAs req e1 tye2
+    Bta.BLamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
+    Bta.BAppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
+    Bta.BAppImpOmitted e1 -> dispAppImpOmitted req e1
 
 instance Disp (Bta.BCTypeExprF ann) where
-  dispGen _ (Surface.TypeExpr (btc, _ann) typeExprMain) =
+  dispGen _ (Bta.BTypeExpr (btc, _ann) typeExprMain) =
     dispWithBindingTime btc typeExprMain
 
 instance Disp (Bta.BCTypeExprMainF ann) where
   dispGen req = \case
-    Surface.TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
-    Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
-    Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
-    Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
-    Surface.TyProduct tye1 tye2 -> dispProduct req tye1 (("*", tye2) :| [])
+    Bta.BTyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
+    Bta.BTyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
+    Bta.BTyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
+    Bta.BTyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
+    Bta.BTyProduct tye1 rest -> dispProduct req tye1 (fmap (first (const "*")) rest)
 
 instance Disp (Bta.BCArgForTypeF ann) where
   dispGen req = \case
-    Surface.ExprArg e -> dispGen req e
-    Surface.TypeArg tye -> dispGen req tye
+    Bta.BExprArg e -> dispGen req e
+    Bta.BTypeExprArg tye -> dispGen req tye
