@@ -1277,14 +1277,6 @@ instance Disp (Bta.BCExprMainF ann) where
     Bta.BAppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
     Bta.BAppImpOmitted e1 -> dispAppImpOmitted req e1
 
-{-
-instance Disp (Bta.BCLamBinderF ann) where
-  dispGen _ = \case
-    Bta.MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
-    Bta.MandatoryBinder (Just label) (x, tye) -> "#" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
-    Bta.ImplicitBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
--}
-
 instance Disp (Bta.BCTypeExprF ann) where
   dispGen _ (Bta.BTypeExpr (btc, _ann) typeExprMain) =
     dispWithBindingTime btc typeExprMain
