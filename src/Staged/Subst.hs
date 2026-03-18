@@ -10,7 +10,6 @@ module Staged.Subst
 where
 
 import Data.Functor.Identity
-import Data.List (foldl')
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Set (Set)
 import Data.Set qualified as Set

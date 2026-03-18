@@ -6,7 +6,6 @@ where
 
 import Control.Monad
 import Data.Either.Extra (mapLeft)
-import Data.List (foldl')
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)

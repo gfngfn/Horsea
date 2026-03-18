@@ -15,7 +15,6 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Function ((&))
 import Data.Functor.Identity
-import Data.List (foldl')
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map qualified as Map
