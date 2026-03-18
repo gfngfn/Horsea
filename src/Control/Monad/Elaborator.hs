@@ -1,4 +1,4 @@
-module Util.Elaborator
+module Control.Monad.Elaborator
   ( Elaborator,
     liftEither,
     getState,

@@ -59,6 +59,7 @@ library
 
     -- Modules exported by the library.
     exposed-modules:
+      Control.Monad.Elaborator,
       Data.List.TwoOrMore,
       Data.String.Util,
       Data.Text.IO.Util,
@@ -94,7 +95,6 @@ library
       Surface.Parser,
       Surface.Syntax,
       Surface.Token,
-      Util.Elaborator,
       Util.FailureReason,
       Util.FrontError,
       Util.LocationInFile,

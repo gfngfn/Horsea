@@ -20,6 +20,7 @@ module Staged.Typechecker.Monad
   )
 where
 
+import Control.Monad.Elaborator
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
@@ -29,7 +30,6 @@ import GHC.Generics (Generic)
 import Staged.SrcSyntax
 import Staged.Syntax
 import Staged.TypeError
-import Util.Elaborator
 import Util.LocationInFile (SourceSpec, SpanInFile)
 import Util.TokenUtil (Span)
 import Prelude

@@ -5,6 +5,8 @@ module Surface.BindingTime.Analyzer
 where
 
 import Control.Monad
+import Control.Monad.Elaborator hiding (run)
+import Control.Monad.Elaborator qualified as Elaborator
 import Data.Either.Extra (mapLeft)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
@@ -18,8 +20,6 @@ import Surface.BindingTime.AnalysisError
 import Surface.BindingTime.Constraint
 import Surface.BindingTime.Core
 import Surface.Syntax
-import Util.Elaborator hiding (run)
-import Util.Elaborator qualified as Elaborator
 import Util.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
 import Util.TokenUtil
 import Prelude hiding (succ)
