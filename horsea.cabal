@@ -60,6 +60,7 @@ library
     -- Modules exported by the library.
     exposed-modules:
       Data.List.TwoOrMore,
+      Data.Text.IO.Util,
       Staged.BuiltIn,
       Staged.BuiltIn.CompileTime,
       Staged.BuiltIn.Core,
@@ -94,7 +95,6 @@ library
       Util.Elaborator,
       Util.FailureReason,
       Util.FrontError,
-      Util.IO,
       Util.LocationInFile,
       Util.Matrix,
       Util.Maybe1,

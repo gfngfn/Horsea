@@ -1,4 +1,4 @@
-module Util.IO
+module Data.Text.IO.Util
   ( readFileEither,
   )
 where

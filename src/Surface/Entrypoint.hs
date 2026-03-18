@@ -8,6 +8,7 @@ import Control.Monad (unless)
 import Control.Monad.Trans.Reader
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
+import Data.Text.IO.Util (readFileEither)
 import Staged.Entrypoint qualified
 import Staged.Formatter (Disp)
 import Staged.Formatter qualified as Formatter
@@ -22,7 +23,6 @@ import Surface.BindingTime.Stager (BCExprF)
 import Surface.Parser qualified as Parser
 import Surface.Syntax
 import Util.FailureReason (FailureReason (..))
-import Util.IO (readFileEither)
 import Util.LocationInFile (SourceSpec (SourceSpec))
 import Util.LocationInFile qualified as LocationInFile
 import Util.TokenUtil (Span)

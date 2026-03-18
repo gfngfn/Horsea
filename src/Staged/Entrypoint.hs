@@ -16,6 +16,7 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
+import Data.Text.IO.Util (readFileEither)
 import Data.Tuple.Extra (first)
 import Staged.Evaluator qualified as Evaluator
 import Staged.Formatter (Disp)
@@ -30,7 +31,6 @@ import Staged.Typechecker.SigRecord (SigRecord)
 import Staged.Typechecker.TypeEnv (TypeEnv)
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
 import Util.FailureReason (FailureReason (..))
-import Util.IO (readFileEither)
 import Util.LocationInFile (SourceSpec (SourceSpec))
 import Util.LocationInFile qualified as LocationInFile
 import Prelude
