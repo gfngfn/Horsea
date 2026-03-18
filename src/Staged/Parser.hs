@@ -13,7 +13,6 @@ import Control.Lens ((^?))
 import Data.Either.Extra
 import Data.Functor
 import Data.Generics.Labels ()
-import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
@@ -173,7 +172,7 @@ expr = letin
             <|> (FunArgMandatory Nothing <$> staged)
 
         makeApp :: NonEmpty FunArg -> P Expr
-        makeApp (FunArgMandatory Nothing eFun :| args) = pure $ List.foldl' makeAppSingle eFun args
+        makeApp (FunArgMandatory Nothing eFun :| args) = pure $ foldl' makeAppSingle eFun args
         makeApp (FunArgMandatory (Just (Located loc lab)) _ :| _) = failure (Located loc (TokLabel lab))
         makeApp (FunArgOptGiven (Located loc _e) :| _) = failure (Located loc TokLeftBrace)
         makeApp (FunArgOptOmitted loc :| _) = failure (Located loc TokUnderscore)
@@ -226,7 +225,7 @@ expr = letin
     flipApp = makeFlipApp <$> ors <*> many (token TokOpFlipApp *> ors)
       where
         makeFlipApp =
-          List.foldl'
+          foldl'
             ( \eArg@(Expr locArg _) eFun@(Expr locFun _) ->
                 Expr (mergeSpan locArg locFun) (App eFun Nothing eArg)
             )

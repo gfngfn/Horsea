@@ -17,8 +17,8 @@ import Data.Either.Extra (mapLeft, maybeToEither)
 import Data.Foldable (foldrM)
 import Data.Function
 import Data.Functor.Identity
-import Data.List qualified as List
-import Data.List.Extra qualified as List
+import Data.List (length)
+import Data.List.Extra (firstJust)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map qualified as Map
@@ -44,7 +44,7 @@ import Staged.Typechecker.SigRecord qualified as SigRecord
 import Staged.Typechecker.Solution
 import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
-import Prelude
+import Prelude hiding (length)
 
 bug :: String -> a
 bug msg = error $ "bug: " ++ msg
@@ -521,7 +521,7 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
               Left ()
             Just zipped -> do
               let (trivial, equationAccResult, _varsToInfer, varSolution) =
-                    List.foldl'
+                    foldl'
                       ( \(trivialAcc, equationAcc, varsToInferAcc, varSolutionAcc) (a0e1, a0e2) ->
                           let a0e1sub = applyVarSolution varSolutionAcc a0e1
                               a0e2sub = applyVarSolution varSolutionAcc a0e2
@@ -1109,7 +1109,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                 zipped
             (result2, a0e2) <- do
               let tyEnv2 =
-                    foldl
+                    foldl'
                       ( \tyEnv' ((x, a0tye), svX) ->
                           TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv'
                       )
@@ -1524,7 +1524,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                 zipped
             (result2, a1e2) <- do
               let tyEnv2 =
-                    foldl
+                    foldl'
                       ( \tyEnv' ((x, a1tye), svX) ->
                           TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv'
                       )
@@ -1729,7 +1729,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           labels <- validateIntLiteral trav loc1 a0e1
           pure $ A0TyPrim (A0TyTextHelper labels) Nothing
         _ ->
-          typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName (List.length args)
+          typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName (length args)
     TyVar tyvar -> do
       tyvarEntry <- findTypeVar trav loc tyvar tyEnv
       case tyvarEntry of
@@ -1907,7 +1907,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
           a0eLabels <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
           pure $ A1TyPrim (A1TyTextHelper a0eLabels)
         _ ->
-          typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (List.length args)
+          typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (length args)
     TyVar _tyvar ->
       typeError trav $ CannotUseTypeVarAtStage1 spanInFile
     TyArrow labelOpt (xOpt, tye1) tye2 -> do
@@ -1980,7 +1980,7 @@ validatePersistentType trav loc a0tye =
 
 extractFromExternal :: ExternalField -> External -> Maybe Text
 extractFromExternal field0 =
-  List.firstJust (\(field, s) -> if field == field0 then Just s else Nothing)
+  firstJust (\(field, s) -> if field == field0 then Just s else Nothing)
 
 typecheckBind :: trav -> TypeEnv -> Bind -> M trav (SigRecord, [AssBind])
 typecheckBind trav tyEnv (Bind loc bindMain) =

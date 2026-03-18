@@ -11,9 +11,9 @@ module Data.Tensor.Matrix
   )
 where
 
-import Data.List qualified as List
+import Data.List (find, length, uncons)
 import Safe.Exact (zipExactMay)
-import Prelude
+import Prelude hiding (length)
 
 newtype Matrix a = Matrix [[a]]
   deriving newtype (Eq, Show)
@@ -28,34 +28,34 @@ fromRows [] = pure $ Matrix []
 fromRows rows@(firstRow : restRows) =
   if expectedLength == 0
     then Left EmptyRow -- Matrices of size (0, n) is not allowed where n > 0
-    else case List.find (\row -> List.length row /= expectedLength) restRows of
+    else case find (\row -> length row /= expectedLength) restRows of
       Just row' -> Left $ InconsistencyOfRowLength firstRow row'
       Nothing -> pure $ Matrix rows
   where
-    expectedLength = List.length firstRow
+    expectedLength = length firstRow
 
 toRows :: Matrix a -> [[a]]
 toRows (Matrix rows) = rows
 
 size :: Matrix a -> (Int, Int)
 size (Matrix []) = (0, 0)
-size (Matrix rows@(firstRow : _)) = (List.length rows, List.length firstRow)
+size (Matrix rows@(firstRow : _)) = (length rows, length firstRow)
 
 transpose :: forall a. Int -> Int -> Matrix a -> Maybe (Matrix a)
 transpose 0 0 (Matrix []) = pure $ Matrix []
 transpose m n _ | m <= 0 || n <= 0 = Nothing
 transpose m n (Matrix rows)
-  | m == List.length rows =
+  | m == length rows =
       Matrix <$> go [] n rows
   where
     go :: [[a]] -> Int -> [[a]] -> Maybe [[a]]
     go _ k _ | k < 0 = Nothing
     go acc 0 rows0 =
-      if List.all null rows0
+      if all null rows0
         then pure $ reverse acc
         else Nothing
     go acc k rows0 = do
-      firstAndRestPairs <- mapM List.uncons rows0
+      firstAndRestPairs <- mapM uncons rows0
       let column = map fst firstAndRestPairs
       let rows1 = map snd firstAndRestPairs
       go (column : acc) (k - 1) rows1
@@ -72,7 +72,7 @@ mult k m n mat1 mat2 = do
     else Nothing
   where
     calc :: [a] -> [a] -> a
-    calc row column = List.foldl' (+) 0 $ zipWith (*) row column
+    calc row column = foldl' (+) 0 $ zipWith (*) row column
 
 add :: (Num a) => Int -> Int -> Matrix a -> Matrix a -> Maybe (Matrix a)
 add m n mat1 mat2 = do

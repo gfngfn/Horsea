@@ -14,7 +14,6 @@ import Common.FrontError (FrontError (..))
 import Common.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
 import Common.ParserUtil (ParseError (..))
 import Data.Functor.Identity
-import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
@@ -112,7 +111,7 @@ disps = disps' disp
 disps' :: (a -> Doc Ann) -> [a] -> Doc Ann
 disps' f = \case
   [] -> mempty
-  first' : rest -> List.foldl' (\doc x -> doc <> "," <+> f x) (f first') rest
+  first' : rest -> foldl' (\doc x -> doc <> "," <+> f x) (f first') rest
 
 deepenParenWhen :: Bool -> Doc Ann -> Doc Ann
 deepenParenWhen b doc = if b then "(" <> nest 2 doc <> ")" else doc
@@ -336,7 +335,7 @@ dispNameWithArgs :: Associativity -> Doc Ann -> (arg -> Doc Ann) -> [arg] -> Doc
 dispNameWithArgs req name dispArg args =
   case args of
     [] -> name
-    _ : _ -> deepenParenWhen (req <= Atomic) (List.foldl' (<+>) name (map dispArg args))
+    _ : _ -> deepenParenWhen (req <= Atomic) (foldl' (<+>) name (map dispArg args))
 
 dispDatasetParam :: (a -> Doc Ann) -> (f a -> Doc Ann) -> DatasetParam f a -> Doc Ann
 dispDatasetParam dispElem dispList DatasetParam {numTrain, numTest, image, label} =
@@ -612,7 +611,7 @@ instance Disp FrontError where
     FrontLexingError s ->
       disp (Text.pack s)
     FrontParseError parseErrors ->
-      List.foldl' (\doc parseError -> doc <> hardline <> disp parseError) mempty parseErrors
+      foldl' (\doc parseError -> doc <> hardline <> disp parseError) mempty parseErrors
 
 instance Disp ParseError where
   dispGen _ = \case
@@ -1238,7 +1237,7 @@ instance (Disp bt, Disp tv) => Disp (Bta.BITypeMainF bt tv) where
     Bta.BITyBase [] ->
       "●"
     Bta.BITyBase (bt0 : bts) ->
-      deepenParenWhen (req <= Atomic) ("●" <+> List.foldl' (\doc bt -> doc <+> disp bt) (disp bt0) bts)
+      deepenParenWhen (req <= Atomic) ("●" <+> foldl' (\doc bt -> doc <+> disp bt) (disp bt0) bts)
     Bta.BITyProduct bts ->
       deepenParenWhen (req <= Atomic) (foldl1 appendWithAsterisk (fmap (dispGen Atomic) bts))
     Bta.BITyArrow bt1 bt2 ->
