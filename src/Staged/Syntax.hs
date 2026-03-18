@@ -118,6 +118,7 @@ data Ass0ExprF sv
   | A0LetTupleIn (TwoOrMore (AssVarF sv)) (Ass0ExprF sv) (Ass0ExprF sv)
   | A0Sequential (Ass0ExprF sv) (Ass0ExprF sv)
   | A0Tuple (TwoOrMore (Ass0ExprF sv))
+  | A0Constructor ConstructorName [Ass0ExprF sv]
   | A0IfThenElse (Ass0ExprF sv) (Ass0ExprF sv) (Ass0ExprF sv)
   | A0Bracket (Ass1ExprF sv)
   | A0TyEqAssert Span (Type1EquationF sv)
@@ -316,6 +317,7 @@ liftPrimType = \case
 data Ass0ValF sv
   = A0ValLiteral (AssLiteralF Ass0ValF sv)
   | A0ValTuple (TwoOrMore (Ass0ValF sv))
+  | A0ValConstructor ConstructorName [Ass0ValF sv]
   | -- | Function closures.
     A0ValLam (Maybe (AssVarF sv, Ass0TypeValF sv)) (AssVarF sv, Ass0TypeValF sv) (Ass0ExprF sv) EvalEnv
   | -- | code fragments.
@@ -344,6 +346,7 @@ data Ass0TypeValF sv
     A0TyValPrim Ass0PrimType (Maybe (Ass0ValF sv))
   | -- | List types possibly equipped with a refinement predicate.
     A0TyValList (Ass0TypeValF sv) (Maybe (Ass0ValF sv))
+  | A0TyValMaybe (Ass0TypeValF sv)
   | A0TyValVar AssTypeVar
   | A0TyValProduct (TwoOrMore (Ass0TypeValF sv))
   | A0TyValArrow (Maybe (AssVarF sv), Ass0TypeValF sv) (StrictAss0TypeExprF sv)
@@ -355,6 +358,7 @@ data Ass0TypeValF sv
 data Ass1TypeValF sv
   = A1TyValPrim Ass1PrimTypeVal
   | A1TyValList (Ass1TypeValF sv)
+  | A1TyValMaybe (Ass1TypeValF sv)
   | A1TyValVar AssTypeVar
   | A1TyValProduct (TwoOrMore (Ass1TypeValF sv))
   | A1TyValArrow (Maybe Label) (Ass1TypeValF sv) (Ass1TypeValF sv)

@@ -350,6 +350,9 @@ evalExpr0 env = \case
   A0Tuple a0es -> do
     a0vs <- mapM (evalExpr0 env) a0es
     pure $ A0ValTuple a0vs
+  A0Constructor ctor a0es -> do
+    a0vs <- mapM (evalExpr0 env) a0es
+    pure $ A0ValConstructor ctor a0vs
   A0IfThenElse a0e0 a0e1 a0e2 -> do
     a0v0 <- evalExpr0 env a0e0
     b <- validateBoolLiteral "if" a0v0
@@ -460,6 +463,9 @@ evalTypeExpr0 env = \case
     a0tyv1 <- evalTypeExpr0 env sa0tye1
     maybeVPred <- mapM (evalExpr0 env) maybePred
     pure $ A0TyValList a0tyv1 maybeVPred
+  SA0TyMaybe sa0tye1 -> do
+    a0tyv1 <- evalTypeExpr0 env sa0tye1
+    pure $ A0TyValMaybe a0tyv1
   SA0TyProduct sa0tyes -> do
     a0tyvs <- mapM (evalTypeExpr0 env) sa0tyes
     pure $ A0TyValProduct a0tyvs
@@ -503,6 +509,9 @@ evalTypeExpr1 env = \case
   A1TyList a1tye -> do
     a1tyv <- evalTypeExpr1 env a1tye
     pure $ A1TyValList a1tyv
+  A1TyMaybe a1tye -> do
+    a1tyv <- evalTypeExpr1 env a1tye
+    pure $ A1TyValMaybe a1tyv
   A1TyVar atyvar ->
     pure $ A1TyValVar atyvar
   A1TyProduct a1tyes -> do
@@ -557,6 +566,8 @@ unliftTypeVal = \case
      in SA0TyPrim a0tyPrim Nothing
   A1TyValList a1tyv ->
     SA0TyList (unliftTypeVal a1tyv) Nothing
+  A1TyValMaybe a1tyv ->
+    SA0TyMaybe (unliftTypeVal a1tyv)
   A1TyValVar atyvar ->
     SA0TyVar atyvar
   A1TyValProduct a1tyvs ->

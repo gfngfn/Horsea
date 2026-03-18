@@ -216,6 +216,12 @@ dispTuple :: (Disp expr) => TwoOrMore expr -> Doc Ann
 dispTuple es =
   "(" <> nest 2 (foldl1 appendWithComma (fmap disp es)) <> ")"
 
+dispConstructorApp :: (Disp expr) => Associativity -> ConstructorName -> [expr] -> Doc Ann
+dispConstructorApp req ctor args =
+  case args of
+    [] -> disp ctor
+    _ : _ -> deepenParenWhen (req <= Atomic) (foldl' (<+>) (disp ctor) (map disp args))
+
 dispIfThenElse :: (Disp expr) => Associativity -> expr -> expr -> expr -> Doc Ann
 dispIfThenElse req e0 e1 e2 =
   deepenParenWhen (req <= FunDomain) $
@@ -508,6 +514,7 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
     A0LetTupleIn xs a0e1 a0e2 -> dispLetTupleIn req xs a0e1 a0e2
     A0Sequential a0e1 a0e2 -> dispSequential req a0e1 a0e2
     A0Tuple a0es -> dispTuple a0es
+    A0Constructor ctor a0es -> dispConstructorApp req ctor a0es
     A0Bracket a1e1 -> dispBracket a1e1
     A0IfThenElse a0e0 a0e1 a0e2 -> dispIfThenElse req a0e0 a0e1 a0e2
     A0TyEqAssert _loc ty1eq ->
@@ -947,7 +954,8 @@ instance (Disp sv, Disp (af sv)) => Disp (ResultF af sv) where
 instance (Disp sv) => Disp (Ass0ValF sv) where
   dispGen req = \case
     A0ValLiteral lit -> disp lit
-    A0ValTuple a1vs -> dispTuple a1vs
+    A0ValTuple a0vs -> dispTuple a0vs
+    A0ValConstructor ctor a0vs -> dispConstructorApp req ctor a0vs
     A0ValLam Nothing (x, a0tyv1) a0v2 _env -> dispNonrecLam req Nothing x a0tyv1 a0v2
     A0ValLam (Just (f, a0tyvRec)) (x, a0tyv1) a0v2 _env -> dispRecLam req f a0tyvRec Nothing x a0tyv1 a0v2
     A0ValBracket a1v1 -> dispBracket a1v1
@@ -1038,6 +1046,7 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
     A0TyValVar atyvar -> disp atyvar
     A0TyValList a0tyv1 Nothing -> dispListType req a0tyv1
     A0TyValList a0tyv1 (Just a0vPred) -> dispInternalRefinementListType req a0tyv1 a0vPred
+    A0TyValMaybe a0tyv1 -> dispMaybeType req a0tyv1
     A0TyValProduct a0tyvs ->
       let (a0tyv1, a0tyvsRest) = TwoOrMore.decompose1 a0tyvs
        in dispProduct req a0tyv1 (fmap ("*",) a0tyvsRest)
@@ -1049,6 +1058,7 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case
     A1TyValPrim a1tyvPrim -> dispGen req a1tyvPrim
     A1TyValList a1tyv -> dispListType req a1tyv
+    A1TyValMaybe a1tyv -> dispMaybeType req a1tyv
     A1TyValVar atyvar -> disp atyvar
     A1TyValProduct a1tyvs ->
       let (a1tyv1, a1tyvsRest) = TwoOrMore.decompose1 a1tyvs

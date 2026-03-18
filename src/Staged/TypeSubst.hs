@@ -143,6 +143,7 @@ instance HasTypeVar Ass0ExprF where
     A0LetTupleIn xs a0e1 a0e2 -> A0LetTupleIn xs (go a0e1) (go a0e2)
     A0Sequential a0e1 a0e2 -> A0Sequential (go a0e1) (go a0e2)
     A0Tuple a0es -> A0Tuple (fmap go a0es)
+    A0Constructor ctor a0es -> A0Constructor ctor (map go a0es)
     A0IfThenElse a0e0 a0e1 a0e2 -> A0IfThenElse (go a0e0) (go a0e1) (go a0e2)
     A0Bracket a1e -> A0Bracket (go a1e)
     A0TyEqAssert loc ty1eq -> A0TyEqAssert loc (go ty1eq)
