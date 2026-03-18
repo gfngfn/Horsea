@@ -61,6 +61,7 @@ library
     exposed-modules:
       Common.FailureReason,
       Common.FrontError,
+      Common.Formatter,
       Common.LocationInFile,
       Common.ParserUtil,
       Common.TokenUtil,
@@ -79,7 +80,6 @@ library
       Staged.Entrypoint,
       Staged.EvalError,
       Staged.Evaluator,
-      Staged.Formatter,
       Staged.Parser,
       Staged.SrcSyntax,
       Staged.Subst,

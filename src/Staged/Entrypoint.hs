@@ -8,6 +8,8 @@ module Staged.Entrypoint
 where
 
 import Common.FailureReason (FailureReason (..))
+import Common.Formatter (Disp)
+import Common.Formatter qualified as Formatter
 import Common.LocationInFile (SourceSpec (SourceSpec))
 import Common.LocationInFile qualified as LocationInFile
 import Control.Lens ((^?))
@@ -22,8 +24,6 @@ import Data.Text (Text)
 import Data.Text.IO.Util (readFileEither)
 import Data.Tuple.Extra (first)
 import Staged.Evaluator qualified as Evaluator
-import Staged.Formatter (Disp)
-import Staged.Formatter qualified as Formatter
 import Staged.Parser qualified as Parser
 import Staged.SrcSyntax
 import Staged.Syntax

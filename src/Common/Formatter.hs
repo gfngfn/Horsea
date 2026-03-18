@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Staged.Formatter
+module Common.Formatter
   ( Disp (..),
     render,
     putRenderedLines,
