@@ -79,6 +79,7 @@ library
       Staged.Typechecker,
       Staged.Typechecker.Monad,
       Staged.Typechecker.SigRecord,
+      Staged.Typechecker.Solution,
       Staged.Typechecker.TypeEnv,
       Surface.BindingTime,
       Surface.BindingTime.AnalysisError,

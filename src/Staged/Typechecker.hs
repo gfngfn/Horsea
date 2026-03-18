@@ -11,7 +11,7 @@ where
 
 import Control.Monad
 import Data.Bifunctor (bimap)
-import Data.Either.Extra
+import Data.Either.Extra (mapLeft, maybeToEither)
 import Data.Foldable (foldrM)
 import Data.Function
 import Data.Functor.Identity
@@ -19,14 +19,13 @@ import Data.List qualified as List
 import Data.List.Extra qualified as List
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
-import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Traversable.Compat (mapAccumM)
-import Data.Tuple.Extra
-import Safe.Exact
+import Data.Tuple.Extra (both)
+import Safe.Exact (zipExactMay)
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
 import Staged.Core
@@ -34,10 +33,10 @@ import Staged.SrcSyntax
 import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
-import Staged.TypeSubst
 import Staged.Typechecker.Monad
 import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
+import Staged.Typechecker.Solution
 import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
 import Util.LocationInFile (SpanInFile, getSpanInFile)
@@ -706,46 +705,6 @@ mergeResultsByConditional0 trav loc a0e0 = go
           pure $ Just (a0branch a0e1 a0e2)
         (Just a0e1, Just a0e2) -> do
           pure $ Just (a0branch a0e1 a0e2)
-
-type VarSolution = Map AssVar (Ass0Expr, Ass0TypeExpr)
-
-type TypeVar0Solution = Map AssTypeVar Ass0TypeExpr
-
-type TypeVar1Solution = Map AssTypeVar Ass1TypeExpr
-
-applyVarSolution :: forall af. (HasVar StaticVar af) => VarSolution -> af StaticVar -> af StaticVar
-applyVarSolution varSolution entity =
-  Map.foldrWithKey (flip subst0) entity (Map.map fst varSolution)
-
-applyTypeVar0Solution :: forall af. (HasTypeVar af) => TypeVar0Solution -> af StaticVar -> af StaticVar
-applyTypeVar0Solution tyvar0Solution entity =
-  Map.foldrWithKey (flip tySubst0) entity tyvar0Solution
-
-applyTypeVar1Solution :: forall af. (HasTypeVar af) => TypeVar1Solution -> af StaticVar -> af StaticVar
-applyTypeVar1Solution tyvar1Solution entity =
-  Map.foldrWithKey (flip tySubst1) entity tyvar1Solution
-
-composeVarSolution :: VarSolution -> VarSolution -> VarSolution
-composeVarSolution solNew solOld =
-  Map.union
-    solNew
-    (Map.map (\(a0e, a0tye) -> (applyVarSolution solNew a0e, applyVarSolution solNew a0tye)) solOld)
-
-composeTypeVar0Solution :: TypeVar0Solution -> TypeVar0Solution -> TypeVar0Solution
-composeTypeVar0Solution solNew solOld =
-  Map.union solNew (Map.map (applyTypeVar0Solution solNew) solOld)
-
-composeTypeVar1Solution :: TypeVar1Solution -> TypeVar1Solution -> TypeVar1Solution
-composeTypeVar1Solution solNew solOld =
-  Map.union solNew (Map.map (applyTypeVar1Solution solNew) solOld)
-
-applySolution0 :: forall af. (HasVar StaticVar af, HasTypeVar af) => VarSolution -> TypeVar0Solution -> af StaticVar -> af StaticVar
-applySolution0 varSolution tyvar0Solution entity =
-  applyTypeVar0Solution tyvar0Solution (applyVarSolution varSolution entity)
-
-applySolution1 :: forall af. (HasVar StaticVar af, HasTypeVar af) => VarSolution -> TypeVar1Solution -> af StaticVar -> af StaticVar
-applySolution1 varSolution tyvar1Solution entity =
-  applyTypeVar1Solution tyvar1Solution (applyVarSolution varSolution entity)
 
 instantiateGuidedByAppContext0 :: forall trav. trav -> Span -> AppContext -> Ass0TypeExpr -> M trav Result0
 instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
