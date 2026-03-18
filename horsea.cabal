@@ -60,6 +60,7 @@ library
     -- Modules exported by the library.
     exposed-modules:
       Data.List.TwoOrMore,
+      Data.String.Util,
       Data.Text.IO.Util,
       Data.Maybe1,
       Staged.BuiltIn,
@@ -99,7 +100,6 @@ library
       Util.LocationInFile,
       Util.Matrix,
       Util.ParserUtil,
-      Util.String,
       Util.TokenUtil,
       Util.Vector
 

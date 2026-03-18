@@ -8,13 +8,13 @@ where
 import Data.List (intercalate)
 import Data.List qualified as List
 import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.String.Util (snakeToCamel, uppercase)
 import Data.Text qualified as Text
 import Language.Haskell.TH qualified as TH
 import Safe (atMay, initMay, lastMay)
 import Safe.Exact (zipExactMay)
 import Staged.BuiltIn.CompileTime
 import Util.Matrix qualified as Matrix
-import Util.String (snakeToCamel, uppercase)
 import Util.Vector qualified as Vector
 import Prelude
 

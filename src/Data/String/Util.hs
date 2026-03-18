@@ -1,4 +1,4 @@
-module Util.String
+module Data.String.Util
   ( snakeToCamel,
     uppercase,
   )
