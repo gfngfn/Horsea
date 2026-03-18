@@ -904,15 +904,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
     =<< case eMain of
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
-      TyVar _ ->
-        error "TODO (error): typecheckExpr0, TyVar"
-      TyArrow _ _ _ ->
-        error "TODO (error): typecheckExpr0, TyArrow"
-      TyImpArrow _ _ ->
-        error "TODO (error): typecheckExpr0, TyImpArrow"
-      TyRefinement _ _ _ ->
-        error "TODO (error): typecheckExpr0, TyRefinement"
-      TyForAll _ _ ->
+      TyVar _; TyArrow _ _ _; TyImpArrow _ _; TyRefinement _ _ _; TyForAll _ _ ->
         error "TODO (error): typecheckExpr0, TyForAll"
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr0, Constructor"
@@ -1350,17 +1342,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
   completeInferredImplicit
     <$> case eMain of
-      Persistent _ ->
-        error "TODO (error): typecheckExpr1, Persistent"
-      TyVar _ ->
-        error "TODO (error): typecheckExpr1, TyVar"
-      TyArrow _ _ _ ->
-        error "TODO (error): typecheckExpr1, TyArrow"
-      TyImpArrow _ _ ->
-        error "TODO (error): typecheckExpr1, TyImpArrow"
-      TyRefinement _ _ _ ->
-        error "TODO (error): typecheckExpr1, TyRefinement"
-      TyForAll _ _ ->
+      Persistent _; TyVar _; TyArrow _ _ _; TyImpArrow _ _; TyRefinement _ _ _; TyForAll _ _ ->
         error "TODO (error): typecheckExpr1, TyForAll"
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr1, Constructor"
