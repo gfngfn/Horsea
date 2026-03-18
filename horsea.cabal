@@ -61,6 +61,7 @@ library
     exposed-modules:
       Data.List.TwoOrMore,
       Data.Text.IO.Util,
+      Data.Maybe1,
       Staged.BuiltIn,
       Staged.BuiltIn.CompileTime,
       Staged.BuiltIn.Core,
@@ -97,7 +98,6 @@ library
       Util.FrontError,
       Util.LocationInFile,
       Util.Matrix,
-      Util.Maybe1,
       Util.ParserUtil,
       Util.String,
       Util.TokenUtil,

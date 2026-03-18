@@ -20,6 +20,7 @@ import Data.List.Extra qualified as List
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map qualified as Map
+import Data.Maybe1
 import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Data.Text (Text)
@@ -41,7 +42,6 @@ import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
 import Util.LocationInFile (SpanInFile, getSpanInFile)
 import Util.Matrix qualified as Matrix
-import Util.Maybe1
 import Util.TokenUtil (Span)
 import Util.Vector qualified as Vector
 import Prelude

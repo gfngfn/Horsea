@@ -1,4 +1,4 @@
-module Util.Maybe1
+module Data.Maybe1
   ( Maybe1 (..),
     unMaybe1,
   )

@@ -6,10 +6,10 @@ module Staged.TypeSubst
 where
 
 import Data.Functor.Identity
+import Data.Maybe1
 import Data.Tuple.Extra
 import Staged.Core
 import Staged.Syntax
-import Util.Maybe1
 import Prelude
 
 data TypeSubstF sv
