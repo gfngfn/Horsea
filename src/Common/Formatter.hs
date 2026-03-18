@@ -258,6 +258,11 @@ dispListType req tye =
   deepenParenWhen (req <= Atomic) $
     group ("List" <+> dispGen Atomic tye)
 
+dispMaybeType :: (Disp ty) => Associativity -> ty -> Doc Ann
+dispMaybeType req tye =
+  deepenParenWhen (req <= Atomic) $
+    group ("Maybe" <+> dispGen Atomic tye)
+
 dispProduct :: (Disp ty) => Associativity -> ty -> NonEmpty (Text, ty) -> Doc Ann
 dispProduct req tye1 rest =
   deepenParenWhen (req <= Atomic) $
@@ -563,6 +568,7 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyVar atyvar -> disp atyvar
     A0TyList a0tye Nothing -> dispListType req a0tye
     A0TyList a0tye (Just a0ePred) -> dispInternalRefinementListType req a0tye a0ePred
+    A0TyMaybe a0tye -> dispMaybeType req a0tye
     A0TyProduct a0tyes -> dispProductType req a0tyes
     A0TyArrow labelOpt (xOpt, a0tye1) a0tye2 -> dispArrowType req labelOpt xOpt a0tye1 a0tye2
     A0TyCode a1tye1 -> dispBracket a1tye1
@@ -576,6 +582,7 @@ instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
     SA0TyVar atyvar -> disp atyvar
     SA0TyList sa0tye Nothing -> dispListType req sa0tye
     SA0TyList sa0tye (Just a0ePred) -> dispInternalRefinementListType req sa0tye a0ePred
+    SA0TyMaybe sa0tye -> dispMaybeType req sa0tye
     SA0TyProduct sa0tyes -> dispProductType req sa0tyes
     SA0TyArrow (xOpt, sa0tye1) sa0tye2 -> dispArrowType req Nothing xOpt sa0tye1 sa0tye2
     SA0TyCode a1tye1 -> dispBracket a1tye1
@@ -601,6 +608,7 @@ instance (Disp sv) => Disp (Ass1TypeExprF sv) where
   dispGen req = \case
     A1TyPrim a1tyPrim -> dispGen req a1tyPrim
     A1TyList a1tye -> dispListType req a1tye
+    A1TyMaybe a1tye -> dispMaybeType req a1tye
     A1TyVar atyvar -> disp atyvar
     A1TyProduct a1tyes -> dispProductType req a1tyes
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2

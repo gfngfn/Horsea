@@ -187,6 +187,13 @@ makeAssertiveCast trav loc =
                     A0Lam Nothing (ax, strictify a0tye1) $
                       A0App a0eCast2 (A0App a0eCast1 (A0Var ax))
           pure (castForList, varSolution, tyvar0Solution)
+        (A0TyMaybe a0tye1', A0TyMaybe a0tye2') -> do
+          (castForElem, varSolution, tyvar0Solution) <- go varsToInfer tyvars0ToInfer a0tye1' a0tye2'
+          let castForMaybe =
+                case castForElem of
+                  Nothing -> Nothing
+                  Just a0eCastForElem -> Just (A0App ass0exprMaybeMap a0eCastForElem)
+          pure (castForMaybe, varSolution, tyvar0Solution)
         (A0TyProduct a0tyes1, A0TyProduct a0tyes2) -> do
           zipped <-
             case TwoOrMore.zipExact a0tyes1 a0tyes2 of
@@ -462,6 +469,9 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
         (A1TyList a1tye1elem, A1TyList a1tye2elem) -> do
           (trivial, ty1eqElem, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1elem a1tye2elem
           pure (trivial, TyEq1List ty1eqElem, varSolution, tyvar1Solution)
+        (A1TyMaybe a1tye1elem, A1TyMaybe a1tye2elem) -> do
+          (trivial, ty1eqElem, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1elem a1tye2elem
+          pure (trivial, TyEq1Maybe ty1eqElem, varSolution, tyvar1Solution)
         (A1TyProduct a1tyes1, A1TyProduct a1tyes2) -> do
           zipped <-
             case TwoOrMore.zipExact a1tyes1 a1tyes2 of
@@ -566,6 +576,9 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
           a0tye <- go0 a0tye1' a0tye2'
           maybePred <- mergeRefinementPredicates (SA0TyList (strictify a0tye1')) maybePred1 maybePred2
           pure $ A0TyList a0tye maybePred
+        (A0TyMaybe a0tye1', A0TyMaybe a0tye2') -> do
+          a0tye <- go0 a0tye1' a0tye2'
+          pure $ A0TyMaybe a0tye
         (A0TyArrow labelOpt1 (x1opt, a0tye11) a0tye12, A0TyArrow labelOpt2 (x2opt, a0tye21) a0tye22) -> do
           if labelOpt1 /= labelOpt2
             then
@@ -1693,6 +1706,9 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
         ("List", [arg1]) -> do
           a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
           pure $ A0TyList a0tye1 Nothing
+        ("Maybe", [arg1]) -> do
+          a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
+          pure $ A0TyMaybe a0tye1
         ("Vec", [arg1@(Expr loc1 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           n1 <- validateIntLiteral trav loc1 a0e1
@@ -1818,6 +1834,9 @@ ass0exprAnd = A0BuiltInName (BuiltInArity2 BIAnd)
 ass0exprListMap :: Ass0Expr
 ass0exprListMap = A0BuiltInName (BuiltInArity2 BIListMap)
 
+ass0exprMaybeMap :: Ass0Expr
+ass0exprMaybeMap = error "TODO: ass0exprMaybeMap"
+
 validatePersistentExprArg1 :: trav -> Expr -> M trav Expr
 validatePersistentExprArg1 trav (Expr loc eMain) =
   case eMain of
@@ -1861,6 +1880,9 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         ("List", [tye]) -> do
           a1tye <- typecheckTypeExpr1 trav tyEnv tye
           pure $ A1TyList a1tye
+        ("Maybe", [tye]) -> do
+          a1tye <- typecheckTypeExpr1 trav tyEnv tye
+          pure $ A1TyMaybe a1tye
         ("Vec", [arg]) -> do
           e <- validatePersistentExprArg1 trav arg
           a0e <- forceExpr0 trav tyEnv BuiltIn.tyNat e
@@ -1962,6 +1984,8 @@ validatePersistentType trav loc a0tye =
         case maybePred of
           Nothing -> APersTyList <$> go a0tye'
           Just _ -> Nothing
+      A0TyMaybe a0tye' ->
+        APersTyMaybe <$> go a0tye'
       A0TyProduct a0tyes ->
         APersTyProduct <$> mapM go a0tyes
       A0TyArrow labelOpt (Nothing, a0tye1) a0tye2 -> do

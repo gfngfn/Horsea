@@ -164,6 +164,9 @@ fromStaged0 = goPoly 0 Map.empty
             Staged.A0TyList a0tye' _maybePred -> do
               bity <- go a0tye'
               pure . wrap0 $ BITyBase [bity]
+            Staged.A0TyMaybe a0tye' -> do
+              bity <- go a0tye'
+              pure . wrap0 $ BITyBase [bity]
             Staged.A0TyProduct a0tyes -> do
               bitys <- mapM go a0tyes
               pure $ wrap0 (BITyProduct bitys)
@@ -183,6 +186,8 @@ fromStaged1 = \case
   Staged.A1TyPrim _a1tyPrim ->
     wrap1 $ BITyBase []
   Staged.A1TyList a1tye' ->
+    wrap1 $ BITyBase [fromStaged1 a1tye']
+  Staged.A1TyMaybe a1tye' ->
     wrap1 $ BITyBase [fromStaged1 a1tye']
   Staged.A1TyVar _atyvar ->
     -- Handles order-0 type variables only:
@@ -217,6 +222,9 @@ fromStagedPers = goPoly 0 Map.empty
                 Nothing -> error "bug: fromStagedPers, type variable not found"
                 Just bitv -> pure . wrapP $ BITyVar bitv
             Staged.APersTyList aPtye' -> do
+              bity <- go aPtye'
+              pure . wrapP $ BITyBase [bity]
+            Staged.APersTyMaybe aPtye' -> do
               bity <- go aPtye'
               pure . wrapP $ BITyBase [bity]
             Staged.APersTyProduct aPtyes -> do

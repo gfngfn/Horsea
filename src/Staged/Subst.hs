@@ -356,6 +356,8 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
       (Set.empty, Set.empty)
     A0TyList a0tye maybePred ->
       unionPairs [frees a0tye, frees (Maybe1 maybePred)]
+    A0TyMaybe a0tye ->
+      frees a0tye
     A0TyProduct a0tyes ->
       unionPairs (map frees (TwoOrMore.toList a0tyes))
     A0TyArrow _labelOpt (yOpt, a0tye1) a0tye2 ->
@@ -386,6 +388,8 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
       A0TyVar atyvar
     A0TyList a0tye maybePred ->
       A0TyList (go a0tye) (unMaybe1 . go . Maybe1 $ maybePred)
+    A0TyMaybe a0tye ->
+      A0TyMaybe (go a0tye)
     A0TyProduct a0tyes ->
       A0TyProduct (fmap go a0tyes)
     A0TyArrow labelOpt (yOpt, a0tye1) a0tye2 ->
@@ -462,6 +466,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
           frees a0e
     A1TyList a1tye1 ->
       frees a1tye1
+    A1TyMaybe a1tye1 ->
+      frees a1tye1
     A1TyVar _atyvar ->
       (Set.empty, Set.empty)
     A1TyProduct a1tyes ->
@@ -481,6 +487,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
         A1TyTextHelper a0e -> A1TyTextHelper (go a0e)
     A1TyList a1tye1 ->
       A1TyList (go a1tye1)
+    A1TyMaybe a1tye1 ->
+      A1TyMaybe (go a1tye1)
     A1TyVar atyvar ->
       A1TyVar atyvar
     A1TyProduct a1tyes ->
@@ -521,6 +529,8 @@ instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
       (Set.empty, Set.empty)
     SA0TyList a0tye maybePred ->
       unionPairs [frees a0tye, frees (Maybe1 maybePred)]
+    SA0TyMaybe a0tye ->
+      frees a0tye
     SA0TyProduct a0tyes ->
       unionPairs (map frees (TwoOrMore.toList a0tyes))
     SA0TyArrow (yOpt, a0tye1) a0tye2 ->
@@ -545,6 +555,8 @@ instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
       SA0TyVar atyvar
     SA0TyList a0tye maybePred ->
       SA0TyList (go a0tye) (unMaybe1 . go . Maybe1 $ maybePred)
+    SA0TyMaybe a0tye ->
+      SA0TyMaybe (go a0tye)
     SA0TyProduct a0tyes ->
       SA0TyProduct (fmap go a0tyes)
     SA0TyArrow (yOpt, sa0tye1) sa0tye2 ->
@@ -601,6 +613,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
         TyEq1TextHelper (labels1, labels2) -> unionPairs [frees labels1, frees labels2]
     TyEq1List ty1eqElem ->
       frees ty1eqElem
+    TyEq1Maybe ty1eqElem ->
+      frees ty1eqElem
     TyEq1Arrow _labelOpt ty1eqDom ty1eqCod ->
       unionPairs [frees ty1eqDom, frees ty1eqCod]
     TyEq1Product ty1eqs ->
@@ -621,6 +635,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
           TyEq1TextHelper (labels1, labels2) -> TyEq1TextHelper (go labels1, go labels2)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
+    TyEq1Maybe ty1eqElem ->
+      TyEq1Maybe (go ty1eqElem)
     TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
       TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
     TyEq1Product ty1eqs ->

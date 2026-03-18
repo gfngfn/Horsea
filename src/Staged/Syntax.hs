@@ -170,6 +170,7 @@ data Ass0TypeExprF sv
     A0TyPrim Ass0PrimType (Maybe (Ass0ExprF sv))
   | -- | List types possibly equipped with a refinement predicate.
     A0TyList (Ass0TypeExprF sv) (Maybe (Ass0ExprF sv))
+  | A0TyMaybe (Ass0TypeExprF sv)
   | A0TyVar AssTypeVar
   | A0TyProduct (TwoOrMore (Ass0TypeExprF sv))
   | -- | (Possibly dependent) function types.
@@ -188,6 +189,7 @@ data StrictAss0TypeExprF sv
     SA0TyPrim Ass0PrimType (Maybe (Ass0ExprF sv))
   | -- | List types possibly equipped with a refinement predicate.
     SA0TyList (StrictAss0TypeExprF sv) (Maybe (Ass0ExprF sv))
+  | SA0TyMaybe (StrictAss0TypeExprF sv)
   | SA0TyVar AssTypeVar
   | SA0TyProduct (TwoOrMore (StrictAss0TypeExprF sv))
   | -- | (Possibly dependent) function types.
@@ -242,6 +244,7 @@ data Ass0PrimType
 data Ass1TypeExprF sv
   = A1TyPrim (Ass1PrimTypeF sv)
   | A1TyList (Ass1TypeExprF sv)
+  | A1TyMaybe (Ass1TypeExprF sv)
   | A1TyVar AssTypeVar
   | A1TyProduct (TwoOrMore (Ass1TypeExprF sv))
   | A1TyArrow (Maybe Label) (Ass1TypeExprF sv) (Ass1TypeExprF sv)
@@ -261,6 +264,7 @@ data AssPersTypeExpr
   = APersTyPrim Ass0PrimType
   | APersTyVar AssTypeVar
   | APersTyList AssPersTypeExpr
+  | APersTyMaybe AssPersTypeExpr
   | APersTyProduct (TwoOrMore AssPersTypeExpr)
   | APersTyArrow (Maybe Label) AssPersTypeExpr AssPersTypeExpr
   | APersTyImplicitForAll AssTypeVar AssPersTypeExpr
@@ -271,6 +275,7 @@ persistentTypeTo0 = \case
   APersTyPrim a0tyPrim -> A0TyPrim a0tyPrim Nothing
   APersTyVar atyvar -> A0TyVar atyvar
   APersTyList aPtye -> A0TyList (persistentTypeTo0 aPtye) Nothing
+  APersTyMaybe aPtye -> A0TyMaybe (persistentTypeTo0 aPtye)
   APersTyProduct aPtyes -> A0TyProduct (fmap persistentTypeTo0 aPtyes)
   APersTyArrow labelOpt aPtye1 aPtye2 -> A0TyArrow labelOpt (Nothing, persistentTypeTo0 aPtye1) (persistentTypeTo0 aPtye2)
   APersTyImplicitForAll atyvar aPtye -> A0TyImplicitForAll atyvar (persistentTypeTo0 aPtye)
@@ -280,6 +285,7 @@ persistentTypeTo1 = \case
   APersTyPrim a0tyPrim -> A1TyPrim (liftPrimType a0tyPrim)
   APersTyVar atyvar -> A1TyVar atyvar
   APersTyList aPtye -> A1TyList (persistentTypeTo1 aPtye)
+  APersTyMaybe aPtye -> A1TyMaybe (persistentTypeTo1 aPtye)
   APersTyProduct aPtyes -> A1TyProduct (fmap persistentTypeTo1 aPtyes)
   APersTyArrow labelOpt aPtye1 aPtye2 -> A1TyArrow labelOpt (persistentTypeTo1 aPtye1) (persistentTypeTo1 aPtye2)
   APersTyImplicitForAll atyvar aPtye -> A1TyImplicitForAll atyvar (persistentTypeTo1 aPtye)
@@ -367,6 +373,7 @@ data Ass1PrimTypeVal
 data Type1EquationF sv
   = TyEq1Prim (Type1PrimEquationF sv)
   | TyEq1List (Type1EquationF sv)
+  | TyEq1Maybe (Type1EquationF sv)
   | TyEq1Arrow (Maybe Label) (Type1EquationF sv) (Type1EquationF sv)
   | TyEq1Product (TwoOrMore (Type1EquationF sv))
   | -- | Only for trivial equations.
@@ -431,6 +438,7 @@ strictify = \case
   A0TyPrim a0tyPrim maybePred -> SA0TyPrim a0tyPrim maybePred
   A0TyVar atyvar -> SA0TyVar atyvar
   A0TyList a0tye maybePred -> SA0TyList (strictify a0tye) maybePred
+  A0TyMaybe a0tye -> SA0TyMaybe (strictify a0tye)
   A0TyProduct a0tyes -> SA0TyProduct (fmap strictify a0tyes)
   A0TyArrow _labelOpt (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, strictify a0tye1) (strictify a0tye2)
   A0TyCode a1tye1 -> SA0TyCode a1tye1
@@ -470,6 +478,8 @@ makeTrivialEquationFromType1 = \case
           TyEq1TextHelper (a0e, a0e)
   A1TyList a1tye ->
     TyEq1List (makeTrivialEquationFromType1 a1tye)
+  A1TyMaybe a1tye ->
+    TyEq1Maybe (makeTrivialEquationFromType1 a1tye)
   A1TyVar atyvar ->
     TyEq1TypeVar atyvar
   A1TyProduct a1tyes ->
@@ -515,6 +525,9 @@ decomposeType1Equation = \case
   TyEq1List ty1eqElem ->
     let (a1tye1elem, a1tye2elem) = decomposeType1Equation ty1eqElem
      in (A1TyList a1tye1elem, A1TyList a1tye2elem)
+  TyEq1Maybe ty1eqElem ->
+    let (a1tye1elem, a1tye2elem) = decomposeType1Equation ty1eqElem
+     in (A1TyMaybe a1tye1elem, A1TyMaybe a1tye2elem)
   TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
     let (a1tye11, a1tye21) = decomposeType1Equation ty1eqDom
         (a1tye12, a1tye22) = decomposeType1Equation ty1eqCod

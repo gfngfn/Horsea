@@ -39,6 +39,8 @@ instance HasTypeVar Ass0TypeExprF where
         TypeSubst1 _ _ -> A0TyVar atyvar
     A0TyList a0tye1 maybePred ->
       A0TyList (go a0tye1) ((unMaybe1 . go . Maybe1) maybePred)
+    A0TyMaybe a0tye1 ->
+      A0TyMaybe (go a0tye1)
     A0TyProduct a0tyes ->
       A0TyProduct (fmap go a0tyes)
     A0TyArrow labelOpt (svOpt, a0tye1) a0tye2 ->
@@ -67,6 +69,8 @@ instance HasTypeVar StrictAss0TypeExprF where
         TypeSubst1 _ _ -> SA0TyVar atyvar
     SA0TyList sa0tye1 maybePred ->
       SA0TyList (go sa0tye1) ((unMaybe1 . go . Maybe1) maybePred)
+    SA0TyMaybe a0tye1 ->
+      SA0TyMaybe (go a0tye1)
     SA0TyProduct sa0tyes ->
       SA0TyProduct (fmap go sa0tyes)
     SA0TyArrow (svOpt, sa0tye1) sa0tye2 ->
@@ -87,6 +91,7 @@ instance HasTypeVar Ass1TypeExprF where
   tySubst s = \case
     A1TyPrim a1tyPrim -> A1TyPrim (go a1tyPrim)
     A1TyList a1tye1 -> A1TyList (go a1tye1)
+    A1TyMaybe a1tye1 -> A1TyMaybe (go a1tye1)
     A1TyVar atyvar ->
       case s of
         TypeSubst0 _ _ -> A1TyVar atyvar
@@ -165,6 +170,8 @@ instance HasTypeVar Type1EquationF where
           TyEq1TextHelper (labels1, labels2) -> TyEq1TextHelper (go labels1, go labels2)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
+    TyEq1Maybe ty1eqElem ->
+      TyEq1Maybe (go ty1eqElem)
     TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
       TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
     TyEq1Product ty1eqs ->
