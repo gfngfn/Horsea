@@ -7,6 +7,9 @@ module Staged.Entrypoint
   )
 where
 
+import Common.FailureReason (FailureReason (..))
+import Common.LocationInFile (SourceSpec (SourceSpec))
+import Common.LocationInFile qualified as LocationInFile
 import Control.Lens ((^?))
 import Control.Monad (forM_, unless)
 import Control.Monad.Trans.Class
@@ -30,9 +33,6 @@ import Staged.Typechecker.Monad (ImplicitArgLogF (..), ShapeAnnotLog (..), Typec
 import Staged.Typechecker.SigRecord (SigRecord)
 import Staged.Typechecker.TypeEnv (TypeEnv)
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
-import Util.FailureReason (FailureReason (..))
-import Util.LocationInFile (SourceSpec (SourceSpec))
-import Util.LocationInFile qualified as LocationInFile
 import Prelude
 
 data Argument = Argument

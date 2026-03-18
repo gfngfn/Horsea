@@ -10,6 +10,9 @@ module Staged.Formatter
   )
 where
 
+import Common.FrontError (FrontError (..))
+import Common.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
+import Common.ParserUtil (ParseError (..))
 import Data.Functor.Identity
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
@@ -35,9 +38,6 @@ import Surface.BindingTime.Analyzer qualified as Bta
 import Surface.BindingTime.Core qualified as Bta
 import Surface.BindingTime.Stager qualified as Bta
 import Surface.Syntax qualified as Surface
-import Util.FrontError (FrontError (..))
-import Util.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
-import Util.ParserUtil (ParseError (..))
 import Prelude
 
 type Ann = AnsiStyle

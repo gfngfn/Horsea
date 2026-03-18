@@ -59,6 +59,11 @@ library
 
     -- Modules exported by the library.
     exposed-modules:
+      Common.FailureReason,
+      Common.FrontError,
+      Common.LocationInFile,
+      Common.ParserUtil,
+      Common.TokenUtil,
       Control.Monad.Elaborator,
       Data.List.TwoOrMore,
       Data.String.Util,
@@ -96,12 +101,7 @@ library
       Surface.Entrypoint,
       Surface.Parser,
       Surface.Syntax,
-      Surface.Token,
-      Util.FailureReason,
-      Util.FrontError,
-      Util.LocationInFile,
-      Util.ParserUtil,
-      Util.TokenUtil
+      Surface.Token
 
     -- Modules included in this library but not exported.
     -- other-modules:

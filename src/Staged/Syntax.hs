@@ -64,6 +64,7 @@ module Staged.Syntax
   )
 where
 
+import Common.TokenUtil (Span)
 import Data.Functor.Identity
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
@@ -72,7 +73,6 @@ import Data.Tensor.Vector (Vector)
 import Data.Text (Text)
 import Staged.BuiltIn.Core
 import Staged.Core
-import Util.TokenUtil (Span)
 import Prelude
 
 newtype StaticVar = StaticVar Int

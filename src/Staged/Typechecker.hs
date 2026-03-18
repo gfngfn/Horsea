@@ -9,6 +9,8 @@ module Staged.Typechecker
   )
 where
 
+import Common.LocationInFile (SpanInFile, getSpanInFile)
+import Common.TokenUtil (Span)
 import Control.Monad
 import Data.Bifunctor (bimap)
 import Data.Either.Extra (mapLeft, maybeToEither)
@@ -42,8 +44,6 @@ import Staged.Typechecker.SigRecord qualified as SigRecord
 import Staged.Typechecker.Solution
 import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
-import Util.LocationInFile (SpanInFile, getSpanInFile)
-import Util.TokenUtil (Span)
 import Prelude
 
 bug :: String -> a

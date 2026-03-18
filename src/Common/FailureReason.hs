@@ -1,4 +1,4 @@
-module Util.FailureReason
+module Common.FailureReason
   ( FailureReason (..),
     makeExitCode,
   )

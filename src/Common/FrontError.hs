@@ -1,9 +1,9 @@
-module Util.FrontError
+module Common.FrontError
   ( FrontError (..),
   )
 where
 
-import Util.ParserUtil (ParseError)
+import Common.ParserUtil (ParseError)
 import Prelude
 
 data FrontError

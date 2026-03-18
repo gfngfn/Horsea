@@ -24,13 +24,13 @@ module Staged.SrcSyntax
   )
 where
 
+import Common.TokenUtil (Span)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Text (Text)
 import Generic.Data (Generic)
 import Generic.Data.Orphans ()
 import Staged.Core
-import Util.TokenUtil (Span)
 import Prelude
 
 type Var = Text

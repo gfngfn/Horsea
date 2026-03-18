@@ -5,6 +5,10 @@ module Staged.Parser
   )
 where
 
+import Common.FrontError (FrontError (..))
+import Common.LocationInFile (SourceSpec)
+import Common.ParserUtil
+import Common.TokenUtil (Located (..), Span, mergeSpan)
 import Control.Lens ((^?))
 import Data.Either.Extra
 import Data.Functor
@@ -17,10 +21,6 @@ import Data.Text (Text)
 import Staged.SrcSyntax
 import Staged.Token (Token (..))
 import Staged.Token qualified as Token
-import Util.FrontError (FrontError (..))
-import Util.LocationInFile (SourceSpec)
-import Util.ParserUtil
-import Util.TokenUtil (Located (..), Span, mergeSpan)
 import Prelude hiding (or)
 
 type P a = GenP Token a

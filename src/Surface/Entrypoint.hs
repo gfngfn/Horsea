@@ -4,6 +4,10 @@ module Surface.Entrypoint
   )
 where
 
+import Common.FailureReason (FailureReason (..))
+import Common.LocationInFile (SourceSpec (SourceSpec))
+import Common.LocationInFile qualified as LocationInFile
+import Common.TokenUtil (Span)
 import Control.Monad (unless)
 import Control.Monad.Trans.Reader
 import Data.Map qualified as Map
@@ -22,10 +26,6 @@ import Surface.BindingTime.Core
 import Surface.BindingTime.Stager (BCExprF)
 import Surface.Parser qualified as Parser
 import Surface.Syntax
-import Util.FailureReason (FailureReason (..))
-import Util.LocationInFile (SourceSpec (SourceSpec))
-import Util.LocationInFile qualified as LocationInFile
-import Util.TokenUtil (Span)
 import Prelude
 
 data Argument = Argument

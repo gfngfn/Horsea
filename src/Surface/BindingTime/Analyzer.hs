@@ -4,6 +4,8 @@ module Surface.BindingTime.Analyzer
   )
 where
 
+import Common.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
+import Common.TokenUtil
 import Control.Monad
 import Control.Monad.Elaborator hiding (run)
 import Control.Monad.Elaborator qualified as Elaborator
@@ -20,8 +22,6 @@ import Surface.BindingTime.AnalysisError
 import Surface.BindingTime.Constraint
 import Surface.BindingTime.Core
 import Surface.Syntax
-import Util.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
-import Util.TokenUtil
 import Prelude hiding (succ)
 
 data AnalysisState = AnalysisState

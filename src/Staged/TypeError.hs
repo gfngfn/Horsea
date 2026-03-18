@@ -7,13 +7,13 @@ module Staged.TypeError
   )
 where
 
+import Common.LocationInFile (SpanInFile)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Tensor.Matrix qualified as Matrix
 import Data.Text (Text)
 import Staged.Core
 import Staged.SrcSyntax
 import Staged.Syntax
-import Util.LocationInFile (SpanInFile)
 import Prelude
 
 data TypeErrorF sv

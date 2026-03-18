@@ -13,11 +13,11 @@ module Surface.Syntax
   )
 where
 
+import Common.TokenUtil (Span)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Text (Text)
 import Staged.Core
-import Util.TokenUtil (Span)
 import Prelude
 
 type Var = Text

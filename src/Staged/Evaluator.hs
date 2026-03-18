@@ -10,6 +10,7 @@ module Staged.Evaluator
   )
 where
 
+import Common.LocationInFile (SourceSpec, getSpanInFile)
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
@@ -31,7 +32,6 @@ import Staged.BuiltIn.Definitions (definitions)
 import Staged.Core
 import Staged.EvalError
 import Staged.Syntax
-import Util.LocationInFile (SourceSpec, getSpanInFile)
 import Prelude
 
 data EvalState = EvalState

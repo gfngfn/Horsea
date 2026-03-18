@@ -1,4 +1,4 @@
-module Util.ParserUtil
+module Common.ParserUtil
   ( GenP,
     ParseError (..),
     runParser,
@@ -20,6 +20,8 @@ module Util.ParserUtil
   )
 where
 
+import Common.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
+import Common.TokenUtil
 import Data.Either.Extra qualified as Either
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
@@ -30,8 +32,6 @@ import Data.Text qualified as Text
 import Data.Void (Void)
 import Text.Megaparsec ((<|>))
 import Text.Megaparsec qualified as Mp
-import Util.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
-import Util.TokenUtil
 import Prelude hiding (or, span)
 
 type GenP token a = Mp.Parsec Void [Located token] a

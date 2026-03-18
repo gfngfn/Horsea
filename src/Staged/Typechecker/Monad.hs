@@ -20,6 +20,8 @@ module Staged.Typechecker.Monad
   )
 where
 
+import Common.LocationInFile (SourceSpec, SpanInFile)
+import Common.TokenUtil (Span)
 import Control.Monad.Elaborator
 import Data.Map (Map)
 import Data.Map qualified as Map
@@ -30,8 +32,6 @@ import GHC.Generics (Generic)
 import Staged.SrcSyntax
 import Staged.Syntax
 import Staged.TypeError
-import Util.LocationInFile (SourceSpec, SpanInFile)
-import Util.TokenUtil (Span)
 import Prelude
 
 data TypecheckConfig = TypecheckConfig
