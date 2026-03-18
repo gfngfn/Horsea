@@ -314,8 +314,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
           ( \eAcc@(Expr annAcc _) ((annOp, op), eArg@(Expr annArg _)) ->
               Expr (mergeSpan annAcc annArg) $
                 App
-                  ( Expr (mergeSpan annAcc annOp) (App (Expr annOp (Var ([], op))) Nothing eAcc)
-                  )
+                  (Expr (mergeSpan annAcc annOp) (App (Expr annOp (Var ([], op))) Nothing eAcc))
                   Nothing
                   eArg
           )

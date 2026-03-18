@@ -1669,35 +1669,21 @@ typecheckTypeExpr0 :: trav -> TypeEnv -> TypeExpr -> M trav Ass0TypeExpr
 typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    Literal _ ->
-      error "TODO (error): typecheckTypeExpr0, Literal"
-    Var _ ->
-      error "TODO (error): typecheckTypeExpr0, Var"
-    Lam _ _ _ _ ->
-      error "TODO (error): typecheckTypeExpr0, Lam"
-    LetIn _ _ _ _ _ ->
-      error "TODO (error): typecheckTypeExpr0, LetIn"
-    LetRecIn _ _ _ _ _ ->
-      error "TODO (error): typecheckTypeExpr0, LetRecIn"
-    LetTupleIn _ _ _ ->
-      error "TODO (error): typecheckTypeExpr0, LetTupleIn"
-    IfThenElse _ _ _ ->
-      error "TODO (error): typecheckTypeExpr0, IfThenElse"
-    As _ _ ->
-      error "TODO (error): typecheckTypeExpr0, As"
-    Escape _ ->
-      error "TODO (error): typecheckTypeExpr0, Escape"
-    LamImp _ _ ->
-      error "TODO (error): typecheckTypeExpr0, LamImp"
-    AppImpGiven _ _ ->
-      error "TODO (error): typecheckTypeExpr0, AppImpGiven"
-    AppImpOmitted _ ->
-      error "TODO (error): typecheckTypeExpr0, AppImpOmitted"
-    LetOpenIn _ _ ->
-      error "TODO (error): typecheckTypeExpr0, LetOpenIn"
-    Sequential _ _ ->
-      error "TODO (error): typecheckTypeExpr0, LetOpenIn"
-    Tuple _ ->
+    ( Literal _;
+      Var _;
+      Lam _ _ _ _;
+      LetIn _ _ _ _ _;
+      LetRecIn _ _ _ _ _;
+      LetTupleIn _ _ _;
+      IfThenElse _ _ _;
+      As _ _;
+      Escape _;
+      LamImp _ _;
+      AppImpGiven _ _;
+      AppImpOmitted _;
+      LetOpenIn _ _;
+      Sequential _ _;
+      Tuple _) ->
       error "TODO (error): typecheckTypeExpr0, LetOpenIn"
     Persistent _ ->
       error "TODO (error): typecheckTypeExpr0, Persistent"
@@ -1871,37 +1857,22 @@ typecheckTypeExpr1 :: trav -> TypeEnv -> TypeExpr -> M trav Ass1TypeExpr
 typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    Literal _ ->
-      error "TODO (error): typecheckTypeExpr1, Literal"
-    Var _ ->
-      error "TODO (error): typecheckTypeExpr1, Var"
-    Lam _ _ _ _ ->
-      error "TODO (error): typecheckTypeExpr1, Lam"
-    LetIn _ _ _ _ _ ->
-      error "TODO (error): typecheckTypeExpr1, LetIn"
-    LetRecIn _ _ _ _ _ ->
-      error "TODO (error): typecheckTypeExpr1, LetRecIn"
-    LetTupleIn _ _ _ ->
-      error "TODO (error): typecheckTypeExpr1, LetTupleIn"
-    IfThenElse _ _ _ ->
-      error "TODO (error): typecheckTypeExpr1, IfThenElse"
-    As _ _ ->
-      error "TODO (error): typecheckTypeExpr1, As"
-    Escape _ ->
-      error "TODO (error): typecheckTypeExpr1, Escape"
-    LamImp _ _ ->
-      error "TODO (error): typecheckTypeExpr1, LamImp"
-    AppImpGiven _ _ ->
-      error "TODO (error): typecheckTypeExpr1, AppImpGiven"
-    AppImpOmitted _ ->
-      error "TODO (error): typecheckTypeExpr1, AppImpOmitted"
-    LetOpenIn _ _ ->
-      error "TODO (error): typecheckTypeExpr1, LetOpenIn"
-    Sequential _ _ ->
-      error "TODO (error): typecheckTypeExpr1, LetOpenIn"
-    Tuple _ ->
-      error "TODO (error): typecheckTypeExpr1, LetOpenIn"
-    Persistent _ ->
+    ( Literal _;
+      Var _;
+      Lam _ _ _ _;
+      LetIn _ _ _ _ _;
+      LetRecIn _ _ _ _ _;
+      LetTupleIn _ _ _;
+      IfThenElse _ _ _;
+      As _ _;
+      Escape _;
+      LamImp _ _;
+      AppImpGiven _ _;
+      AppImpOmitted _;
+      LetOpenIn _ _;
+      Sequential _ _;
+      Tuple _;
+      Persistent _) ->
       error "TODO (error): typecheckTypeExpr1, Persistent"
     Constructor (mods, tyName) ->
       case mods of
