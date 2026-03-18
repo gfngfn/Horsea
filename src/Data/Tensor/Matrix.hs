@@ -1,4 +1,4 @@
-module Util.Matrix
+module Data.Tensor.Matrix
   ( Matrix,
     ConstructionError (..),
     fromRows,

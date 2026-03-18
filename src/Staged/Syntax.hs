@@ -67,12 +67,12 @@ where
 import Data.Functor.Identity
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
+import Data.Tensor.Matrix (Matrix)
+import Data.Tensor.Vector (Vector)
 import Data.Text (Text)
 import Staged.BuiltIn.Core
 import Staged.Core
-import Util.Matrix (Matrix)
 import Util.TokenUtil (Span)
-import Util.Vector (Vector)
 import Prelude
 
 newtype StaticVar = StaticVar Int

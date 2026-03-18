@@ -15,6 +15,8 @@ import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.Tensor.Matrix qualified as Matrix
+import Data.Tensor.Vector qualified as Vector
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Tuple.Extra (first)
@@ -35,9 +37,7 @@ import Surface.BindingTime.Stager qualified as Bta
 import Surface.Syntax qualified as Surface
 import Util.FrontError (FrontError (..))
 import Util.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
-import Util.Matrix qualified as Matrix
 import Util.ParserUtil (ParseError (..))
-import Util.Vector qualified as Vector
 import Prelude
 
 type Ann = AnsiStyle

@@ -19,6 +19,8 @@ import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
+import Data.Tensor.Matrix (Matrix)
+import Data.Tensor.Vector (Vector)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Safe (atMay)
@@ -30,8 +32,6 @@ import Staged.Core
 import Staged.EvalError
 import Staged.Syntax
 import Util.LocationInFile (SourceSpec, getSpanInFile)
-import Util.Matrix (Matrix)
-import Util.Vector (Vector)
 import Prelude
 
 data EvalState = EvalState

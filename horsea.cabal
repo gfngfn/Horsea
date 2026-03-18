@@ -62,6 +62,8 @@ library
       Control.Monad.Elaborator,
       Data.List.TwoOrMore,
       Data.String.Util,
+      Data.Tensor.Matrix,
+      Data.Tensor.Vector,
       Data.Text.IO.Util,
       Data.Maybe1,
       Staged.BuiltIn,
@@ -98,10 +100,8 @@ library
       Util.FailureReason,
       Util.FrontError,
       Util.LocationInFile,
-      Util.Matrix,
       Util.ParserUtil,
-      Util.TokenUtil,
-      Util.Vector
+      Util.TokenUtil
 
     -- Modules included in this library but not exported.
     -- other-modules:

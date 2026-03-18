@@ -1,4 +1,4 @@
-module Util.Vector
+module Data.Tensor.Vector
   ( Vector,
     fromList,
     toList,
