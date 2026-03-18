@@ -904,7 +904,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
     =<< case eMain of
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
-      TyVar _; TyArrow _ _ _; TyImpArrow _ _; TyRefinement _ _ _; TyForAll _ _ ->
+      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr0, TyForAll"
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr0, Constructor"
@@ -1342,7 +1342,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
   completeInferredImplicit
     <$> case eMain of
-      Persistent _; TyVar _; TyArrow _ _ _; TyImpArrow _ _; TyRefinement _ _ _; TyForAll _ _ ->
+      (Persistent {}; TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr1, TyForAll"
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr1, Constructor"
@@ -1669,7 +1669,7 @@ typecheckTypeExpr0 :: trav -> TypeEnv -> TypeExpr -> M trav Ass0TypeExpr
 typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
       error "TODO (error): typecheckTypeExpr0, illegal syntax"
     Constructor (mods, tyName) ->
       case mods of

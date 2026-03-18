@@ -258,12 +258,8 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
   let bt = BTVar btv
   spanInFile <- askSpanInFile ann
   case exprMain of
-    TyArrow _ _ _ ->
-      error "TODO (error): extractConstraintsFromExpr, TyArrow"
-    TyImpArrow _ _ ->
-      error "TODO (error): extractConstraintsFromExpr, TyImpArrow"
-    TyRefinement _ _ _ ->
-      error "TODO (error): extractConstraintsFromExpr, TyRefinement"
+    (TyArrow {}; TyImpArrow {}; TyRefinement {}) ->
+      error "TODO (error): extractConstraintsFromExpr, illegal syntax"
     Literal lit -> do
       (lit', bityBaseArgs, constraints) <- extractConstraintsFromLiteral trav btenv (bt, ann) lit
       pure (BExpr (bt, ann) (BLiteral lit'), BIType bt (BITyBase bityBaseArgs), constraints)
@@ -569,34 +565,8 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
   let bt = BTVar btv
   spanInFile <- askSpanInFile ann
   case typeExprMain of
-    Literal _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, Literal"
-    Var _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, Var"
-    Lam _ _ _ _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, Lam"
-    LetIn _ _ _ _ _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, LetIn"
-    LetRecIn _ _ _ _ _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, LetRecIn"
-    LetTupleIn _ _ _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, LetTupleIn"
-    LetOpenIn _ _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, LetOpenIn"
-    Sequential _ _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, Sequential"
-    Tuple _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, Tuple"
-    IfThenElse _ _ _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, IfThenElse"
-    As _ _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, As"
-    LamImp _ _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, LamImp"
-    AppImpGiven _ _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, AppImpGiven"
-    AppImpOmitted _ ->
-      error "TODO (error): extractConstraintsFromTypeExpr, AppImpOmitted"
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; LetOpenIn {}; Sequential {}; Tuple {}; IfThenElse {}; As {}; LamImp {}; AppImpGiven {}; AppImpOmitted {}) ->
+      error "TODO (error): extractConstraintsFromTypeExpr, illegal syntax"
     Constructor (mods, tyName) ->
       case mods of
         [] -> do
