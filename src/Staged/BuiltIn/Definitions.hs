@@ -6,16 +6,15 @@ module Staged.BuiltIn.Definitions
 where
 
 import Data.List (intercalate)
-import Data.List qualified as List
 import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.String.Util (snakeToCamel, uppercase)
+import Data.Tensor.Matrix qualified as Matrix
+import Data.Tensor.Vector qualified as Vector
 import Data.Text qualified as Text
 import Language.Haskell.TH qualified as TH
 import Safe (atMay, initMay, lastMay)
 import Safe.Exact (zipExactMay)
 import Staged.BuiltIn.CompileTime
-import Util.Matrix qualified as Matrix
-import Util.String (snakeToCamel, uppercase)
-import Util.Vector qualified as Vector
 import Prelude
 
 gen :: [String] -> String -> [ParamSpec] -> BuiltInSpec
@@ -240,7 +239,7 @@ definitions =
       [|
         do
           ns <- validateIntListLiteral a0v1
-          pure $ A0ValLiteral (ALitInt (List.foldl' (*) 1 ns))
+          pure $ A0ValLiteral (ALitInt (foldl' (*) 1 ns))
         |],
     versatile [] "broadcastable" ForStage0 2 $
       [|
@@ -266,7 +265,7 @@ definitions =
         do
           ns1 <- validateIntListLiteral a0v1
           ns2 <- validateIntListLiteral a0v2
-          let b = List.foldl' (*) 1 ns1 == List.foldl' (*) 1 ns2
+          let b = foldl' (*) 1 ns1 == foldl' (*) 1 ns2
           pure $ A0ValLiteral (ALitBool b)
         |],
     gen [] "vadd" [ParamInt],

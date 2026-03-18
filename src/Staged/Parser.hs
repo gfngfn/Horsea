@@ -5,11 +5,14 @@ module Staged.Parser
   )
 where
 
+import Common.FrontError (FrontError (..))
+import Common.LocationInFile (SourceSpec)
+import Common.ParserUtil
+import Common.TokenUtil (Located (..), Span, mergeSpan)
 import Control.Lens ((^?))
 import Data.Either.Extra
 import Data.Functor
 import Data.Generics.Labels ()
-import Data.List.Extra qualified as List
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
@@ -17,10 +20,6 @@ import Data.Text (Text)
 import Staged.SrcSyntax
 import Staged.Token (Token (..))
 import Staged.Token qualified as Token
-import Util.FrontError (FrontError (..))
-import Util.LocationInFile (SourceSpec)
-import Util.ParserUtil
-import Util.TokenUtil (Located (..), Span, mergeSpan)
 import Prelude hiding (or)
 
 type P a = GenP Token a
@@ -173,7 +172,7 @@ expr = letin
             <|> (FunArgMandatory Nothing <$> staged)
 
         makeApp :: NonEmpty FunArg -> P Expr
-        makeApp (FunArgMandatory Nothing eFun :| args) = pure $ List.foldl' makeAppSingle eFun args
+        makeApp (FunArgMandatory Nothing eFun :| args) = pure $ foldl' makeAppSingle eFun args
         makeApp (FunArgMandatory (Just (Located loc lab)) _ :| _) = failure (Located loc (TokLabel lab))
         makeApp (FunArgOptGiven (Located loc _e) :| _) = failure (Located loc TokLeftBrace)
         makeApp (FunArgOptOmitted loc :| _) = failure (Located loc TokUnderscore)
@@ -226,7 +225,7 @@ expr = letin
     flipApp = makeFlipApp <$> ors <*> many (token TokOpFlipApp *> ors)
       where
         makeFlipApp =
-          List.foldl'
+          foldl'
             ( \eArg@(Expr locArg _) eFun@(Expr locFun _) ->
                 Expr (mergeSpan locArg locFun) (App eFun Nothing eArg)
             )
@@ -237,8 +236,8 @@ expr = letin
         <|> (makeForAll <$> (token TokForall *> typeVar) <*> (token TokArrow *> arrow))
         <|> flipApp
       where
-        makeTyArrow funDomSpec tye2@(Expr loc2 _) =
-          case funDomSpec of
+        makeTyArrow domSpec tye2@(Expr loc2 _) =
+          case domSpec of
             DomMandatory locLabelOpt (varOpt, tye1@(Expr locTye1 _)) ->
               let loc1 =
                     case locLabelOpt of
@@ -258,24 +257,22 @@ expr = letin
 
     arrowDom :: P DomainSpec
     arrowDom =
-      (DomMandatory . Just <$> label <*> mandatoryFunDom)
-        <|> (DomMandatory Nothing <$> mandatoryFunDom)
-        <|> (DomImplicit <$> implicitFunDom)
+      (DomMandatory . Just <$> label <*> mandatoryArrowDom)
+        <|> (DomMandatory Nothing <$> mandatoryArrowDom)
+        <|> (DomImplicit <$> implicitArrowDom)
       where
-        mandatoryFunDom :: P (Maybe (Span, Var), TypeExpr)
-        mandatoryFunDom =
-          try (makeFunDom <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr))
+        mandatoryArrowDom :: P (Maybe (Span, Var), TypeExpr)
+        mandatoryArrowDom =
+          try (makeArrowDom <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr))
             <|> ((Nothing,) <$> flipApp)
           where
-            makeFunDom (Located loc (x, tyeDom)) =
-              (Just (loc, x), tyeDom)
+            makeArrowDom (Located loc (x, tyeDom)) = (Just (loc, x), tyeDom)
 
-        implicitFunDom :: P ((Span, Var), TypeExpr)
-        implicitFunDom =
-          makeFunDom <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr)
+        implicitArrowDom :: P ((Span, Var), TypeExpr)
+        implicitArrowDom =
+          makeArrowDom <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr)
           where
-            makeFunDom (Located loc (x, tyeDom)) =
-              ((loc, x), tyeDom)
+            makeArrowDom (Located loc (x, tyeDom)) = ((loc, x), tyeDom)
 
     lam :: P Expr
     lam =

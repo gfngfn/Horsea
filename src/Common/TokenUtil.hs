@@ -1,4 +1,4 @@
-module Util.TokenUtil
+module Common.TokenUtil
   ( Span (..),
     mergeSpan,
     Located (..),
@@ -17,7 +17,7 @@ module Util.TokenUtil
   )
 where
 
-import Control.Monad.Combinators
+import Control.Monad.Combinators (choice, empty, manyTill, (<|>))
 import Data.Char qualified as Char
 import Data.Either.Extra qualified as Either
 import Data.Set (Set)

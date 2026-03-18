@@ -6,11 +6,11 @@ module Staged.EvalError
   )
 where
 
+import Common.LocationInFile (SpanInFile)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Text (Text)
 import Staged.BuiltIn.Core
 import Staged.Syntax
-import Util.LocationInFile (SpanInFile)
 import Prelude
 
 data BugF sv

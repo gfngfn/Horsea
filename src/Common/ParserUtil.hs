@@ -1,4 +1,4 @@
-module Util.ParserUtil
+module Common.ParserUtil
   ( GenP,
     ParseError (..),
     runParser,
@@ -20,8 +20,9 @@ module Util.ParserUtil
   )
 where
 
+import Common.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
+import Common.TokenUtil
 import Data.Either.Extra qualified as Either
-import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
@@ -30,8 +31,6 @@ import Data.Text qualified as Text
 import Data.Void (Void)
 import Text.Megaparsec ((<|>))
 import Text.Megaparsec qualified as Mp
-import Util.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
-import Util.TokenUtil
 import Prelude hiding (or, span)
 
 type GenP token a = Mp.Parsec Void [Located token] a
@@ -55,7 +54,7 @@ makeParseError sourceSpec bundle =
       e@(Mp.TrivialError _ unexpected _) ->
         case unexpected of
           Just (Mp.Tokens (token0 :| tokensRest)) ->
-            let span = List.foldl' (\loc t -> mergeSpan loc (getSpan t)) (getSpan token0) tokensRest
+            let span = foldl' (\loc t -> mergeSpan loc (getSpan t)) (getSpan token0) tokensRest
              in [ParseError (getSpanInFile sourceSpec span) (Text.pack (Mp.parseErrorTextPretty e))]
           Just Mp.EndOfInput ->
             [UnexpectedEndOfInput]
@@ -119,7 +118,7 @@ noLoc p = (\(Located _ x) -> x) <$> p
 
 binSep :: (Ord token) => (a -> op -> a -> a) -> GenP token op -> GenP token a -> GenP token a
 binSep k pBinOp pEntry =
-  List.foldl' (\e1 (locBinOp, e2) -> k e1 locBinOp e2) <$> pEntry <*> many ((,) <$> pBinOp <*> pEntry)
+  foldl' (\e1 (locBinOp, e2) -> k e1 locBinOp e2) <$> pEntry <*> many ((,) <$> pBinOp <*> pEntry)
 
 genVec :: (Ord token) => token -> token -> token -> GenP token entry -> GenP token (Located [entry])
 genVec tLeft tRight tSemicolon entry = makeVec <$> token tLeft <*> rest

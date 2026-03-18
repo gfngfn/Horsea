@@ -1,10 +1,10 @@
 module Main where
 
+import Common.FailureReason (makeExitCode)
 import Options.Applicative
 import Staged.Entrypoint qualified
 import Surface.Entrypoint qualified
 import System.Exit
-import Util.FailureReason (makeExitCode)
 import Prelude
 
 defaultDisplayWidth :: Int

@@ -10,15 +10,14 @@ module Staged.Subst
 where
 
 import Data.Functor.Identity
-import Data.List (foldl')
 import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.Maybe1
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Safe.Exact (zipExactMay)
 import Staged.Core
 import Staged.Syntax
-import Util.Maybe1
 import Prelude
 
 -- TODO (refactor): use `Traversal` to implement `occurs0` and `subst0`

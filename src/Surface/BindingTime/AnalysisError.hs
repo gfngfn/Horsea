@@ -3,9 +3,9 @@ module Surface.BindingTime.AnalysisError
   )
 where
 
+import Common.LocationInFile (SpanInFile)
 import Surface.BindingTime.Core
 import Surface.Syntax
-import Util.LocationInFile (SpanInFile)
 import Prelude
 
 data AnalysisError

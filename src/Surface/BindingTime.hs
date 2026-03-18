@@ -4,6 +4,8 @@ module Surface.BindingTime
   )
 where
 
+import Common.LocationInFile (SourceSpec, getSpanInFile)
+import Common.TokenUtil (Span)
 import Control.Lens
 import Data.Generics.Labels ()
 import Data.Map qualified as Map
@@ -15,8 +17,6 @@ import Surface.BindingTime.Constraint
 import Surface.BindingTime.Core
 import Surface.BindingTime.Stager
 import Surface.Syntax
-import Util.LocationInFile (SourceSpec, getSpanInFile)
-import Util.TokenUtil (Span)
 import Prelude
 
 type M a = Either AnalysisError a

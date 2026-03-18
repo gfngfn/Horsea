@@ -14,7 +14,6 @@ module Staged.BuiltIn.CompileTime
 where
 
 import Control.Monad.Extra (mapMaybeM)
-import Data.List (foldl')
 import Data.List.NonEmpty (nonEmpty)
 import Data.Maybe (mapMaybe)
 import Data.Text (Text)

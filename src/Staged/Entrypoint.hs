@@ -7,6 +7,11 @@ module Staged.Entrypoint
   )
 where
 
+import Common.FailureReason (FailureReason (..))
+import Common.Formatter (Disp)
+import Common.Formatter qualified as Formatter
+import Common.LocationInFile (SourceSpec (SourceSpec))
+import Common.LocationInFile qualified as LocationInFile
 import Control.Lens ((^?))
 import Control.Monad (forM_, unless)
 import Control.Monad.Trans.Class
@@ -16,10 +21,9 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
+import Data.Text.IO.Util (readFileEither)
 import Data.Tuple.Extra (first)
 import Staged.Evaluator qualified as Evaluator
-import Staged.Formatter (Disp)
-import Staged.Formatter qualified as Formatter
 import Staged.Parser qualified as Parser
 import Staged.SrcSyntax
 import Staged.Syntax
@@ -29,10 +33,6 @@ import Staged.Typechecker.Monad (ImplicitArgLogF (..), ShapeAnnotLog (..), Typec
 import Staged.Typechecker.SigRecord (SigRecord)
 import Staged.Typechecker.TypeEnv (TypeEnv)
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
-import Util.FailureReason (FailureReason (..))
-import Util.IO (readFileEither)
-import Util.LocationInFile (SourceSpec (SourceSpec))
-import Util.LocationInFile qualified as LocationInFile
 import Prelude
 
 data Argument = Argument

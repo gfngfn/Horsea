@@ -29,6 +29,7 @@ module Surface.BindingTime.Core
   )
 where
 
+import Common.TokenUtil
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
@@ -40,7 +41,6 @@ import GHC.Generics
 import Staged.Core (Label)
 import Staged.Syntax qualified as Staged
 import Surface.Syntax
-import Util.TokenUtil
 import Prelude
 
 newtype BindingTimeVar = BindingTimeVar Int

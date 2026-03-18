@@ -9,24 +9,28 @@ module Staged.Typechecker
   )
 where
 
+import Common.LocationInFile (SpanInFile, getSpanInFile)
+import Common.TokenUtil (Span)
 import Control.Monad
 import Data.Bifunctor (bimap)
-import Data.Either.Extra
+import Data.Either.Extra (mapLeft, maybeToEither)
 import Data.Foldable (foldrM)
 import Data.Function
 import Data.Functor.Identity
-import Data.List qualified as List
-import Data.List.Extra qualified as List
+import Data.List (length)
+import Data.List.Extra (firstJust)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
-import Data.Map (Map)
 import Data.Map qualified as Map
+import Data.Maybe1
 import Data.Set (Set, (\\))
 import Data.Set qualified as Set
+import Data.Tensor.Matrix qualified as Matrix
+import Data.Tensor.Vector qualified as Vector
 import Data.Text (Text)
 import Data.Traversable.Compat (mapAccumM)
-import Data.Tuple.Extra
-import Safe.Exact
+import Data.Tuple.Extra (both)
+import Safe.Exact (zipExactMay)
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
 import Staged.Core
@@ -34,18 +38,13 @@ import Staged.SrcSyntax
 import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
-import Staged.TypeSubst
 import Staged.Typechecker.Monad
 import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
+import Staged.Typechecker.Solution
 import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
-import Util.LocationInFile (SpanInFile, getSpanInFile)
-import Util.Matrix qualified as Matrix
-import Util.Maybe1
-import Util.TokenUtil (Span)
-import Util.Vector qualified as Vector
-import Prelude
+import Prelude hiding (length)
 
 bug :: String -> a
 bug msg = error $ "bug: " ++ msg
@@ -522,7 +521,7 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
               Left ()
             Just zipped -> do
               let (trivial, equationAccResult, _varsToInfer, varSolution) =
-                    List.foldl'
+                    foldl'
                       ( \(trivialAcc, equationAcc, varsToInferAcc, varSolutionAcc) (a0e1, a0e2) ->
                           let a0e1sub = applyVarSolution varSolutionAcc a0e1
                               a0e2sub = applyVarSolution varSolutionAcc a0e2
@@ -706,46 +705,6 @@ mergeResultsByConditional0 trav loc a0e0 = go
           pure $ Just (a0branch a0e1 a0e2)
         (Just a0e1, Just a0e2) -> do
           pure $ Just (a0branch a0e1 a0e2)
-
-type VarSolution = Map AssVar (Ass0Expr, Ass0TypeExpr)
-
-type TypeVar0Solution = Map AssTypeVar Ass0TypeExpr
-
-type TypeVar1Solution = Map AssTypeVar Ass1TypeExpr
-
-applyVarSolution :: forall af. (HasVar StaticVar af) => VarSolution -> af StaticVar -> af StaticVar
-applyVarSolution varSolution entity =
-  Map.foldrWithKey (flip subst0) entity (Map.map fst varSolution)
-
-applyTypeVar0Solution :: forall af. (HasTypeVar af) => TypeVar0Solution -> af StaticVar -> af StaticVar
-applyTypeVar0Solution tyvar0Solution entity =
-  Map.foldrWithKey (flip tySubst0) entity tyvar0Solution
-
-applyTypeVar1Solution :: forall af. (HasTypeVar af) => TypeVar1Solution -> af StaticVar -> af StaticVar
-applyTypeVar1Solution tyvar1Solution entity =
-  Map.foldrWithKey (flip tySubst1) entity tyvar1Solution
-
-composeVarSolution :: VarSolution -> VarSolution -> VarSolution
-composeVarSolution solNew solOld =
-  Map.union
-    solNew
-    (Map.map (\(a0e, a0tye) -> (applyVarSolution solNew a0e, applyVarSolution solNew a0tye)) solOld)
-
-composeTypeVar0Solution :: TypeVar0Solution -> TypeVar0Solution -> TypeVar0Solution
-composeTypeVar0Solution solNew solOld =
-  Map.union solNew (Map.map (applyTypeVar0Solution solNew) solOld)
-
-composeTypeVar1Solution :: TypeVar1Solution -> TypeVar1Solution -> TypeVar1Solution
-composeTypeVar1Solution solNew solOld =
-  Map.union solNew (Map.map (applyTypeVar1Solution solNew) solOld)
-
-applySolution0 :: forall af. (HasVar StaticVar af, HasTypeVar af) => VarSolution -> TypeVar0Solution -> af StaticVar -> af StaticVar
-applySolution0 varSolution tyvar0Solution entity =
-  applyTypeVar0Solution tyvar0Solution (applyVarSolution varSolution entity)
-
-applySolution1 :: forall af. (HasVar StaticVar af, HasTypeVar af) => VarSolution -> TypeVar1Solution -> af StaticVar -> af StaticVar
-applySolution1 varSolution tyvar1Solution entity =
-  applyTypeVar1Solution tyvar1Solution (applyVarSolution varSolution entity)
 
 instantiateGuidedByAppContext0 :: forall trav. trav -> Span -> AppContext -> Ass0TypeExpr -> M trav Result0
 instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
@@ -945,15 +904,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
     =<< case eMain of
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
-      TyVar _ ->
-        error "TODO (error): typecheckExpr0, TyVar"
-      TyArrow _ _ _ ->
-        error "TODO (error): typecheckExpr0, TyArrow"
-      TyImpArrow _ _ ->
-        error "TODO (error): typecheckExpr0, TyImpArrow"
-      TyRefinement _ _ _ ->
-        error "TODO (error): typecheckExpr0, TyRefinement"
-      TyForAll _ _ ->
+      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr0, TyForAll"
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr0, Constructor"
@@ -1158,7 +1109,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                 zipped
             (result2, a0e2) <- do
               let tyEnv2 =
-                    foldl
+                    foldl'
                       ( \tyEnv' ((x, a0tye), svX) ->
                           TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv'
                       )
@@ -1391,17 +1342,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
   completeInferredImplicit
     <$> case eMain of
-      Persistent _ ->
-        error "TODO (error): typecheckExpr1, Persistent"
-      TyVar _ ->
-        error "TODO (error): typecheckExpr1, TyVar"
-      TyArrow _ _ _ ->
-        error "TODO (error): typecheckExpr1, TyArrow"
-      TyImpArrow _ _ ->
-        error "TODO (error): typecheckExpr1, TyImpArrow"
-      TyRefinement _ _ _ ->
-        error "TODO (error): typecheckExpr1, TyRefinement"
-      TyForAll _ _ ->
+      (Persistent {}; TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr1, TyForAll"
       Constructor (_mods, _constructor) ->
         error "TODO: typecheckExpr1, Constructor"
@@ -1583,7 +1524,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                 zipped
             (result2, a1e2) <- do
               let tyEnv2 =
-                    foldl
+                    foldl'
                       ( \tyEnv' ((x, a1tye), svX) ->
                           TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv'
                       )
@@ -1728,38 +1669,8 @@ typecheckTypeExpr0 :: trav -> TypeEnv -> TypeExpr -> M trav Ass0TypeExpr
 typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    Literal _ ->
-      error "TODO (error): typecheckTypeExpr0, Literal"
-    Var _ ->
-      error "TODO (error): typecheckTypeExpr0, Var"
-    Lam _ _ _ _ ->
-      error "TODO (error): typecheckTypeExpr0, Lam"
-    LetIn _ _ _ _ _ ->
-      error "TODO (error): typecheckTypeExpr0, LetIn"
-    LetRecIn _ _ _ _ _ ->
-      error "TODO (error): typecheckTypeExpr0, LetRecIn"
-    LetTupleIn _ _ _ ->
-      error "TODO (error): typecheckTypeExpr0, LetTupleIn"
-    IfThenElse _ _ _ ->
-      error "TODO (error): typecheckTypeExpr0, IfThenElse"
-    As _ _ ->
-      error "TODO (error): typecheckTypeExpr0, As"
-    Escape _ ->
-      error "TODO (error): typecheckTypeExpr0, Escape"
-    LamImp _ _ ->
-      error "TODO (error): typecheckTypeExpr0, LamImp"
-    AppImpGiven _ _ ->
-      error "TODO (error): typecheckTypeExpr0, AppImpGiven"
-    AppImpOmitted _ ->
-      error "TODO (error): typecheckTypeExpr0, AppImpOmitted"
-    LetOpenIn _ _ ->
-      error "TODO (error): typecheckTypeExpr0, LetOpenIn"
-    Sequential _ _ ->
-      error "TODO (error): typecheckTypeExpr0, LetOpenIn"
-    Tuple _ ->
-      error "TODO (error): typecheckTypeExpr0, LetOpenIn"
-    Persistent _ ->
-      error "TODO (error): typecheckTypeExpr0, Persistent"
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+      error "TODO (error): typecheckTypeExpr0, illegal syntax"
     Constructor (mods, tyName) ->
       case mods of
         [] ->
@@ -1818,7 +1729,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           labels <- validateIntLiteral trav loc1 a0e1
           pure $ A0TyPrim (A0TyTextHelper labels) Nothing
         _ ->
-          typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName (List.length args)
+          typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName (length args)
     TyVar tyvar -> do
       tyvarEntry <- findTypeVar trav loc tyvar tyEnv
       case tyvarEntry of
@@ -1930,38 +1841,8 @@ typecheckTypeExpr1 :: trav -> TypeEnv -> TypeExpr -> M trav Ass1TypeExpr
 typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    Literal _ ->
-      error "TODO (error): typecheckTypeExpr1, Literal"
-    Var _ ->
-      error "TODO (error): typecheckTypeExpr1, Var"
-    Lam _ _ _ _ ->
-      error "TODO (error): typecheckTypeExpr1, Lam"
-    LetIn _ _ _ _ _ ->
-      error "TODO (error): typecheckTypeExpr1, LetIn"
-    LetRecIn _ _ _ _ _ ->
-      error "TODO (error): typecheckTypeExpr1, LetRecIn"
-    LetTupleIn _ _ _ ->
-      error "TODO (error): typecheckTypeExpr1, LetTupleIn"
-    IfThenElse _ _ _ ->
-      error "TODO (error): typecheckTypeExpr1, IfThenElse"
-    As _ _ ->
-      error "TODO (error): typecheckTypeExpr1, As"
-    Escape _ ->
-      error "TODO (error): typecheckTypeExpr1, Escape"
-    LamImp _ _ ->
-      error "TODO (error): typecheckTypeExpr1, LamImp"
-    AppImpGiven _ _ ->
-      error "TODO (error): typecheckTypeExpr1, AppImpGiven"
-    AppImpOmitted _ ->
-      error "TODO (error): typecheckTypeExpr1, AppImpOmitted"
-    LetOpenIn _ _ ->
-      error "TODO (error): typecheckTypeExpr1, LetOpenIn"
-    Sequential _ _ ->
-      error "TODO (error): typecheckTypeExpr1, LetOpenIn"
-    Tuple _ ->
-      error "TODO (error): typecheckTypeExpr1, LetOpenIn"
-    Persistent _ ->
-      error "TODO (error): typecheckTypeExpr1, Persistent"
+    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+      error "TODO (error): typecheckTypeExpr1, illegal syntax"
     Constructor (mods, tyName) ->
       case mods of
         [] ->
@@ -2026,7 +1907,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
           a0eLabels <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
           pure $ A1TyPrim (A1TyTextHelper a0eLabels)
         _ ->
-          typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (List.length args)
+          typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (length args)
     TyVar _tyvar ->
       typeError trav $ CannotUseTypeVarAtStage1 spanInFile
     TyArrow labelOpt (xOpt, tye1) tye2 -> do
@@ -2099,7 +1980,7 @@ validatePersistentType trav loc a0tye =
 
 extractFromExternal :: ExternalField -> External -> Maybe Text
 extractFromExternal field0 =
-  List.firstJust (\(field, s) -> if field == field0 then Just s else Nothing)
+  firstJust (\(field, s) -> if field == field0 then Just s else Nothing)
 
 typecheckBind :: trav -> TypeEnv -> Bind -> M trav (SigRecord, [AssBind])
 typecheckBind trav tyEnv (Bind loc bindMain) =

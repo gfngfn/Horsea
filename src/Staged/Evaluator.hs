@@ -10,16 +10,18 @@ module Staged.Evaluator
   )
 where
 
+import Common.LocationInFile (SourceSpec, getSpanInFile)
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Function ((&))
 import Data.Functor.Identity
-import Data.List (foldl')
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
+import Data.Tensor.Matrix (Matrix)
+import Data.Tensor.Vector (Vector)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Safe (atMay)
@@ -30,9 +32,6 @@ import Staged.BuiltIn.Definitions (definitions)
 import Staged.Core
 import Staged.EvalError
 import Staged.Syntax
-import Util.LocationInFile (SourceSpec, getSpanInFile)
-import Util.Matrix (Matrix)
-import Util.Vector (Vector)
 import Prelude
 
 data EvalState = EvalState
@@ -148,12 +147,12 @@ validateIntPairLiteral a0v = do
   n2 <- validateIntLiteral a0v2
   pure (n1, n2)
 
-validateVec0 :: Ass0Val -> M Vector
+validateVec0 :: Ass0Val -> M (Vector Int)
 validateVec0 = \case
   A0ValLiteral (ALitVec v) -> pure v
   a0v -> bug $ NotAVector a0v
 
-validateMat0 :: Ass0Val -> M Matrix
+validateMat0 :: Ass0Val -> M (Matrix Int)
 validateMat0 = \case
   A0ValLiteral (ALitMat mat) -> pure mat
   a0v -> bug $ NotAMatrix a0v

@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Staged.Formatter
+module Common.Formatter
   ( Disp (..),
     render,
     putRenderedLines,
@@ -10,11 +10,15 @@ module Staged.Formatter
   )
 where
 
+import Common.FrontError (FrontError (..))
+import Common.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
+import Common.ParserUtil (ParseError (..))
 import Data.Functor.Identity
-import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.Tensor.Matrix qualified as Matrix
+import Data.Tensor.Vector qualified as Vector
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Tuple.Extra (first)
@@ -33,11 +37,6 @@ import Surface.BindingTime.Analyzer qualified as Bta
 import Surface.BindingTime.Core qualified as Bta
 import Surface.BindingTime.Stager qualified as Bta
 import Surface.Syntax qualified as Surface
-import Util.FrontError (FrontError (..))
-import Util.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
-import Util.Matrix qualified as Matrix
-import Util.ParserUtil (ParseError (..))
-import Util.Vector qualified as Vector
 import Prelude
 
 type Ann = AnsiStyle
@@ -112,7 +111,7 @@ disps = disps' disp
 disps' :: (a -> Doc Ann) -> [a] -> Doc Ann
 disps' f = \case
   [] -> mempty
-  first' : rest -> List.foldl' (\doc x -> doc <> "," <+> f x) (f first') rest
+  first' : rest -> foldl' (\doc x -> doc <> "," <+> f x) (f first') rest
 
 deepenParenWhen :: Bool -> Doc Ann -> Doc Ann
 deepenParenWhen b doc = if b then "(" <> nest 2 doc <> ")" else doc
@@ -328,15 +327,15 @@ dispMatrixLiteral :: [[Int]] -> Doc Ann
 dispMatrixLiteral nss =
   encloseSep ("[#" <> space) (space <> "#]") (";" <> softline) (dispRowContents <$> nss)
 
-dispRowContents :: [Int] -> Doc Ann
+dispRowContents :: (Disp a) => [a] -> Doc Ann
 dispRowContents row =
-  commaSep (disp <$> row)
+  commaSep (map disp row)
 
 dispNameWithArgs :: Associativity -> Doc Ann -> (arg -> Doc Ann) -> [arg] -> Doc Ann
 dispNameWithArgs req name dispArg args =
   case args of
     [] -> name
-    _ : _ -> deepenParenWhen (req <= Atomic) (List.foldl' (<+>) name (map dispArg args))
+    _ : _ -> deepenParenWhen (req <= Atomic) (foldl' (<+>) name (map dispArg args))
 
 dispDatasetParam :: (a -> Doc Ann) -> (f a -> Doc Ann) -> DatasetParam f a -> Doc Ann
 dispDatasetParam dispElem dispList DatasetParam {numTrain, numTest, image, label} =
@@ -612,7 +611,7 @@ instance Disp FrontError where
     FrontLexingError s ->
       disp (Text.pack s)
     FrontParseError parseErrors ->
-      List.foldl' (\doc parseError -> doc <> hardline <> disp parseError) mempty parseErrors
+      foldl' (\doc parseError -> doc <> hardline <> disp parseError) mempty parseErrors
 
 instance Disp ParseError where
   dispGen _ = \case
@@ -623,7 +622,7 @@ instance Disp ParseError where
     UnexpectedEndOfInput ->
       "Unexpected end of input"
 
-instance Disp Matrix.ConstructionError where
+instance (Disp a) => Disp (Matrix.ConstructionError a) where
   dispGen _ = \case
     Matrix.EmptyRow -> "contains an empty row"
     Matrix.InconsistencyOfRowLength row1 row2 ->
@@ -1238,7 +1237,7 @@ instance (Disp bt, Disp tv) => Disp (Bta.BITypeMainF bt tv) where
     Bta.BITyBase [] ->
       "●"
     Bta.BITyBase (bt0 : bts) ->
-      deepenParenWhen (req <= Atomic) ("●" <+> List.foldl' (\doc bt -> doc <+> disp bt) (disp bt0) bts)
+      deepenParenWhen (req <= Atomic) ("●" <+> foldl' (\doc bt -> doc <+> disp bt) (disp bt0) bts)
     Bta.BITyProduct bts ->
       deepenParenWhen (req <= Atomic) (foldl1 appendWithAsterisk (fmap (dispGen Atomic) bts))
     Bta.BITyArrow bt1 bt2 ->

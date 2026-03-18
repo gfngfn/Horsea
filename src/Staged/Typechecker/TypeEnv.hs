@@ -12,7 +12,7 @@ module Staged.Typechecker.TypeEnv
   )
 where
 
-import Data.List.Extra qualified as List
+import Data.List.Extra (firstJust)
 import Staged.SrcSyntax (TypeVar, Var)
 import Staged.Syntax (AssTypeVar)
 import Staged.Typechecker.SigRecord (ModuleEntry, SigRecord, ValEntry)
@@ -39,7 +39,7 @@ addVal x valEntry tyEnv =
 
 findVal :: Var -> TypeEnv -> Maybe ValEntry
 findVal x0 tyEnv =
-  List.firstJust
+  firstJust
     (\(x, valEntry) -> if x == x0 then Just valEntry else Nothing)
     tyEnv.envVals
 
@@ -50,7 +50,7 @@ addTypeVar tyvar tyVarEntry tyEnv =
 
 findTypeVar :: TypeVar -> TypeEnv -> Maybe TypeVarEntry
 findTypeVar tyvar0 tyEnv =
-  List.firstJust
+  firstJust
     (\(tyvar, tyVarEntry) -> if tyvar == tyvar0 then Just tyVarEntry else Nothing)
     tyEnv.envTypeVars
 
@@ -60,7 +60,7 @@ addModule m modEntry tyEnv =
 
 findModule :: Var -> TypeEnv -> Maybe ModuleEntry
 findModule m0 tyEnv =
-  List.firstJust
+  firstJust
     (\(m, modEntry) -> if m == m0 then Just modEntry else Nothing)
     tyEnv.envModules
 

@@ -1,5 +1,8 @@
 module ParserSpec (spec) where
 
+import Common.FrontError (FrontError)
+import Common.LocationInFile (SourceSpec (..))
+import Common.TokenUtil (Span (..))
 import Data.Functor
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Text (Text)
@@ -7,9 +10,6 @@ import Staged.Parser qualified as Parser
 import Staged.SrcSyntax
 import SyntaxUtil
 import Test.Hspec
-import Util.FrontError (FrontError)
-import Util.LocationInFile (SourceSpec (..))
-import Util.TokenUtil (Span (..))
 
 parseExpr :: Text -> Either FrontError ExprVoid
 parseExpr s = fmap void (Parser.parseExpr (SourceSpec s "test") s)

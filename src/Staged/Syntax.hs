@@ -64,15 +64,15 @@ module Staged.Syntax
   )
 where
 
+import Common.TokenUtil (Span)
 import Data.Functor.Identity
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
+import Data.Tensor.Matrix (Matrix)
+import Data.Tensor.Vector (Vector)
 import Data.Text (Text)
 import Staged.BuiltIn.Core
 import Staged.Core
-import Util.Matrix (Matrix)
-import Util.TokenUtil (Span)
-import Util.Vector (Vector)
 import Prelude
 
 newtype StaticVar = StaticVar Int
@@ -102,8 +102,8 @@ data AssLiteralF af sv
   | ALitUnit
   | ALitString Text
   | ALitList [af sv]
-  | ALitVec Vector
-  | ALitMat Matrix
+  | ALitVec (Vector Int)
+  | ALitMat (Matrix Int)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-0 expressions obtained by elaboration through typechecking.

@@ -8,7 +8,6 @@ module Surface.BindingTime.Stager
   )
 where
 
-import Data.List (foldl')
 import Staged.SrcSyntax qualified as Staged
 import Surface.BindingTime.Core
 import Surface.Syntax

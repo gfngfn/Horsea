@@ -10,15 +10,14 @@ module Surface.Syntax
     TypeName,
     TypeExprF,
     TypeExpr,
-    mapMLiteral,
   )
 where
 
+import Common.TokenUtil (Span)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Text (Text)
 import Staged.Core
-import Util.TokenUtil (Span)
 import Prelude
 
 type Var = Text
@@ -76,14 +75,3 @@ type TypeName = Text
 type TypeExprF = ExprF
 
 type TypeExpr = TypeExprF Span
-
-mapMLiteral :: (Monad m) => (a -> m b) -> Literal a -> m (Literal b)
-mapMLiteral f = \case
-  LitInt n -> pure $ LitInt n
-  LitFloat r -> pure $ LitFloat r
-  LitUnit -> pure LitUnit
-  LitBool b -> pure $ LitBool b
-  LitString t -> pure $ LitString t
-  LitList es -> LitList <$> mapM f es
-  LitVec ns -> pure $ LitVec ns
-  LitMat nss -> pure $ LitMat nss
