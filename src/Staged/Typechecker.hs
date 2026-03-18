@@ -1669,24 +1669,8 @@ typecheckTypeExpr0 :: trav -> TypeEnv -> TypeExpr -> M trav Ass0TypeExpr
 typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    ( Literal _;
-      Var _;
-      Lam _ _ _ _;
-      LetIn _ _ _ _ _;
-      LetRecIn _ _ _ _ _;
-      LetTupleIn _ _ _;
-      IfThenElse _ _ _;
-      As _ _;
-      Escape _;
-      LamImp _ _;
-      AppImpGiven _ _;
-      AppImpOmitted _;
-      LetOpenIn _ _;
-      Sequential _ _;
-      Tuple _) ->
-      error "TODO (error): typecheckTypeExpr0, LetOpenIn"
-    Persistent _ ->
-      error "TODO (error): typecheckTypeExpr0, Persistent"
+    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+      error "TODO (error): typecheckTypeExpr0, illegal syntax"
     Constructor (mods, tyName) ->
       case mods of
         [] ->
@@ -1857,23 +1841,8 @@ typecheckTypeExpr1 :: trav -> TypeEnv -> TypeExpr -> M trav Ass1TypeExpr
 typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    ( Literal _;
-      Var _;
-      Lam _ _ _ _;
-      LetIn _ _ _ _ _;
-      LetRecIn _ _ _ _ _;
-      LetTupleIn _ _ _;
-      IfThenElse _ _ _;
-      As _ _;
-      Escape _;
-      LamImp _ _;
-      AppImpGiven _ _;
-      AppImpOmitted _;
-      LetOpenIn _ _;
-      Sequential _ _;
-      Tuple _;
-      Persistent _) ->
-      error "TODO (error): typecheckTypeExpr1, Persistent"
+    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+      error "TODO (error): typecheckTypeExpr1, illegal syntax"
     Constructor (mods, tyName) ->
       case mods of
         [] ->
