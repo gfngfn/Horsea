@@ -147,12 +147,12 @@ validateIntPairLiteral a0v = do
   n2 <- validateIntLiteral a0v2
   pure (n1, n2)
 
-validateVec0 :: Ass0Val -> M Vector
+validateVec0 :: Ass0Val -> M (Vector Int)
 validateVec0 = \case
   A0ValLiteral (ALitVec v) -> pure v
   a0v -> bug $ NotAVector a0v
 
-validateMat0 :: Ass0Val -> M Matrix
+validateMat0 :: Ass0Val -> M (Matrix Int)
 validateMat0 = \case
   A0ValLiteral (ALitMat mat) -> pure mat
   a0v -> bug $ NotAMatrix a0v

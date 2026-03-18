@@ -102,8 +102,8 @@ data AssLiteralF af sv
   | ALitUnit
   | ALitString Text
   | ALitList [af sv]
-  | ALitVec Vector
-  | ALitMat Matrix
+  | ALitVec (Vector Int)
+  | ALitMat (Matrix Int)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-0 expressions obtained by elaboration through typechecking.

@@ -328,9 +328,9 @@ dispMatrixLiteral :: [[Int]] -> Doc Ann
 dispMatrixLiteral nss =
   encloseSep ("[#" <> space) (space <> "#]") (";" <> softline) (dispRowContents <$> nss)
 
-dispRowContents :: [Int] -> Doc Ann
+dispRowContents :: (Disp a) => [a] -> Doc Ann
 dispRowContents row =
-  commaSep (disp <$> row)
+  commaSep (map disp row)
 
 dispNameWithArgs :: Associativity -> Doc Ann -> (arg -> Doc Ann) -> [arg] -> Doc Ann
 dispNameWithArgs req name dispArg args =
@@ -623,7 +623,7 @@ instance Disp ParseError where
     UnexpectedEndOfInput ->
       "Unexpected end of input"
 
-instance Disp Matrix.ConstructionError where
+instance (Disp a) => Disp (Matrix.ConstructionError a) where
   dispGen _ = \case
     Matrix.EmptyRow -> "contains an empty row"
     Matrix.InconsistencyOfRowLength row1 row2 ->

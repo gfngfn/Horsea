@@ -1,10 +1,10 @@
 module MatrixSpec (spec) where
 
+import Data.Tensor.Matrix (Matrix)
+import Data.Tensor.Matrix qualified as Matrix
 import Test.Hspec
-import Util.Matrix (Matrix)
-import Util.Matrix qualified as Matrix
 
-make :: [[Int]] -> Matrix
+make :: [[Int]] -> Matrix Int
 make rows =
   case Matrix.fromRows rows of
     Left _ -> error "make"

@@ -50,7 +50,7 @@ data TypeErrorF sv
   | CannotUseTypeVarAtStage1 SpanInFile
   | VarOccursFreelyInAss0Type SpanInFile Var (ResultF Ass0TypeExprF sv)
   | VarOccursFreelyInAss1Type SpanInFile Var (ResultF Ass1TypeExprF sv)
-  | InvalidMatrixLiteral SpanInFile Matrix.ConstructionError
+  | InvalidMatrixLiteral SpanInFile (Matrix.ConstructionError Int)
   | CannotMergeTypesByConditional0 SpanInFile (Ass0TypeExprF sv) (Ass0TypeExprF sv) (ConditionalMergeErrorF sv)
   | CannotMergeTypesByConditional1 SpanInFile (Ass1TypeExprF sv) (Ass1TypeExprF sv) (ConditionalMergeErrorF sv)
   | CannotMergeResultsByConditionals SpanInFile (ResultF Ass0TypeExprF sv) (ResultF Ass0TypeExprF sv)
