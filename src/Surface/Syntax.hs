@@ -10,7 +10,6 @@ module Surface.Syntax
     TypeName,
     TypeExprF,
     TypeExpr,
-    mapMLiteral,
   )
 where
 
@@ -76,14 +75,3 @@ type TypeName = Text
 type TypeExprF = ExprF
 
 type TypeExpr = TypeExprF Span
-
-mapMLiteral :: (Monad m) => (a -> m b) -> Literal a -> m (Literal b)
-mapMLiteral f = \case
-  LitInt n -> pure $ LitInt n
-  LitFloat r -> pure $ LitFloat r
-  LitUnit -> pure LitUnit
-  LitBool b -> pure $ LitBool b
-  LitString t -> pure $ LitString t
-  LitList es -> LitList <$> mapM f es
-  LitVec ns -> pure $ LitVec ns
-  LitMat nss -> pure $ LitMat nss

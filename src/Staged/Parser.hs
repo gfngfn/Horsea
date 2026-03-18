@@ -237,8 +237,8 @@ expr = letin
         <|> (makeForAll <$> (token TokForall *> typeVar) <*> (token TokArrow *> arrow))
         <|> flipApp
       where
-        makeTyArrow funDomSpec tye2@(Expr loc2 _) =
-          case funDomSpec of
+        makeTyArrow domSpec tye2@(Expr loc2 _) =
+          case domSpec of
             DomMandatory locLabelOpt (varOpt, tye1@(Expr locTye1 _)) ->
               let loc1 =
                     case locLabelOpt of
@@ -258,24 +258,22 @@ expr = letin
 
     arrowDom :: P DomainSpec
     arrowDom =
-      (DomMandatory . Just <$> label <*> mandatoryFunDom)
-        <|> (DomMandatory Nothing <$> mandatoryFunDom)
-        <|> (DomImplicit <$> implicitFunDom)
+      (DomMandatory . Just <$> label <*> mandatoryArrowDom)
+        <|> (DomMandatory Nothing <$> mandatoryArrowDom)
+        <|> (DomImplicit <$> implicitArrowDom)
       where
-        mandatoryFunDom :: P (Maybe (Span, Var), TypeExpr)
-        mandatoryFunDom =
-          try (makeFunDom <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr))
+        mandatoryArrowDom :: P (Maybe (Span, Var), TypeExpr)
+        mandatoryArrowDom =
+          try (makeArrowDom <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr))
             <|> ((Nothing,) <$> flipApp)
           where
-            makeFunDom (Located loc (x, tyeDom)) =
-              (Just (loc, x), tyeDom)
+            makeArrowDom (Located loc (x, tyeDom)) = (Just (loc, x), tyeDom)
 
-        implicitFunDom :: P ((Span, Var), TypeExpr)
-        implicitFunDom =
-          makeFunDom <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr)
+        implicitArrowDom :: P ((Span, Var), TypeExpr)
+        implicitArrowDom =
+          makeArrowDom <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr)
           where
-            makeFunDom (Located loc (x, tyeDom)) =
-              ((loc, x), tyeDom)
+            makeArrowDom (Located loc (x, tyeDom)) = ((loc, x), tyeDom)
 
     lam :: P Expr
     lam =

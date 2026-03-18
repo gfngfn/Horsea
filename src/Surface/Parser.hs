@@ -107,8 +107,8 @@ makeBinOpApp e1@(Expr loc1 _) (Located locBinOp binOp) e2@(Expr loc2 _) =
 
 data FunArg
   = FunArgMandatory (Maybe (Located Text)) Expr
-  | FunArgOptGiven (Located Expr)
-  | FunArgOptOmitted Span
+  | FunArgImpGiven (Located Expr)
+  | FunArgImpOmitted Span
 
 data DomainSpec
   = DomMandatory (Maybe (Located Text)) (Maybe (Span, Var), TypeExpr)
@@ -151,23 +151,23 @@ expr = letin
       where
         arg :: P FunArg
         arg =
-          (FunArgOptOmitted <$> token TokUnderscore)
-            <|> (FunArgOptGiven <$> try (brace expr))
+          (FunArgImpOmitted <$> token TokUnderscore)
+            <|> (FunArgImpGiven <$> try (brace expr))
             <|> (FunArgMandatory . Just <$> label <*> atom)
             <|> (FunArgMandatory Nothing <$> atom)
 
         makeApp :: NonEmpty FunArg -> P Expr
         makeApp (FunArgMandatory Nothing eFun :| args) = pure $ List.foldl' makeAppSingle eFun args
         makeApp (FunArgMandatory (Just (Located loc lab)) _ :| _) = failure (Located loc (TokLabel lab))
-        makeApp (FunArgOptGiven (Located loc _e) :| _) = failure (Located loc TokLeftBrace)
-        makeApp (FunArgOptOmitted loc :| _) = failure (Located loc TokUnderscore)
+        makeApp (FunArgImpGiven (Located loc _e) :| _) = failure (Located loc TokLeftBrace)
+        makeApp (FunArgImpOmitted loc :| _) = failure (Located loc TokUnderscore)
 
         makeAppSingle :: Expr -> FunArg -> Expr
         makeAppSingle e1@(Expr loc1 _) = \case
           FunArgMandatory Nothing e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 Nothing e2)
           FunArgMandatory (Just (Located _ l)) e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 (Just l) e2)
-          FunArgOptGiven (Located loc2 e2) -> Expr (mergeSpan loc1 loc2) (AppImpGiven e1 e2)
-          FunArgOptOmitted loc2 -> Expr (mergeSpan loc1 loc2) (AppImpOmitted e1)
+          FunArgImpGiven (Located loc2 e2) -> Expr (mergeSpan loc1 loc2) (AppImpGiven e1 e2)
+          FunArgImpOmitted loc2 -> Expr (mergeSpan loc1 loc2) (AppImpOmitted e1)
 
     as :: P Expr
     as =
@@ -220,8 +220,8 @@ expr = letin
       try (makeTyArrow <$> arrowDom <*> (token TokArrow *> arrow))
         <|> flipApp
       where
-        makeTyArrow funDomSpec tye2@(Expr loc2 _) =
-          case funDomSpec of
+        makeTyArrow domSpec tye2@(Expr loc2 _) =
+          case domSpec of
             DomMandatory locLabelOpt (varOpt, tye1@(Expr locTye1 _)) ->
               let loc1 =
                     case locLabelOpt of
@@ -239,24 +239,22 @@ expr = letin
 
     arrowDom :: P DomainSpec
     arrowDom =
-      (DomMandatory . Just <$> label <*> mandatoryFunDom)
-        <|> (DomMandatory Nothing <$> mandatoryFunDom)
-        <|> (DomImplicit <$> implicitFunDom)
+      (DomMandatory . Just <$> label <*> mandatoryArrowDom)
+        <|> (DomMandatory Nothing <$> mandatoryArrowDom)
+        <|> (DomImplicit <$> implicitArrowDom)
       where
-        mandatoryFunDom :: P (Maybe (Span, Var), TypeExpr)
-        mandatoryFunDom =
-          try (makeFunDom <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr))
+        mandatoryArrowDom :: P (Maybe (Span, Var), TypeExpr)
+        mandatoryArrowDom =
+          try (makeArrowDom <$> paren ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr))
             <|> ((Nothing,) <$> flipApp)
           where
-            makeFunDom (Located loc (x, tyeDom)) =
-              (Just (loc, x), tyeDom)
+            makeArrowDom (Located loc (x, tyeDom)) = (Just (loc, x), tyeDom)
 
-        implicitFunDom :: P ((Span, Var), TypeExpr)
-        implicitFunDom =
-          makeFunDom <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr)
+        implicitArrowDom :: P ((Span, Var), TypeExpr)
+        implicitArrowDom =
+          makeArrowDom <$> brace ((,) <$> (noLoc lower <* token TokColon) <*> typeExpr)
           where
-            makeFunDom (Located loc (x, tyeDom)) =
-              ((loc, x), tyeDom)
+            makeArrowDom (Located loc (x, tyeDom)) = ((loc, x), tyeDom)
 
     lam :: P Expr
     lam =
