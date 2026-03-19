@@ -437,6 +437,9 @@ evalExpr1 env = \case
   A1Tuple a1es -> do
     a1vs <- mapM (evalExpr1 env) a1es
     pure $ A1ValTuple a1vs
+  A1Constructor ctor a1es -> do
+    a1vs <- mapM (evalExpr1 env) a1es
+    pure $ A1ValConstructor ctor a1vs
   A1IfThenElse a1e0 a1e1 a1e2 -> do
     a1v0 <- evalExpr1 env a1e0
     a1v1 <- evalExpr1 env a1e1
@@ -550,6 +553,8 @@ unliftVal = \case
     A0Sequential (unliftVal a1v1) (unliftVal a1v2)
   A1ValTuple a1vs ->
     A0Tuple (fmap unliftVal a1vs)
+  A1ValConstructor ctor a1vs ->
+    A0Constructor ctor (map unliftVal a1vs)
   A1ValIfThenElse a1v0 a1v1 a1v2 ->
     A0IfThenElse (unliftVal a1v0) (unliftVal a1v1) (unliftVal a1v2)
 

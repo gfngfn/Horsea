@@ -139,6 +139,7 @@ data Ass1ExprF sv
   | A1LetTupleIn (TwoOrMore (AssVarF sv)) (Ass1ExprF sv) (Ass1ExprF sv)
   | A1Sequential (Ass1ExprF sv) (Ass1ExprF sv)
   | A1Tuple (TwoOrMore (Ass1ExprF sv))
+  | A1Constructor ConstructorName [Ass1ExprF sv]
   | A1IfThenElse (Ass1ExprF sv) (Ass1ExprF sv) (Ass1ExprF sv)
   | A1Escape (Ass0ExprF sv)
   | A1AppType (Ass1ExprF sv) (Ass1TypeExprF sv)
@@ -337,6 +338,7 @@ data Ass1ValF sv
   | A1ValLetTupleIn (TwoOrMore Symbol) (Ass1ValF sv) (Ass1ValF sv)
   | A1ValSequential (Ass1ValF sv) (Ass1ValF sv)
   | A1ValTuple (TwoOrMore (Ass1ValF sv))
+  | A1ValConstructor ConstructorName [Ass1ValF sv]
   | A1ValIfThenElse (Ass1ValF sv) (Ass1ValF sv) (Ass1ValF sv)
   deriving stock (Eq, Show, Functor)
 

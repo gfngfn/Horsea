@@ -1,0 +1,7 @@
+let t =
+  let x = Just 42 in
+  let y = Nothing as Maybe Float in
+  (x, y, &(Just 57, Nothing as Maybe Bool))
+in
+let (p, q, r) = t in
+r

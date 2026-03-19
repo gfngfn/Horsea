@@ -538,6 +538,7 @@ instance (Disp sv) => Disp (Ass1ExprF sv) where
     A1LetTupleIn xs a1e1 a1e2 -> dispLetTupleIn req xs a1e1 a1e2
     A1Sequential a1e1 a1e2 -> dispSequential req a1e1 a1e2
     A1Tuple a1es -> dispTuple a1es
+    A1Constructor ctor a1es -> dispConstructorApp req ctor a1es
     A1IfThenElse a1e0 a1e1 a1e2 -> dispIfThenElse req a1e0 a1e1 a1e2
     A1Escape a0e1 -> dispEscape a0e1
     A1AppType a1e1 a1tye2 -> dispAppType req a1e1 a1tye2
@@ -1036,6 +1037,8 @@ instance (Disp sv) => Disp (Ass1ValF sv) where
       dispSequential req a1v1 a1v2
     A1ValTuple a1vs ->
       dispTuple a1vs
+    A1ValConstructor ctor a1vs ->
+      dispConstructorApp req ctor a1vs
     A1ValIfThenElse a1v0 a1v1 a1v2 ->
       dispIfThenElse req a1v0 a1v1 a1v2
 

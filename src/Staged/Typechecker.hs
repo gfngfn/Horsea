@@ -884,6 +884,16 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
               typeError trav $ CannotForceType0 spanInFile a0tyeReq
         _ ->
           typeError trav $ CannotForceType0 spanInFile a0tyeReq
+    Constructor (mods, ctor) ->
+      case (mods, ctor) of
+        ([], "Nothing") ->
+          case a0tyeReq of
+            A0TyMaybe _a0tyeElem -> pure $ A0Constructor "Nothing" []
+            _ -> typeError trav $ CannotForceType0 spanInFile a0tyeReq
+        _ -> do
+          (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
+          (cast, _varSolution, _tyvar0Solution) <- makeAssertiveCast trav loc Set.empty Set.empty a0tye a0tyeReq
+          pure $ applyCast cast a0e
     IfThenElse e0 e1 e2 -> do
       (a0tye0, a0e0) <- typecheckExpr0Single trav tyEnv e0
       case a0tye0 of
@@ -915,12 +925,27 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
   completeInferredImplicit spanInFile
     =<< case eMain of
+      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
+        error "TODO (error): typecheckExpr0, illegal syntax"
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
-      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
-        error "TODO (error): typecheckExpr0, TyForAll"
-      Constructor (_mods, _constructor) ->
-        error "TODO: typecheckExpr0, Constructor"
+      Constructor (mods, ctor) ->
+        case (mods, ctor) of
+          ([], "Just") ->
+            case appCtx of
+              [] ->
+                error "TODO: Just, empty app context"
+              [AppArg0 Nothing _a0e1 a0tye1] -> do
+                svX <- generateFreshVar Nothing
+                let ax = AssVarStatic svX
+                let a0eRet = A0Lam Nothing (ax, strictify a0tye1) (A0Constructor "Just" [A0Var ax])
+                pure (Cast0 Nothing a0tye1 (Pure (A0TyMaybe a0tye1)), a0eRet)
+              _ ->
+                error "TODO (error): other app contexts"
+          ([], "Nothing") ->
+            error "TODO: Nothing"
+          _ ->
+            error "TODO (error): unknown constructor"
       Product e1 rest ->
         case appCtx of
           [] -> do
@@ -1324,6 +1349,16 @@ forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
               typeError trav $ CannotForceType1 spanInFile a1tyeReq
         _ -> do
           typeError trav $ CannotForceType1 spanInFile a1tyeReq
+    Constructor (mods, ctor) ->
+      case (mods, ctor) of
+        ([], "Nothing") ->
+          case a1tyeReq of
+            A1TyMaybe _a1tyeElem -> pure $ A1Constructor "Nothing" []
+            _ -> typeError trav $ CannotForceType1 spanInFile a1tyeReq
+        _ -> do
+          (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
+          (eq, _varSolution, _tyvar1Solution) <- makeEquation1 trav loc Set.empty Set.empty a1tye a1tyeReq
+          pure $ applyEquationCast loc eq a1e
     IfThenElse e0 e1 e2 -> do
       (a1tye0, a1e0) <- typecheckExpr1Single trav tyEnv e0
       case a1tye0 of
@@ -1357,8 +1392,23 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
     <$> case eMain of
       (Persistent {}; TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr1, TyForAll"
-      Constructor (_mods, _constructor) ->
-        error "TODO: typecheckExpr1, Constructor"
+      Constructor (mods, ctor) ->
+        case (mods, ctor) of
+          ([], "Just") ->
+            case appCtx of
+              [] ->
+                error "TODO: Just, empty app context"
+              [AppArg1 Nothing a1tye1] -> do
+                svX <- generateFreshVar Nothing
+                let ax = AssVarStatic svX
+                let a1eRet = A1Lam Nothing (ax, a1tye1) (A1Constructor "Just" [A1Var ax])
+                pure (Cast1 Nothing a1tye1 (Pure (A1TyMaybe a1tye1)), a1eRet)
+              _ ->
+                error "TODO (error): other app contexts"
+          ([], "Nothing") ->
+            error "TODO: Nothing"
+          _ ->
+            error "TODO (error): unknown constructor"
       Product e1 rest ->
         -- TODO: consider simply falling back to `App`
         case appCtx of

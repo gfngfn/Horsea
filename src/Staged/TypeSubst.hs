@@ -228,6 +228,7 @@ instance HasTypeVar Ass1ExprF where
     A1LetTupleIn xs a1e1 a1e2 -> A1LetTupleIn xs (go a1e1) (go a1e2)
     A1Sequential a1e1 a1e2 -> A1Sequential (go a1e1) (go a1e2)
     A1Tuple a1es -> A1Tuple (fmap go a1es)
+    A1Constructor ctor a1es -> A1Constructor ctor (map go a1es)
     A1IfThenElse a1e0 a1e1 a1e2 -> A1IfThenElse (go a1e0) (go a1e1) (go a1e2)
     A1Escape a0e -> A1Escape (go a0e)
     A1AppType a1e1 a1tye2 -> A1AppType (go a1e1) (go a1tye2)

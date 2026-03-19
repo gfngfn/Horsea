@@ -260,6 +260,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       unionPairs [frees a1e1, frees a1e2]
     A1Tuple a1es ->
       unionPairs (map frees (TwoOrMore.toList a1es))
+    A1Constructor _ctor a1es ->
+      unionPairs (map frees a1es)
     A1IfThenElse a1e0 a1e1 a1e2 ->
       unionPairs [frees a1e0, frees a1e1, frees a1e2]
     A1Escape a0e1 ->
@@ -302,6 +304,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       A1Sequential (go a1e1) (go a1e2)
     A1Tuple a1es ->
       A1Tuple (fmap go a1es)
+    A1Constructor ctor a1es ->
+      A1Constructor ctor (map go a1es)
     A1IfThenElse a1e0 a1e1 a1e2 ->
       A1IfThenElse (go a1e0) (go a1e1) (go a1e2)
     A1Escape a0e1 ->
