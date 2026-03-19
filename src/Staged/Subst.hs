@@ -10,9 +10,10 @@ module Staged.Subst
 where
 
 import Data.Functor.Identity
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Maybe1
-import Data.Set (Set)
+import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Safe.Exact (zipExactMay)
@@ -121,6 +122,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       unionPairs (map frees a0es)
     A0IfThenElse a0e0 a0e1 a0e2 ->
       unionPairs [frees a0e0, frees a0e1, frees a0e2]
+    A0Case a0e0 a0branches ->
+      unionPairs (frees a0e0 : map frees (NonEmpty.toList a0branches))
     A0Bracket a1e1 ->
       frees a1e1
     A0TyEqAssert _ ty0eq ->
@@ -169,6 +172,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       A0Constructor ctor (map go a0es)
     A0IfThenElse a0e0 a0e1 a0e2 ->
       A0IfThenElse (go a0e0) (go a0e1) (go a0e2)
+    A0Case a0e0 a0branches ->
+      A0Case (go a0e0) (fmap go a0branches)
     A0Bracket a1e1 ->
       A0Bracket (go a1e1)
     A0TyEqAssert loc ty0eq ->
@@ -212,8 +217,18 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
         case zipExactMay (TwoOrMore.toList a0es1) (TwoOrMore.toList a0es2) of
           Just zipped -> all (uncurry go) zipped
           Nothing -> False
+      (A0Constructor ctor1 a0es1, A0Constructor ctor2 a0es2) ->
+        ctor1 == ctor2
+          && case zipExactMay a0es1 a0es2 of
+            Just zipped -> all (uncurry go) zipped
+            Nothing -> False
       (A0IfThenElse a0e10 a0e11 a0e12, A0IfThenElse a0e20 a0e21 a0e22) ->
         go a0e10 a0e20 && go a0e11 a0e21 && go a0e12 a0e22
+      (A0Case a0e10 a0branches1, A0Case a0e20 a0branches2) ->
+        go a0e10 a0e20
+          && case zipExactMay (NonEmpty.toList a0branches1) (NonEmpty.toList a0branches2) of
+            Just zipped -> all (uncurry go) zipped
+            Nothing -> False
       (A0Bracket a1e1, A0Bracket a1e2) ->
         go a1e1 a1e2
       (A0TyEqAssert _ ty0eq1, A0TyEqAssert _ ty0eq2) ->
@@ -225,6 +240,29 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
     where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
+
+instance (Ord sv) => HasVar sv Ass0BranchF where
+  frees (A0Branch a0pat a0e) =
+      let var0setBound = freesInPattern0 a0pat
+          (var0set, var1set) = frees a0e
+       in (var0set \\ var0setBound, var1set)
+
+  subst s (A0Branch a0pat a0e) =
+    A0Branch a0pat $
+      case s of
+        Subst0 x _ -> if x `elem` freesInPattern0 a0pat then a0e else go a0e
+        Subst1 _ _ -> go a0e
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent _a0branch1 _a0branch2 =
+    error "TODO: Ass0Branch, alphaEquivalent"
+
+freesInPattern0 :: (Ord sv) => Ass0PatternF sv -> Set (AssVarF sv)
+freesInPattern0 = \case
+  A0PatConstructor _ctor a0pats -> Set.unions (map freesInPattern0 a0pats)
+  A0PatVar x -> Set.singleton x
 
 instance (Ord sv) => HasVar sv Ass1ExprF where
   frees = \case

@@ -19,8 +19,10 @@ import Data.Function
 import Data.Functor.Identity
 import Data.List (length)
 import Data.List.Extra (firstJust)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe1
 import Data.Set (Set, (\\))
@@ -925,10 +927,6 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
   completeInferredImplicit spanInFile
     =<< case eMain of
-      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
-        error "TODO (error): typecheckExpr0, illegal syntax"
-      Persistent _ ->
-        typeError trav $ CannotUsePersistent spanInFile
       Constructor (mods, ctor) ->
         case (mods, ctor) of
           ([], "Just") ->
@@ -1194,6 +1192,14 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             let Expr loc0 _ = e0
             spanInFile0 <- askSpanInFile loc0
             typeError trav $ NotABoolTypeForStage0 spanInFile0 a0tye0
+      Case eTarget (branch1 :| branchesRest) -> do
+        (a0tyeTarget, a0eTarget) <- typecheckExpr0Single trav tyEnv eTarget
+        case branchesRest of
+          [] -> do
+            (a0pat1, result1, a0eRet1) <- forceBranch0 trav tyEnv a0tyeTarget appCtx branch1
+            pure (result1, A0Case a0eTarget (A0Branch a0pat1 a0eRet1 :| []))
+          _ : _ ->
+            error "TODO: Case with more than one branch"
       As e1 tye2 ->
         case appCtx of
           [] -> do
@@ -1208,6 +1214,10 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         pure (result, A0Bracket a1e1)
       Escape _ ->
         typeError trav $ CannotUseEscapeAtStage0 spanInFile
+      Persistent _ ->
+        typeError trav $ CannotUsePersistent spanInFile
+      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
+        error "TODO (error): typecheckExpr0, illegal syntax"
   where
     completeInferredImplicit spanInFile = go
       where
@@ -1220,6 +1230,22 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
               go (result', A0AppType a0e (strictify a0tyeInferred))
             _ ->
               pure pair
+
+forceBranch0 :: trav -> TypeEnv -> Ass0TypeExpr -> AppContext -> Branch -> M trav (Ass0Pattern, Result0, Ass0Expr)
+forceBranch0 trav tyEnv a0tyePatReq appCtx (Branch pat e) = do
+  (a0pat, binders) <- forcePattern0 trav tyEnv a0tyePatReq pat
+  (result, a0e) <- typecheckExpr0 trav (TypeEnv.addVals binders tyEnv) appCtx e
+  pure (a0pat, result, a0e)
+
+forcePattern0 :: trav -> TypeEnv -> Ass0TypeExpr -> Pattern -> M trav (Ass0Pattern, Map Var ValEntry)
+forcePattern0 _trav _tyEnv a0tyePatReq (Pattern _ann patMain) =
+  case patMain of
+    PatConstructor _ctor _pats ->
+      error "TODO: forcePattern0, PatConstructor"
+    PatVar x -> do
+      svX <- generateFreshVar (Just x)
+      let ax = AssVarStatic svX
+      pure (A0PatVar ax, Map.singleton x (Ass0Entry a0tyePatReq (Right svX)))
 
 constructFunTypeExpr0 :: trav -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass0TypeExpr
 constructFunTypeExpr0 trav tyEnv params tyeBody = do
@@ -1390,8 +1416,6 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
   completeInferredImplicit
     <$> case eMain of
-      (Persistent {}; TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
-        error "TODO (error): typecheckExpr1, TyForAll"
       Constructor (mods, ctor) ->
         case (mods, ctor) of
           ([], "Just") ->
@@ -1638,6 +1662,9 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             let Expr loc0 _ = e0
             spanInFile0 <- askSpanInFile loc0
             typeError trav $ NotABoolTypeForStage1 spanInFile0 a1tye0
+      Case e1 (_branch0 :| _branchesRest) -> do
+        (_a1tye1, _a1e1) <- typecheckExpr1Single trav tyEnv e1
+        error "TODO: typecheckExpr1, Case"
       As e1 tye2 ->
         case appCtx of
           [] -> do
@@ -1662,6 +1689,10 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             )
             result1
         pure (result, A1Escape a0e1)
+      Persistent _ ->
+        typeError trav $ CannotUsePersistent spanInFile
+      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
+        error "TODO (error): typecheckExpr1, invalid syntax"
   where
     completeInferredImplicit pair@(result, a1e) =
       case result of
@@ -1732,8 +1763,6 @@ typecheckTypeExpr0 :: trav -> TypeEnv -> TypeExpr -> M trav Ass0TypeExpr
 typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
-      error "TODO (error): typecheckTypeExpr0, illegal syntax"
     Constructor (mods, tyName) ->
       case mods of
         [] ->
@@ -1877,6 +1906,8 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv
         typecheckTypeExpr0 trav tyEnv' tye1
       pure $ A0TyImplicitForAll atyvar a0tye1
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+      error "TODO (error): typecheckTypeExpr0, illegal syntax"
 
 ass0exprAnd :: Ass0Expr
 ass0exprAnd = A0BuiltInName (BuiltInArity2 BIAnd)
@@ -1910,8 +1941,6 @@ typecheckTypeExpr1 :: trav -> TypeEnv -> TypeExpr -> M trav Ass1TypeExpr
 typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
-      error "TODO (error): typecheckTypeExpr1, illegal syntax"
     Constructor (mods, tyName) ->
       case mods of
         [] ->
@@ -2013,6 +2042,8 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv
         typecheckTypeExpr1 trav tyEnv' tye1
       pure $ A1TyImplicitForAll atyvar a1tye1
+    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+      error "TODO (error): typecheckTypeExpr1, illegal syntax"
 
 validatePersistentType :: trav -> Span -> Ass0TypeExpr -> M trav AssPersTypeExpr
 validatePersistentType trav loc a0tye =

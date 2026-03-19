@@ -6,6 +6,8 @@ module Staged.Syntax
     AssTypeVar (..),
     AssLiteralF (..),
     Ass0ExprF (..),
+    Ass0BranchF (..),
+    Ass0PatternF (..),
     Ass1ExprF (..),
     AssBindF (..),
     makeExprFromBinds,
@@ -46,6 +48,8 @@ module Staged.Syntax
     ResultF (..),
     AssVar,
     Ass0Expr,
+    Ass0Branch,
+    Ass0Pattern,
     Ass1Expr,
     AssBind,
     Type1Equation,
@@ -66,6 +70,7 @@ where
 
 import Common.TokenUtil (Span)
 import Data.Functor.Identity
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
 import Data.Tensor.Matrix (Matrix)
@@ -120,12 +125,21 @@ data Ass0ExprF sv
   | A0Tuple (TwoOrMore (Ass0ExprF sv))
   | A0Constructor ConstructorName [Ass0ExprF sv]
   | A0IfThenElse (Ass0ExprF sv) (Ass0ExprF sv) (Ass0ExprF sv)
+  | A0Case (Ass0ExprF sv) (NonEmpty (Ass0BranchF sv))
   | A0Bracket (Ass1ExprF sv)
   | A0TyEqAssert Span (Type1EquationF sv)
   | -- | Assertions for refinement predicates, where the first expression is a predicate,
     -- and the second is a target expression of the assertion.
     A0RefinementAssert Span (Ass0ExprF sv) (Ass0ExprF sv)
   | A0AppType (Ass0ExprF sv) (StrictAss0TypeExprF sv)
+  deriving stock (Eq, Show, Functor)
+
+data Ass0BranchF sv = A0Branch (Ass0PatternF sv) (Ass0ExprF sv)
+  deriving stock (Eq, Show, Functor)
+
+data Ass0PatternF sv
+  = A0PatConstructor ConstructorName [Ass0PatternF sv]
+  | A0PatVar (AssVarF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-1 expressions obtained by elaboration through typechecking.
@@ -582,6 +596,10 @@ data ResultF af sv
 type AssVar = AssVarF StaticVar
 
 type Ass0Expr = Ass0ExprF StaticVar
+
+type Ass0Branch = Ass0BranchF StaticVar
+
+type Ass0Pattern = Ass0PatternF StaticVar
 
 type Ass1Expr = Ass1ExprF StaticVar
 
