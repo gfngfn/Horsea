@@ -1238,10 +1238,21 @@ forceBranch0 trav tyEnv a0tyePatReq appCtx (Branch pat e) = do
   pure (a0pat, result, a0e)
 
 forcePattern0 :: trav -> TypeEnv -> Ass0TypeExpr -> Pattern -> M trav (Ass0Pattern, Map Var ValEntry)
-forcePattern0 _trav _tyEnv a0tyePatReq (Pattern _ann patMain) =
+forcePattern0 trav tyEnv a0tyePatReq (Pattern _ann patMain) =
   case patMain of
-    PatConstructor _ctor _pats ->
-      error "TODO: forcePattern0, PatConstructor"
+    PatConstructor ctor pats ->
+      case (ctor, pats) of
+        ("Nothing", []) ->
+          pure (A0PatConstructor "Nothing" [], Map.empty)
+        ("Just", [pat1]) ->
+          case a0tyePatReq of
+            A0TyMaybe a0tyePatReq1 -> do
+              (a0pat1, binders) <- forcePattern0 trav tyEnv a0tyePatReq1 pat1
+              pure (A0PatConstructor "Just" [a0pat1], binders)
+            _ ->
+              error "TODO (error): forcePattern0, PatConstructor, not Maybe"
+        (_, _) ->
+          error "TODO (error): forcePattern0, PatConstructor, unknown constructor"
     PatVar x -> do
       svX <- generateFreshVar (Just x)
       let ax = AssVarStatic svX
