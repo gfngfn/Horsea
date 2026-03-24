@@ -671,16 +671,22 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
           typeError trav $ CannotMerge0 patAndTypePairs
 
     mergeRefinementPredicates :: (Maybe Ass0Expr -> StrictAss0TypeExpr) -> NonEmpty (Ass0Pattern, Maybe Ass0Expr) -> M' ConditionalMergeError trav (Maybe Ass0Expr)
-    mergeRefinementPredicates sa0tyef maybePred1 maybePred2 =
-      case (maybePred1, maybePred2) of
-        (Nothing, Nothing) -> pure Nothing
-        (Just a0ePred1, Nothing) -> makeIf (A0App a0ePred1 . A0Var) (\_ -> A0Literal (ALitBool True))
-        (Nothing, Just a0ePred2) -> makeIf (\_ -> A0Literal (ALitBool True)) (A0App a0ePred2 . A0Var)
-        (Just a0ePred1, Just a0ePred2) -> makeIf (A0App a0ePred1 . A0Var) (A0App a0ePred2 . A0Var)
-      where
-        makeIf f1 f2 = do
+    mergeRefinementPredicates sa0tyef patAndMaybePredPairs =
+      if all (isNothing . snd) patAndMaybePredPairs
+        then
+          pure Nothing
+        else do
           ax <- AssVarStatic <$> generateFreshVar Nothing
-          pure $ Just (A0Lam Nothing (ax, sa0tyef Nothing) (A0IfThenElse a0e0 (f1 ax) (f2 ax)))
+          let a0branches =
+                fmap
+                  ( \(a0pat, maybePred) ->
+                      A0Branch a0pat $
+                        case maybePred of
+                          Nothing -> A0Literal (ALitBool True)
+                          Just a0ePred -> A0App a0ePred (A0Var ax)
+                  )
+                  patAndMaybePredPairs
+          pure $ Just (A0Lam Nothing (ax, sa0tyef Nothing) (A0Case a0e0 a0branches))
 
     go1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
     go1 = mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0
@@ -688,54 +694,152 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
 mergeTypesByConditional1 :: forall trav. trav -> Bool -> Ass0Expr -> NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
 mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
   where
-    go1 :: Ass1TypeExpr -> Ass1TypeExpr -> M' ConditionalMergeError trav Ass1TypeExpr
-    go1 a1tye1 a1tye2 =
-      case (a1tye1, a1tye2) of
-        (A1TyPrim a1tyePrim1, A1TyPrim a1tyePrim2) ->
+    go1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
+    go1 patAndTypePairs@((a0pat1, a1tye1) :| rest) =
+      case a1tye1 of
+        A1TyPrim a1tyePrim1 -> do
           A1TyPrim
-            <$> case (a1tyePrim1, a1tyePrim2) of
-              (A1TyPrimBase tyPrimBase1, A1TyPrimBase tyPrimBase2) ->
-                if tyPrimBase1 == tyPrimBase2
-                  then pure a1tyePrim1
-                  else typeError trav $ CannotMerge1 a1tye1 a1tye2
-              (A1TyTensor a0eList1, A1TyTensor a0eList2) ->
-                case (a0eList1, a0eList2) of
+            <$> case a1tyePrim1 of
+              A1TyPrimBase tyPrimBase1 -> do
+                mapM_
+                  ( \(_a0pat, a1tye) ->
+                      case a1tye of
+                        A1TyPrim (A1TyPrimBase tyPrimBase) ->
+                          if tyPrimBase == tyPrimBase1
+                            then pure ()
+                            else typeError trav $ CannotMerge1 patAndTypePairs
+                        _ ->
+                          typeError trav $ CannotMerge1 patAndTypePairs
+                  )
+                  rest
+                pure a1tyePrim1
+              A1TyTensor a0eList1 -> do
+                pairsRest <-
+                  mapM
+                    ( \(a0pat, a1tye) ->
+                        case a1tye of
+                          A1TyPrim (A1TyTensor a0eList) -> pure (a0pat, a0eList)
+                          _ -> typeError trav $ CannotMerge1 patAndTypePairs
+                    )
+                    rest
+                let pairs = (a0pat1, a0eList1) :| pairsRest
+                case extractListLiteralsIfAll pairs of
                   -- Slight enhancement for the argument inference:
-                  (A0Literal (ALitList a0es1), A0Literal (ALitList a0es2)) | distributeIfUnderTensorShape ->
-                    case zipExactMay a0es1 a0es2 of
-                      Nothing -> typeError trav $ CannotMerge1 a1tye1 a1tye2
-                      Just zipped -> pure $ A1TyTensor (A0Literal (ALitList (map (uncurry a0branch) zipped)))
+                  Just patAndElemsPairs | distributeIfUnderTensorShape ->
+                    case distribute patAndElemsPairs of
+                      Just patAndElemPairss -> do
+                        let a0es' = map (A0Case a0e0 . fmap (uncurry A0Branch)) patAndElemPairss
+                        pure $ A1TyTensor (A0Literal (ALitList a0es'))
+                      Nothing ->
+                        typeError trav $ CannotMerge1 patAndTypePairs
                   -- General rule:
-                  (_, _) ->
-                    pure $ A1TyTensor (a0branch a0eList1 a0eList2)
-              (A1TyDataset dp1, A1TyDataset dp2) ->
+                  _ ->
+                    pure $ A1TyTensor (A0Case a0e0 (fmap (uncurry A0Branch) pairs))
+              A1TyDataset dp1 -> do
+                pairsRest <-
+                  mapM
+                    ( \(a0pat, a1tye) ->
+                        case a1tye of
+                          A1TyPrim (A1TyDataset dp) -> pure (a0pat, dp)
+                          _ -> typeError trav $ CannotMerge1 patAndTypePairs
+                    )
+                    rest
+                let pairs = (a0pat1, dp1) :| pairsRest
+                let a0branchesNumTrain = fmap (\(a0pat, dp) -> A0Branch a0pat dp.numTrain) pairs
+                let a0branchesNumTest = fmap (\(a0pat, dp) -> A0Branch a0pat dp.numTest) pairs
+                let a0branchesImage = fmap (\(a0pat, dp) -> A0Branch a0pat (runIdentity dp.image)) pairs
+                let a0branchesLabel = fmap (\(a0pat, dp) -> A0Branch a0pat (runIdentity dp.label)) pairs
                 pure . A1TyDataset $
                   DatasetParam
-                    { numTrain = a0branch dp1.numTrain dp2.numTrain,
-                      numTest = a0branch dp1.numTest dp2.numTest,
-                      image = Identity (a0branch (runIdentity dp1.image) (runIdentity dp2.image)),
-                      label = Identity (a0branch (runIdentity dp1.label) (runIdentity dp2.label))
+                    { numTrain = A0Case a0e0 a0branchesNumTrain,
+                      numTest = A0Case a0e0 a0branchesNumTest,
+                      image = Identity (A0Case a0e0 a0branchesImage),
+                      label = Identity (A0Case a0e0 a0branchesLabel)
                     }
-              (A1TyLstm a0eInputSize1 a0eHiddenSize1, A1TyLstm a0eInputSize2 a0eHiddenSize2) ->
-                pure $ A1TyLstm (a0branch a0eInputSize1 a0eInputSize2) (a0branch a0eHiddenSize1 a0eHiddenSize2)
-              (A1TyTextHelper a0eLabels1, A1TyTextHelper a0eLabels2) ->
-                pure $ A1TyTextHelper (a0branch a0eLabels1 a0eLabels2)
-              _ ->
-                typeError trav $ CannotMerge1 a1tye1 a1tye2
-        (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) ->
-          if labelOpt1 == labelOpt2
-            then A1TyArrow labelOpt1 <$> go1 a1tye11 a1tye21 <*> go1 a1tye12 a1tye22
-            else typeError trav $ CannotMerge1 a1tye1 a1tye2
+              A1TyLstm a0eInputSize1 a0eHiddenSize1 -> do
+                triplesRest <-
+                  mapM
+                    ( \(a0pat, a1tye) ->
+                        case a1tye of
+                          A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize) -> pure (a0pat, (a0eInputSize, a0eHiddenSize))
+                          _ -> typeError trav $ CannotMerge1 patAndTypePairs
+                    )
+                    rest
+                let triples = (a0pat1, (a0eInputSize1, a0eHiddenSize1)) :| triplesRest
+                let a0branchesInputSize = fmap (\(a0pat, pair) -> A0Branch a0pat (fst pair)) triples
+                let a0branchesHiddenSize = fmap (\(a0pat, pair) -> A0Branch a0pat (snd pair)) triples
+                pure $ A1TyLstm (A0Case a0e0 a0branchesInputSize) (A0Case a0e0 a0branchesHiddenSize)
+              A1TyTextHelper a0eLabels1 -> do
+                pairsRest <-
+                  mapM
+                    ( \(a0pat, a1tye) ->
+                        case a1tye of
+                          A1TyPrim (A1TyTextHelper a0eLabels) -> pure (a0pat, a0eLabels)
+                          _ -> typeError trav $ CannotMerge1 patAndTypePairs
+                    )
+                    rest
+                let pairs = (a0pat1, a0eLabels1) :| pairsRest
+                let a0branches = fmap (uncurry A0Branch) pairs
+                pure $ A1TyTextHelper (A0Case a0e0 a0branches)
+        A1TyArrow labelOpt1 a1tyeDom1 a1tyeCod1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyArrow labelOpt2 a1tyeDom a1tyeCod ->
+                      if labelOpt1 == labelOpt2
+                        then pure (a0pat, (a1tyeDom, a1tyeCod))
+                        else typeError trav $ CannotMerge1 patAndTypePairs
+                    _ ->
+                      typeError trav $ CannotMerge1 patAndTypePairs
+              )
+              rest
+          let triples = (a0pat1, (a1tyeDom1, a1tyeCod1)) :| triplesRest
+          a1tyeDom' <- go1 (fmap (second fst) triples)
+          a1tyeCod' <- go1 (fmap (second snd) triples)
+          pure $ A1TyArrow labelOpt1 a1tyeDom' a1tyeCod'
         _ ->
-          typeError trav $ CannotMerge1 a1tye1 a1tye2
+          typeError trav $ CannotMerge1 patAndTypePairs
 
-    a0branch = A0IfThenElse a0e0
+extractListLiteralsIfAll :: NonEmpty (Ass0Pattern, Ass0Expr) -> Maybe (NonEmpty (Ass0Pattern, [Ass0Expr]))
+extractListLiteralsIfAll =
+  mapM
+    ( \(a0pat, a0e) ->
+        case a0e of
+          A0Literal (ALitList a0es) -> pure (a0pat, a0es)
+          _ -> Nothing
+    )
+
+-- Performs the following conversion (i.e., transposition):
+--
+-- [ (p1, [e11, ..., e1N]),          [ (p1, e11),  [ (p1, e12),       [ (p1, e1N),
+--   ...                      ---->    ...           ...                ...
+--   (pM, [eM1, ..., eMN]) ]           (pM, eM1) ],  (pM, eM2) ], ...   (pM, eMN) ]
+distribute :: NonEmpty (Ass0Pattern, [Ass0Expr]) -> Maybe [NonEmpty (Ass0Pattern, Ass0Expr)]
+distribute ((a0pat1, a0es1) :| rest) =
+  case a0es1 of
+    [] ->
+      if all (null . snd) rest
+        then pure []
+        else Nothing
+    a0e1 : a0esTail1 -> do
+      triplesRest <-
+        mapM
+          ( \(a0pat, a0es) ->
+              case a0es of
+                a0e : a0esTail -> pure (a0pat, (a0e, a0esTail))
+                _ -> Nothing
+          )
+          rest
+      let triples = (a0pat1, (a0e1, a0esTail1)) :| triplesRest
+      resTail <- distribute (fmap (second snd) triples)
+      pure $ fmap (second fst) triples : resTail
 
 mergeResultsByConditional0 :: forall trav. trav -> Span -> Ass0Expr -> NonEmpty (Ass0Pattern, Result0) -> M trav Result0
 mergeResultsByConditional0 trav loc a0e0 = go
   where
     go :: NonEmpty (Ass0Pattern, Result0) -> M trav Result0
-    go pairs@((a0pat1, result1) :| rest) =
+    go patAndResultPairs@((a0pat1, result1) :| rest) =
       case result1 of
         Pure a0tye1 -> do
           patAndTypePairs <-
@@ -813,7 +917,7 @@ mergeResultsByConditional0 trav loc a0e0 = go
         _ -> do
           -- Reachable if two branches of an if-expression are inconsistent as to `InsertInferred0`.
           spanInFile <- askSpanInFile loc
-          typeError trav $ CannotMergeResultsByConditionals spanInFile pairs
+          typeError trav $ CannotMergeResultsByConditionals spanInFile patAndResultPairs
 
     mergeTypes0 :: NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M trav Ass0TypeExpr
     mergeTypes0 pairs = do

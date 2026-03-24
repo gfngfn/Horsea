@@ -85,7 +85,7 @@ data TypeErrorF sv
 
 data ConditionalMergeErrorF sv
   = CannotMerge0 (NonEmpty (Ass0PatternF sv, Ass0TypeExprF sv))
-  | CannotMerge1 (Ass1TypeExprF sv) (Ass1TypeExprF sv)
+  | CannotMerge1 (NonEmpty (Ass0PatternF sv, Ass1TypeExprF sv))
   deriving stock (Eq, Show, Functor)
 
 data UnsupportedF sv
