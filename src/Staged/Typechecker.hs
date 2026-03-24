@@ -1415,8 +1415,10 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           A0TyPrim (A0TyPrimBase ATyPrimBool) _maybePred -> do
             (result1, a0e1) <- typecheckExpr0 trav tyEnv appCtx e1
             (result2, a0e2) <- typecheckExpr0 trav tyEnv appCtx e2
-            result <- mergeResultsByConditional0 trav loc a0e0 result1 result2
-            pure (result, A0IfThenElse a0e0 a0e1 a0e2)
+            result <-
+              mergeResultsByConditional0 trav loc a0e0 $
+                (A0PatBool True, result1) :| [(A0PatBool False, result2)]
+            pure (result, A0IfThenElse a0e0 a0e1 a0e2) -- TODO: abandon IfThenElse
           _ -> do
             let Expr loc0 _ = e0
             spanInFile0 <- askSpanInFile loc0

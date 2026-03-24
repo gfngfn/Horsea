@@ -557,6 +557,7 @@ instance (Disp sv) => Disp (Ass0PatternF sv) where
   dispGen req = \case
     A0PatConstructor ctor a0pats -> dispConstructorApp req ctor a0pats
     A0PatVar x -> disp x
+    A0PatBool b -> if b then "true" else "false"
 
 instance (Disp sv) => Disp (Ass1ExprF sv) where
   dispGen req = \case
@@ -918,10 +919,12 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case
-    CannotMerge0 a0tye1 a0tye2 ->
-      "types" <+> stage0Style (disp a0tye1) <+> "and" <+> stage0Style (disp a0tye2) <+> "are incompatible"
-    CannotMerge1 a1tye1 a1tye2 ->
-      "types" <+> stage1Style (disp a1tye1) <+> "and" <+> stage1Style (disp a1tye2) <+> "are incompatible"
+    CannotMerge0 pairs ->
+      "the following types are incompatible:"
+        <> foldl1 (<>) (fmap (\(_a0pat, a0tye) -> nest 2 (hardline <> stage0Style (disp a0tye))) pairs)
+    CannotMerge1 pairs ->
+      "the following types are incompatible:"
+        <> foldl1 (<>) (fmap (\(_a0pat, a1tye) -> nest 2 (hardline <> stage1Style (disp a1tye))) pairs)
 
 instance (Disp sv) => Disp (UnsupportedF sv) where
   dispGen _ = \case

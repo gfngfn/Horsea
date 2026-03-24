@@ -145,6 +145,7 @@ instance HasTypeVar Ass0ExprF where
     A0Tuple a0es -> A0Tuple (fmap go a0es)
     A0Constructor ctor a0es -> A0Constructor ctor (map go a0es)
     A0IfThenElse a0e0 a0e1 a0e2 -> A0IfThenElse (go a0e0) (go a0e1) (go a0e2)
+    A0Case a0e0 _a0branches -> A0Case (go a0e0) $ error "TODO: HasTypeVar Ass0ExprF, A0Case"
     A0Bracket a1e -> A0Bracket (go a1e)
     A0TyEqAssert loc ty1eq -> A0TyEqAssert loc (go ty1eq)
     A0RefinementAssert loc a0e1 a0e2 -> A0RefinementAssert loc (go a0e1) (go a0e2)

@@ -359,6 +359,9 @@ evalExpr0 env = \case
     if b
       then evalExpr0 env a0e1
       else evalExpr0 env a0e2
+  A0Case a0e0 _a0branches -> do
+    _a0v0 <- evalExpr0 env a0e0
+    error "TODO: Evaluator, A0Case"
   A0Bracket a1e1 -> do
     a1v1 <- evalExpr1 env a1e1
     pure $ A0ValBracket a1v1

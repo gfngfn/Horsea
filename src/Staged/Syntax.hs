@@ -140,6 +140,7 @@ data Ass0BranchF sv = A0Branch (Ass0PatternF sv) (Ass0ExprF sv)
 data Ass0PatternF sv
   = A0PatConstructor ConstructorName [Ass0PatternF sv]
   | A0PatVar (AssVarF sv)
+  | A0PatBool Bool
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-1 expressions obtained by elaboration through typechecking.
