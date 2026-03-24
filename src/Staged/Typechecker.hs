@@ -24,6 +24,7 @@ import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
+import Data.Maybe (isNothing)
 import Data.Maybe1
 import Data.Set (Set, (\\))
 import Data.Set qualified as Set
@@ -564,46 +565,112 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
 mergeTypesByConditional0 :: forall trav. trav -> Bool -> Ass0Expr -> NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M' ConditionalMergeError trav Ass0TypeExpr
 mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
   where
-    go0 :: Ass0TypeExpr -> Ass0TypeExpr -> M' ConditionalMergeError trav Ass0TypeExpr
-    go0 a0tye1 a0tye2 =
-      case (a0tye1, a0tye2) of
-        (A0TyPrim a0tyePrim1 maybePred1, A0TyPrim a0tyePrim2 maybePred2) ->
-          if a0tyePrim1 == a0tyePrim2
-            then do
-              maybePred <- mergeRefinementPredicates (SA0TyPrim a0tyePrim1) maybePred1 maybePred2
-              pure $ A0TyPrim a0tyePrim1 maybePred
-            else
-              typeError trav $ CannotMerge0 a0tye1 a0tye2
-        (A0TyList a0tye1' maybePred1, A0TyList a0tye2' maybePred2) -> do
-          a0tye <- go0 a0tye1' a0tye2'
-          maybePred <- mergeRefinementPredicates (SA0TyList (strictify a0tye1')) maybePred1 maybePred2
-          pure $ A0TyList a0tye maybePred
-        (A0TyMaybe a0tye1', A0TyMaybe a0tye2') -> do
-          a0tye <- go0 a0tye1' a0tye2'
-          pure $ A0TyMaybe a0tye
-        (A0TyArrow labelOpt1 (x1opt, a0tye11) a0tye12, A0TyArrow labelOpt2 (x2opt, a0tye21) a0tye22) -> do
-          if labelOpt1 /= labelOpt2
-            then
-              typeError trav $ CannotMerge0 a0tye1 a0tye2
-            else do
-              a0tye1u <- go0 a0tye11 a0tye21
-              (xu, a0tye2u) <-
-                case (x1opt, x2opt) of
-                  (Nothing, Nothing) -> (Nothing,) <$> go0 a0tye12 a0tye22
-                  (Just x1, Nothing) -> (Just x1,) <$> go0 a0tye12 a0tye22
-                  (Nothing, Just x2) -> (Just x2,) <$> go0 a0tye12 a0tye22
-                  (Just x1, Just x2) -> (Just x1,) <$> go0 a0tye12 (subst0 (A0Var x1) x2 a0tye22)
-              pure $ A0TyArrow labelOpt1 (xu, a0tye1u) a0tye2u
-        (A0TyCode a1tye1, A0TyCode a1tye2) ->
-          A0TyCode <$> go1 a1tye1 a1tye2
-        (A0TyImpArrow (x1, a0tye11) a0tye12, A0TyImpArrow (x2, a0tye21) a0tye22) -> do
-          a0tye1u <- go0 a0tye11 a0tye21
-          a0tye2u <- go0 a0tye12 (subst0 (A0Var x1) x2 a0tye22)
-          pure $ A0TyImpArrow (x1, a0tye1u) a0tye2u
+    go0 :: NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M' ConditionalMergeError trav Ass0TypeExpr
+    go0 patAndTypePairs@((a0pat1, a0tye1) :| rest) =
+      case a0tye1 of
+        A0TyPrim a0tyePrim1 maybePred1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyPrim a0tyePrim maybePred ->
+                      if a0tyePrim == a0tyePrim1
+                        then pure (a0pat, maybePred)
+                        else typeError trav $ CannotMerge0 patAndTypePairs
+                    _ ->
+                      typeError trav $ CannotMerge0 patAndTypePairs
+              )
+              rest
+          let pairs = (a0pat1, maybePred1) :| pairsRest
+          maybePred' <- mergeRefinementPredicates (SA0TyPrim a0tyePrim1) pairs
+          pure $ A0TyPrim a0tyePrim1 maybePred'
+        A0TyList a0tyeElem1 maybePred1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyList a0tyeElem maybePred -> pure (a0pat, (a0tyeElem, maybePred))
+                    _ -> typeError trav $ CannotMerge0 patAndTypePairs
+              )
+              rest
+          let triples = (a0pat1, (a0tyeElem1, maybePred1)) :| triplesRest
+          a0tye' <- go0 (fmap (second fst) triples)
+          maybePred' <- mergeRefinementPredicates (SA0TyList (strictify a0tyeElem1)) (fmap (second snd) triples)
+          pure $ A0TyList a0tye' maybePred'
+        A0TyMaybe a0tyeElem1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyMaybe a0tyeElem -> pure (a0pat, a0tyeElem)
+                    _ -> typeError trav $ CannotMerge0 patAndTypePairs
+              )
+              rest
+          let pairs = (a0pat1, a0tyeElem1) :| pairsRest
+          A0TyMaybe <$> go0 pairs
+        A0TyArrow labelOpt1 (xOpt1, a0tyeDom1) a0tyeCod1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyArrow labelOpt (xOpt, a0tyeDom) a0tyeCod ->
+                      if labelOpt == labelOpt1
+                        then pure (a0pat, (xOpt, a0tyeDom, a0tyeCod))
+                        else
+                          typeError trav $ CannotMerge0 patAndTypePairs
+                    _ ->
+                      typeError trav $ CannotMerge0 patAndTypePairs
+              )
+              rest
+          let quads = (a0pat1, (xOpt1, a0tyeDom1, a0tyeCod1)) :| quadsRest
+          a0tyeDom' <- go0 (fmap (second (\(_, a0tyeDom, _) -> a0tyeDom)) quads)
+          (xOpt', pairsForCod) <-
+            if all (\(_, (xOpt, _, _)) -> isNothing xOpt) quads
+              then
+                pure (Nothing, fmap (second (\(_, _, a0tyeCod) -> a0tyeCod)) quads)
+              else do
+                ax' <- AssVarStatic <$> generateFreshVar Nothing
+                let pair =
+                      fmap
+                        ( second
+                            ( \(xOpt, _, a0tyeCod) ->
+                                case xOpt of
+                                  Nothing -> a0tyeCod
+                                  Just x -> subst0 (A0Var ax') x a0tyeCod
+                            )
+                        )
+                        quads
+                pure (Just ax', pair)
+          a0tyeCod' <- go0 pairsForCod
+          pure $ A0TyArrow labelOpt1 (xOpt', a0tyeDom') a0tyeCod'
+        A0TyCode a1tye1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyCode a1tye -> pure (a0pat, a1tye)
+                    _ -> typeError trav $ CannotMerge0 patAndTypePairs
+              )
+              rest
+          let pairs = (a0pat1, a1tye1) :| pairsRest
+          A0TyCode <$> go1 pairs
+        A0TyImpArrow (x1, a0tyeDom1) a0tyeCod1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyImpArrow (x, a0tyeDom) a0tyeCod -> pure (a0pat, (x, a0tyeDom, a0tyeCod))
+                    _ -> typeError trav $ CannotMerge0 patAndTypePairs
+              )
+              rest
+          let quads = (a0pat1, (x1, a0tyeDom1, a0tyeCod1)) :| quadsRest
+          a0tyeDom' <- go0 (fmap (second (\(_, a0tyeDom, _) -> a0tyeDom)) quads)
+          a0tyeCod' <- go0 ((a0pat1, a0tyeCod1) :| map (second (\(x, _, a0tyeCod) -> subst0 (A0Var x1) x a0tyeCod)) quadsRest)
+          pure $ A0TyImpArrow (x1, a0tyeDom') a0tyeCod'
         _ ->
-          typeError trav $ CannotMerge0 a0tye1 a0tye2
+          typeError trav $ CannotMerge0 patAndTypePairs
 
-    mergeRefinementPredicates :: (Maybe Ass0Expr -> StrictAss0TypeExpr) -> Maybe Ass0Expr -> Maybe Ass0Expr -> M' ConditionalMergeError trav (Maybe Ass0Expr)
+    mergeRefinementPredicates :: (Maybe Ass0Expr -> StrictAss0TypeExpr) -> NonEmpty (Ass0Pattern, Maybe Ass0Expr) -> M' ConditionalMergeError trav (Maybe Ass0Expr)
     mergeRefinementPredicates sa0tyef maybePred1 maybePred2 =
       case (maybePred1, maybePred2) of
         (Nothing, Nothing) -> pure Nothing
