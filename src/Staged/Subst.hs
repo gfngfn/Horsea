@@ -243,9 +243,9 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
 
 instance (Ord sv) => HasVar sv Ass0BranchF where
   frees (A0Branch a0pat a0e) =
-      let var0setBound = freesInPattern0 a0pat
-          (var0set, var1set) = frees a0e
-       in (var0set \\ var0setBound, var1set)
+    let var0setBound = freesInPattern0 a0pat
+        (var0set, var1set) = frees a0e
+     in (var0set \\ var0setBound, var1set)
 
   subst s (A0Branch a0pat a0e) =
     A0Branch a0pat $
