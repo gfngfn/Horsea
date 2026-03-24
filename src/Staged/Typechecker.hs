@@ -1423,14 +1423,12 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             let Expr loc0 _ = e0
             spanInFile0 <- askSpanInFile loc0
             typeError trav $ NotABoolTypeForStage0 spanInFile0 a0tye0
-      Case eTarget (branch1 :| branchesRest) -> do
-        (a0tyeTarget, a0eTarget) <- typecheckExpr0Single trav tyEnv eTarget
-        case branchesRest of
-          [] -> do
-            (a0pat1, result1, a0eRet1) <- forceBranch0 trav tyEnv a0tyeTarget appCtx branch1
-            pure (result1, A0Case a0eTarget (A0Branch a0pat1 a0eRet1 :| []))
-          _ : _ ->
-            error "TODO: Case with more than one branch"
+      Case e0 branches -> do
+        (a0tye0, a0e0) <- typecheckExpr0Single trav tyEnv e0
+        triples <- mapM (forceBranch0 trav tyEnv a0tye0 appCtx) branches
+        result' <- mergeResultsByConditional0 trav loc a0e0 $ fmap (second fst) triples
+        let a0branches = fmap (\(a0pat, (_, a0eRet)) -> A0Branch a0pat a0eRet) triples
+        pure (result', A0Case a0e0 a0branches)
       As e1 tye2 ->
         case appCtx of
           [] -> do
@@ -1462,11 +1460,11 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             _ ->
               pure pair
 
-forceBranch0 :: trav -> TypeEnv -> Ass0TypeExpr -> AppContext -> Branch -> M trav (Ass0Pattern, Result0, Ass0Expr)
+forceBranch0 :: trav -> TypeEnv -> Ass0TypeExpr -> AppContext -> Branch -> M trav (Ass0Pattern, (Result0, Ass0Expr))
 forceBranch0 trav tyEnv a0tyePatReq appCtx (Branch pat e) = do
   (a0pat, binders) <- forcePattern0 trav tyEnv a0tyePatReq pat
   (result, a0e) <- typecheckExpr0 trav (TypeEnv.addVals binders tyEnv) appCtx e
-  pure (a0pat, result, a0e)
+  pure (a0pat, (result, a0e))
 
 forcePattern0 :: trav -> TypeEnv -> Ass0TypeExpr -> Pattern -> M trav (Ass0Pattern, Map Var ValEntry)
 forcePattern0 trav tyEnv a0tyePatReq (Pattern _ann patMain) =
@@ -1904,8 +1902,8 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             let Expr loc0 _ = e0
             spanInFile0 <- askSpanInFile loc0
             typeError trav $ NotABoolTypeForStage1 spanInFile0 a1tye0
-      Case e1 (_branch0 :| _branchesRest) -> do
-        (_a1tye1, _a1e1) <- typecheckExpr1Single trav tyEnv e1
+      Case e0 (_branch0 :| _branchesRest) -> do
+        (_a1tye0, _a1e0) <- typecheckExpr1Single trav tyEnv e0
         error "TODO: typecheckExpr1, Case"
       As e1 tye2 ->
         case appCtx of
