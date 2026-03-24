@@ -16,8 +16,10 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Function ((&))
 import Data.Functor.Identity
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
 import Data.Tensor.Matrix (Matrix)
@@ -297,6 +299,37 @@ reduceTypeBeta1 :: Ass1Val -> Ass1TypeVal -> M Ass1Val
 reduceTypeBeta1 a1vTypeFun _a1tyvArg =
   pure a1vTypeFun
 
+evalCase :: EvalEnv -> Ass0Val -> [Ass0Branch] -> M Ass0Val
+evalCase env a0v = goBranch
+  where
+    goBranch = \case
+      [] ->
+        error "TODO (error): evalCase, no match"
+      A0Branch a0pat a0e : branchesRest ->
+        case matchWithPattern a0v a0pat of
+          Nothing -> goBranch branchesRest
+          Just binding -> evalExpr0 (Map.union env (Map.map Ass0ValEntry binding)) a0e
+
+matchWithPattern :: Ass0Val -> Ass0Pattern -> Maybe (Map AssVar Ass0Val)
+matchWithPattern a0v a0pat =
+  case (a0v, a0pat) of
+    (A0ValConstructor ctor1 a0vs, A0PatConstructor ctor2 a0pats) ->
+      if ctor1 == ctor2
+        then do
+          zipped <- zipExactMay a0vs a0pats
+          bindings <- mapM (uncurry matchWithPattern) zipped
+          pure $ Map.unions bindings
+        else
+          Nothing
+    (_, A0PatVar ax) ->
+      pure $ Map.singleton ax a0v
+    (A0ValLiteral (ALitBool b1), A0PatBool b2) ->
+      if b1 == b2
+        then pure Map.empty
+        else Nothing
+    _ ->
+      Nothing
+
 evalExpr0 :: EvalEnv -> Ass0Expr -> M Ass0Val
 evalExpr0 env = \case
   A0Literal lit ->
@@ -359,9 +392,9 @@ evalExpr0 env = \case
     if b
       then evalExpr0 env a0e1
       else evalExpr0 env a0e2
-  A0Case a0e0 _a0branches -> do
-    _a0v0 <- evalExpr0 env a0e0
-    error "TODO: Evaluator, A0Case"
+  A0Case a0e0 a0branches -> do
+    a0v0 <- evalExpr0 env a0e0
+    evalCase env a0v0 (NonEmpty.toList a0branches)
   A0Bracket a1e1 -> do
     a1v1 <- evalExpr1 env a1e1
     pure $ A0ValBracket a1v1
