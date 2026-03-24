@@ -31,7 +31,7 @@ import Data.Tensor.Matrix qualified as Matrix
 import Data.Tensor.Vector qualified as Vector
 import Data.Text (Text)
 import Data.Traversable.Compat (mapAccumM)
-import Data.Tuple.Extra (both)
+import Data.Tuple.Extra (both, second)
 import Safe.Exact (zipExactMay)
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
@@ -561,7 +561,7 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
           let listEq = ListEqByWhole a0eList1 a0eList2
           pure (trivial, listEq, Map.empty)
 
-mergeTypesByConditional0 :: forall trav. trav -> Bool -> Ass0Expr -> Ass0TypeExpr -> Ass0TypeExpr -> M' ConditionalMergeError trav Ass0TypeExpr
+mergeTypesByConditional0 :: forall trav. trav -> Bool -> Ass0Expr -> NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M' ConditionalMergeError trav Ass0TypeExpr
 mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
   where
     go0 :: Ass0TypeExpr -> Ass0TypeExpr -> M' ConditionalMergeError trav Ass0TypeExpr
@@ -615,10 +615,10 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
           ax <- AssVarStatic <$> generateFreshVar Nothing
           pure $ Just (A0Lam Nothing (ax, sa0tyef Nothing) (A0IfThenElse a0e0 (f1 ax) (f2 ax)))
 
-    go1 :: Ass1TypeExpr -> Ass1TypeExpr -> M' ConditionalMergeError trav Ass1TypeExpr
+    go1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
     go1 = mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0
 
-mergeTypesByConditional1 :: forall trav. trav -> Bool -> Ass0Expr -> Ass1TypeExpr -> Ass1TypeExpr -> M' ConditionalMergeError trav Ass1TypeExpr
+mergeTypesByConditional1 :: forall trav. trav -> Bool -> Ass0Expr -> NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
 mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
   where
     go1 :: Ass1TypeExpr -> Ass1TypeExpr -> M' ConditionalMergeError trav Ass1TypeExpr
@@ -664,62 +664,120 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
 
     a0branch = A0IfThenElse a0e0
 
-mergeResultsByConditional0 :: forall trav. trav -> Span -> Ass0Expr -> Result0 -> Result0 -> M trav Result0
+mergeResultsByConditional0 :: forall trav. trav -> Span -> Ass0Expr -> NonEmpty (Ass0Pattern, Result0) -> M trav Result0
 mergeResultsByConditional0 trav loc a0e0 = go
   where
-    go result1 result2 =
-      case (result1, result2) of
-        (Pure a0tye1, Pure a0tye2) ->
-          Pure <$> mergeTypes0 a0tye1 a0tye2
-        (Cast0 cast1 a0tye1 r1, Cast0 cast2 a0tye2 r2) -> do
-          a0tye <- mergeTypes0 a0tye1 a0tye2
-          cast <- mergeCasts cast1 a0tye1 cast2 a0tye2
-          Cast0 cast a0tye <$> go r1 r2
-        (Cast1 cast1 a1tye1 r1, Cast1 cast2 a1tye2 r2) -> do
-          a1tye <- mergeTypes1 a1tye1 a1tye2
-          cast <- mergeCasts cast1 (A0TyCode a1tye1) cast2 (A0TyCode a1tye2)
-          Cast1 cast a1tye <$> go r1 r2
-        (CastGiven0 cast1 a0tye1 r1, CastGiven0 cast2 a0tye2 r2) -> do
-          a0tye <- mergeTypes0 a0tye1 a0tye2
-          cast <- mergeCasts cast1 a0tye1 cast2 a0tye2
-          CastGiven0 cast a0tye <$> go r1 r2
-        (FillInferred0 a0e1 r1, FillInferred0 a0e2 r2) -> do
-          FillInferred0 (a0branch a0e1 a0e2) <$> go r1 r2
-        (InsertInferred0 a0e1 r1, InsertInferred0 a0e2 r2) -> do
-          InsertInferred0 (a0branch a0e1 a0e2) <$> go r1 r2
+    go :: NonEmpty (Ass0Pattern, Result0) -> M trav Result0
+    go pairs@((a0pat1, result1) :| rest) =
+      case result1 of
+        Pure a0tye1 -> do
+          patAndTypePairs <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    Pure a0tye -> pure (a0pat, a0tye)
+                    _ -> error "TODO (error): mergeResultsByConditional0, not Pure"
+              )
+              rest
+          Pure <$> mergeTypes0 ((a0pat1, a0tye1) :| patAndTypePairs)
+        Cast0 cast1 a0tye1 r1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    Cast0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
+                    _ -> error "TODO (error): mergeResultsByConditional0, not Cast0"
+              )
+              rest
+          let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
+          a0tye' <- mergeTypes0 (fmap (second (\(_, a0tye, _) -> a0tye)) quads)
+          cast' <- mergeCasts (fmap (second (\(cast, a0tye, _) -> (cast, a0tye))) quads)
+          Cast0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
+        Cast1 cast1 a1tye1 r1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    Cast1 cast a1tye r -> pure (a0pat, (cast, a1tye, r))
+                    _ -> error "TODO (error): mergeResultsByConditional0, not Cast1"
+              )
+              rest
+          let quads = (a0pat1, (cast1, a1tye1, r1)) :| quadsRest
+          a1tye' <- mergeTypes1 (fmap (second (\(_, a1tye, _) -> a1tye)) quads)
+          cast' <- mergeCasts (fmap (second (\(cast, a1tye, _) -> (cast, A0TyCode a1tye))) quads)
+          Cast1 cast' a1tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
+        CastGiven0 cast1 a0tye1 r1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    CastGiven0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
+                    _ -> error "TODO (error): mergeResultsByConditional0, not CastGiven0"
+              )
+              rest
+          let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
+          a0tye' <- mergeTypes0 (fmap (\(pat, (_, a0tye, _)) -> (pat, a0tye)) quads)
+          cast' <- mergeCasts (fmap (\(pat, (cast, a0tye, _)) -> (pat, (cast, a0tye))) quads)
+          CastGiven0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
+        FillInferred0 a0e1 r1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    FillInferred0 a0e r -> pure (a0pat, (a0e, r))
+                    _ -> error "TODO (error): mergeResultsByConditional0, not FillInferred0"
+              )
+              rest
+          let triples = (a0pat1, (a0e1, r1)) :| triplesRest
+          let a0branches = fmap (\(a0pat, (a0e, _)) -> A0Branch a0pat a0e) triples
+          FillInferred0 (A0Case a0e0 a0branches) <$> go (fmap (second (\(_, r) -> r)) triples)
+        InsertInferred0 a0e1 r1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    InsertInferred0 a0e r -> pure (a0pat, (a0e, r))
+                    _ -> error "TODO (error): mergeResultsByConditional0, not InsertInferred0"
+              )
+              rest
+          let triples = (a0pat1, (a0e1, r1)) :| triplesRest
+          let a0branches = fmap (\(a0pat, (a0e, _)) -> A0Branch a0pat a0e) triples
+          InsertInferred0 (A0Case a0e0 a0branches) <$> go (fmap (second (\(_, r) -> r)) triples)
         _ -> do
           -- Reachable if two branches of an if-expression are inconsistent as to `InsertInferred0`.
           spanInFile <- askSpanInFile loc
-          typeError trav $ CannotMergeResultsByConditionals spanInFile result1 result2
+          typeError trav $ CannotMergeResultsByConditionals spanInFile pairs
 
-    a0branch = A0IfThenElse a0e0
-
-    mergeTypes0 :: Ass0TypeExpr -> Ass0TypeExpr -> M trav Ass0TypeExpr
-    mergeTypes0 a0tye1 a0tye2 = do
+    mergeTypes0 :: NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M trav Ass0TypeExpr
+    mergeTypes0 pairs = do
       TypecheckConfig {distributeIfUnderTensorShape} <- askConfig
       spanInFile <- askSpanInFile loc
-      mapTypeError (CannotMergeTypesByConditional0 spanInFile a0tye1 a0tye2) $
-        mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 a0tye1 a0tye2
+      mapTypeError (CannotMergeTypesByConditional0 spanInFile pairs) $
+        mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 pairs
 
-    mergeTypes1 :: Ass1TypeExpr -> Ass1TypeExpr -> M trav Ass1TypeExpr
-    mergeTypes1 a1tye1 a1tye2 = do
+    mergeTypes1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M trav Ass1TypeExpr
+    mergeTypes1 pairs = do
       TypecheckConfig {distributeIfUnderTensorShape} <- askConfig
       spanInFile <- askSpanInFile loc
-      mapTypeError (CannotMergeTypesByConditional1 spanInFile a1tye1 a1tye2) $
-        mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 a1tye1 a1tye2
+      mapTypeError (CannotMergeTypesByConditional1 spanInFile pairs) $
+        mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 pairs
 
-    mergeCasts cast1 a0tye1 cast2 a0tye2 =
-      case (cast1, cast2) of
-        (Nothing, Nothing) ->
+    mergeCasts :: NonEmpty (Ass0Pattern, (Maybe Ass0Expr, Ass0TypeExpr)) -> M trav (Maybe Ass0Expr)
+    mergeCasts triples =
+      if all (\(_, (cast, _)) -> cast == Nothing) triples
+        then
           pure Nothing
-        (Just a0e1, Nothing) -> do
-          a0e2 <- makeIdentityLam a0tye2
-          pure $ Just (a0branch a0e1 a0e2)
-        (Nothing, Just a0e2) -> do
-          a0e1 <- makeIdentityLam a0tye1
-          pure $ Just (a0branch a0e1 a0e2)
-        (Just a0e1, Just a0e2) -> do
-          pure $ Just (a0branch a0e1 a0e2)
+        else do
+          a0branches <-
+            mapM
+              ( \(a0pat, (cast, a0tye)) ->
+                  A0Branch a0pat
+                    <$> case cast of
+                      Nothing -> makeIdentityLam a0tye
+                      Just a0e -> pure a0e
+              )
+              triples
+          pure $ Just (A0Case a0e0 a0branches)
 
 instantiateGuidedByAppContext0 :: forall trav. trav -> Span -> AppContext -> Ass0TypeExpr -> M trav Result0
 instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do

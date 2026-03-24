@@ -231,6 +231,17 @@ dispIfThenElse req e0 e1 e2 =
     docThen = "then" <> nest 2 (line <> disp e1)
     docElse = "else" <> nest 2 (line <> disp e2)
 
+dispCase :: (Disp expr, Disp br) => Associativity -> expr -> NonEmpty br -> Doc Ann
+dispCase req e0 branches =
+  deepenParenWhen (req <= FunDomain) $
+    group (docCase <+> docBranches <+> "end")
+  where
+    docCase = "case" <> nest 2 (line <> disp e0)
+    docBranches = "of" <> foldl1 (<>) (fmap (\br -> nest 2 (line <> disp br)) branches)
+
+dispBranch :: (Disp pat, Disp expr) => pat -> expr -> Doc Ann
+dispBranch pat e = "|" <+> disp pat <+> "->" <+> nest 4 (line <> disp e)
+
 dispStringLiteral :: Text -> Doc Ann
 dispStringLiteral t = "\"" <> disp t <> "\"" -- TODO: escape special characters
 
@@ -413,6 +424,7 @@ instance Disp (ExprMainF ann) where
     Sequential e1 e2 -> dispSequential req e1 e2
     Tuple es -> dispTuple es
     IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
+    Case e0 branches -> dispCase req e0 branches
     As e1 tye2 -> dispAs req e1 tye2
     Bracket e1 -> dispBracket e1
     Escape e1 -> dispEscape e1
@@ -429,6 +441,17 @@ instance Disp (LamBinderF ann) where
     MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
     MandatoryBinder (Just label) (x, tye) -> "(#" <> disp label <+> disp x <+> ":" <+> disp tye <> ")"
     ImplicitBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
+
+instance Disp (BranchF ann) where
+  dispGen _ (Branch pat e) = dispBranch pat e
+
+instance Disp (PatternF ann) where
+  dispGen req (Pattern _ann patMain) = dispGen req patMain
+
+instance Disp (PatternMainF ann) where
+  dispGen req = \case
+    PatConstructor ctor pats -> dispConstructorApp req ctor pats
+    PatVar x -> disp x
 
 $(deriveDisp definitions)
 
@@ -517,6 +540,7 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
     A0Constructor ctor a0es -> dispConstructorApp req ctor a0es
     A0Bracket a1e1 -> dispBracket a1e1
     A0IfThenElse a0e0 a0e1 a0e2 -> dispIfThenElse req a0e0 a0e1 a0e2
+    A0Case a0e0 a0branches -> dispCase req a0e0 a0branches
     A0TyEqAssert _loc ty1eq ->
       let (a1tye1, a1tye2) = decomposeType1Equation ty1eq
        in group (assertionStyle ("{" <> dispBracket a1tye1 <+> "=>" <+> dispBracket a1tye2 <> "}"))
@@ -525,6 +549,14 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
         "ASSERT" <+> disp a0ePred <+> "FOR" <+> disp a0eTarget
     A0AppType a0e1 sa0tye2 ->
       dispAppType req a0e1 sa0tye2
+
+instance (Disp sv) => Disp (Ass0BranchF sv) where
+  dispGen _ (A0Branch a0pat a0e) = dispBranch a0pat a0e
+
+instance (Disp sv) => Disp (Ass0PatternF sv) where
+  dispGen req = \case
+    A0PatConstructor ctor a0pats -> dispConstructorApp req ctor a0pats
+    A0PatVar x -> disp x
 
 instance (Disp sv) => Disp (Ass1ExprF sv) where
   dispGen req = \case
@@ -734,37 +766,22 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Variable" <+> disp x <+> "occurs in stage-1 type" <+> stage1Style (disp a1result) <+> disp spanInFile
     InvalidMatrixLiteral spanInFile e ->
       "Invalid matrix literal;" <+> disp e <+> disp spanInFile
-    CannotMergeTypesByConditional0 spanInFile a0tye1 a0tye2 condErr ->
+    CannotMergeTypesByConditional0 spanInFile pairs condErr ->
       "Cannot merge stage-0 types by conditionals"
         <+> disp spanInFile
-        <> hardline
-        <+> "left:"
-        <> nest 2 (hardline <> stage0Style (disp a0tye1))
-        <> hardline
-        <+> "right:"
-        <> nest 2 (hardline <> stage0Style (disp a0tye2))
+        <> foldl1 (<>) (fmap (\(_a0pat, a0tye) -> nest 2 (hardline <> stage0Style (disp a0tye))) pairs)
         <> hardline
         <> disp condErr
-    CannotMergeTypesByConditional1 spanInFile a1tye1 a1tye2 condErr ->
+    CannotMergeTypesByConditional1 spanInFile pairs condErr ->
       "Cannot merge stage-1 types by conditionals"
         <+> disp spanInFile
-        <> hardline
-        <+> "left:"
-        <> nest 2 (hardline <> stage1Style (disp a1tye1))
-        <> hardline
-        <+> "right:"
-        <> nest 2 (hardline <> stage1Style (disp a1tye2))
+        <> foldl1 (<>) (fmap (\(_a0pat, a1tye) -> nest 2 (hardline <> stage1Style (disp a1tye))) pairs)
         <> hardline
         <> disp condErr
-    CannotMergeResultsByConditionals spanInFile result1 result2 ->
+    CannotMergeResultsByConditionals spanInFile pairs ->
       "Cannot merge results by conditionals"
         <+> disp spanInFile
-        <> hardline
-        <+> "left:"
-        <> nest 2 (hardline <> disp result1)
-        <> hardline
-        <+> "right:"
-        <> nest 2 (hardline <> disp result2)
+        <> foldl1 (<>) (fmap (\(_a0pat, result) -> nest 2 (hardline <> disp result)) pairs)
     CannotApplyLiteral spanInFile ->
       "Cannot apply a literal" <> disp spanInFile
     CannotInstantiateGuidedByAppContext0 spanInFile appCtx a0tye ->
