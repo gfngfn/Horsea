@@ -1466,13 +1466,28 @@ forceBranch0 trav tyEnv a0tyePatReq appCtx (Branch pat e) = do
   (result, a0e) <- typecheckExpr0 trav (TypeEnv.addVals binders tyEnv) appCtx e
   pure (a0pat, (result, a0e))
 
+collectPatternArgs :: trav -> Span -> PatternMain -> M trav (ConstructorName, [Pattern])
+collectPatternArgs trav _loc = \case
+  PatConstructor ctor ->
+    pure (ctor, [])
+  PatApp (Pattern loc1 patMain1) pat2 -> do
+    (ctor, patArgs1) <- collectPatternArgs trav loc1 patMain1
+    pure (ctor, patArgs1 ++ [pat2])
+  (PatBool _; PatVar _) ->
+    error "TODO (error): collectPatternArgs, invalid"
+
 forcePattern0 :: trav -> TypeEnv -> Ass0TypeExpr -> Pattern -> M trav (Ass0Pattern, Map Var ValEntry)
-forcePattern0 trav tyEnv a0tyePatReq (Pattern _ann patMain) =
+forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) =
   case patMain of
-    PatConstructor ctor pats ->
-      case (ctor, pats) of
-        ("Nothing", []) ->
+    PatConstructor ctor ->
+      case ctor of
+        "Nothing" ->
           pure (A0PatConstructor "Nothing" [], Map.empty)
+        _ ->
+          error "TODO (error): forcePattern0, PatConstructor, unknown constructor"
+    PatApp _ _ -> do
+      (ctor, patArgs) <- collectPatternArgs trav loc patMain
+      case (ctor, patArgs) of
         ("Just", [pat1]) ->
           case a0tyePatReq of
             A0TyMaybe a0tyePatReq1 -> do
@@ -1481,11 +1496,17 @@ forcePattern0 trav tyEnv a0tyePatReq (Pattern _ann patMain) =
             _ ->
               error "TODO (error): forcePattern0, PatConstructor, not Maybe"
         (_, _) ->
-          error "TODO (error): forcePattern0, PatConstructor, unknown constructor"
+          error $ "TODO (error): forcePattern0, PatConstructor, unknown constructor"
     PatVar x -> do
       svX <- generateFreshVar (Just x)
       let ax = AssVarStatic svX
       pure (A0PatVar ax, Map.singleton x (Ass0Entry a0tyePatReq (Right svX)))
+    PatBool b ->
+      case a0tyePatReq of
+        A0TyPrim (A0TyPrimBase ATyPrimBool) _maybePred ->
+          pure (A0PatBool b, Map.empty)
+        _ ->
+          error $ "TODO (error): forcePattern0, PatBool, not Bool"
 
 constructFunTypeExpr0 :: trav -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass0TypeExpr
 constructFunTypeExpr0 trav tyEnv params tyeBody = do

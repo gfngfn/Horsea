@@ -279,6 +279,7 @@ expr = letin
       (makeNonrecLam <$> token TokFun <*> (lamBinder <* token TokArrow) <*> expr)
         <|> (makeRecLam <$> token TokRec <*> (mandatoryBinder <* token TokArrow <* token TokFun) <*> (mandatoryBinder <* token TokArrow) <*> expr)
         <|> (makeIf <$> token TokIf <*> expr <*> (token TokThen *> expr) <*> (token TokElse *> expr))
+        <|> (makeCase <$> token TokCase <*> expr <*> (token TokOf *> some branch) <*> token TokEnd)
         <|> arrow
       where
         makeNonrecLam locFirst xBinder' e@(Expr locLast _) =
@@ -293,6 +294,9 @@ expr = letin
         makeIf locFirst e0 e1 e2@(Expr locLast _) =
           Expr (mergeSpan locFirst locLast) (IfThenElse e0 e1 e2)
 
+        makeCase locFirst e0 branches locLast =
+          Expr (mergeSpan locFirst locLast) (Case e0 branches)
+
     lamBinder :: P LamBinder
     lamBinder =
       (MandatoryBinder . Just <$> noLoc label <*> mandatoryBinder)
@@ -302,6 +306,10 @@ expr = letin
     mandatoryBinder, implicitBinder :: P (Var, TypeExpr)
     mandatoryBinder = noLoc (paren ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
     implicitBinder = noLoc (brace ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
+
+    branch :: P Branch
+    branch =
+      Branch <$> (token TokBar *> pat) <*> (token TokArrow *> expr)
 
     letin :: P Expr
     letin =
@@ -329,6 +337,33 @@ expr = letin
 
 typeExpr :: P TypeExpr
 typeExpr = expr
+
+pat :: P Pattern
+pat = app
+  where
+    atom :: P Pattern
+    atom =
+      (makeBool True <$> token TokTrue)
+        <|> (makeBool False <$> token TokFalse)
+        <|> (makeVar <$> lower)
+        <|> (makeConstructor <$> upper)
+        <|> (makeEnclosed <$> paren pat)
+      where
+        makeVar (Located loc e) = Pattern loc (PatVar e)
+        makeEnclosed (Located loc (Pattern _ patMain)) = Pattern loc patMain
+        makeBool b loc = Pattern loc (PatBool b)
+        makeConstructor (Located loc t) = Pattern loc (PatConstructor t)
+
+    app :: P Pattern
+    app =
+      some atom >>= makeApp
+      where
+        makeApp :: NonEmpty Pattern -> P Pattern
+        makeApp (patFun :| patArgs) = pure $ foldl' makeAppSingle patFun patArgs
+
+        makeAppSingle :: Pattern -> Pattern -> Pattern
+        makeAppSingle pat1@(Pattern loc1 _) pat2@(Pattern loc2 _) =
+          Pattern (mergeSpan loc1 loc2) (PatApp pat1 pat2)
 
 bind :: P Bind
 bind =

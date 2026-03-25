@@ -4,6 +4,7 @@ import Common.FrontError (FrontError)
 import Common.LocationInFile (SourceSpec (..))
 import Common.TokenUtil (Span (..))
 import Data.Functor
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Text (Text)
 import Staged.Parser qualified as Parser
@@ -150,6 +151,12 @@ spec = do
     it "parses if-expressions" $
       parseExpr "if b then x + 1 else x"
         `shouldBe` pure (expr (IfThenElse (var "b") (add (var "x") (litInt 1)) (var "x")))
+    it "parses case-expressions (1)" $
+      parseExpr "case b of | true -> x + 1 | false -> x end"
+        `shouldBe` pure (expr (Case (var "b") (Branch (patBool True) (add (var "x") (litInt 1)) :| [Branch (patBool False) (var "x")])))
+    it "parses case-expressions (2)" $
+      parseExpr "case opt of | Nothing -> d | Just v -> v end"
+        `shouldBe` pure (expr (Case (var "opt") (Branch (patConstructor "Nothing") (var "d") :| [Branch (patApp (patConstructor "Just") (patVar "v")) (var "v")])))
     it "parses brackets (1)" $
       parseExpr "f &x y"
         `shouldBe` pure (app (app (var "f") (bracket (var "x"))) (var "y"))

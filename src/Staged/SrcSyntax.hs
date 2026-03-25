@@ -97,8 +97,10 @@ data PatternF ann = Pattern ann (PatternMainF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 data PatternMainF ann
-  = PatConstructor ConstructorName [PatternF ann]
-  | PatVar Var
+  = PatVar Var
+  | PatBool Bool
+  | PatConstructor ConstructorName
+  | PatApp (PatternF ann) (PatternF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 type Expr = ExprF Span

@@ -116,6 +116,9 @@ disps' f = \case
 deepenParenWhen :: Bool -> Doc Ann -> Doc Ann
 deepenParenWhen b doc = if b then "(" <> nest 2 doc <> ")" else doc
 
+dispBool :: Bool -> Doc Ann
+dispBool b = if b then "true" else "false"
+
 dispNonrecLam :: (Disp var, Disp ty, Disp expr) => Associativity -> Maybe Label -> var -> ty -> expr -> Doc Ann
 dispNonrecLam req labelOpt x tye1 e2 =
   deepenParenWhen (req <= FunDomain) $
@@ -397,7 +400,7 @@ instance (Disp e) => Disp (Literal e) where
     LitInt n -> pretty n
     LitFloat r -> pretty r
     LitUnit -> "()"
-    LitBool b -> if b then "true" else "false"
+    LitBool b -> dispBool b
     LitString t -> dispStringLiteral t
     LitList es -> dispListLiteral es
     LitVec ns -> dispVectorLiteral ns
@@ -450,8 +453,10 @@ instance Disp (PatternF ann) where
 
 instance Disp (PatternMainF ann) where
   dispGen req = \case
-    PatConstructor ctor pats -> dispConstructorApp req ctor pats
+    PatConstructor ctor -> disp ctor
+    PatApp pat1 pat2 -> dispApp req pat1 Nothing pat2
     PatVar x -> disp x
+    PatBool b -> dispBool b
 
 $(deriveDisp definitions)
 
@@ -474,7 +479,7 @@ instance (Disp e) => Disp (Surface.Literal e) where
     Surface.LitInt n -> pretty n
     Surface.LitFloat r -> pretty r
     Surface.LitUnit -> "()"
-    Surface.LitBool b -> if b then "true" else "false"
+    Surface.LitBool b -> dispBool b
     Surface.LitString t -> dispStringLiteral t
     Surface.LitList es -> dispListLiteral es
     Surface.LitVec ns -> dispVectorLiteral ns
@@ -557,7 +562,7 @@ instance (Disp sv) => Disp (Ass0PatternF sv) where
   dispGen req = \case
     A0PatConstructor ctor a0pats -> dispConstructorApp req ctor a0pats
     A0PatVar x -> disp x
-    A0PatBool b -> if b then "true" else "false"
+    A0PatBool b -> dispBool b
 
 instance (Disp sv) => Disp (Ass1ExprF sv) where
   dispGen req = \case
