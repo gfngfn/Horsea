@@ -677,13 +677,16 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
                     _ -> typeError trav $ CannotMerge0 patAndTypePairs
               )
               rest
-          let pairs = (a0pat1, a0tyes1) :| pairsRest
-          case distribute pairs of
-            Just zipped -> do
-              a0tyes' <- mapM go0 zipped
-              pure $ A0TyProduct a0tyes'
-            Nothing ->
-              typeError trav $ CannotMerge0 patAndTypePairs
+          let _pairs = (a0pat1, a0tyes1) :| pairsRest
+          error "TODO: mergeTypesByConditional0, A0TyProduct"
+        {-
+                  case distribute pairs of
+                    Just zipped -> do
+                      a0tyes' <- mapM go0 zipped
+                      pure $ A0TyProduct a0tyes'
+                    Nothing ->
+                      typeError trav $ CannotMerge0 patAndTypePairs
+        -}
         A0TyVar {} ->
           error "TODO: unsupported; mergeTypesByConditional0, A0TyVar"
         A0TyImplicitForAll {} ->
