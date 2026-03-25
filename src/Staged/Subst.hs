@@ -263,6 +263,7 @@ freesInPattern0 :: (Ord sv) => Ass0PatternF sv -> Set (AssVarF sv)
 freesInPattern0 = \case
   A0PatConstructor _ctor a0pats -> Set.unions (map freesInPattern0 a0pats)
   A0PatVar x -> Set.singleton x
+  A0PatBool _ -> Set.empty
 
 instance (Ord sv) => HasVar sv Ass1ExprF where
   frees = \case
