@@ -4,4 +4,7 @@ let t =
   (x, y, &(Just 57, Nothing as Maybe Bool))
 in
 let (p, q, r) = t in
-r
+case q of
+| Nothing -> &(1, ~r)
+| Just x -> &(2, ~r)
+end

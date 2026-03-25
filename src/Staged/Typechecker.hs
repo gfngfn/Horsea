@@ -26,6 +26,7 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (isNothing)
 import Data.Maybe1
+import Data.NonEmpty.Class (Cons (..), Empty (..), ViewL (..))
 import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Data.Tensor.Matrix qualified as Matrix
@@ -667,8 +668,26 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
           a0tyeDom' <- go0 (fmap (second (\(_, a0tyeDom, _) -> a0tyeDom)) quads)
           a0tyeCod' <- go0 ((a0pat1, a0tyeCod1) :| map (second (\(x, _, a0tyeCod) -> subst0 (A0Var x1) x a0tyeCod)) quadsRest)
           pure $ A0TyImpArrow (x1, a0tyeDom') a0tyeCod'
-        _ ->
-          typeError trav $ CannotMerge0 patAndTypePairs
+        A0TyProduct a0tyes1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyProduct a0tyes -> pure (a0pat, a0tyes)
+                    _ -> typeError trav $ CannotMerge0 patAndTypePairs
+              )
+              rest
+          let pairs = (a0pat1, a0tyes1) :| pairsRest
+          case distribute pairs of
+            Just zipped -> do
+              a0tyes' <- mapM go0 zipped
+              pure $ A0TyProduct a0tyes'
+            Nothing ->
+              typeError trav $ CannotMerge0 patAndTypePairs
+        A0TyVar {} ->
+          error "TODO: unsupported; mergeTypesByConditional0, A0TyVar"
+        A0TyImplicitForAll {} ->
+          error "TODO: unsupported; mergeTypesByConditional0, A0TyImplicitForAll"
 
     mergeRefinementPredicates :: (Maybe Ass0Expr -> StrictAss0TypeExpr) -> NonEmpty (Ass0Pattern, Maybe Ass0Expr) -> M' ConditionalMergeError trav (Maybe Ass0Expr)
     mergeRefinementPredicates sa0tyef patAndMaybePredPairs =
@@ -815,25 +834,25 @@ extractListLiteralsIfAll =
 -- [ (p1, [e11, ..., e1N]),          [ (p1, e11),  [ (p1, e12),       [ (p1, e1N),
 --   ...                      ---->    ...           ...                ...
 --   (pM, [eM1, ..., eMN]) ]           (pM, eM1) ],  (pM, eM2) ], ...   (pM, eMN) ]
-distribute :: NonEmpty (Ass0Pattern, [Ass0Expr]) -> Maybe [NonEmpty (Ass0Pattern, Ass0Expr)]
+distribute :: (Foldable f, Empty f, Cons f, ViewL f) => NonEmpty (Ass0Pattern, f a) -> Maybe (f (NonEmpty (Ass0Pattern, a)))
 distribute ((a0pat1, a0es1) :| rest) =
-  case a0es1 of
-    [] ->
+  case viewL a0es1 of
+    Nothing ->
       if all (null . snd) rest
-        then pure []
+        then pure empty
         else Nothing
-    a0e1 : a0esTail1 -> do
+    Just (a0e1, a0esTail1) -> do
       triplesRest <-
         mapM
           ( \(a0pat, a0es) ->
-              case a0es of
-                a0e : a0esTail -> pure (a0pat, (a0e, a0esTail))
-                _ -> Nothing
+              case viewL a0es of
+                Just (a0e, a0esTail) -> pure (a0pat, (a0e, a0esTail))
+                Nothing -> Nothing
           )
           rest
       let triples = (a0pat1, (a0e1, a0esTail1)) :| triplesRest
       resTail <- distribute (fmap (second snd) triples)
-      pure $ fmap (second fst) triples : resTail
+      pure $ fmap (second fst) triples `cons` resTail
 
 mergeResultsByConditional0 :: forall trav. trav -> Span -> Ass0Expr -> NonEmpty (Ass0Pattern, Result0) -> M trav Result0
 mergeResultsByConditional0 trav loc a0e0 = go
