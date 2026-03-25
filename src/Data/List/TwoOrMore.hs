@@ -87,8 +87,9 @@ initAndLast TwoOrMore {first, rest} =
 foldl1 :: (a -> a -> a) -> TwoOrMore a -> a
 foldl1 f TwoOrMore {first, rest} = foldl f first rest
 
-transpose :: NonEmpty (TwoOrMore a) -> TwoOrMore (NonEmpty a)
-transpose matrix =
-  case fromList (U.transpose (fmap toList matrix)) of
+transpose :: NonEmpty (TwoOrMore a) -> Maybe (TwoOrMore (NonEmpty a))
+transpose matrix = do
+  matrix' <- U.transpose (fmap toList matrix)
+  case fromList matrix' of
     Nothing -> error "bug: Data.List.TwoOrMore"
-    Just matrix' -> matrix'
+    Just matrix'' -> pure matrix''

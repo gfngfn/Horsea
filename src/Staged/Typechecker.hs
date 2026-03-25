@@ -20,13 +20,13 @@ import Data.Functor.Identity
 import Data.List (length)
 import Data.List.Extra (firstJust)
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty.Util qualified as NonEmptyUtil
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (isNothing)
 import Data.Maybe1
-import Data.NonEmpty.Class (Cons (..), Empty (..), ViewL (..))
 import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Data.Tensor.Matrix qualified as Matrix
@@ -677,16 +677,13 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
                     _ -> typeError trav $ CannotMerge0 patAndTypePairs
               )
               rest
-          let _pairs = (a0pat1, a0tyes1) :| pairsRest
-          error "TODO: mergeTypesByConditional0, A0TyProduct"
-        {-
-                  case distribute pairs of
-                    Just zipped -> do
-                      a0tyes' <- mapM go0 zipped
-                      pure $ A0TyProduct a0tyes'
-                    Nothing ->
-                      typeError trav $ CannotMerge0 patAndTypePairs
-        -}
+          let pairs = (a0pat1, a0tyes1) :| pairsRest
+          case distributeTwoOrMore pairs of
+            Just zipped -> do
+              a0tyes' <- mapM go0 zipped
+              pure $ A0TyProduct a0tyes'
+            Nothing ->
+              typeError trav $ CannotMerge0 patAndTypePairs
         A0TyVar {} ->
           error "TODO: unsupported; mergeTypesByConditional0, A0TyVar"
         A0TyImplicitForAll {} ->
@@ -837,25 +834,15 @@ extractListLiteralsIfAll =
 -- [ (p1, [e11, ..., e1N]),          [ (p1, e11),  [ (p1, e12),       [ (p1, e1N),
 --   ...                      ---->    ...           ...                ...
 --   (pM, [eM1, ..., eMN]) ]           (pM, eM1) ],  (pM, eM2) ], ...   (pM, eMN) ]
-distribute :: (Foldable f, Empty f, Cons f, ViewL f) => NonEmpty (Ass0Pattern, f a) -> Maybe (f (NonEmpty (Ass0Pattern, a)))
-distribute ((a0pat1, a0es1) :| rest) =
-  case viewL a0es1 of
-    Nothing ->
-      if all (null . snd) rest
-        then pure empty
-        else Nothing
-    Just (a0e1, a0esTail1) -> do
-      triplesRest <-
-        mapM
-          ( \(a0pat, a0es) ->
-              case viewL a0es of
-                Just (a0e, a0esTail) -> pure (a0pat, (a0e, a0esTail))
-                Nothing -> Nothing
-          )
-          rest
-      let triples = (a0pat1, (a0e1, a0esTail1)) :| triplesRest
-      resTail <- distribute (fmap (second snd) triples)
-      pure $ fmap (second fst) triples `cons` resTail
+distribute :: NonEmpty (Ass0Pattern, [Ass0Expr]) -> Maybe [NonEmpty (Ass0Pattern, Ass0Expr)]
+distribute patAndExprPairs = do
+  let matrix = fmap (\(p, a0es) -> map (p,) a0es) patAndExprPairs
+  NonEmptyUtil.transpose matrix
+
+distributeTwoOrMore :: NonEmpty (Ass0Pattern, TwoOrMore Ass0TypeExpr) -> Maybe (TwoOrMore (NonEmpty (Ass0Pattern, Ass0TypeExpr)))
+distributeTwoOrMore patAndExprPairs = do
+  let matrix = fmap (\(p, a0es) -> fmap (p,) a0es) patAndExprPairs
+  TwoOrMore.transpose matrix
 
 mergeResultsByConditional0 :: forall trav. trav -> Span -> Ass0Expr -> NonEmpty (Ass0Pattern, Result0) -> M trav Result0
 mergeResultsByConditional0 trav loc a0e0 = go
