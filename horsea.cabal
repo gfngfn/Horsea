@@ -126,8 +126,7 @@ library
         text ^>= 2.1,
         transformers,
         template-haskell,
-        base-compat,
-        non-empty
+        base-compat
 
     -- Directories containing source files.
     hs-source-dirs:   src
