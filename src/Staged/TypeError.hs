@@ -63,6 +63,7 @@ data TypeErrorF sv
   | CannotInferTypeVariableInstance1 SpanInFile AssTypeVar (AppContextF sv) (Ass1TypeExprF sv)
   | CannotInstantiateTypeVariableGuidedByAssertion0 SpanInFile AssTypeVar (Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | Stage1IfThenElseRestrictedToEmptyContext SpanInFile (AppContextF sv)
+  | Stage1CaseRestrictedToEmptyContext SpanInFile (AppContextF sv)
   | BindingOverwritten SpanInFile Var
   | UnknownExternalName SpanInFile Text
   | InvalidPersistentType SpanInFile (Ass0TypeExprF sv)

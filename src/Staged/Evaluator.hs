@@ -481,6 +481,10 @@ evalExpr1 env = \case
     a1v1 <- evalExpr1 env a1e1
     a1v2 <- evalExpr1 env a1e2
     pure $ A1ValIfThenElse a1v0 a1v1 a1v2
+  A1Case a1e0 a1branches -> do
+    a1v0 <- evalExpr1 env a1e0
+    a1branchVs <- mapM (evalBranch1 env) a1branches
+    pure $ A1ValCase a1v0 a1branchVs
   A1Escape a0e1 -> do
     a0v1 <- evalExpr0 env a0e1
     case a0v1 of
@@ -490,6 +494,11 @@ evalExpr1 env = \case
     a1v1 <- evalExpr1 env a1e1
     a1tyv2 <- evalTypeExpr1 env a1tye2
     reduceTypeBeta1 a1v1 a1tyv2
+
+evalBranch1 :: EvalEnv -> Ass1Branch -> M Ass1BranchVal
+evalBranch1 env (A1Branch a1pat a1e) = do
+  a1v <- evalExpr1 env a1e
+  pure $ A1ValBranch a1pat a1v
 
 evalTypeExpr0 :: EvalEnv -> StrictAss0TypeExpr -> M Ass0TypeVal
 evalTypeExpr0 env = \case
@@ -593,6 +602,18 @@ unliftVal = \case
     A0Constructor ctor (map unliftVal a1vs)
   A1ValIfThenElse a1v0 a1v1 a1v2 ->
     A0IfThenElse (unliftVal a1v0) (unliftVal a1v1) (unliftVal a1v2)
+  A1ValCase a1v0 a1branchVs ->
+    A0Case (unliftVal a1v0) (fmap unliftBranchVal a1branchVs)
+
+unliftBranchVal :: Ass1BranchVal -> Ass0Branch
+unliftBranchVal (A1ValBranch a1pat a1e) =
+  A0Branch (unliftPattern a1pat) (unliftVal a1e)
+
+unliftPattern :: Ass1Pattern -> Ass0Pattern
+unliftPattern = \case
+  A1PatConstructor ctor a1pats -> A0PatConstructor ctor (map unliftPattern a1pats)
+  A1PatVar ax -> A0PatVar ax
+  A1PatBool b -> A0PatBool b
 
 unliftTypeVal :: Ass1TypeVal -> StrictAss0TypeExpr
 unliftTypeVal = \case

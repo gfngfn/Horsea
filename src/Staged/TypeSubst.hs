@@ -145,7 +145,7 @@ instance HasTypeVar Ass0ExprF where
     A0Tuple a0es -> A0Tuple (fmap go a0es)
     A0Constructor ctor a0es -> A0Constructor ctor (map go a0es)
     A0IfThenElse a0e0 a0e1 a0e2 -> A0IfThenElse (go a0e0) (go a0e1) (go a0e2)
-    A0Case a0e0 _a0branches -> A0Case (go a0e0) $ error "TODO: HasTypeVar Ass0ExprF, A0Case"
+    A0Case a0e0 a0branches -> A0Case (go a0e0) (fmap go a0branches)
     A0Bracket a1e -> A0Bracket (go a1e)
     A0TyEqAssert loc ty1eq -> A0TyEqAssert loc (go ty1eq)
     A0RefinementAssert loc a0e1 a0e2 -> A0RefinementAssert loc (go a0e1) (go a0e2)
@@ -153,6 +153,11 @@ instance HasTypeVar Ass0ExprF where
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
+
+instance HasTypeVar Ass0BranchF where
+  tySubst s (A0Branch a0pat a0e) =
+    -- Patterns do not contain types:
+    A0Branch a0pat (tySubst s a0e)
 
 instance (HasTypeVar af) => HasTypeVar (AssLiteralF af) where
   tySubst s = \case
@@ -231,8 +236,14 @@ instance HasTypeVar Ass1ExprF where
     A1Tuple a1es -> A1Tuple (fmap go a1es)
     A1Constructor ctor a1es -> A1Constructor ctor (map go a1es)
     A1IfThenElse a1e0 a1e1 a1e2 -> A1IfThenElse (go a1e0) (go a1e1) (go a1e2)
+    A1Case a1e0 a1branches -> A1Case (go a1e0) (fmap go a1branches)
     A1Escape a0e -> A1Escape (go a0e)
     A1AppType a1e1 a1tye2 -> A1AppType (go a1e1) (go a1tye2)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
+
+instance HasTypeVar Ass1BranchF where
+  tySubst s (A1Branch a1pat a1e) =
+    -- Patterns do not contain types:
+    A1Branch a1pat (tySubst s a1e)

@@ -9,6 +9,8 @@ module Staged.Syntax
     Ass0BranchF (..),
     Ass0PatternF (..),
     Ass1ExprF (..),
+    Ass1BranchF (..),
+    Ass1PatternF (..),
     AssBindF (..),
     makeExprFromBinds,
     Type1EquationF (..),
@@ -28,6 +30,7 @@ module Staged.Syntax
     liftPrimType,
     Ass0ValF (..),
     Ass1ValF (..),
+    Ass1BranchValF (..),
     Ass0TypeValF (..),
     Ass1TypeValF (..),
     Ass1PrimTypeVal (..),
@@ -51,6 +54,8 @@ module Staged.Syntax
     Ass0Branch,
     Ass0Pattern,
     Ass1Expr,
+    Ass1Branch,
+    Ass1Pattern,
     AssBind,
     Type1Equation,
     ListEquation,
@@ -59,6 +64,7 @@ module Staged.Syntax
     Ass1TypeExpr,
     Ass0Val,
     Ass1Val,
+    Ass1BranchVal,
     Ass0TypeVal,
     Ass1TypeVal,
     Ass1PrimType,
@@ -156,8 +162,18 @@ data Ass1ExprF sv
   | A1Tuple (TwoOrMore (Ass1ExprF sv))
   | A1Constructor ConstructorName [Ass1ExprF sv]
   | A1IfThenElse (Ass1ExprF sv) (Ass1ExprF sv) (Ass1ExprF sv)
+  | A1Case (Ass1ExprF sv) (NonEmpty (Ass1BranchF sv))
   | A1Escape (Ass0ExprF sv)
   | A1AppType (Ass1ExprF sv) (Ass1TypeExprF sv)
+  deriving stock (Eq, Show, Functor)
+
+data Ass1BranchF sv = A1Branch (Ass1PatternF sv) (Ass1ExprF sv)
+  deriving stock (Eq, Show, Functor)
+
+data Ass1PatternF sv
+  = A1PatConstructor ConstructorName [Ass1PatternF sv]
+  | A1PatVar (AssVarF sv)
+  | A1PatBool Bool
   deriving stock (Eq, Show, Functor)
 
 -- | The type of bindings obtained by elaboration through typechecking.
@@ -355,6 +371,10 @@ data Ass1ValF sv
   | A1ValTuple (TwoOrMore (Ass1ValF sv))
   | A1ValConstructor ConstructorName [Ass1ValF sv]
   | A1ValIfThenElse (Ass1ValF sv) (Ass1ValF sv) (Ass1ValF sv)
+  | A1ValCase (Ass1ValF sv) (NonEmpty (Ass1BranchValF sv))
+  deriving stock (Eq, Show, Functor)
+
+data Ass1BranchValF sv = A1ValBranch (Ass1PatternF sv) (Ass1ValF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-0 type values.
@@ -602,6 +622,10 @@ type Ass0Branch = Ass0BranchF StaticVar
 
 type Ass0Pattern = Ass0PatternF StaticVar
 
+type Ass1Branch = Ass1BranchF StaticVar
+
+type Ass1Pattern = Ass1PatternF StaticVar
+
 type Ass1Expr = Ass1ExprF StaticVar
 
 type AssBind = AssBindF StaticVar
@@ -621,6 +645,8 @@ type Ass1PrimType = Ass1PrimTypeF StaticVar
 type Ass0Val = Ass0ValF StaticVar
 
 type Ass1Val = Ass1ValF StaticVar
+
+type Ass1BranchVal = Ass1BranchValF StaticVar
 
 type Ass0TypeVal = Ass0TypeValF StaticVar
 

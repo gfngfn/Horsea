@@ -257,7 +257,7 @@ instance (Ord sv) => HasVar sv Ass0BranchF where
       go = subst s
 
   alphaEquivalent _a0branch1 _a0branch2 =
-    error "TODO: Ass0Branch, alphaEquivalent"
+    False --  TODO: Ass0Branch, alphaEquivalent
 
 freesInPattern0 :: (Ord sv) => Ass0PatternF sv -> Set (AssVarF sv)
 freesInPattern0 = \case
@@ -303,6 +303,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       unionPairs (map frees a1es)
     A1IfThenElse a1e0 a1e1 a1e2 ->
       unionPairs [frees a1e0, frees a1e1, frees a1e2]
+    A1Case a1e0 a1branches ->
+      unionPairs (frees a1e0 : fmap frees (NonEmpty.toList a1branches))
     A1Escape a0e1 ->
       frees a0e1
     A1AppType a1e1 a1tye2 ->
@@ -347,6 +349,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       A1Constructor ctor (map go a1es)
     A1IfThenElse a1e0 a1e1 a1e2 ->
       A1IfThenElse (go a1e0) (go a1e1) (go a1e2)
+    A1Case a1e0 a1branches ->
+      A1Case (go a1e0) (fmap go a1branches)
     A1Escape a0e1 ->
       A1Escape (go a0e1)
     A1AppType a1e1 a1tye2 ->
@@ -394,6 +398,30 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
     where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
+
+instance (Ord sv) => HasVar sv Ass1BranchF where
+  frees (A1Branch a1pat a1e) =
+    let var1setBound = freesInPattern1 a1pat
+        (var0set, var1set) = frees a1e
+     in (var0set, var1set \\ var1setBound)
+
+  subst s (A1Branch a1pat a1e) =
+    A1Branch a1pat $
+      case s of
+        Subst0 _ _ -> go a1e
+        Subst1 x _ -> if x `elem` freesInPattern1 a1pat then a1e else go a1e
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent _a0branch1 _a0branch2 =
+    False -- TODO: Ass1Branch, alphaEquivalent
+
+freesInPattern1 :: (Ord sv) => Ass1PatternF sv -> Set (AssVarF sv)
+freesInPattern1 = \case
+  A1PatConstructor _ctor a1pats -> Set.unions (map freesInPattern1 a1pats)
+  A1PatVar x -> Set.singleton x
+  A1PatBool _ -> Set.empty
 
 instance (Ord sv) => HasVar sv Ass0TypeExprF where
   frees = \case

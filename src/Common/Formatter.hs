@@ -578,8 +578,18 @@ instance (Disp sv) => Disp (Ass1ExprF sv) where
     A1Tuple a1es -> dispTuple a1es
     A1Constructor ctor a1es -> dispConstructorApp req ctor a1es
     A1IfThenElse a1e0 a1e1 a1e2 -> dispIfThenElse req a1e0 a1e1 a1e2
+    A1Case a1e0 a1branches -> dispCase req a1e0 a1branches
     A1Escape a0e1 -> dispEscape a0e1
     A1AppType a1e1 a1tye2 -> dispAppType req a1e1 a1tye2
+
+instance (Disp sv) => Disp (Ass1BranchF sv) where
+  dispGen _ (A1Branch a1pat a1e) = dispBranch a1pat a1e
+
+instance (Disp sv) => Disp (Ass1PatternF sv) where
+  dispGen req = \case
+    A1PatConstructor ctor a0pats -> dispConstructorApp req ctor a0pats
+    A1PatVar x -> disp x
+    A1PatBool b -> dispBool b
 
 instance Disp AssPrimBaseType where
   dispGen _req = \case
@@ -854,6 +864,12 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> hardline
         <+> "application context:"
         <> nest 2 (hardline <> disps appCtx)
+    Stage1CaseRestrictedToEmptyContext spanInFile appCtx ->
+      "Stage-1 case-expressions are restricted to be used at empty application contexts"
+        <+> disp spanInFile
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
     BindingOverwritten spanInFile x ->
       "value " <+> disp x <+> "is overwritten by another binding" <+> disp spanInFile
     UnknownExternalName spanInFile extName ->
@@ -1066,6 +1082,11 @@ instance (Disp sv) => Disp (Ass1ValF sv) where
       dispConstructorApp req ctor a1vs
     A1ValIfThenElse a1v0 a1v1 a1v2 ->
       dispIfThenElse req a1v0 a1v1 a1v2
+    A1ValCase a1v0 a1branchVs ->
+      dispCase req a1v0 a1branchVs
+
+instance (Disp sv) => Disp (Ass1BranchValF sv) where
+  dispGen _ (A1ValBranch a1pat a1e) = dispBranch a1pat a1e
 
 instance (Disp sv) => Disp (Ass0TypeValF sv) where
   dispGen req = \case
