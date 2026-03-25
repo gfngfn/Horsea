@@ -567,7 +567,8 @@ mergeTypesByConditional0 :: forall trav. trav -> Bool -> Ass0Expr -> NonEmpty (A
 mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
   where
     go0 :: NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M' ConditionalMergeError trav Ass0TypeExpr
-    go0 patAndTypePairs@((a0pat1, a0tye1) :| rest) =
+    go0 patAndTypePairs@((a0pat1, a0tye1) :| rest) = do
+      let failure = typeError trav $ CannotMerge0 patAndTypePairs
       case a0tye1 of
         A0TyPrim a0tyePrim1 maybePred1 -> do
           pairsRest <-
@@ -577,9 +578,9 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
                     A0TyPrim a0tyePrim maybePred ->
                       if a0tyePrim == a0tyePrim1
                         then pure (a0pat, maybePred)
-                        else typeError trav $ CannotMerge0 patAndTypePairs
+                        else failure
                     _ ->
-                      typeError trav $ CannotMerge0 patAndTypePairs
+                      failure
               )
               rest
           let pairs = (a0pat1, maybePred1) :| pairsRest
@@ -591,7 +592,7 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
               ( \(a0pat, a0tye) ->
                   case a0tye of
                     A0TyList a0tyeElem maybePred -> pure (a0pat, (a0tyeElem, maybePred))
-                    _ -> typeError trav $ CannotMerge0 patAndTypePairs
+                    _ -> failure
               )
               rest
           let triples = (a0pat1, (a0tyeElem1, maybePred1)) :| triplesRest
@@ -604,7 +605,7 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
               ( \(a0pat, a0tye) ->
                   case a0tye of
                     A0TyMaybe a0tyeElem -> pure (a0pat, a0tyeElem)
-                    _ -> typeError trav $ CannotMerge0 patAndTypePairs
+                    _ -> failure
               )
               rest
           let pairs = (a0pat1, a0tyeElem1) :| pairsRest
@@ -617,10 +618,9 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
                     A0TyArrow labelOpt (xOpt, a0tyeDom) a0tyeCod ->
                       if labelOpt == labelOpt1
                         then pure (a0pat, (xOpt, a0tyeDom, a0tyeCod))
-                        else
-                          typeError trav $ CannotMerge0 patAndTypePairs
+                        else failure
                     _ ->
-                      typeError trav $ CannotMerge0 patAndTypePairs
+                      failure
               )
               rest
           let quads = (a0pat1, (xOpt1, a0tyeDom1, a0tyeCod1)) :| quadsRest
@@ -650,7 +650,7 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
               ( \(a0pat, a0tye) ->
                   case a0tye of
                     A0TyCode a1tye -> pure (a0pat, a1tye)
-                    _ -> typeError trav $ CannotMerge0 patAndTypePairs
+                    _ -> failure
               )
               rest
           let pairs = (a0pat1, a1tye1) :| pairsRest
@@ -661,7 +661,7 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
               ( \(a0pat, a0tye) ->
                   case a0tye of
                     A0TyImpArrow (x, a0tyeDom) a0tyeCod -> pure (a0pat, (x, a0tyeDom, a0tyeCod))
-                    _ -> typeError trav $ CannotMerge0 patAndTypePairs
+                    _ -> failure
               )
               rest
           let quads = (a0pat1, (x1, a0tyeDom1, a0tyeCod1)) :| quadsRest
@@ -674,7 +674,7 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
               ( \(a0pat, a0tye) ->
                   case a0tye of
                     A0TyProduct a0tyes -> pure (a0pat, a0tyes)
-                    _ -> typeError trav $ CannotMerge0 patAndTypePairs
+                    _ -> failure
               )
               rest
           let pairs = (a0pat1, a0tyes1) :| pairsRest
@@ -683,7 +683,7 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
               a0tyes' <- mapM go0 zipped
               pure $ A0TyProduct a0tyes'
             Nothing ->
-              typeError trav $ CannotMerge0 patAndTypePairs
+              failure
         A0TyVar {} ->
           error "TODO: unsupported; mergeTypesByConditional0, A0TyVar"
         A0TyImplicitForAll {} ->
@@ -714,7 +714,8 @@ mergeTypesByConditional1 :: forall trav. trav -> Bool -> Ass0Expr -> NonEmpty (A
 mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
   where
     go1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
-    go1 patAndTypePairs@((a0pat1, a1tye1) :| rest) =
+    go1 patAndTypePairs@((a0pat1, a1tye1) :| rest) = do
+      let failure = typeError trav $ CannotMerge1 patAndTypePairs
       case a1tye1 of
         A1TyPrim a1tyePrim1 -> do
           A1TyPrim
@@ -723,12 +724,8 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                 mapM_
                   ( \(_a0pat, a1tye) ->
                       case a1tye of
-                        A1TyPrim (A1TyPrimBase tyPrimBase) ->
-                          if tyPrimBase == tyPrimBase1
-                            then pure ()
-                            else typeError trav $ CannotMerge1 patAndTypePairs
-                        _ ->
-                          typeError trav $ CannotMerge1 patAndTypePairs
+                        A1TyPrim (A1TyPrimBase tyPrimBase) -> unless (tyPrimBase == tyPrimBase1) failure
+                        _ -> failure
                   )
                   rest
                 pure a1tyePrim1
@@ -738,7 +735,7 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                     ( \(a0pat, a1tye) ->
                         case a1tye of
                           A1TyPrim (A1TyTensor a0eList) -> pure (a0pat, a0eList)
-                          _ -> typeError trav $ CannotMerge1 patAndTypePairs
+                          _ -> failure
                     )
                     rest
                 let pairs = (a0pat1, a0eList1) :| pairsRest
@@ -750,7 +747,7 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                         let a0es' = map (A0Case a0e0 . fmap (uncurry A0Branch)) patAndElemPairss
                         pure $ A1TyTensor (A0Literal (ALitList a0es'))
                       Nothing ->
-                        typeError trav $ CannotMerge1 patAndTypePairs
+                        failure
                   -- General rule:
                   _ ->
                     pure $ A1TyTensor (A0Case a0e0 (fmap (uncurry A0Branch) pairs))
@@ -760,7 +757,7 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                     ( \(a0pat, a1tye) ->
                         case a1tye of
                           A1TyPrim (A1TyDataset dp) -> pure (a0pat, dp)
-                          _ -> typeError trav $ CannotMerge1 patAndTypePairs
+                          _ -> failure
                     )
                     rest
                 let pairs = (a0pat1, dp1) :| pairsRest
@@ -781,7 +778,7 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                     ( \(a0pat, a1tye) ->
                         case a1tye of
                           A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize) -> pure (a0pat, (a0eInputSize, a0eHiddenSize))
-                          _ -> typeError trav $ CannotMerge1 patAndTypePairs
+                          _ -> failure
                     )
                     rest
                 let triples = (a0pat1, (a0eInputSize1, a0eHiddenSize1)) :| triplesRest
@@ -794,7 +791,7 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                     ( \(a0pat, a1tye) ->
                         case a1tye of
                           A1TyPrim (A1TyTextHelper a0eLabels) -> pure (a0pat, a0eLabels)
-                          _ -> typeError trav $ CannotMerge1 patAndTypePairs
+                          _ -> failure
                     )
                     rest
                 let pairs = (a0pat1, a0eLabels1) :| pairsRest
@@ -806,7 +803,7 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
               ( \(a0pat, a1tye) ->
                   case a1tye of
                     A1TyList a1tyeElem -> pure (a0pat, a1tyeElem)
-                    _ -> typeError trav $ CannotMerge1 patAndTypePairs
+                    _ -> failure
               )
               rest
           let pairs = (a0pat1, a1tyeElem1) :| pairsRest
@@ -818,7 +815,7 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
               ( \(a0pat, a1tye) ->
                   case a1tye of
                     A1TyMaybe a1tyeElem -> pure (a0pat, a1tyeElem)
-                    _ -> typeError trav $ CannotMerge1 patAndTypePairs
+                    _ -> failure
               )
               rest
           let pairs = (a0pat1, a1tyeElem1) :| pairsRest
@@ -832,9 +829,9 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                     A1TyArrow labelOpt2 a1tyeDom a1tyeCod ->
                       if labelOpt1 == labelOpt2
                         then pure (a0pat, (a1tyeDom, a1tyeCod))
-                        else typeError trav $ CannotMerge1 patAndTypePairs
+                        else failure
                     _ ->
-                      typeError trav $ CannotMerge1 patAndTypePairs
+                      failure
               )
               rest
           let triples = (a0pat1, (a1tyeDom1, a1tyeCod1)) :| triplesRest
@@ -847,7 +844,7 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
               ( \(a0pat, a1tye) ->
                   case a1tye of
                     A1TyProduct a1tyes -> pure (a0pat, a1tyes)
-                    _ -> typeError trav $ CannotMerge1 patAndTypePairs
+                    _ -> failure
               )
               rest
           let pairs = (a0pat1, a1tyes1) :| pairsRest
@@ -856,7 +853,7 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
               a1tyes' <- mapM go1 zipped
               pure $ A1TyProduct a1tyes'
             Nothing ->
-              typeError trav $ CannotMerge1 patAndTypePairs
+              failure
         A1TyVar {} ->
           error "TODO: unsupported; mergeTypesByConditional1, A1TyVar"
         A1TyImplicitForAll {} ->
