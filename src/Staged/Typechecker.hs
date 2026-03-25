@@ -800,6 +800,30 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                 let pairs = (a0pat1, a0eLabels1) :| pairsRest
                 let a0branches = fmap (uncurry A0Branch) pairs
                 pure $ A1TyTextHelper (A0Case a0e0 a0branches)
+        A1TyList a1tyeElem1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyList a1tyeElem -> pure (a0pat, a1tyeElem)
+                    _ -> typeError trav $ CannotMerge1 patAndTypePairs
+              )
+              rest
+          let pairs = (a0pat1, a1tyeElem1) :| pairsRest
+          a1tyeElem' <- go1 pairs
+          pure $ A1TyList a1tyeElem'
+        A1TyMaybe a1tyeElem1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyMaybe a1tyeElem -> pure (a0pat, a1tyeElem)
+                    _ -> typeError trav $ CannotMerge1 patAndTypePairs
+              )
+              rest
+          let pairs = (a0pat1, a1tyeElem1) :| pairsRest
+          a1tyeElem' <- go1 pairs
+          pure $ A1TyMaybe a1tyeElem'
         A1TyArrow labelOpt1 a1tyeDom1 a1tyeCod1 -> do
           triplesRest <-
             mapM
@@ -817,8 +841,26 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
           a1tyeDom' <- go1 (fmap (second fst) triples)
           a1tyeCod' <- go1 (fmap (second snd) triples)
           pure $ A1TyArrow labelOpt1 a1tyeDom' a1tyeCod'
-        _ ->
-          typeError trav $ CannotMerge1 patAndTypePairs
+        A1TyProduct a1tyes1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyProduct a1tyes -> pure (a0pat, a1tyes)
+                    _ -> typeError trav $ CannotMerge1 patAndTypePairs
+              )
+              rest
+          let pairs = (a0pat1, a1tyes1) :| pairsRest
+          case distributeTwoOrMore pairs of
+            Just zipped -> do
+              a1tyes' <- mapM go1 zipped
+              pure $ A1TyProduct a1tyes'
+            Nothing ->
+              typeError trav $ CannotMerge1 patAndTypePairs
+        A1TyVar {} ->
+          error "TODO: unsupported; mergeTypesByConditional1, A1TyVar"
+        A1TyImplicitForAll {} ->
+          error "TODO: unsupported; mergeTypesByConditional1, A1TyImplicitForAll"
 
 extractListLiteralsIfAll :: NonEmpty (Ass0Pattern, Ass0Expr) -> Maybe (NonEmpty (Ass0Pattern, [Ass0Expr]))
 extractListLiteralsIfAll =
@@ -834,12 +876,12 @@ extractListLiteralsIfAll =
 -- [ (p1, [e11, ..., e1N]),          [ (p1, e11),  [ (p1, e12),       [ (p1, e1N),
 --   ...                      ---->    ...           ...                ...
 --   (pM, [eM1, ..., eMN]) ]           (pM, eM1) ],  (pM, eM2) ], ...   (pM, eMN) ]
-distribute :: NonEmpty (Ass0Pattern, [Ass0Expr]) -> Maybe [NonEmpty (Ass0Pattern, Ass0Expr)]
+distribute :: NonEmpty (Ass0Pattern, [a]) -> Maybe [NonEmpty (Ass0Pattern, a)]
 distribute patAndExprPairs = do
   let matrix = fmap (\(p, a0es) -> map (p,) a0es) patAndExprPairs
   NonEmptyUtil.transpose matrix
 
-distributeTwoOrMore :: NonEmpty (Ass0Pattern, TwoOrMore Ass0TypeExpr) -> Maybe (TwoOrMore (NonEmpty (Ass0Pattern, Ass0TypeExpr)))
+distributeTwoOrMore :: NonEmpty (Ass0Pattern, TwoOrMore a) -> Maybe (TwoOrMore (NonEmpty (Ass0Pattern, a)))
 distributeTwoOrMore patAndExprPairs = do
   let matrix = fmap (\(p, a0es) -> fmap (p,) a0es) patAndExprPairs
   TwoOrMore.transpose matrix
