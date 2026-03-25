@@ -66,6 +66,7 @@ library
       Common.ParserUtil,
       Common.TokenUtil,
       Control.Monad.Elaborator,
+      Data.List.NonEmpty.Util,
       Data.List.TwoOrMore,
       Data.String.Util,
       Data.Tensor.Matrix,
@@ -192,7 +193,8 @@ test-suite horsea-test
         TokenSpec,
         ParserSpec,
         ConstraintSpec,
-        SubstSpec
+        SubstSpec,
+        NonEmptyUtilSpec
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

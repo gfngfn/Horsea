@@ -10,9 +10,10 @@ module Staged.Subst
 where
 
 import Data.Functor.Identity
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Maybe1
-import Data.Set (Set)
+import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Safe.Exact (zipExactMay)
@@ -117,8 +118,12 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       unionPairs [frees a0e1, frees a0e2]
     A0Tuple a0es ->
       unionPairs (map frees (TwoOrMore.toList a0es))
+    A0Constructor _ctor a0es ->
+      unionPairs (map frees a0es)
     A0IfThenElse a0e0 a0e1 a0e2 ->
       unionPairs [frees a0e0, frees a0e1, frees a0e2]
+    A0Case a0e0 a0branches ->
+      unionPairs (frees a0e0 : map frees (NonEmpty.toList a0branches))
     A0Bracket a1e1 ->
       frees a1e1
     A0TyEqAssert _ ty0eq ->
@@ -163,8 +168,12 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       A0Sequential (go a0e1) (go a0e2)
     A0Tuple a0es ->
       A0Tuple (fmap go a0es)
+    A0Constructor ctor a0es ->
+      A0Constructor ctor (map go a0es)
     A0IfThenElse a0e0 a0e1 a0e2 ->
       A0IfThenElse (go a0e0) (go a0e1) (go a0e2)
+    A0Case a0e0 a0branches ->
+      A0Case (go a0e0) (fmap go a0branches)
     A0Bracket a1e1 ->
       A0Bracket (go a1e1)
     A0TyEqAssert loc ty0eq ->
@@ -208,8 +217,18 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
         case zipExactMay (TwoOrMore.toList a0es1) (TwoOrMore.toList a0es2) of
           Just zipped -> all (uncurry go) zipped
           Nothing -> False
+      (A0Constructor ctor1 a0es1, A0Constructor ctor2 a0es2) ->
+        ctor1 == ctor2
+          && case zipExactMay a0es1 a0es2 of
+            Just zipped -> all (uncurry go) zipped
+            Nothing -> False
       (A0IfThenElse a0e10 a0e11 a0e12, A0IfThenElse a0e20 a0e21 a0e22) ->
         go a0e10 a0e20 && go a0e11 a0e21 && go a0e12 a0e22
+      (A0Case a0e10 a0branches1, A0Case a0e20 a0branches2) ->
+        go a0e10 a0e20
+          && case zipExactMay (NonEmpty.toList a0branches1) (NonEmpty.toList a0branches2) of
+            Just zipped -> all (uncurry go) zipped
+            Nothing -> False
       (A0Bracket a1e1, A0Bracket a1e2) ->
         go a1e1 a1e2
       (A0TyEqAssert _ ty0eq1, A0TyEqAssert _ ty0eq2) ->
@@ -221,6 +240,30 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
     where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
+
+instance (Ord sv) => HasVar sv Ass0BranchF where
+  frees (A0Branch a0pat a0e) =
+    let var0setBound = freesInPattern0 a0pat
+        (var0set, var1set) = frees a0e
+     in (var0set \\ var0setBound, var1set)
+
+  subst s (A0Branch a0pat a0e) =
+    A0Branch a0pat $
+      case s of
+        Subst0 x _ -> if x `elem` freesInPattern0 a0pat then a0e else go a0e
+        Subst1 _ _ -> go a0e
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent _a0branch1 _a0branch2 =
+    False --  TODO: Ass0Branch, alphaEquivalent
+
+freesInPattern0 :: (Ord sv) => Ass0PatternF sv -> Set (AssVarF sv)
+freesInPattern0 = \case
+  A0PatConstructor _ctor a0pats -> Set.unions (map freesInPattern0 a0pats)
+  A0PatVar x -> Set.singleton x
+  A0PatBool _ -> Set.empty
 
 instance (Ord sv) => HasVar sv Ass1ExprF where
   frees = \case
@@ -256,8 +299,12 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       unionPairs [frees a1e1, frees a1e2]
     A1Tuple a1es ->
       unionPairs (map frees (TwoOrMore.toList a1es))
+    A1Constructor _ctor a1es ->
+      unionPairs (map frees a1es)
     A1IfThenElse a1e0 a1e1 a1e2 ->
       unionPairs [frees a1e0, frees a1e1, frees a1e2]
+    A1Case a1e0 a1branches ->
+      unionPairs (frees a1e0 : fmap frees (NonEmpty.toList a1branches))
     A1Escape a0e1 ->
       frees a0e1
     A1AppType a1e1 a1tye2 ->
@@ -298,8 +345,12 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       A1Sequential (go a1e1) (go a1e2)
     A1Tuple a1es ->
       A1Tuple (fmap go a1es)
+    A1Constructor ctor a1es ->
+      A1Constructor ctor (map go a1es)
     A1IfThenElse a1e0 a1e1 a1e2 ->
       A1IfThenElse (go a1e0) (go a1e1) (go a1e2)
+    A1Case a1e0 a1branches ->
+      A1Case (go a1e0) (fmap go a1branches)
     A1Escape a0e1 ->
       A1Escape (go a0e1)
     A1AppType a1e1 a1tye2 ->
@@ -348,6 +399,30 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
 
+instance (Ord sv) => HasVar sv Ass1BranchF where
+  frees (A1Branch a1pat a1e) =
+    let var1setBound = freesInPattern1 a1pat
+        (var0set, var1set) = frees a1e
+     in (var0set, var1set \\ var1setBound)
+
+  subst s (A1Branch a1pat a1e) =
+    A1Branch a1pat $
+      case s of
+        Subst0 _ _ -> go a1e
+        Subst1 x _ -> if x `elem` freesInPattern1 a1pat then a1e else go a1e
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent _a0branch1 _a0branch2 =
+    False -- TODO: Ass1Branch, alphaEquivalent
+
+freesInPattern1 :: (Ord sv) => Ass1PatternF sv -> Set (AssVarF sv)
+freesInPattern1 = \case
+  A1PatConstructor _ctor a1pats -> Set.unions (map freesInPattern1 a1pats)
+  A1PatVar x -> Set.singleton x
+  A1PatBool _ -> Set.empty
+
 instance (Ord sv) => HasVar sv Ass0TypeExprF where
   frees = \case
     A0TyPrim _ maybePred ->
@@ -356,6 +431,8 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
       (Set.empty, Set.empty)
     A0TyList a0tye maybePred ->
       unionPairs [frees a0tye, frees (Maybe1 maybePred)]
+    A0TyMaybe a0tye ->
+      frees a0tye
     A0TyProduct a0tyes ->
       unionPairs (map frees (TwoOrMore.toList a0tyes))
     A0TyArrow _labelOpt (yOpt, a0tye1) a0tye2 ->
@@ -386,6 +463,8 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
       A0TyVar atyvar
     A0TyList a0tye maybePred ->
       A0TyList (go a0tye) (unMaybe1 . go . Maybe1 $ maybePred)
+    A0TyMaybe a0tye ->
+      A0TyMaybe (go a0tye)
     A0TyProduct a0tyes ->
       A0TyProduct (fmap go a0tyes)
     A0TyArrow labelOpt (yOpt, a0tye1) a0tye2 ->
@@ -462,6 +541,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
           frees a0e
     A1TyList a1tye1 ->
       frees a1tye1
+    A1TyMaybe a1tye1 ->
+      frees a1tye1
     A1TyVar _atyvar ->
       (Set.empty, Set.empty)
     A1TyProduct a1tyes ->
@@ -481,6 +562,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
         A1TyTextHelper a0e -> A1TyTextHelper (go a0e)
     A1TyList a1tye1 ->
       A1TyList (go a1tye1)
+    A1TyMaybe a1tye1 ->
+      A1TyMaybe (go a1tye1)
     A1TyVar atyvar ->
       A1TyVar atyvar
     A1TyProduct a1tyes ->
@@ -521,6 +604,8 @@ instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
       (Set.empty, Set.empty)
     SA0TyList a0tye maybePred ->
       unionPairs [frees a0tye, frees (Maybe1 maybePred)]
+    SA0TyMaybe a0tye ->
+      frees a0tye
     SA0TyProduct a0tyes ->
       unionPairs (map frees (TwoOrMore.toList a0tyes))
     SA0TyArrow (yOpt, a0tye1) a0tye2 ->
@@ -545,6 +630,8 @@ instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
       SA0TyVar atyvar
     SA0TyList a0tye maybePred ->
       SA0TyList (go a0tye) (unMaybe1 . go . Maybe1 $ maybePred)
+    SA0TyMaybe a0tye ->
+      SA0TyMaybe (go a0tye)
     SA0TyProduct a0tyes ->
       SA0TyProduct (fmap go a0tyes)
     SA0TyArrow (yOpt, sa0tye1) sa0tye2 ->
@@ -601,6 +688,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
         TyEq1TextHelper (labels1, labels2) -> unionPairs [frees labels1, frees labels2]
     TyEq1List ty1eqElem ->
       frees ty1eqElem
+    TyEq1Maybe ty1eqElem ->
+      frees ty1eqElem
     TyEq1Arrow _labelOpt ty1eqDom ty1eqCod ->
       unionPairs [frees ty1eqDom, frees ty1eqCod]
     TyEq1Product ty1eqs ->
@@ -621,6 +710,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
           TyEq1TextHelper (labels1, labels2) -> TyEq1TextHelper (go labels1, go labels2)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
+    TyEq1Maybe ty1eqElem ->
+      TyEq1Maybe (go ty1eqElem)
     TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
       TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
     TyEq1Product ty1eqs ->

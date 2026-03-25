@@ -13,6 +13,8 @@ type ExprVoid = ExprF ()
 
 type BindVoid = BindF ()
 
+type PatternVoid = PatternF ()
+
 typ :: TypeExprMainF () -> TypeExprVoid
 typ = Expr ()
 
@@ -121,6 +123,21 @@ bracket = expr . Bracket
 
 escape :: ExprVoid -> ExprVoid
 escape = expr . Escape
+
+pat :: PatternMainF () -> PatternVoid
+pat = Pattern ()
+
+patBool :: Bool -> PatternVoid
+patBool = pat . PatBool
+
+patVar :: Var -> PatternVoid
+patVar = pat . PatVar
+
+patConstructor :: ConstructorName -> PatternVoid
+patConstructor = pat . PatConstructor
+
+patApp :: PatternVoid -> PatternVoid -> PatternVoid
+patApp pat1 = pat . PatApp pat1
 
 type Ass0ExprText = Ass0ExprF Text
 

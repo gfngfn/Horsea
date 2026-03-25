@@ -276,7 +276,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       let e' = BExpr (bt, ann) (BLam Nothing labelOpt (x1, btye1') e2')
       pure (e', BIType bt (BITyArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
     Lam (Just (f, btyeRec)) labelOpt (x1, btye1) e2 -> do
-      -- Not confident. TODO: check the validity of the following
+      -- Not confident. TODO (theory): check the validity of the following
       (btyeRec', bityRec, constraintsRec) <- extractConstraintsFromTypeExpr trav btenv btyeRec
       (btye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv btye1
       (e2', bity2@(BIType bt2 _), constraints2) <-
@@ -318,7 +318,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
           rest
     LetIn x params tyeBodyOpt eBody e2 -> do
       let e1 = makeLam params tyeBodyOpt eBody
-      -- Not confident. TODO: check the validity of the following
+      -- Not confident. TODO (theory): check the validity of the following
       (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr trav btenv e1
       (e2', bity2@(BIType bt2 _), constraints2) <-
         extractConstraintsFromExpr trav (Map.insert x (EntryLocallyBound bt bity1) btenv) e2
@@ -334,7 +334,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       pure (e', bity2, constraints0 ++ constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
     LetRecIn x params tye eBody e2 -> do
       e1 <- makeRecLam trav ann x params tye eBody
-      -- Not confident. TODO: check the validity of the following
+      -- Not confident. TODO (theory): check the validity of the following
       (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr trav btenv e1
       (e2', bity2@(BIType bt2 _), constraints2) <-
         extractConstraintsFromExpr trav (Map.insert x (EntryLocallyBound bt bity1) btenv) e2
@@ -346,7 +346,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
         BITyProduct bitys -> do
           case TwoOrMore.zipExact xs bitys of
             Just zipped -> do
-              -- Not confident. TODO: check the validity of the following
+              -- Not confident. TODO (theory): check the validity of the following
               (e2', bity2@(BIType bt2 _), constraints2) <- do
                 let btenv2 =
                       foldl
@@ -370,7 +370,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
         extractConstraintsFromExpr trav btenv' e1
       pure (BExpr (bt, ann) (BLetOpenIn m e1'), bity1, constraints ++ [CEqual ann bt bt1])
     Sequential e1 e2 -> do
-      -- Not confident. TODO: check the validity of the following
+      -- Not confident. TODO (theory): check the validity of the following
       (e1', bity1@(BIType bt1 bityMain1), constraints1) <- extractConstraintsFromExpr trav btenv e1
       (e2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromExpr trav btenv e2
       case bityMain1 of
@@ -382,7 +382,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
           spanInFile1 <- askSpanInFile ann1
           analysisError trav $ NotABase spanInFile1 bity1
     Tuple es -> do
-      -- Not confident. TODO: check the validity of the following
+      -- Not confident. TODO (theory): check the validity of the following
       triples <- mapM (extractConstraintsFromExpr trav btenv) es
       let e' = BExpr (bt, ann) (BTuple (fmap (\(eElem, _, _) -> eElem) triples))
       let bity = BIType bt (BITyProduct (fmap (\(_, bityElem, _) -> bityElem) triples))

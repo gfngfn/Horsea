@@ -4,9 +4,15 @@ module Staged.SrcSyntax
     ExprF (..),
     ExprMainF (..),
     LamBinderF (..),
+    BranchF (..),
+    PatternF (..),
+    PatternMainF (..),
     Expr,
     ExprMain,
     LamBinder,
+    Branch,
+    Pattern,
+    PatternMain,
     TypeName,
     TypeVar (..),
     TypeExprF,
@@ -60,6 +66,7 @@ data ExprMainF ann
   | LetRecIn Var [LamBinderF ann] (TypeExprF ann) (ExprF ann) (ExprF ann)
   | LetTupleIn (TwoOrMore Var) (ExprF ann) (ExprF ann)
   | IfThenElse (ExprF ann) (ExprF ann) (ExprF ann)
+  | Case (ExprF ann) (NonEmpty (BranchF ann))
   | As (ExprF ann) (TypeExprF ann)
   | Bracket (ExprF ann)
   | Escape (ExprF ann)
@@ -83,11 +90,30 @@ data LamBinderF ann
   | ImplicitBinder (Var, TypeExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
+data BranchF ann = Branch (PatternF ann) (ExprF ann)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
+
+data PatternF ann = Pattern ann (PatternMainF ann)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
+
+data PatternMainF ann
+  = PatVar Var
+  | PatBool Bool
+  | PatConstructor ConstructorName
+  | PatApp (PatternF ann) (PatternF ann)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
+
 type Expr = ExprF Span
 
 type ExprMain = ExprMainF Span
 
 type LamBinder = LamBinderF Span
+
+type Branch = BranchF Span
+
+type Pattern = PatternF Span
+
+type PatternMain = PatternMainF Span
 
 type TypeName = Text
 

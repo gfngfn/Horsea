@@ -8,6 +8,7 @@ module Staged.TypeError
 where
 
 import Common.LocationInFile (SpanInFile)
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Tensor.Matrix qualified as Matrix
 import Data.Text (Text)
@@ -51,9 +52,9 @@ data TypeErrorF sv
   | VarOccursFreelyInAss0Type SpanInFile Var (ResultF Ass0TypeExprF sv)
   | VarOccursFreelyInAss1Type SpanInFile Var (ResultF Ass1TypeExprF sv)
   | InvalidMatrixLiteral SpanInFile (Matrix.ConstructionError Int)
-  | CannotMergeTypesByConditional0 SpanInFile (Ass0TypeExprF sv) (Ass0TypeExprF sv) (ConditionalMergeErrorF sv)
-  | CannotMergeTypesByConditional1 SpanInFile (Ass1TypeExprF sv) (Ass1TypeExprF sv) (ConditionalMergeErrorF sv)
-  | CannotMergeResultsByConditionals SpanInFile (ResultF Ass0TypeExprF sv) (ResultF Ass0TypeExprF sv)
+  | CannotMergeTypesByConditional0 SpanInFile (NonEmpty (Ass0PatternF sv, Ass0TypeExprF sv)) (ConditionalMergeErrorF sv)
+  | CannotMergeTypesByConditional1 SpanInFile (NonEmpty (Ass0PatternF sv, Ass1TypeExprF sv)) (ConditionalMergeErrorF sv)
+  | CannotMergeResultsByConditionals SpanInFile (NonEmpty (Ass0PatternF sv, ResultF Ass0TypeExprF sv))
   | CannotApplyLiteral SpanInFile
   | CannotInstantiateGuidedByAppContext0 SpanInFile (AppContextF sv) (Ass0TypeExprF sv)
   | CannotInstantiateGuidedByAppContext1 SpanInFile (AppContextF sv) (Ass1TypeExprF sv)
@@ -62,6 +63,7 @@ data TypeErrorF sv
   | CannotInferTypeVariableInstance1 SpanInFile AssTypeVar (AppContextF sv) (Ass1TypeExprF sv)
   | CannotInstantiateTypeVariableGuidedByAssertion0 SpanInFile AssTypeVar (Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | Stage1IfThenElseRestrictedToEmptyContext SpanInFile (AppContextF sv)
+  | Stage1CaseRestrictedToEmptyContext SpanInFile (AppContextF sv)
   | BindingOverwritten SpanInFile Var
   | UnknownExternalName SpanInFile Text
   | InvalidPersistentType SpanInFile (Ass0TypeExprF sv)
@@ -83,8 +85,8 @@ data TypeErrorF sv
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv
-  = CannotMerge0 (Ass0TypeExprF sv) (Ass0TypeExprF sv)
-  | CannotMerge1 (Ass1TypeExprF sv) (Ass1TypeExprF sv)
+  = CannotMerge0 (NonEmpty (Ass0PatternF sv, Ass0TypeExprF sv))
+  | CannotMerge1 (NonEmpty (Ass0PatternF sv, Ass1TypeExprF sv))
   deriving stock (Eq, Show, Functor)
 
 data UnsupportedF sv

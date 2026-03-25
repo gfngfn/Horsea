@@ -16,8 +16,10 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Function ((&))
 import Data.Functor.Identity
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
 import Data.Tensor.Matrix (Matrix)
@@ -297,6 +299,37 @@ reduceTypeBeta1 :: Ass1Val -> Ass1TypeVal -> M Ass1Val
 reduceTypeBeta1 a1vTypeFun _a1tyvArg =
   pure a1vTypeFun
 
+evalCase :: EvalEnv -> Ass0Val -> [Ass0Branch] -> M Ass0Val
+evalCase env a0v = goBranch
+  where
+    goBranch = \case
+      [] ->
+        error "TODO (error): evalCase, no match"
+      A0Branch a0pat a0e : branchesRest ->
+        case matchWithPattern a0v a0pat of
+          Nothing -> goBranch branchesRest
+          Just binding -> evalExpr0 (Map.union env (Map.map Ass0ValEntry binding)) a0e
+
+matchWithPattern :: Ass0Val -> Ass0Pattern -> Maybe (Map AssVar Ass0Val)
+matchWithPattern a0v a0pat =
+  case (a0v, a0pat) of
+    (A0ValConstructor ctor1 a0vs, A0PatConstructor ctor2 a0pats) ->
+      if ctor1 == ctor2
+        then do
+          zipped <- zipExactMay a0vs a0pats
+          bindings <- mapM (uncurry matchWithPattern) zipped
+          pure $ Map.unions bindings
+        else
+          Nothing
+    (_, A0PatVar ax) ->
+      pure $ Map.singleton ax a0v
+    (A0ValLiteral (ALitBool b1), A0PatBool b2) ->
+      if b1 == b2
+        then pure Map.empty
+        else Nothing
+    _ ->
+      Nothing
+
 evalExpr0 :: EvalEnv -> Ass0Expr -> M Ass0Val
 evalExpr0 env = \case
   A0Literal lit ->
@@ -350,12 +383,18 @@ evalExpr0 env = \case
   A0Tuple a0es -> do
     a0vs <- mapM (evalExpr0 env) a0es
     pure $ A0ValTuple a0vs
+  A0Constructor ctor a0es -> do
+    a0vs <- mapM (evalExpr0 env) a0es
+    pure $ A0ValConstructor ctor a0vs
   A0IfThenElse a0e0 a0e1 a0e2 -> do
     a0v0 <- evalExpr0 env a0e0
     b <- validateBoolLiteral "if" a0v0
     if b
       then evalExpr0 env a0e1
       else evalExpr0 env a0e2
+  A0Case a0e0 a0branches -> do
+    a0v0 <- evalExpr0 env a0e0
+    evalCase env a0v0 (NonEmpty.toList a0branches)
   A0Bracket a1e1 -> do
     a1v1 <- evalExpr1 env a1e1
     pure $ A0ValBracket a1v1
@@ -434,11 +473,18 @@ evalExpr1 env = \case
   A1Tuple a1es -> do
     a1vs <- mapM (evalExpr1 env) a1es
     pure $ A1ValTuple a1vs
+  A1Constructor ctor a1es -> do
+    a1vs <- mapM (evalExpr1 env) a1es
+    pure $ A1ValConstructor ctor a1vs
   A1IfThenElse a1e0 a1e1 a1e2 -> do
     a1v0 <- evalExpr1 env a1e0
     a1v1 <- evalExpr1 env a1e1
     a1v2 <- evalExpr1 env a1e2
     pure $ A1ValIfThenElse a1v0 a1v1 a1v2
+  A1Case a1e0 a1branches -> do
+    a1v0 <- evalExpr1 env a1e0
+    a1branchVs <- mapM (evalBranch1 env) a1branches
+    pure $ A1ValCase a1v0 a1branchVs
   A1Escape a0e1 -> do
     a0v1 <- evalExpr0 env a0e1
     case a0v1 of
@@ -448,6 +494,11 @@ evalExpr1 env = \case
     a1v1 <- evalExpr1 env a1e1
     a1tyv2 <- evalTypeExpr1 env a1tye2
     reduceTypeBeta1 a1v1 a1tyv2
+
+evalBranch1 :: EvalEnv -> Ass1Branch -> M Ass1BranchVal
+evalBranch1 env (A1Branch a1pat a1e) = do
+  a1v <- evalExpr1 env a1e
+  pure $ A1ValBranch a1pat a1v
 
 evalTypeExpr0 :: EvalEnv -> StrictAss0TypeExpr -> M Ass0TypeVal
 evalTypeExpr0 env = \case
@@ -460,6 +511,9 @@ evalTypeExpr0 env = \case
     a0tyv1 <- evalTypeExpr0 env sa0tye1
     maybeVPred <- mapM (evalExpr0 env) maybePred
     pure $ A0TyValList a0tyv1 maybeVPred
+  SA0TyMaybe sa0tye1 -> do
+    a0tyv1 <- evalTypeExpr0 env sa0tye1
+    pure $ A0TyValMaybe a0tyv1
   SA0TyProduct sa0tyes -> do
     a0tyvs <- mapM (evalTypeExpr0 env) sa0tyes
     pure $ A0TyValProduct a0tyvs
@@ -503,6 +557,9 @@ evalTypeExpr1 env = \case
   A1TyList a1tye -> do
     a1tyv <- evalTypeExpr1 env a1tye
     pure $ A1TyValList a1tyv
+  A1TyMaybe a1tye -> do
+    a1tyv <- evalTypeExpr1 env a1tye
+    pure $ A1TyValMaybe a1tyv
   A1TyVar atyvar ->
     pure $ A1TyValVar atyvar
   A1TyProduct a1tyes -> do
@@ -541,8 +598,22 @@ unliftVal = \case
     A0Sequential (unliftVal a1v1) (unliftVal a1v2)
   A1ValTuple a1vs ->
     A0Tuple (fmap unliftVal a1vs)
+  A1ValConstructor ctor a1vs ->
+    A0Constructor ctor (map unliftVal a1vs)
   A1ValIfThenElse a1v0 a1v1 a1v2 ->
     A0IfThenElse (unliftVal a1v0) (unliftVal a1v1) (unliftVal a1v2)
+  A1ValCase a1v0 a1branchVs ->
+    A0Case (unliftVal a1v0) (fmap unliftBranchVal a1branchVs)
+
+unliftBranchVal :: Ass1BranchVal -> Ass0Branch
+unliftBranchVal (A1ValBranch a1pat a1e) =
+  A0Branch (unliftPattern a1pat) (unliftVal a1e)
+
+unliftPattern :: Ass1Pattern -> Ass0Pattern
+unliftPattern = \case
+  A1PatConstructor ctor a1pats -> A0PatConstructor ctor (map unliftPattern a1pats)
+  A1PatVar ax -> A0PatVar ax
+  A1PatBool b -> A0PatBool b
 
 unliftTypeVal :: Ass1TypeVal -> StrictAss0TypeExpr
 unliftTypeVal = \case
@@ -557,6 +628,8 @@ unliftTypeVal = \case
      in SA0TyPrim a0tyPrim Nothing
   A1TyValList a1tyv ->
     SA0TyList (unliftTypeVal a1tyv) Nothing
+  A1TyValMaybe a1tyv ->
+    SA0TyMaybe (unliftTypeVal a1tyv)
   A1TyValVar atyvar ->
     SA0TyVar atyvar
   A1TyValProduct a1tyvs ->

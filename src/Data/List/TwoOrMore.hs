@@ -6,18 +6,21 @@ module Data.List.TwoOrMore
     decompose1,
     fromNonEmpty,
     toList,
+    fromList,
     zipExact,
     mapIndexed,
     head,
     last,
     initAndLast,
     foldl1,
+    transpose,
   )
 where
 
 import Data.Functor.Classes (Eq1, Show1)
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.List.NonEmpty.Util qualified as U
 import Generic.Data (Generic, Generic1, Generically1 (..))
 import Generic.Data.Orphans ()
 import Safe.Exact (zipExactMay)
@@ -51,6 +54,11 @@ fromNonEmpty (first :| rest') = do
 toList :: TwoOrMore a -> [a]
 toList TwoOrMore {first, rest} = first : NonEmpty.toList rest
 
+fromList :: [a] -> Maybe (TwoOrMore a)
+fromList = \case
+  x1 : x2 : xs -> pure $ make x1 x2 xs
+  _ -> Nothing
+
 zipExact :: TwoOrMore a -> TwoOrMore b -> Maybe (TwoOrMore (a, b))
 zipExact xs ys = do
   rest <- zipExactMay xsRest ysRest
@@ -78,3 +86,10 @@ initAndLast TwoOrMore {first, rest} =
 
 foldl1 :: (a -> a -> a) -> TwoOrMore a -> a
 foldl1 f TwoOrMore {first, rest} = foldl f first rest
+
+transpose :: NonEmpty (TwoOrMore a) -> Maybe (TwoOrMore (NonEmpty a))
+transpose matrix = do
+  matrix' <- U.transpose (fmap toList matrix)
+  case fromList matrix' of
+    Nothing -> error "bug: Data.List.TwoOrMore"
+    Just matrix'' -> pure matrix''
