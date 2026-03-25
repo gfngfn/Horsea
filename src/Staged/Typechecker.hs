@@ -520,7 +520,7 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
               let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2
               pure (trivial1 && trivial2, TyEq1Arrow labelOpt1 ty1eqDom ty1eqCod, varSolution, tyvar1Solution)
         (_, A1TyImplicitForAll atyvar2 a1tye22) ->
-          -- Not confident. TODO: ensure that this works correctly
+          -- Not confident. TODO (theory): ensure that this works correctly
           go varsToInfer (Set.insert atyvar2 tyvars1ToInfer) a1tye1 a1tye22
         (_, _) ->
           Left ()
@@ -684,8 +684,15 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
               pure $ A0TyProduct a0tyes'
             Nothing ->
               failure
-        A0TyVar {} ->
-          error "TODO: unsupported; mergeTypesByConditional0, A0TyVar"
+        A0TyVar atyvar1 -> do
+          mapM_
+            ( \(_a0pat, a0tye) ->
+                case a0tye of
+                  A0TyVar atyvar -> unless (atyvar == atyvar1) failure
+                  _ -> failure
+            )
+            rest
+          pure $ A0TyVar atyvar1
         A0TyImplicitForAll {} ->
           error "TODO: unsupported; mergeTypesByConditional0, A0TyImplicitForAll"
 
@@ -854,8 +861,15 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
               pure $ A1TyProduct a1tyes'
             Nothing ->
               failure
-        A1TyVar {} ->
-          error "TODO: unsupported; mergeTypesByConditional1, A1TyVar"
+        A1TyVar atyvar1 -> do
+          mapM_
+            ( \(_a0pat, a1tye) ->
+                case a1tye of
+                  A1TyVar atyvar -> unless (atyvar == atyvar1) failure
+                  _ -> failure
+            )
+            rest
+          pure $ A1TyVar atyvar1
         A1TyImplicitForAll {} ->
           error "TODO: unsupported; mergeTypesByConditional1, A1TyImplicitForAll"
 
@@ -887,7 +901,9 @@ mergeResultsByConditional0 :: forall trav. trav -> Span -> Ass0Expr -> NonEmpty 
 mergeResultsByConditional0 trav loc a0e0 = go
   where
     go :: NonEmpty (Ass0Pattern, Result0) -> M trav Result0
-    go patAndResultPairs@((a0pat1, result1) :| rest) =
+    go patAndResultPairs@((a0pat1, result1) :| rest) = do
+      spanInFile <- askSpanInFile loc
+      let failure = typeError trav $ CannotMergeResultsByConditionals spanInFile patAndResultPairs
       case result1 of
         Pure a0tye1 -> do
           patAndTypePairs <-
@@ -895,7 +911,7 @@ mergeResultsByConditional0 trav loc a0e0 = go
               ( \(a0pat, result) ->
                   case result of
                     Pure a0tye -> pure (a0pat, a0tye)
-                    _ -> error "TODO (error): mergeResultsByConditional0, not Pure"
+                    _ -> failure
               )
               rest
           Pure <$> mergeTypes0 ((a0pat1, a0tye1) :| patAndTypePairs)
@@ -905,7 +921,7 @@ mergeResultsByConditional0 trav loc a0e0 = go
               ( \(a0pat, result) ->
                   case result of
                     Cast0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
-                    _ -> error "TODO (error): mergeResultsByConditional0, not Cast0"
+                    _ -> failure
               )
               rest
           let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
@@ -918,7 +934,7 @@ mergeResultsByConditional0 trav loc a0e0 = go
               ( \(a0pat, result) ->
                   case result of
                     Cast1 cast a1tye r -> pure (a0pat, (cast, a1tye, r))
-                    _ -> error "TODO (error): mergeResultsByConditional0, not Cast1"
+                    _ -> failure
               )
               rest
           let quads = (a0pat1, (cast1, a1tye1, r1)) :| quadsRest
@@ -931,7 +947,7 @@ mergeResultsByConditional0 trav loc a0e0 = go
               ( \(a0pat, result) ->
                   case result of
                     CastGiven0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
-                    _ -> error "TODO (error): mergeResultsByConditional0, not CastGiven0"
+                    _ -> failure
               )
               rest
           let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
@@ -944,7 +960,7 @@ mergeResultsByConditional0 trav loc a0e0 = go
               ( \(a0pat, result) ->
                   case result of
                     FillInferred0 a0e r -> pure (a0pat, (a0e, r))
-                    _ -> error "TODO (error): mergeResultsByConditional0, not FillInferred0"
+                    _ -> failure
               )
               rest
           let triples = (a0pat1, (a0e1, r1)) :| triplesRest
@@ -956,16 +972,16 @@ mergeResultsByConditional0 trav loc a0e0 = go
               ( \(a0pat, result) ->
                   case result of
                     InsertInferred0 a0e r -> pure (a0pat, (a0e, r))
-                    _ -> error "TODO (error): mergeResultsByConditional0, not InsertInferred0"
+                    _ -> failure
               )
               rest
           let triples = (a0pat1, (a0e1, r1)) :| triplesRest
           let a0branches = fmap (\(a0pat, (a0e, _)) -> A0Branch a0pat a0e) triples
           InsertInferred0 (A0Case a0e0 a0branches) <$> go (fmap (second (\(_, r) -> r)) triples)
-        _ -> do
-          -- Reachable if two branches of an if-expression are inconsistent as to `InsertInferred0`.
-          spanInFile <- askSpanInFile loc
-          typeError trav $ CannotMergeResultsByConditionals spanInFile patAndResultPairs
+        InsertType1 {} ->
+          error "TODO: unsupported; mergeResultsByConditional0, InsertType1"
+        InsertInferredType0 {} ->
+          error "TODO: unsupported; mergeResultsByConditional0, InsertInferredType0"
 
     mergeTypes0 :: NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M trav Ass0TypeExpr
     mergeTypes0 pairs = do
@@ -1466,7 +1482,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             result <-
               mergeResultsByConditional0 trav loc a0e0 $
                 (A0PatBool True, result1) :| [(A0PatBool False, result2)]
-            pure (result, A0IfThenElse a0e0 a0e1 a0e2) -- TODO: abandon IfThenElse
+            pure (result, A0IfThenElse a0e0 a0e1 a0e2)
           _ -> do
             let Expr loc0 _ = e0
             spanInFile0 <- askSpanInFile loc0
