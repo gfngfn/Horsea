@@ -257,8 +257,7 @@ expr = letin
 
     arrowDom :: P DomainSpec
     arrowDom =
-      (DomMandatory . Just <$> label <*> mandatoryArrowDom)
-        <|> (DomMandatory Nothing <$> mandatoryArrowDom)
+      (DomMandatory <$> optional label <*> mandatoryArrowDom)
         <|> (DomInferable <$> implicitArrowDom)
       where
         mandatoryArrowDom :: P (Maybe (Span, Var), TypeExpr)
