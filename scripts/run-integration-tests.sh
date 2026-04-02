@@ -20,6 +20,7 @@ TESTS_STAGED_RUN=(
     examples/small/vec_explicit.lba
     examples/small/vec_higher_order.lba
     examples/small/vec_higher_order_explicit.lba
+    examples/small/maybe.lba
 )
 TESTS_STAGED_COMPILE=(
     examples/ocaml-torch/char_rnn/char_rnn.lba

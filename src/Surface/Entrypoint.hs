@@ -4,13 +4,18 @@ module Surface.Entrypoint
   )
 where
 
+import Common.FailureReason (FailureReason (..))
+import Common.Formatter (Disp)
+import Common.Formatter qualified as Formatter
+import Common.LocationInFile (SourceSpec (SourceSpec))
+import Common.LocationInFile qualified as LocationInFile
+import Common.TokenUtil (Span)
 import Control.Monad (unless)
 import Control.Monad.Trans.Reader
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
+import Data.Text.IO.Util (readFileEither)
 import Staged.Entrypoint qualified
-import Staged.Formatter (Disp)
-import Staged.Formatter qualified as Formatter
 import Staged.Parser qualified as StagedParser
 import Staged.SrcSyntax qualified as StagedSyntax
 import Staged.Typechecker.Monad (TypecheckState (..))
@@ -21,11 +26,6 @@ import Surface.BindingTime.Core
 import Surface.BindingTime.Stager (BCExprF)
 import Surface.Parser qualified as Parser
 import Surface.Syntax
-import Util.FailureReason (FailureReason (..))
-import Util.IO (readFileEither)
-import Util.LocationInFile (SourceSpec (SourceSpec))
-import Util.LocationInFile qualified as LocationInFile
-import Util.TokenUtil (Span)
 import Prelude
 
 data Argument = Argument

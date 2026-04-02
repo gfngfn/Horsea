@@ -1,4 +1,4 @@
-with-compiler: ghc-9.4.8
+with-compiler: ghc-9.12.2
 
 packages: horsea.cabal
 

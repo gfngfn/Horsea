@@ -4,6 +4,7 @@ module Surface.Token
   )
 where
 
+import Common.TokenUtil
 import Control.Monad.Combinators
 import Data.Either.Extra
 import Data.List.NonEmpty qualified as NonEmpty
@@ -14,7 +15,6 @@ import Data.Text qualified as Text
 import GHC.Base
 import GHC.Generics
 import Text.Megaparsec qualified as Mp
-import Util.TokenUtil
 import Prelude hiding (lex)
 
 data Token

@@ -3,6 +3,7 @@ module Staged.Typechecker.TypeEnv
     TypeVarEntry (..),
     empty,
     addVal,
+    addVals,
     findVal,
     addTypeVar,
     findTypeVar,
@@ -12,7 +13,9 @@ module Staged.Typechecker.TypeEnv
   )
 where
 
-import Data.List.Extra qualified as List
+import Data.List.Extra (firstJust)
+import Data.Map (Map)
+import Data.Map qualified as Map
 import Staged.SrcSyntax (TypeVar, Var)
 import Staged.Syntax (AssTypeVar)
 import Staged.Typechecker.SigRecord (ModuleEntry, SigRecord, ValEntry)
@@ -37,9 +40,13 @@ addVal :: Var -> ValEntry -> TypeEnv -> TypeEnv
 addVal x valEntry tyEnv =
   tyEnv {envVals = (x, valEntry) : tyEnv.envVals}
 
+addVals :: (Map Var ValEntry) -> TypeEnv -> TypeEnv
+addVals binders tyEnv =
+  foldl' (\tyEnv' (x, valEntry) -> addVal x valEntry tyEnv') tyEnv (Map.toList binders)
+
 findVal :: Var -> TypeEnv -> Maybe ValEntry
 findVal x0 tyEnv =
-  List.firstJust
+  firstJust
     (\(x, valEntry) -> if x == x0 then Just valEntry else Nothing)
     tyEnv.envVals
 
@@ -50,7 +57,7 @@ addTypeVar tyvar tyVarEntry tyEnv =
 
 findTypeVar :: TypeVar -> TypeEnv -> Maybe TypeVarEntry
 findTypeVar tyvar0 tyEnv =
-  List.firstJust
+  firstJust
     (\(tyvar, tyVarEntry) -> if tyvar == tyvar0 then Just tyVarEntry else Nothing)
     tyEnv.envTypeVars
 
@@ -60,7 +67,7 @@ addModule m modEntry tyEnv =
 
 findModule :: Var -> TypeEnv -> Maybe ModuleEntry
 findModule m0 tyEnv =
-  List.firstJust
+  firstJust
     (\(m, modEntry) -> if m == m0 then Just modEntry else Nothing)
     tyEnv.envModules
 

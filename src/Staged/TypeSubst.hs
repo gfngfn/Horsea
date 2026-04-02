@@ -6,10 +6,10 @@ module Staged.TypeSubst
 where
 
 import Data.Functor.Identity
+import Data.Maybe1
 import Data.Tuple.Extra
 import Staged.Core
 import Staged.Syntax
-import Util.Maybe1
 import Prelude
 
 data TypeSubstF sv
@@ -39,8 +39,10 @@ instance HasTypeVar Ass0TypeExprF where
         TypeSubst1 _ _ -> A0TyVar atyvar
     A0TyList a0tye1 maybePred ->
       A0TyList (go a0tye1) ((unMaybe1 . go . Maybe1) maybePred)
-    A0TyProduct a0tye1 a0tye2 ->
-      A0TyProduct (go a0tye1) (go a0tye2)
+    A0TyMaybe a0tye1 ->
+      A0TyMaybe (go a0tye1)
+    A0TyProduct a0tyes ->
+      A0TyProduct (fmap go a0tyes)
     A0TyArrow labelOpt (svOpt, a0tye1) a0tye2 ->
       A0TyArrow labelOpt (svOpt, go a0tye1) (go a0tye2)
     A0TyInfArrow (ax, a0tye1) a0tye2 ->
@@ -69,8 +71,10 @@ instance HasTypeVar StrictAss0TypeExprF where
         TypeSubst1 _ _ -> SA0TyVar atyvar
     SA0TyList sa0tye1 maybePred ->
       SA0TyList (go sa0tye1) ((unMaybe1 . go . Maybe1) maybePred)
-    SA0TyProduct sa0tye1 sa0tye2 ->
-      SA0TyProduct (go sa0tye1) (go sa0tye2)
+    SA0TyMaybe a0tye1 ->
+      SA0TyMaybe (go a0tye1)
+    SA0TyProduct sa0tyes ->
+      SA0TyProduct (fmap go sa0tyes)
     SA0TyArrow (svOpt, sa0tye1) sa0tye2 ->
       SA0TyArrow (svOpt, go sa0tye1) (go sa0tye2)
     SA0TyCode a1tye1 ->
@@ -89,11 +93,12 @@ instance HasTypeVar Ass1TypeExprF where
   tySubst s = \case
     A1TyPrim a1tyPrim -> A1TyPrim (go a1tyPrim)
     A1TyList a1tye1 -> A1TyList (go a1tye1)
+    A1TyMaybe a1tye1 -> A1TyMaybe (go a1tye1)
     A1TyVar atyvar ->
       case s of
         TypeSubst0 _ _ -> A1TyVar atyvar
         TypeSubst1 atyvar' a1tye' -> if atyvar == atyvar' then a1tye' else A1TyVar atyvar
-    A1TyProduct a1tye1 a1tye2 -> A1TyProduct (go a1tye1) (go a1tye2)
+    A1TyProduct a1tyes -> A1TyProduct (fmap go a1tyes)
     A1TyArrow labelOpt a1tye1 a1tye2 -> A1TyArrow labelOpt (go a1tye1) (go a1tye2)
     A1TyImplicitForAll atyvar a1tye2 ->
       A1TyImplicitForAll atyvar $
@@ -137,10 +142,12 @@ instance HasTypeVar Ass0ExprF where
     A0Lam (Just (f, sa0tye0)) (x, sa0tye1) a0e2 -> A0Lam (Just (f, go sa0tye0)) (x, go sa0tye1) (go a0e2)
     A0App a0e1 a0e2 -> A0App (go a0e1) (go a0e2)
     A0LetIn (x, sa0tye0) a0e1 a0e2 -> A0LetIn (x, go sa0tye0) (go a0e1) (go a0e2)
-    A0LetTupleIn x y a0e1 a0e2 -> A0LetTupleIn x y (go a0e1) (go a0e2)
+    A0LetTupleIn xs a0e1 a0e2 -> A0LetTupleIn xs (go a0e1) (go a0e2)
     A0Sequential a0e1 a0e2 -> A0Sequential (go a0e1) (go a0e2)
-    A0Tuple a0e1 a0e2 -> A0Tuple (go a0e1) (go a0e2)
+    A0Tuple a0es -> A0Tuple (fmap go a0es)
+    A0Constructor ctor a0es -> A0Constructor ctor (map go a0es)
     A0IfThenElse a0e0 a0e1 a0e2 -> A0IfThenElse (go a0e0) (go a0e1) (go a0e2)
+    A0Case a0e0 a0branches -> A0Case (go a0e0) (fmap go a0branches)
     A0Bracket a1e -> A0Bracket (go a1e)
     A0TyEqAssert loc ty1eq -> A0TyEqAssert loc (go ty1eq)
     A0RefinementAssert loc a0e1 a0e2 -> A0RefinementAssert loc (go a0e1) (go a0e2)
@@ -148,6 +155,11 @@ instance HasTypeVar Ass0ExprF where
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
+
+instance HasTypeVar Ass0BranchF where
+  tySubst s (A0Branch a0pat a0e) =
+    -- Patterns do not contain types:
+    A0Branch a0pat (tySubst s a0e)
 
 instance (HasTypeVar af) => HasTypeVar (AssLiteralF af) where
   tySubst s = \case
@@ -167,10 +179,12 @@ instance HasTypeVar Type1EquationF where
           TyEq1TextHelper (labels1, labels2) -> TyEq1TextHelper (go labels1, go labels2)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
+    TyEq1Maybe ty1eqElem ->
+      TyEq1Maybe (go ty1eqElem)
     TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
       TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
-    TyEq1Product ty1eq1 ty1eq2 ->
-      TyEq1Product (go ty1eq1) (go ty1eq2)
+    TyEq1Product ty1eqs ->
+      TyEq1Product (fmap go ty1eqs)
     TyEq1TypeVar atyvar ->
       case s of
         TypeSubst0 _ _ ->
@@ -219,12 +233,19 @@ instance HasTypeVar Ass1ExprF where
     A1Lam (Just (f, a1tye0)) (x, a1tye1) a1e2 -> A1Lam (Just (f, go a1tye0)) (x, go a1tye1) (go a1e2)
     A1App a1e1 a1e2 -> A1App (go a1e1) (go a1e2)
     A1LetIn (x, a1tye0) a1e1 a1e2 -> A1LetIn (x, go a1tye0) (go a1e1) (go a1e2)
-    A1LetTupleIn x y a1e1 a1e2 -> A1LetTupleIn x y (go a1e1) (go a1e2)
+    A1LetTupleIn xs a1e1 a1e2 -> A1LetTupleIn xs (go a1e1) (go a1e2)
     A1Sequential a1e1 a1e2 -> A1Sequential (go a1e1) (go a1e2)
-    A1Tuple a1e1 a1e2 -> A1Tuple (go a1e1) (go a1e2)
+    A1Tuple a1es -> A1Tuple (fmap go a1es)
+    A1Constructor ctor a1es -> A1Constructor ctor (map go a1es)
     A1IfThenElse a1e0 a1e1 a1e2 -> A1IfThenElse (go a1e0) (go a1e1) (go a1e2)
+    A1Case a1e0 a1branches -> A1Case (go a1e0) (fmap go a1branches)
     A1Escape a0e -> A1Escape (go a0e)
     A1AppType a1e1 a1tye2 -> A1AppType (go a1e1) (go a1tye2)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
+
+instance HasTypeVar Ass1BranchF where
+  tySubst s (A1Branch a1pat a1e) =
+    -- Patterns do not contain types:
+    A1Branch a1pat (tySubst s a1e)

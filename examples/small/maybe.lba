@@ -1,0 +1,10 @@
+let t =
+  let x = Just 42 in
+  let y = Nothing as Maybe Float in
+  (x, y, &(Just 57, Nothing as Maybe Bool))
+in
+let (p, q, r) = t in
+case q of
+| Nothing -> &(1, ~r)
+| Just x -> &(2, ~r)
+end

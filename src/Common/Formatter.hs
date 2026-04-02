@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Staged.Formatter
+module Common.Formatter
   ( Disp (..),
     render,
     putRenderedLines,
@@ -10,10 +10,18 @@ module Staged.Formatter
   )
 where
 
+import Common.FrontError (FrontError (..))
+import Common.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
+import Common.ParserUtil (ParseError (..))
 import Data.Functor.Identity
-import Data.List qualified as List
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.TwoOrMore (TwoOrMore)
+import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.Tensor.Matrix qualified as Matrix
+import Data.Tensor.Vector qualified as Vector
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Tuple.Extra (first)
 import Prettyprinter
 import Prettyprinter.Render.Terminal
 import Staged.BuiltIn.CompileTime (deriveDisp)
@@ -29,11 +37,6 @@ import Surface.BindingTime.Analyzer qualified as Bta
 import Surface.BindingTime.Core qualified as Bta
 import Surface.BindingTime.Stager qualified as Bta
 import Surface.Syntax qualified as Surface
-import Util.FrontError (FrontError (..))
-import Util.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
-import Util.Matrix qualified as Matrix
-import Util.ParserUtil (ParseError (..))
-import Util.Vector qualified as Vector
 import Prelude
 
 type Ann = AnsiStyle
@@ -96,16 +99,25 @@ putRenderedLinesAtStage1 wid x =
 commaSep :: [Doc Ann] -> Doc Ann
 commaSep = sep . punctuate comma
 
+appendWithComma :: Doc Ann -> Doc Ann -> Doc Ann
+appendWithComma d1 d2 = d1 <> "," <+> d2
+
+appendWithAsterisk :: Doc Ann -> Doc Ann -> Doc Ann
+appendWithAsterisk d1 d2 = d1 <+> "*" <+> d2
+
 disps :: (Disp a) => [a] -> Doc Ann
 disps = disps' disp
 
 disps' :: (a -> Doc Ann) -> [a] -> Doc Ann
 disps' f = \case
   [] -> mempty
-  first : rest -> List.foldl' (\doc x -> doc <> "," <+> f x) (f first) rest
+  first' : rest -> foldl' (\doc x -> doc <> "," <+> f x) (f first') rest
 
 deepenParenWhen :: Bool -> Doc Ann -> Doc Ann
 deepenParenWhen b doc = if b then "(" <> nest 2 doc <> ")" else doc
+
+dispBool :: Bool -> Doc Ann
+dispBool b = if b then "true" else "false"
 
 dispNonrecLam :: (Disp var, Disp ty, Disp expr) => Associativity -> Maybe Label -> var -> ty -> expr -> Doc Ann
 dispNonrecLam req labelOpt x tye1 e2 =
@@ -183,24 +195,35 @@ dispLetInWithAnnot req x tye e1 e2 =
   deepenParenWhen (req <= FunDomain) $
     group ("let" <+> disp x <+> ":" <+> disp tye <+> "=" <> nest 2 (line <> disp e1) <+> "in" <> line <> disp e2)
 
+dispLetInWithoutAnnot :: (Disp var, Disp expr) => Associativity -> var -> expr -> expr -> Doc Ann
+dispLetInWithoutAnnot req x e1 e2 =
+  deepenParenWhen (req <= FunDomain) $
+    group ("let" <+> disp x <+> "=" <> nest 2 (line <> disp e1) <+> "in" <> line <> disp e2)
+
 dispLetOpenIn :: (Disp var, Disp expr) => Associativity -> var -> expr -> Doc Ann
 dispLetOpenIn req m e =
   deepenParenWhen (req <= FunDomain) $
     group ("let open" <+> disp m <+> "in" <> line <> disp e)
 
-dispLetTupleIn :: (Disp var, Disp expr) => Associativity -> var -> var -> expr -> expr -> Doc Ann
-dispLetTupleIn req xL xR e1 e2 =
+dispLetTupleIn :: (Disp var, Disp expr) => Associativity -> TwoOrMore var -> expr -> expr -> Doc Ann
+dispLetTupleIn req xs e1 e2 =
   deepenParenWhen (req <= FunDomain) $
-    group ("let (" <> disp xL <> "," <+> disp xR <> ") =" <+> disp e1 <+> "in" <> line <> disp e2)
+    group ("let (" <> TwoOrMore.foldl1 appendWithComma (fmap disp xs) <> ") =" <+> disp e1 <+> "in" <> line <> disp e2)
 
 dispSequential :: (Disp expr) => Associativity -> expr -> expr -> Doc Ann
 dispSequential req e1 e2 =
   deepenParenWhen (req <= FunDomain) $
     group (disp e1 <> ";" <> line <> disp e2)
 
-dispTuple :: (Disp expr) => expr -> expr -> Doc Ann
-dispTuple e1 e2 =
-  "(" <> nest 2 (disp e1 <> "," <+> disp e2) <> ")"
+dispTuple :: (Disp expr) => TwoOrMore expr -> Doc Ann
+dispTuple es =
+  "(" <> nest 2 (foldl1 appendWithComma (fmap disp es)) <> ")"
+
+dispConstructorApp :: (Disp expr) => Associativity -> ConstructorName -> [expr] -> Doc Ann
+dispConstructorApp req ctor args =
+  case args of
+    [] -> disp ctor
+    _ : _ -> deepenParenWhen (req <= Atomic) (foldl' (<+>) (disp ctor) (map disp args))
 
 dispIfThenElse :: (Disp expr) => Associativity -> expr -> expr -> expr -> Doc Ann
 dispIfThenElse req e0 e1 e2 =
@@ -210,6 +233,17 @@ dispIfThenElse req e0 e1 e2 =
     docIf = "if" <> nest 2 (line <> disp e0)
     docThen = "then" <> nest 2 (line <> disp e1)
     docElse = "else" <> nest 2 (line <> disp e2)
+
+dispCase :: (Disp expr, Disp br) => Associativity -> expr -> NonEmpty br -> Doc Ann
+dispCase req e0 branches =
+  deepenParenWhen (req <= FunDomain) $
+    group (docCase <+> docBranches <+> "end")
+  where
+    docCase = "case" <> nest 2 (line <> disp e0)
+    docBranches = "of" <> foldl1 (<>) (fmap (\br -> nest 2 (line <> disp br)) branches)
+
+dispBranch :: (Disp pat, Disp expr) => pat -> expr -> Doc Ann
+dispBranch pat e = "|" <+> disp pat <+> "->" <+> nest 4 (line <> disp e)
 
 dispStringLiteral :: Text -> Doc Ann
 dispStringLiteral t = "\"" <> disp t <> "\"" -- TODO: escape special characters
@@ -244,10 +278,21 @@ dispListType req tye =
   deepenParenWhen (req <= Atomic) $
     group ("List" <+> dispGen Atomic tye)
 
-dispProductType :: (Disp ty) => Associativity -> ty -> ty -> Doc Ann
-dispProductType req tye1 tye2 =
+dispMaybeType :: (Disp ty) => Associativity -> ty -> Doc Ann
+dispMaybeType req tye =
   deepenParenWhen (req <= Atomic) $
-    group (dispGen Atomic tye1 <+> "*" <+> dispGen Atomic tye2)
+    group ("Maybe" <+> dispGen Atomic tye)
+
+dispProduct :: (Disp ty) => Associativity -> ty -> NonEmpty (Text, ty) -> Doc Ann
+dispProduct req tye1 rest =
+  deepenParenWhen (req <= Atomic) $
+    group (dispGen Atomic tye1 <+> foldl1 (<+>) (fmap (\(op, tye) -> disp op <+> dispGen Atomic tye) rest))
+
+dispProductType :: (Disp ty) => Associativity -> TwoOrMore ty -> Doc Ann
+dispProductType req tyes =
+  dispProduct req a0tye1 (fmap ("*",) a0tyesRest)
+  where
+    (a0tye1, a0tyesRest) = TwoOrMore.decompose1 tyes
 
 dispArrowType :: (Disp var, Disp ty1, Disp ty2) => Associativity -> Maybe Label -> Maybe var -> ty1 -> ty2 -> Doc Ann
 dispArrowType req labelOpt xOpt tye1 tye2 =
@@ -317,15 +362,15 @@ dispMatrixLiteral :: [[Int]] -> Doc Ann
 dispMatrixLiteral nss =
   encloseSep ("[#" <> space) (space <> "#]") (";" <> softline) (dispRowContents <$> nss)
 
-dispRowContents :: [Int] -> Doc Ann
+dispRowContents :: (Disp a) => [a] -> Doc Ann
 dispRowContents row =
-  commaSep (disp <$> row)
+  commaSep (map disp row)
 
 dispNameWithArgs :: Associativity -> Doc Ann -> (arg -> Doc Ann) -> [arg] -> Doc Ann
 dispNameWithArgs req name dispArg args =
   case args of
     [] -> name
-    _ : _ -> deepenParenWhen (req <= Atomic) (List.foldl' (<+>) name (map dispArg args))
+    _ : _ -> deepenParenWhen (req <= Atomic) (foldl' (<+>) name (map dispArg args))
 
 dispDatasetParam :: (a -> Doc Ann) -> (f a -> Doc Ann) -> DatasetParam f a -> Doc Ann
 dispDatasetParam dispElem dispList DatasetParam {numTrain, numTest, image, label} =
@@ -365,7 +410,7 @@ instance (Disp e) => Disp (Literal e) where
     LitInt n -> pretty n
     LitFloat r -> pretty r
     LitUnit -> "()"
-    LitBool b -> if b then "true" else "false"
+    LitBool b -> dispBool b
     LitString t -> dispStringLiteral t
     LitList es -> dispListLiteral es
     LitVec ns -> dispVectorLiteral ns
@@ -377,6 +422,7 @@ instance Disp (ExprF ann) where
 instance Disp (ExprMainF ann) where
   dispGen req = \case
     Literal lit -> dispGen req lit
+    Constructor (ms, ctor) -> dispLongName ms ctor
     Var (ms, x) -> dispLongName ms x
     Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
@@ -386,14 +432,22 @@ instance Disp (ExprMainF ann) where
     AppImpOmitted e1 -> dispAppImpOmitted req e1
     LetIn x params tyeOpt e1 e2 -> dispLetIn req x params tyeOpt e1 e2
     LetRecIn x params tye e1 e2 -> dispLetRecIn req x params tye e1 e2
-    LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2
+    LetTupleIn xs e1 e2 -> dispLetTupleIn req xs e1 e2
     LetOpenIn m e -> dispLetOpenIn req m e
     Sequential e1 e2 -> dispSequential req e1 e2
-    Tuple e1 e2 -> dispTuple e1 e2
+    Tuple es -> dispTuple es
     IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
+    Case e0 branches -> dispCase req e0 branches
     As e1 tye2 -> dispAs req e1 tye2
     Bracket e1 -> dispBracket e1
     Escape e1 -> dispEscape e1
+    Persistent e1 -> dispPersistent e1
+    TyVar (TypeVar tyvar) -> "'" <> disp tyvar
+    TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
+    TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
+    TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
+    Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
+    TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
 
 instance Disp (LamBinderF ann) where
   dispGen _ = \case
@@ -401,25 +455,18 @@ instance Disp (LamBinderF ann) where
     MandatoryBinder (Just label) (x, tye) -> "(#" <> disp label <+> disp x <+> ":" <+> disp tye <> ")"
     ImplicitBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
 
-instance Disp (TypeExprF ann) where
-  dispGen req (TypeExpr _ann typeExprMain) = dispGen req typeExprMain
+instance Disp (BranchF ann) where
+  dispGen _ (Branch pat e) = dispBranch pat e
 
-instance Disp (TypeExprMainF ann) where
-  dispGen req = \case
-    TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
-    TyVar (TypeVar tyvar) -> "'" <> disp tyvar
-    TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
-    TyCode tye1 -> dispBracket tye1
-    TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
-    TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
-    TyProduct tye1 tye2 -> dispProductType req tye1 tye2
-    TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
+instance Disp (PatternF ann) where
+  dispGen req (Pattern _ann patMain) = dispGen req patMain
 
-instance Disp (ArgForTypeF ann) where
+instance Disp (PatternMainF ann) where
   dispGen req = \case
-    ExprArgPersistent e -> dispPersistent e
-    ExprArgNormal e -> dispGen req e
-    TypeArg tye -> dispGen req tye
+    PatConstructor ctor -> disp ctor
+    PatApp pat1 pat2 -> dispApp req pat1 Nothing pat2
+    PatVar x -> disp x
+    PatBool b -> dispBool b
 
 $(deriveDisp definitions)
 
@@ -442,7 +489,7 @@ instance (Disp e) => Disp (Surface.Literal e) where
     Surface.LitInt n -> pretty n
     Surface.LitFloat r -> pretty r
     Surface.LitUnit -> "()"
-    Surface.LitBool b -> if b then "true" else "false"
+    Surface.LitBool b -> dispBool b
     Surface.LitString t -> dispStringLiteral t
     Surface.LitList es -> dispListLiteral es
     Surface.LitVec ns -> dispVectorLiteral ns
@@ -454,43 +501,32 @@ instance Disp Surface.Expr where
 instance Disp Surface.ExprMain where
   dispGen req = \case
     Surface.Literal lit -> dispGen req lit
+    Surface.Constructor (ms, ctor) -> dispLongName ms ctor
     Surface.Var (ms, x) -> dispLongName ms x
     Surface.Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Surface.Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
     Surface.App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
     Surface.LetIn x params tyeBodyOpt eBody e2 -> dispLetIn req x params tyeBodyOpt eBody e2
     Surface.LetRecIn f params tyeBody eBody e2 -> dispLetRecIn req f params tyeBody eBody e2
-    Surface.LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2
+    Surface.LetTupleIn xs e1 e2 -> dispLetTupleIn req xs e1 e2
     Surface.LetOpenIn m e -> dispLetOpenIn req m e
     Surface.Sequential e1 e2 -> dispSequential req e1 e2
-    Surface.Tuple e1 e2 -> dispTuple e1 e2
+    Surface.Tuple es -> dispTuple es
     Surface.IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Surface.As e1 tye2 -> dispAs req e1 tye2
     Surface.LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
     Surface.AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
     Surface.AppImpOmitted e1 -> dispAppImpOmitted req e1
+    Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
+    Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
+    Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
+    Surface.Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
 
 instance Disp Surface.LamBinder where
   dispGen _ = \case
     Surface.MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
     Surface.MandatoryBinder (Just label) (x, tye) -> "#" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
     Surface.ImplicitBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
-
-instance Disp Surface.TypeExpr where
-  dispGen req (Surface.TypeExpr _ann typeExprMain) = dispGen req typeExprMain
-
-instance Disp Surface.TypeExprMain where
-  dispGen req = \case
-    Surface.TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
-    Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
-    Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
-    Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
-    Surface.TyProduct tye1 tye2 -> dispProductType req tye1 tye2
-
-instance Disp Surface.ArgForType where
-  dispGen req = \case
-    Surface.ExprArg e -> dispGen req e
-    Surface.TypeArg tye -> dispGen req tye
 
 instance (Disp sv, Disp (af sv)) => Disp (AssLiteralF af sv) where
   dispGen _ = \case
@@ -513,11 +549,13 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
     A0Lam (Just (f, a0tyeRec)) (y, a0tye1) a0e2 -> dispRecLam req f a0tyeRec Nothing y a0tye1 a0e2
     A0App a0e1 a0e2 -> dispApp req a0e1 Nothing a0e2
     A0LetIn (y, a0tye1) a0e1 a0e2 -> dispLetInWithAnnot req y a0tye1 a0e1 a0e2
-    A0LetTupleIn xL xR a0e1 a0e2 -> dispLetTupleIn req xL xR a0e1 a0e2
+    A0LetTupleIn xs a0e1 a0e2 -> dispLetTupleIn req xs a0e1 a0e2
     A0Sequential a0e1 a0e2 -> dispSequential req a0e1 a0e2
-    A0Tuple a0e1 a0e2 -> dispTuple a0e1 a0e2
+    A0Tuple a0es -> dispTuple a0es
+    A0Constructor ctor a0es -> dispConstructorApp req ctor a0es
     A0Bracket a1e1 -> dispBracket a1e1
     A0IfThenElse a0e0 a0e1 a0e2 -> dispIfThenElse req a0e0 a0e1 a0e2
+    A0Case a0e0 a0branches -> dispCase req a0e0 a0branches
     A0TyEqAssert _loc ty1eq ->
       let (a1tye1, a1tye2) = decomposeType1Equation ty1eq
        in group (assertionStyle ("{" <> dispBracket a1tye1 <+> "=>" <+> dispBracket a1tye2 <> "}"))
@@ -526,6 +564,15 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
         "ASSERT" <+> disp a0ePred <+> "FOR" <+> disp a0eTarget
     A0AppType a0e1 sa0tye2 ->
       dispAppType req a0e1 sa0tye2
+
+instance (Disp sv) => Disp (Ass0BranchF sv) where
+  dispGen _ (A0Branch a0pat a0e) = dispBranch a0pat a0e
+
+instance (Disp sv) => Disp (Ass0PatternF sv) where
+  dispGen req = \case
+    A0PatConstructor ctor a0pats -> dispConstructorApp req ctor a0pats
+    A0PatVar x -> disp x
+    A0PatBool b -> dispBool b
 
 instance (Disp sv) => Disp (Ass1ExprF sv) where
   dispGen req = \case
@@ -536,12 +583,23 @@ instance (Disp sv) => Disp (Ass1ExprF sv) where
     A1Lam (Just (f, a1tyeRec)) (x, a1tye1) a1e2 -> dispRecLam req f a1tyeRec Nothing x a1tye1 a1e2
     A1App a1e1 a1e2 -> dispApp req a1e1 Nothing a1e2
     A1LetIn (x, a1tye0) a1e1 a1e2 -> dispLetInWithAnnot req x a1tye0 a1e1 a1e2
-    A1LetTupleIn xL xR a1e1 a1e2 -> dispLetTupleIn req xL xR a1e1 a1e2
+    A1LetTupleIn xs a1e1 a1e2 -> dispLetTupleIn req xs a1e1 a1e2
     A1Sequential a1e1 a1e2 -> dispSequential req a1e1 a1e2
-    A1Tuple a1e1 a1e2 -> dispTuple a1e1 a1e2
+    A1Tuple a1es -> dispTuple a1es
+    A1Constructor ctor a1es -> dispConstructorApp req ctor a1es
     A1IfThenElse a1e0 a1e1 a1e2 -> dispIfThenElse req a1e0 a1e1 a1e2
+    A1Case a1e0 a1branches -> dispCase req a1e0 a1branches
     A1Escape a0e1 -> dispEscape a0e1
     A1AppType a1e1 a1tye2 -> dispAppType req a1e1 a1tye2
+
+instance (Disp sv) => Disp (Ass1BranchF sv) where
+  dispGen _ (A1Branch a1pat a1e) = dispBranch a1pat a1e
+
+instance (Disp sv) => Disp (Ass1PatternF sv) where
+  dispGen req = \case
+    A1PatConstructor ctor a0pats -> dispConstructorApp req ctor a0pats
+    A1PatVar x -> disp x
+    A1PatBool b -> dispBool b
 
 instance Disp AssPrimBaseType where
   dispGen _req = \case
@@ -576,7 +634,8 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyVar atyvar -> disp atyvar
     A0TyList a0tye Nothing -> dispListType req a0tye
     A0TyList a0tye (Just a0ePred) -> dispInternalRefinementListType req a0tye a0ePred
-    A0TyProduct a0tye1 a0tye2 -> dispProductType req a0tye1 a0tye2
+    A0TyMaybe a0tye -> dispMaybeType req a0tye
+    A0TyProduct a0tyes -> dispProductType req a0tyes
     A0TyArrow labelOpt (xOpt, a0tye1) a0tye2 -> dispArrowType req labelOpt xOpt a0tye1 a0tye2
     A0TyCode a1tye1 -> dispBracket a1tye1
     A0TyInfArrow (x, a0tye1) a0tye2 -> dispImpArrowType req x a0tye1 a0tye2
@@ -590,7 +649,8 @@ instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
     SA0TyVar atyvar -> disp atyvar
     SA0TyList sa0tye Nothing -> dispListType req sa0tye
     SA0TyList sa0tye (Just a0ePred) -> dispInternalRefinementListType req sa0tye a0ePred
-    SA0TyProduct sa0tye1 sa0tye2 -> dispProductType req sa0tye1 sa0tye2
+    SA0TyMaybe sa0tye -> dispMaybeType req sa0tye
+    SA0TyProduct sa0tyes -> dispProductType req sa0tyes
     SA0TyArrow (xOpt, sa0tye1) sa0tye2 -> dispArrowType req Nothing xOpt sa0tye1 sa0tye2
     SA0TyCode a1tye1 -> dispBracket a1tye1
     SA0TyExplicitForAll atyvar sa0tye -> dispForAllType req atyvar sa0tye
@@ -615,8 +675,9 @@ instance (Disp sv) => Disp (Ass1TypeExprF sv) where
   dispGen req = \case
     A1TyPrim a1tyPrim -> dispGen req a1tyPrim
     A1TyList a1tye -> dispListType req a1tye
+    A1TyMaybe a1tye -> dispMaybeType req a1tye
     A1TyVar atyvar -> disp atyvar
-    A1TyProduct a1tye1 a1tye2 -> dispProductType req a1tye1 a1tye2
+    A1TyProduct a1tyes -> dispProductType req a1tyes
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2
     A1TyImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
 
@@ -625,7 +686,7 @@ instance Disp FrontError where
     FrontLexingError s ->
       disp (Text.pack s)
     FrontParseError parseErrors ->
-      List.foldl' (\doc parseError -> doc <> hardline <> disp parseError) mempty parseErrors
+      foldl' (\doc parseError -> doc <> hardline <> disp parseError) mempty parseErrors
 
 instance Disp ParseError where
   dispGen _ = \case
@@ -636,7 +697,7 @@ instance Disp ParseError where
     UnexpectedEndOfInput ->
       "Unexpected end of input"
 
-instance Disp Matrix.ConstructionError where
+instance (Disp a) => Disp (Matrix.ConstructionError a) where
   dispGen _ = \case
     Matrix.EmptyRow -> "contains an empty row"
     Matrix.InconsistencyOfRowLength row1 row2 ->
@@ -720,8 +781,8 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Cannot use implicit function types at stage 1" <+> disp spanInFile
     CannotUseRefinementTypeAtStage1 spanInFile ->
       "Cannot use refinement types at stage 1" <+> disp spanInFile
-    CannotUsePersistentArgAtStage0 spanInFile ->
-      "Cannot use persistent arguments at stage 0" <+> disp spanInFile
+    CannotUsePersistent spanInFile ->
+      "Cannot use persistence here" <+> disp spanInFile
     CannotUseNormalArgAtStage1 spanInFile ->
       "Cannot use normal arguments at stage 1" <+> disp spanInFile
     CannotUseTypeVarAtStage1 spanInFile ->
@@ -732,37 +793,22 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Variable" <+> disp x <+> "occurs in stage-1 type" <+> stage1Style (disp a1result) <+> disp spanInFile
     InvalidMatrixLiteral spanInFile e ->
       "Invalid matrix literal;" <+> disp e <+> disp spanInFile
-    CannotMergeTypesByConditional0 spanInFile a0tye1 a0tye2 condErr ->
+    CannotMergeTypesByConditional0 spanInFile pairs condErr ->
       "Cannot merge stage-0 types by conditionals"
         <+> disp spanInFile
-        <> hardline
-        <+> "left:"
-        <> nest 2 (hardline <> stage0Style (disp a0tye1))
-        <> hardline
-        <+> "right:"
-        <> nest 2 (hardline <> stage0Style (disp a0tye2))
+        <> foldl1 (<>) (fmap (\(_a0pat, a0tye) -> nest 2 (hardline <> stage0Style (disp a0tye))) pairs)
         <> hardline
         <> disp condErr
-    CannotMergeTypesByConditional1 spanInFile a1tye1 a1tye2 condErr ->
+    CannotMergeTypesByConditional1 spanInFile pairs condErr ->
       "Cannot merge stage-1 types by conditionals"
         <+> disp spanInFile
-        <> hardline
-        <+> "left:"
-        <> nest 2 (hardline <> stage1Style (disp a1tye1))
-        <> hardline
-        <+> "right:"
-        <> nest 2 (hardline <> stage1Style (disp a1tye2))
+        <> foldl1 (<>) (fmap (\(_a0pat, a1tye) -> nest 2 (hardline <> stage1Style (disp a1tye))) pairs)
         <> hardline
         <> disp condErr
-    CannotMergeResultsByConditionals spanInFile result1 result2 ->
+    CannotMergeResultsByConditionals spanInFile pairs ->
       "Cannot merge results by conditionals"
         <+> disp spanInFile
-        <> hardline
-        <+> "left:"
-        <> nest 2 (hardline <> disp result1)
-        <> hardline
-        <+> "right:"
-        <> nest 2 (hardline <> disp result2)
+        <> foldl1 (<>) (fmap (\(_a0pat, result) -> nest 2 (hardline <> disp result)) pairs)
     CannotApplyLiteral spanInFile ->
       "Cannot apply a literal" <> disp spanInFile
     CannotInstantiateGuidedByAppContext0 spanInFile appCtx a0tye ->
@@ -829,6 +875,12 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> hardline
         <+> "application context:"
         <> nest 2 (hardline <> disps appCtx)
+    Stage1CaseRestrictedToEmptyContext spanInFile appCtx ->
+      "Stage-1 case-expressions are restricted to be used at empty application contexts"
+        <+> disp spanInFile
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
     BindingOverwritten spanInFile x ->
       "value " <+> disp x <+> "is overwritten by another binding" <+> disp spanInFile
     UnknownExternalName spanInFile extName ->
@@ -880,13 +932,31 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Not a stage-0 type variable:" <+> disp tyvar <+> disp spanInFile
     NotAStage1TypeVar spanInFile tyvar ->
       "Not a stage-1 type variable:" <+> disp tyvar <+> disp spanInFile
+    LetTupleLengthMismatch0 spanInFile xs a0tyes ->
+      "Tuple length mismatch"
+        <+> disp spanInFile
+        <> hardline
+        <> ("expected tuples of length" <+> disp (length xs) <> ":")
+        <> nest 2 (dispTuple xs)
+        <> ("but got tuples of length" <+> disp (length a0tyes) <> ":")
+        <> nest 2 (dispProductType Outermost a0tyes)
+    LetTupleLengthMismatch1 spanInFile xs a1tyes ->
+      "Tuple length mismatch"
+        <+> disp spanInFile
+        <> hardline
+        <> ("expected tuples of length" <+> disp (length xs) <> ":")
+        <> nest 2 (dispTuple xs)
+        <> ("but got tuples of length" <+> disp (length a1tyes) <> ":")
+        <> nest 2 (dispProductType Outermost a1tyes)
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case
-    CannotMerge0 a0tye1 a0tye2 ->
-      "types" <+> stage0Style (disp a0tye1) <+> "and" <+> stage0Style (disp a0tye2) <+> "are incompatible"
-    CannotMerge1 a1tye1 a1tye2 ->
-      "types" <+> stage1Style (disp a1tye1) <+> "and" <+> stage1Style (disp a1tye2) <+> "are incompatible"
+    CannotMerge0 pairs ->
+      "the following types are incompatible:"
+        <> foldl1 (<>) (fmap (\(_a0pat, a0tye) -> nest 2 (hardline <> stage0Style (disp a0tye))) pairs)
+    CannotMerge1 pairs ->
+      "the following types are incompatible:"
+        <> foldl1 (<>) (fmap (\(_a0pat, a1tye) -> nest 2 (hardline <> stage1Style (disp a1tye))) pairs)
 
 instance (Disp sv) => Disp (UnsupportedF sv) where
   dispGen _ = \case
@@ -941,7 +1011,8 @@ instance (Disp sv, Disp (af sv)) => Disp (ResultF af sv) where
 instance (Disp sv) => Disp (Ass0ValF sv) where
   dispGen req = \case
     A0ValLiteral lit -> disp lit
-    A0ValTuple a1v1 a1v2 -> dispTuple a1v1 a1v2
+    A0ValTuple a0vs -> dispTuple a0vs
+    A0ValConstructor ctor a0vs -> dispConstructorApp req ctor a0vs
     A0ValLam Nothing (x, a0tyv1) a0v2 _env -> dispNonrecLam req Nothing x a0tyv1 a0v2
     A0ValLam (Just (f, a0tyvRec)) (x, a0tyv1) a0v2 _env -> dispRecLam req f a0tyvRec Nothing x a0tyv1 a0v2
     A0ValBracket a1v1 -> dispBracket a1v1
@@ -1016,14 +1087,21 @@ instance (Disp sv) => Disp (Ass1ValF sv) where
       dispApp req a1v1 Nothing a1v2
     A1ValLetIn (x, a1tyv0) a1v1 a1v2 ->
       dispLetInWithAnnot req x a1tyv0 a1v1 a1v2
-    A1ValLetTupleIn xL xR a1v1 a1v2 ->
-      dispLetTupleIn req xL xR a1v1 a1v2
+    A1ValLetTupleIn xs a1v1 a1v2 ->
+      dispLetTupleIn req xs a1v1 a1v2
     A1ValSequential a1v1 a1v2 ->
       dispSequential req a1v1 a1v2
-    A1ValTuple a1v1 a1v2 ->
-      dispTuple a1v1 a1v2
+    A1ValTuple a1vs ->
+      dispTuple a1vs
+    A1ValConstructor ctor a1vs ->
+      dispConstructorApp req ctor a1vs
     A1ValIfThenElse a1v0 a1v1 a1v2 ->
       dispIfThenElse req a1v0 a1v1 a1v2
+    A1ValCase a1v0 a1branchVs ->
+      dispCase req a1v0 a1branchVs
+
+instance (Disp sv) => Disp (Ass1BranchValF sv) where
+  dispGen _ (A1ValBranch a1pat a1e) = dispBranch a1pat a1e
 
 instance (Disp sv) => Disp (Ass0TypeValF sv) where
   dispGen req = \case
@@ -1032,7 +1110,10 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
     A0TyValVar atyvar -> disp atyvar
     A0TyValList a0tyv1 Nothing -> dispListType req a0tyv1
     A0TyValList a0tyv1 (Just a0vPred) -> dispInternalRefinementListType req a0tyv1 a0vPred
-    A0TyValProduct a0tyv1 a0tyv2 -> dispProductType req a0tyv1 a0tyv2
+    A0TyValMaybe a0tyv1 -> dispMaybeType req a0tyv1
+    A0TyValProduct a0tyvs ->
+      let (a0tyv1, a0tyvsRest) = TwoOrMore.decompose1 a0tyvs
+       in dispProduct req a0tyv1 (fmap ("*",) a0tyvsRest)
     A0TyValArrow (xOpt, a0tyv1) a0tye2 -> dispArrowType req Nothing xOpt a0tyv1 a0tye2
     A0TyValCode a1tyv1 -> dispBracket a1tyv1
     A0TyValExplicitForAll atyvar sa0tye1 -> dispForAllType req atyvar sa0tye1
@@ -1041,8 +1122,11 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case
     A1TyValPrim a1tyvPrim -> dispGen req a1tyvPrim
     A1TyValList a1tyv -> dispListType req a1tyv
+    A1TyValMaybe a1tyv -> dispMaybeType req a1tyv
     A1TyValVar atyvar -> disp atyvar
-    A1TyValProduct a1tyv1 a1tyv2 -> dispProductType req a1tyv1 a1tyv2
+    A1TyValProduct a1tyvs ->
+      let (a1tyv1, a1tyvsRest) = TwoOrMore.decompose1 a1tyvs
+       in dispProduct req a1tyv1 (fmap ("*",) a1tyvsRest)
     A1TyValArrow labelOpt a1tyv1 a1tyv2 -> dispNondepArrowType req labelOpt a1tyv1 a1tyv2
     A1TyValImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
 
@@ -1114,6 +1198,10 @@ instance (Disp sv) => Disp (BugF sv) where
       "Not a string:" <+> disp a0v
     NotATuple a0v ->
       "Not a tuple:" <+> disp a0v
+    NotAPair a0v ->
+      "Not a pair:" <+> disp a0v
+    TupleLengthMismatch xs a0vs ->
+      "Tuple length mismatch:" <+> dispTuple xs <> "," <+> dispTuple a0vs
     FoundSymbol x symb ->
       "Expected a stage-0 value, but found a symbol:" <+> disp symb <+> "(bound to:" <+> disp x <> ")"
     FoundAss0Val x a0v ->
@@ -1231,9 +1319,9 @@ instance (Disp bt, Disp tv) => Disp (Bta.BITypeMainF bt tv) where
     Bta.BITyBase [] ->
       "●"
     Bta.BITyBase (bt0 : bts) ->
-      deepenParenWhen (req <= Atomic) ("●" <+> List.foldl' (\doc bt -> doc <+> disp bt) (disp bt0) bts)
-    Bta.BITyProduct bt1 bt2 ->
-      deepenParenWhen (req <= Atomic) (dispGen Atomic bt1 <+> "*" <+> dispGen Atomic bt2)
+      deepenParenWhen (req <= Atomic) ("●" <+> foldl' (\doc bt -> doc <+> disp bt) (disp bt0) bts)
+    Bta.BITyProduct bts ->
+      deepenParenWhen (req <= Atomic) (foldl1 appendWithAsterisk (fmap (dispGen Atomic) bts))
     Bta.BITyArrow bt1 bt2 ->
       deepenParenWhen (req <= Atomic) (dispGen Atomic bt1 <+> "->" <+> dispGen Atomic bt2)
     Bta.BITyImpArrow bt1 bt2 ->
@@ -1249,47 +1337,41 @@ dispWithBindingTime btc eMain =
         Bta.BT1 -> (bindingTime1Style, "$1")
 
 instance Disp (Bta.BCExprF ann) where
-  dispGen _ (Surface.Expr (btc, _ann) exprMain) =
+  dispGen _ (Bta.BExpr (btc, _ann) exprMain) =
     dispWithBindingTime btc exprMain
 
 instance Disp (Bta.BCExprMainF ann) where
   dispGen req = \case
-    Surface.Literal lit -> disp lit
-    Surface.Var (ms, x) -> dispLongName ms x
-    Surface.Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
-    Surface.Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
-    Surface.App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
-    Surface.LetIn x params tyeBodyOpt eBody e2 -> dispLetIn req x params tyeBodyOpt eBody e2
-    Surface.LetRecIn f params tyeBody eBody e2 -> dispLetRecIn req f params tyeBody eBody e2
-    Surface.LetTupleIn xL xR e1 e2 -> dispLetTupleIn req xL xR e1 e2
-    Surface.LetOpenIn m e -> dispLetOpenIn req m e
-    Surface.Sequential e1 e2 -> dispSequential req e1 e2
-    Surface.Tuple e1 e2 -> dispTuple e1 e2
-    Surface.IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
-    Surface.As e1 tye2 -> dispAs req e1 tye2
-    Surface.LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
-    Surface.AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
-    Surface.AppImpOmitted e1 -> dispAppImpOmitted req e1
-
-instance Disp (Bta.BCLamBinderF ann) where
-  dispGen _ = \case
-    Surface.MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
-    Surface.MandatoryBinder (Just label) (x, tye) -> "#" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
-    Surface.ImplicitBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
+    Bta.BLiteral lit -> disp lit
+    Bta.BConstructor (ms, ctor) -> dispLongName ms ctor
+    Bta.BVar (ms, x) -> dispLongName ms x
+    Bta.BLam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
+    Bta.BLam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
+    Bta.BApp e1 labelOpt e2 -> dispApp req e1 labelOpt e2
+    Bta.BLetIn x eBody e2 -> dispLetInWithoutAnnot req x eBody e2
+    Bta.BLetTupleIn xs e1 e2 -> dispLetTupleIn req xs e1 e2
+    Bta.BLetOpenIn m e -> dispLetOpenIn req m e
+    Bta.BSequential e1 e2 -> dispSequential req e1 e2
+    Bta.BTuple es -> dispTuple es
+    Bta.BIfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
+    Bta.BAs e1 tye2 -> dispAs req e1 tye2
+    Bta.BLamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
+    Bta.BAppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
+    Bta.BAppImpOmitted e1 -> dispAppImpOmitted req e1
 
 instance Disp (Bta.BCTypeExprF ann) where
-  dispGen _ (Surface.TypeExpr (btc, _ann) typeExprMain) =
+  dispGen _ (Bta.BTypeExpr (btc, _ann) typeExprMain) =
     dispWithBindingTime btc typeExprMain
 
 instance Disp (Bta.BCTypeExprMainF ann) where
   dispGen req = \case
-    Surface.TyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
-    Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
-    Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
-    Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
-    Surface.TyProduct tye1 tye2 -> dispProductType req tye1 tye2
+    Bta.BTyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
+    Bta.BTyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
+    Bta.BTyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
+    Bta.BTyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
+    Bta.BTyProduct tye1 rest -> dispProduct req tye1 (fmap (first (const "*")) rest)
 
 instance Disp (Bta.BCArgForTypeF ann) where
   dispGen req = \case
-    Surface.ExprArg e -> dispGen req e
-    Surface.TypeArg tye -> dispGen req tye
+    Bta.BExprArg e -> dispGen req e
+    Bta.BTypeExprArg tye -> dispGen req tye

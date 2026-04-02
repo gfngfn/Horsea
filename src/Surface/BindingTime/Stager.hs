@@ -1,7 +1,6 @@
 module Surface.BindingTime.Stager
   ( BCExprF,
     BCExprMainF,
-    BCLamBinderF,
     BCTypeExprF,
     BCTypeExprMainF,
     BCArgForTypeF,
@@ -14,150 +13,158 @@ import Surface.BindingTime.Core
 import Surface.Syntax
 import Prelude
 
-type BCExprF ann = ExprF (BindingTimeConst, ann)
+type BCExprF ann = BExprF ann BindingTimeConst
 
-type BCExprMainF ann = ExprMainF (BindingTimeConst, ann)
+type BCExprMainF ann = BExprMainF ann BindingTimeConst
 
-type BCLamBinderF ann = LamBinderF (BindingTimeConst, ann)
+type BCTypeExprF ann = BTypeExprF ann BindingTimeConst
 
-type BCTypeExprF ann = TypeExprF (BindingTimeConst, ann)
+type BCTypeExprMainF ann = BTypeExprMainF ann BindingTimeConst
 
-type BCTypeExprMainF ann = TypeExprMainF (BindingTimeConst, ann)
-
-type BCArgForTypeF ann = ArgForTypeF (BindingTimeConst, ann)
+type BCArgForTypeF ann = BArgForTypeF ann BindingTimeConst
 
 stageExpr0 :: (Show ann) => BCExprF ann -> Staged.ExprF ann
-stageExpr0 (Expr (btc, ann) exprMain) =
+stageExpr0 (BExpr (btc, ann) exprMain) =
   case btc of
     BT0 -> Staged.Expr ann (stageExpr0Main exprMain)
     BT1 -> Staged.Expr ann (Staged.Bracket (Staged.Expr ann (stageExpr1Main exprMain)))
 
 stageExpr0Main :: (Show ann) => BCExprMainF ann -> Staged.ExprMainF ann
 stageExpr0Main = \case
-  Literal lit ->
+  BLiteral lit ->
     Staged.Literal (convertLiteral stageExpr0 lit)
-  Var (ms, x) ->
+  BConstructor (ms, ctor) ->
+    Staged.Constructor (ms, ctor)
+  BVar (ms, x) ->
     Staged.Var (ms, x)
-  Lam Nothing labelOpt (x, tye1) e2 ->
+  BLam Nothing labelOpt (x, tye1) e2 ->
     Staged.Lam Nothing labelOpt (x, stageTypeExpr0 tye1) (stageExpr0 e2)
-  Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 ->
+  BLam (Just (f, tyeRec)) labelOpt (x, tye1) e2 ->
     Staged.Lam (Just (f, stageTypeExpr0 tyeRec)) labelOpt (x, stageTypeExpr0 tye1) (stageExpr0 e2)
-  App e1 labelOpt e2 ->
+  BApp e1 labelOpt e2 ->
     Staged.App (stageExpr0 e1) labelOpt (stageExpr0 e2)
-  LetIn _x (_ : _) _tyeOpt _e1 _e2 ->
-    error "Bug: Stager.stageExpr0Main, non-empty parameter sequence"
-  LetIn x [] tyeOpt e1 e2 ->
-    Staged.LetIn x [] (stageTypeExpr0 <$> tyeOpt) (stageExpr0 e1) (stageExpr0 e2)
-  LetRecIn _x _params _tye _e1 _e2 ->
-    error "Bug: Stager.stageExpr0Main, LetRecIn"
-  LetTupleIn xL xR e1 e2 ->
-    Staged.LetTupleIn xL xR (stageExpr0 e1) (stageExpr0 e2)
-  LetOpenIn m e ->
+  BLetIn x e1 e2 ->
+    Staged.LetIn x [] Nothing (stageExpr0 e1) (stageExpr0 e2)
+  BLetTupleIn xs e1 e2 ->
+    Staged.LetTupleIn xs (stageExpr0 e1) (stageExpr0 e2)
+  BLetOpenIn m e ->
     Staged.LetOpenIn m (stageExpr0 e)
-  Sequential e1 e2 ->
+  BSequential e1 e2 ->
     Staged.Sequential (stageExpr0 e1) (stageExpr0 e2)
-  Tuple e1 e2 ->
-    Staged.Tuple (stageExpr0 e1) (stageExpr0 e2)
-  IfThenElse e0 e1 e2 ->
+  BTuple es ->
+    Staged.Tuple (fmap stageExpr0 es)
+  BIfThenElse e0 e1 e2 ->
     Staged.IfThenElse (stageExpr0 e0) (stageExpr0 e1) (stageExpr0 e2)
-  As e1 tye2 ->
+  BAs e1 tye2 ->
     Staged.As (stageExpr0 e1) (stageTypeExpr0 tye2)
-  LamImp (x, tye1) e2 ->
+  BLamImp (x, tye1) e2 ->
     Staged.LamImp (x, stageTypeExpr0 tye1) (stageExpr0 e2)
-  AppImpGiven e1 e2 ->
+  BAppImpGiven e1 e2 ->
     Staged.AppImpGiven (stageExpr0 e1) (stageExpr0 e2)
-  AppImpOmitted e1 ->
+  BAppImpOmitted e1 ->
     Staged.AppImpOmitted (stageExpr0 e1)
 
 stageExpr1 :: (Show ann) => BCExprF ann -> Staged.ExprF ann
-stageExpr1 (Expr (btc, ann) exprMain) =
+stageExpr1 (BExpr (btc, ann) exprMain) =
   case btc of
     BT0 -> Staged.Expr ann (Staged.Escape (Staged.Expr ann (stageExpr0Main exprMain)))
     BT1 -> Staged.Expr ann (stageExpr1Main exprMain)
 
 stageExpr1Main :: (Show ann) => BCExprMainF ann -> Staged.ExprMainF ann
 stageExpr1Main = \case
-  Literal lit ->
+  BLiteral lit ->
     Staged.Literal (convertLiteral stageExpr1 lit)
-  Var (ms, x) ->
+  BConstructor (ms, ctor) ->
+    Staged.Constructor (ms, ctor)
+  BVar (ms, x) ->
     Staged.Var (ms, x)
-  Lam Nothing labelOpt (x, tye1) e2 ->
+  BLam Nothing labelOpt (x, tye1) e2 ->
     Staged.Lam Nothing labelOpt (x, stageTypeExpr1 tye1) (stageExpr1 e2)
-  Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 ->
+  BLam (Just (f, tyeRec)) labelOpt (x, tye1) e2 ->
     Staged.Lam (Just (f, stageTypeExpr1 tyeRec)) labelOpt (x, stageTypeExpr1 tye1) (stageExpr1 e2)
-  App e1 labelOpt e2 ->
+  BApp e1 labelOpt e2 ->
     Staged.App (stageExpr1 e1) labelOpt (stageExpr1 e2)
-  LetIn _x (_ : _) _tyeOpt _e1 _e2 ->
-    error "Bug: Stager.stageExpr0Main, non-empty parameter sequence"
-  LetIn _x [] (Just _) _e1 _e2 ->
-    error "Bug: Stager.stageExpr0Main, type annotation"
-  LetIn x [] Nothing e1 e2 ->
+  BLetIn x e1 e2 ->
     Staged.LetIn x [] Nothing (stageExpr1 e1) (stageExpr1 e2)
-  LetRecIn _x _params _tye _e1 _e2 ->
-    error "Bug: Stager.stageExpr0Main, LetRecIn"
-  LetTupleIn xL xR e1 e2 ->
-    Staged.LetTupleIn xL xR (stageExpr1 e1) (stageExpr1 e2)
-  LetOpenIn m e ->
+  BLetTupleIn xs e1 e2 ->
+    Staged.LetTupleIn xs (stageExpr1 e1) (stageExpr1 e2)
+  BLetOpenIn m e ->
     Staged.LetOpenIn m (stageExpr1 e)
-  Sequential e1 e2 ->
+  BSequential e1 e2 ->
     Staged.Sequential (stageExpr1 e1) (stageExpr1 e2)
-  Tuple e1 e2 ->
-    Staged.Tuple (stageExpr1 e1) (stageExpr1 e2)
-  IfThenElse e0 e1 e2 ->
+  BTuple es ->
+    Staged.Tuple (fmap stageExpr1 es)
+  BIfThenElse e0 e1 e2 ->
     Staged.IfThenElse (stageExpr1 e0) (stageExpr1 e1) (stageExpr1 e2)
-  As e1 tye2 ->
+  BAs e1 tye2 ->
     Staged.As (stageExpr1 e1) (stageTypeExpr1 tye2)
-  LamImp (_x, _tye1) _e2 ->
+  BLamImp (_x, _tye1) _e2 ->
     error "bug: stageExpr1Main, LamImp"
-  AppImpGiven _e1 _e2 ->
+  BAppImpGiven _e1 _e2 ->
     error "bug: stageExpr1Main, AppImpGiven"
-  AppImpOmitted _e1 ->
+  BAppImpOmitted _e1 ->
     error "bug: stageExpr1Main, AppImpOmitted"
 
+tyCode :: Staged.TypeExprF ann -> Staged.TypeExprMainF ann
+tyCode = Staged.Bracket
+
+tyNameWithArgs :: TypeName -> [Staged.ExprF ann] -> Staged.TypeExprMainF ann
+tyNameWithArgs tyName =
+  foldl'
+    (\eMain argExpr -> Staged.App (Staged.Expr ann eMain) Nothing argExpr)
+    (Staged.Constructor ([], tyName))
+  where
+    ann = error "TODO: tyNameWithArgs, ann"
+
 stageTypeExpr0 :: (Show ann) => BCTypeExprF ann -> Staged.TypeExprF ann
-stageTypeExpr0 (TypeExpr (btc, ann) typeExprMain) =
+stageTypeExpr0 (BTypeExpr (btc, ann) typeExprMain) =
   case btc of
-    BT1 -> Staged.TypeExpr ann (Staged.TyCode (Staged.TypeExpr ann (stageTypeExpr1Main typeExprMain)))
-    BT0 -> Staged.TypeExpr ann (stageTypeExpr0Main typeExprMain)
+    BT1 -> Staged.Expr ann (tyCode (Staged.Expr ann (stageTypeExpr1Main typeExprMain)))
+    BT0 -> Staged.Expr ann (stageTypeExpr0Main typeExprMain)
 
 stageTypeExpr0Main :: (Show ann) => BCTypeExprMainF ann -> Staged.TypeExprMainF ann
 stageTypeExpr0Main = \case
-  TyName tyName args ->
+  BTyName tyName args ->
     -- TODO: check that `ExprArg` only contains literals
-    Staged.TyName tyName $
-      map
-        ( \case
-            TypeArg tye -> Staged.TypeArg (stageTypeExpr0 tye)
-            ExprArg e -> Staged.ExprArgNormal (stageExpr0 e)
-        )
-        args
-  TyArrow labelOpt (xOpt, tye1) tye2 ->
+    tyNameWithArgs tyName $
+      map stageArgForType0 args
+  BTyArrow labelOpt (xOpt, tye1) tye2 ->
     Staged.TyArrow labelOpt (xOpt, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
-  TyImpArrow (x, tye1) tye2 ->
+  BTyImpArrow (x, tye1) tye2 ->
     Staged.TyImpArrow (x, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
-  TyRefinement x tye1 e2 ->
+  BTyRefinement x tye1 e2 ->
     Staged.TyRefinement x (stageTypeExpr0 tye1) (stageExpr0 e2)
-  TyProduct tye1 tye2 ->
-    Staged.TyProduct (stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
+  BTyProduct tye1 rest ->
+    Staged.Product
+      (stageTypeExpr0 tye1)
+      (fmap (\(locAster, tye) -> ((locAster, "*"), stageTypeExpr0 tye)) rest)
+
+stageArgForType0 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
+stageArgForType0 = \case
+  BExprArg e -> stageExpr0 e
+  BTypeExprArg tye -> stageTypeExpr0 tye
 
 stageTypeExpr1 :: (Show ann) => BCTypeExprF ann -> Staged.TypeExprF ann
-stageTypeExpr1 (TypeExpr (btc, ann) typeExprMain) =
+stageTypeExpr1 (BTypeExpr (btc, ann) typeExprMain) =
   case btc of
     BT0 -> error $ "bug: stageTypeExpr1, BT0; " ++ show typeExprMain
-    BT1 -> Staged.TypeExpr ann (stageTypeExpr1Main typeExprMain)
+    BT1 -> Staged.Expr ann (stageTypeExpr1Main typeExprMain)
 
 stageTypeExpr1Main :: (Show ann) => BCTypeExprMainF ann -> Staged.TypeExprMainF ann
 stageTypeExpr1Main = \case
-  TyName tyName args -> Staged.TyName tyName (map stageArgForType1 args)
-  TyArrow labelOpt (_xOpt, tye1) tye2 -> Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
-  TyImpArrow (_x, _tye1) _tye2 -> error "bug: stageTypeExpr1Main, TyImpArrow"
-  TyRefinement _x _tye _e -> error "bug: stageTypeExpr1Main, TyRefinement"
-  TyProduct tye1 tye2 -> Staged.TyProduct (stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
+  BTyName tyName args -> tyNameWithArgs tyName (map stageArgForType1 args)
+  BTyArrow labelOpt (_xOpt, tye1) tye2 -> Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
+  BTyImpArrow (_x, _tye1) _tye2 -> error "bug: stageTypeExpr1Main, TyImpArrow"
+  BTyRefinement _x _tye _e -> error "bug: stageTypeExpr1Main, TyRefinement"
+  BTyProduct tye1 rest ->
+    Staged.Product
+      (stageTypeExpr1 tye1)
+      (fmap (\(locAster, tye) -> ((locAster, "*"), stageTypeExpr1 tye)) rest)
 
-stageArgForType1 :: (Show ann) => BCArgForTypeF ann -> Staged.ArgForTypeF ann
+stageArgForType1 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
 stageArgForType1 = \case
-  ExprArg e -> Staged.ExprArgPersistent (stageExpr0 e)
-  TypeArg tye -> Staged.TypeArg (stageTypeExpr1 tye)
+  BExprArg e@(BExpr (_btc, ann) _) -> Staged.Expr ann (Staged.Persistent (stageExpr0 e))
+  BTypeExprArg tye -> stageTypeExpr1 tye
 
 convertLiteral :: (se -> le) -> Literal se -> Staged.Literal le
 convertLiteral conv = \case

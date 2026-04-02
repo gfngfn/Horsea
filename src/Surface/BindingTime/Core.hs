@@ -11,8 +11,15 @@ module Surface.BindingTime.Core
     BITypeMain,
     BindingTimeEnvEntry (..),
     BindingTimeEnv,
+    BExprF (..),
+    BExprMainF (..),
+    BTypeExprF (..),
+    BTypeExprMainF (..),
+    BArgForTypeF (..),
     BExpr,
+    BExprMain,
     BTypeExpr,
+    BTypeExprMain,
     BArgForType,
     BIPolyTypeVoid,
     BITypeVoid,
@@ -22,15 +29,18 @@ module Surface.BindingTime.Core
   )
 where
 
+import Common.TokenUtil
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Void (Void, vacuous)
 import GHC.Generics
+import Staged.Core (Label)
 import Staged.Syntax qualified as Staged
 import Surface.Syntax
-import Util.TokenUtil
 import Prelude
 
 newtype BindingTimeVar = BindingTimeVar Int
@@ -60,7 +70,7 @@ data BIPolyTypeF bt = BIPolyType (Set BITypeBoundVar) (BITypeF bt BITypeBoundVar
 data BITypeMainF bt tv
   = BITyVar tv
   | BITyBase [BITypeF bt tv]
-  | BITyProduct (BITypeF bt tv) (BITypeF bt tv) -- TODO: generalize product types
+  | BITyProduct (TwoOrMore (BITypeF bt tv))
   | BITyArrow (BITypeF bt tv) (BITypeF bt tv)
   | BITyImpArrow (BITypeF bt tv) (BITypeF bt tv)
   deriving stock (Functor, Show)
@@ -79,11 +89,52 @@ data BindingTimeEnvEntry
 
 type BindingTimeEnv = Map Var BindingTimeEnvEntry
 
-type BExpr = ExprF (BindingTime, Span)
+data BExprF ann bt = BExpr (bt, ann) (BExprMainF ann bt)
+  deriving stock (Functor, Show)
 
-type BTypeExpr = TypeExprF (BindingTime, Span)
+data BExprMainF ann bt
+  = BLiteral (Literal (BExprF ann bt))
+  | BVar ([Var], Var)
+  | BConstructor ([Var], Var)
+  | BLam (Maybe (Var, BTypeExprF ann bt)) (Maybe Label) (Var, BTypeExprF ann bt) (BExprF ann bt)
+  | BApp (BExprF ann bt) (Maybe Label) (BExprF ann bt)
+  | BLetIn Var (BExprF ann bt) (BExprF ann bt)
+  | BLetTupleIn (TwoOrMore Var) (BExprF ann bt) (BExprF ann bt)
+  | BLetOpenIn Var (BExprF ann bt)
+  | BSequential (BExprF ann bt) (BExprF ann bt)
+  | BTuple (TwoOrMore (BExprF ann bt))
+  | BIfThenElse (BExprF ann bt) (BExprF ann bt) (BExprF ann bt)
+  | BAs (BExprF ann bt) (BTypeExprF ann bt)
+  | BLamImp (Var, BTypeExprF ann bt) (BExprF ann bt)
+  | BAppImpGiven (BExprF ann bt) (BExprF ann bt)
+  | BAppImpOmitted (BExprF ann bt)
+  deriving stock (Functor, Show)
 
-type BArgForType = ArgForTypeF (BindingTime, Span)
+data BTypeExprF ann bt = BTypeExpr (bt, ann) (BTypeExprMainF ann bt)
+  deriving stock (Functor, Show)
+
+data BTypeExprMainF ann bt
+  = BTyName TypeName [BArgForTypeF ann bt]
+  | BTyArrow (Maybe Label) (Maybe Var, BTypeExprF ann bt) (BTypeExprF ann bt)
+  | BTyImpArrow (Var, BTypeExprF ann bt) (BTypeExprF ann bt)
+  | BTyRefinement Var (BTypeExprF ann bt) (BExprF ann bt)
+  | BTyProduct (BTypeExprF ann bt) (NonEmpty (ann, BTypeExprF ann bt))
+  deriving stock (Functor, Show)
+
+data BArgForTypeF ann bt
+  = BExprArg (BExprF ann bt)
+  | BTypeExprArg (BTypeExprF ann bt)
+  deriving stock (Functor, Show)
+
+type BExpr = BExprF Span BindingTime
+
+type BExprMain = BExprMainF Span BindingTime
+
+type BTypeExpr = BTypeExprF Span BindingTime
+
+type BTypeExprMain = BTypeExprMainF Span BindingTime
+
+type BArgForType = BArgForTypeF Span BindingTime
 
 -- For built-in values.
 type BIPolyTypeVoid = BIPolyTypeF BindingTimeConst
@@ -113,8 +164,12 @@ fromStaged0 = goPoly 0 Map.empty
             Staged.A0TyList a0tye' _maybePred -> do
               bity <- go a0tye'
               pure . wrap0 $ BITyBase [bity]
-            Staged.A0TyProduct a0tye1 a0tye2 ->
-              wrap0 <$> (BITyProduct <$> go a0tye1 <*> go a0tye2)
+            Staged.A0TyMaybe a0tye' -> do
+              bity <- go a0tye'
+              pure . wrap0 $ BITyBase [bity]
+            Staged.A0TyProduct a0tyes -> do
+              bitys <- mapM go a0tyes
+              pure $ wrap0 (BITyProduct bitys)
             Staged.A0TyArrow _labelOpt (_, a0tye1) a0tye2 ->
               wrap0 <$> (BITyArrow <$> go a0tye1 <*> go a0tye2)
             Staged.A0TyInfArrow (_, a0tye1) a0tye2 ->
@@ -134,11 +189,13 @@ fromStaged1 = \case
     wrap1 $ BITyBase []
   Staged.A1TyList a1tye' ->
     wrap1 $ BITyBase [fromStaged1 a1tye']
+  Staged.A1TyMaybe a1tye' ->
+    wrap1 $ BITyBase [fromStaged1 a1tye']
   Staged.A1TyVar _atyvar ->
     -- Handles order-0 type variables only:
     wrap1 $ BITyBase []
-  Staged.A1TyProduct a1tye1 a1tye2 ->
-    wrap1 $ BITyProduct (fromStaged1 a1tye1) (fromStaged1 a1tye2)
+  Staged.A1TyProduct a1tyes ->
+    wrap1 $ BITyProduct (fmap fromStaged1 a1tyes)
   Staged.A1TyArrow _labelOpt a1tye1 a1tye2 ->
     wrap1 $ BITyArrow (fromStaged1 a1tye1) (fromStaged1 a1tye2)
   Staged.A1TyImplicitForAll _atyvar a1tye2 ->
@@ -169,8 +226,12 @@ fromStagedPers = goPoly 0 Map.empty
             Staged.APersTyList aPtye' -> do
               bity <- go aPtye'
               pure . wrapP $ BITyBase [bity]
-            Staged.APersTyProduct aPtye1 aPtye2 ->
-              wrapP <$> (BITyProduct <$> go aPtye1 <*> go aPtye2)
+            Staged.APersTyMaybe aPtye' -> do
+              bity <- go aPtye'
+              pure . wrapP $ BITyBase [bity]
+            Staged.APersTyProduct aPtyes -> do
+              bitys <- mapM go aPtyes
+              pure $ wrapP (BITyProduct bitys)
             Staged.APersTyArrow _labelOpt aPtye1 aPtye2 ->
               wrapP <$> (BITyArrow <$> go aPtye1 <*> go aPtye2)
             Staged.APersTyImplicitForAll _atyvar _aPtye2 ->

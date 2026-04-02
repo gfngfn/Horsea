@@ -4,9 +4,12 @@ module Surface.BindingTime
   )
 where
 
+import Common.LocationInFile (SourceSpec, getSpanInFile)
+import Common.TokenUtil (Span)
 import Control.Lens
 import Data.Generics.Labels ()
 import Data.Map qualified as Map
+import Data.Maybe (fromMaybe)
 import Staged.SrcSyntax qualified as Staged
 import Surface.BindingTime.AnalysisError
 import Surface.BindingTime.Analyzer qualified as Analyzer
@@ -14,8 +17,6 @@ import Surface.BindingTime.Constraint
 import Surface.BindingTime.Core
 import Surface.BindingTime.Stager
 import Surface.Syntax
-import Util.LocationInFile (SourceSpec, getSpanInFile)
-import Util.TokenUtil (Span)
 import Prelude
 
 type M a = Either AnalysisError a
@@ -37,14 +38,9 @@ analyze sourceSpec fallBackToBindingTime0 btenv e = do
   let btcFallback = if fallBackToBindingTime0 then BT0 else BT1
   let bce =
         fmap
-          ( \(bt, ann) ->
-              case bt of
-                BTConst btc ->
-                  (btc, ann)
-                BTVar btv ->
-                  case Map.lookup btv solutionMap of
-                    Just btc -> (btc, ann)
-                    Nothing -> (btcFallback, ann)
+          ( \case
+              BTConst btc -> btc
+              BTVar btv -> fromMaybe btcFallback (Map.lookup btv solutionMap)
           )
           be'
   let lwe = stageExpr0 bce

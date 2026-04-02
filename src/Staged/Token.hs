@@ -4,6 +4,7 @@ module Staged.Token
   )
 where
 
+import Common.TokenUtil
 import Control.Monad.Combinators
 import Data.Either.Extra
 import Data.List.NonEmpty qualified as NonEmpty
@@ -14,7 +15,6 @@ import Data.Text qualified as Text
 import GHC.Base
 import GHC.Generics
 import Text.Megaparsec qualified as Mp
-import Util.TokenUtil
 import Prelude hiding (lex)
 
 data Token
@@ -56,6 +56,8 @@ data Token
   | TokIf
   | TokThen
   | TokElse
+  | TokCase
+  | TokOf
   | TokAs
   | TokVal
   | TokModule
@@ -117,6 +119,8 @@ showToken = \case
   TokIf -> "if"
   TokThen -> "then"
   TokElse -> "else"
+  TokCase -> "case"
+  TokOf -> "of"
   TokAs -> "as"
   TokVal -> "val"
   TokModule -> "module"
@@ -146,6 +150,8 @@ keywordMap =
       ("if", TokIf),
       ("then", TokThen),
       ("else", TokElse),
+      ("case", TokCase),
+      ("of", TokOf),
       ("as", TokAs),
       ("val", TokVal),
       ("module", TokModule),

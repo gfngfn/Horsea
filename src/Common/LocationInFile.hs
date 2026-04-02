@@ -1,4 +1,4 @@
-module Util.LocationInFile
+module Common.LocationInFile
   ( LocationInFile (..),
     getLocationInFileFromOffset,
     SourceSpec (..),
@@ -7,11 +7,11 @@ module Util.LocationInFile
   )
 where
 
+import Common.TokenUtil (Span (..))
 import Data.Text (Text)
 import Text.Megaparsec (PosState (..), SourcePos (..))
 import Text.Megaparsec.Pos qualified as MpPos
 import Text.Megaparsec.Stream qualified as MpStream
-import Util.TokenUtil (Span (..))
 import Prelude
 
 data LocationInFile = LocationInFile

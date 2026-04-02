@@ -1,10 +1,10 @@
 module TokenSpec (spec) where
 
+import Common.TokenUtil (Located (..))
 import Data.Text (Text)
 import Staged.Token (Token (..))
 import Staged.Token qualified as Token
 import Test.Hspec
-import Util.TokenUtil (Located (..))
 import Prelude hiding (lex)
 
 lex :: Text -> Either String [Token]
@@ -16,3 +16,6 @@ spec = do
     it "tokenizes &&" $ do
       lex "x == 1 && b"
         `shouldBe` pure [TokLower "x", TokOpComp "==", TokInt 1, TokOpAnd "&&", TokLower "b"]
+    it "tokenizes /" $ do
+      lex "float -1 / x"
+        `shouldBe` pure [TokLower "float", TokInt (-1), TokOpMult "/", TokLower "x"]

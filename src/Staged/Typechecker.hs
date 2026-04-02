@@ -9,20 +9,32 @@ module Staged.Typechecker
   )
 where
 
+import Common.LocationInFile (SpanInFile, getSpanInFile)
+import Common.TokenUtil (Span)
 import Control.Monad
-import Data.Either.Extra
+import Data.Bifunctor (bimap)
+import Data.Either.Extra (mapLeft, maybeToEither)
 import Data.Foldable (foldrM)
 import Data.Function
 import Data.Functor.Identity
-import Data.List qualified as List
-import Data.List.Extra qualified as List
+import Data.List (length)
+import Data.List.Extra (firstJust)
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty.Util qualified as NonEmptyUtil
+import Data.List.TwoOrMore (TwoOrMore)
+import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
+import Data.Maybe (isNothing)
+import Data.Maybe1
 import Data.Set (Set, (\\))
 import Data.Set qualified as Set
+import Data.Tensor.Matrix qualified as Matrix
+import Data.Tensor.Vector qualified as Vector
 import Data.Text (Text)
-import Data.Tuple.Extra
-import Safe.Exact
+import Data.Traversable.Compat (mapAccumM)
+import Data.Tuple.Extra (both, second)
+import Safe.Exact (zipExactMay)
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
 import Staged.Core
@@ -30,18 +42,13 @@ import Staged.SrcSyntax
 import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
-import Staged.TypeSubst
 import Staged.Typechecker.Monad
 import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
+import Staged.Typechecker.Solution
 import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
-import Util.LocationInFile (SpanInFile, getSpanInFile)
-import Util.Matrix qualified as Matrix
-import Util.Maybe1
-import Util.TokenUtil (Span)
-import Util.Vector qualified as Vector
-import Prelude
+import Prelude hiding (length)
 
 bug :: String -> a
 bug msg = error $ "bug: " ++ msg
@@ -184,24 +191,47 @@ makeAssertiveCast trav loc =
                     A0Lam Nothing (ax, strictify a0tye1) $
                       A0App a0eCast2 (A0App a0eCast1 (A0Var ax))
           pure (castForList, varSolution, tyvar0Solution)
-        (A0TyProduct a0tye11 a0tye12, A0TyProduct a0tye21 a0tye22) -> do
-          (cast1, varSolution1, tyvar0Solution1) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
-          (cast2, varSolution2, tyvar0Solution2) <-
-            go
-              (varsToInfer \\ Map.keysSet varSolution1)
-              (tyvars0ToInfer \\ Map.keysSet tyvar0Solution1)
-              (applySolution0 varSolution1 tyvar0Solution1 a0tye12)
-              (applySolution0 varSolution1 tyvar0Solution1 a0tye22)
-          let varSolution = composeVarSolution varSolution1 varSolution2
-          let tyvar0Solution = composeTypeVar0Solution tyvar0Solution1 tyvar0Solution2
-          cast <-
-            makeProductTypeCast
-              trav
-              (applySolution0 varSolution tyvar0Solution a0tye11)
-              (applySolution0 varSolution tyvar0Solution a0tye12)
-              (applySolution0 varSolution2 tyvar0Solution <$> cast1)
-              cast2
-          pure (cast, varSolution, tyvar0Solution)
+        (A0TyMaybe a0tye1', A0TyMaybe a0tye2') -> do
+          (castForElem, varSolution, tyvar0Solution) <- go varsToInfer tyvars0ToInfer a0tye1' a0tye2'
+          let castForMaybe =
+                case castForElem of
+                  Nothing -> Nothing
+                  Just a0eCastForElem -> Just (A0App ass0exprMaybeMap a0eCastForElem)
+          pure (castForMaybe, varSolution, tyvar0Solution)
+        (A0TyProduct a0tyes1, A0TyProduct a0tyes2) -> do
+          zipped <-
+            case TwoOrMore.zipExact a0tyes1 a0tyes2 of
+              Just zipped' -> pure zipped'
+              Nothing -> typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
+          ((_, _, varSolutionRet, tyvar0SolutionRet), castAndDomTypePairs') <-
+            mapAccumM
+              ( \(varsToInfer', tyvars0ToInfer', varSolution', tyvar0Solution') (a0tye1', a0tye2') -> do
+                  (cast, varSolution, tyvar0Solution) <-
+                    go
+                      varsToInfer'
+                      tyvars0ToInfer'
+                      (applySolution0 varSolution' tyvar0Solution' a0tye1')
+                      (applySolution0 varSolution' tyvar0Solution' a0tye2')
+                  pure
+                    ( ( varsToInfer' \\ Map.keysSet varSolution,
+                        tyvars0ToInfer' \\ Map.keysSet tyvar0Solution,
+                        composeVarSolution varSolution' varSolution,
+                        composeTypeVar0Solution tyvar0Solution' tyvar0Solution
+                      ),
+                      (cast, a0tye1')
+                    )
+              )
+              (varsToInfer, tyvars0ToInfer, Map.empty, Map.empty)
+              zipped
+          let castAndDomTypePairs =
+                fmap
+                  ( bimap
+                      (fmap (applySolution0 varSolutionRet tyvar0SolutionRet))
+                      (applySolution0 varSolutionRet tyvar0SolutionRet)
+                  )
+                  castAndDomTypePairs'
+          cast <- makeProductTypeCast trav castAndDomTypePairs
+          pure (cast, varSolutionRet, tyvar0SolutionRet)
         (A0TyArrow labelOpt1 (x1opt, a0tye11) a0tye12, A0TyArrow labelOpt2 (x2opt, a0tye21) a0tye22withX2opt) -> do
           if labelOpt1 /= labelOpt2
             then
@@ -287,21 +317,25 @@ makeAssertiveCast trav loc =
                 A0Lam Nothing (x, strictify a0tye21) $
                   A0App (A0Lam Nothing (x', strictify a0tye11) (fCod (A0App (A0Var f) (A0Var x')))) (fDom (A0Var x))
 
-    makeProductTypeCast :: trav -> Ass0TypeExpr -> Ass0TypeExpr -> Maybe Ass0Expr -> Maybe Ass0Expr -> M trav (Maybe Ass0Expr)
-    makeProductTypeCast _trav a0tye11 a0tye12 cast1 cast2 =
-      case (cast1, cast2) of
-        (Nothing, Nothing) ->
+    makeProductTypeCast :: trav -> TwoOrMore (Maybe Ass0Expr, Ass0TypeExpr) -> M trav (Maybe Ass0Expr)
+    makeProductTypeCast _trav castAndDomTypePairs =
+      if all ((== Nothing) . fst) castAndDomTypePairs
+        then
           pure Nothing
-        (_, _) -> do
+        else do
           x <- AssVarStatic <$> generateFreshVar Nothing
-          let f1 = applyCast cast1
-          let f2 = applyCast cast2
-          pure $
-            Just $
-              A0Lam Nothing (x, strictify (A0TyProduct a0tye11 a0tye12)) $
-                A0Tuple
-                  (f1 (A0App (A0BuiltInName (BuiltInArity1 BIFst)) (A0Var x)))
-                  (f2 (A0App (A0BuiltInName (BuiltInArity1 BISnd)) (A0Var x)))
+          let a0tyeAnnot = A0TyProduct (fmap snd castAndDomTypePairs)
+          let n = length castAndDomTypePairs
+          pure . Just $
+            A0Lam Nothing (x, strictify a0tyeAnnot) $
+              A0Tuple $
+                TwoOrMore.mapIndexed
+                  ( \i (cast, _a0tye) ->
+                      applyCast
+                        cast
+                        (A0App (A0BuiltInName (BuiltInArity1 (BIProj n i))) (A0Var x))
+                  )
+                  castAndDomTypePairs
 
     castOrIdentityLam :: Maybe Ass0Expr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr)
     castOrIdentityLam maybePred2 a0tye1 = do
@@ -317,16 +351,16 @@ makeAssertiveCast trav loc =
 
 -- The core part of the cast insertion for stage 1.
 makeEquation1 :: forall trav. trav -> Span -> Set AssVar -> Set AssTypeVar -> Ass1TypeExpr -> Ass1TypeExpr -> M trav (Maybe Type1Equation, VarSolution, TypeVar1Solution)
-makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
+makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whole = do
   TypecheckConfig {optimizeTrivialAssertion} <- askConfig
   spanInFile <- askSpanInFile loc
-  case go varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' of
+  case go varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whole of
     Right (trivial, ty1eq, varSolution, tyvar1Solution) ->
       if trivial && optimizeTrivialAssertion
         then pure (Nothing, varSolution, tyvar1Solution)
         else pure (Just ty1eq, varSolution, tyvar1Solution)
     Left () ->
-      typeError trav $ TypeContradictionAtStage1 spanInFile a1tye1' a1tye2'
+      typeError trav $ TypeContradictionAtStage1 spanInFile a1tye1Whole a1tye2Whole
   where
     checkExprArgs :: Set AssVar -> (Ass0Expr, Ass0TypeExpr) -> Ass0Expr -> (Bool, Ass0Expr, VarSolution)
     checkExprArgs varsToInfer (a0e1, a0tye1) a0e2 =
@@ -443,17 +477,37 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
         (A1TyList a1tye1elem, A1TyList a1tye2elem) -> do
           (trivial, ty1eqElem, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1elem a1tye2elem
           pure (trivial, TyEq1List ty1eqElem, varSolution, tyvar1Solution)
-        (A1TyProduct a1tye11 a1tye12, A1TyProduct a1tye21 a1tye22) -> do
-          (trivial1, ty1eq1, varSolution1, tyvar1Solution1) <- go varsToInfer tyvars1ToInfer a1tye11 a1tye21
-          (trivial2, ty1eq2, varSolution2, tyvar1Solution2) <-
-            go
-              (varsToInfer \\ Map.keysSet varSolution1)
-              (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
-              a1tye12
-              (applyVarSolution varSolution1 a1tye22)
-          let varSolution = composeVarSolution varSolution1 varSolution2
-          let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2
-          pure (trivial1 && trivial2, TyEq1Product ty1eq1 ty1eq2, varSolution, tyvar1Solution)
+        (A1TyMaybe a1tye1elem, A1TyMaybe a1tye2elem) -> do
+          (trivial, ty1eqElem, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1elem a1tye2elem
+          pure (trivial, TyEq1Maybe ty1eqElem, varSolution, tyvar1Solution)
+        (A1TyProduct a1tyes1, A1TyProduct a1tyes2) -> do
+          zipped <-
+            case TwoOrMore.zipExact a1tyes1 a1tyes2 of
+              Just zipped' -> pure zipped'
+              Nothing -> Left ()
+          ((_, _, trivialRet, varSolutionRet, tyvar1SolutionRet), ty1eqs) <-
+            mapAccumM
+              ( \(varsToInfer', tyvars1ToInfer', trivial', varSolution', tyvar1Solution') (a1tye1', a1tye2') -> do
+                  (trivial, ty1eq, varSolution, tyvar1Solution) <-
+                    go
+                      varsToInfer'
+                      tyvars1ToInfer'
+                      (applySolution1 varSolution' tyvar1Solution' a1tye1')
+                      (applySolution1 varSolution' tyvar1Solution' a1tye2')
+                  pure
+                    ( ( varsToInfer' \\ Map.keysSet varSolution,
+                        tyvars1ToInfer' \\ Map.keysSet tyvar1Solution,
+                        trivial' && trivial,
+                        composeVarSolution varSolution' varSolution,
+                        composeTypeVar1Solution tyvar1Solution' tyvar1Solution
+                      ),
+                      ty1eq
+                    )
+              )
+              (varsToInfer, tyvars1ToInfer, True, Map.empty, Map.empty)
+              zipped
+          let ty1eqsRet = applySolution1 varSolutionRet tyvar1SolutionRet <$> ty1eqs
+          pure (trivialRet, TyEq1Product ty1eqsRet, varSolutionRet, tyvar1SolutionRet)
         (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) -> do
           if labelOpt1 /= labelOpt2
             then
@@ -470,7 +524,7 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
               let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2
               pure (trivial1 && trivial2, TyEq1Arrow labelOpt1 ty1eqDom ty1eqCod, varSolution, tyvar1Solution)
         (_, A1TyImplicitForAll atyvar2 a1tye22) ->
-          -- Not confident. TODO: ensure that this works correctly
+          -- Not confident. TODO (theory): ensure that this works correctly
           go varsToInfer (Set.insert atyvar2 tyvars1ToInfer) a1tye1 a1tye22
         (_, _) ->
           Left ()
@@ -485,7 +539,7 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
               Left ()
             Just zipped -> do
               let (trivial, equationAccResult, _varsToInfer, varSolution) =
-                    List.foldl'
+                    foldl'
                       ( \(trivialAcc, equationAcc, varsToInferAcc, varSolutionAcc) (a0e1, a0e2) ->
                           let a0e1sub = applyVarSolution varSolutionAcc a0e1
                               a0e2sub = applyVarSolution varSolutionAcc a0e2
@@ -513,202 +567,458 @@ makeEquation1 trav loc varsToInfer' tyvars1ToInfer' a1tye1' a1tye2' = do
           let listEq = ListEqByWhole a0eList1 a0eList2
           pure (trivial, listEq, Map.empty)
 
-mergeTypesByConditional0 :: forall trav. trav -> Bool -> Ass0Expr -> Ass0TypeExpr -> Ass0TypeExpr -> M' ConditionalMergeError trav Ass0TypeExpr
+mergeTypesByConditional0 :: forall trav. trav -> Bool -> Ass0Expr -> NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M' ConditionalMergeError trav Ass0TypeExpr
 mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
   where
-    go0 :: Ass0TypeExpr -> Ass0TypeExpr -> M' ConditionalMergeError trav Ass0TypeExpr
-    go0 a0tye1 a0tye2 =
-      case (a0tye1, a0tye2) of
-        (A0TyPrim a0tyePrim1 maybePred1, A0TyPrim a0tyePrim2 maybePred2) ->
-          if a0tyePrim1 == a0tyePrim2
-            then do
-              maybePred <- mergeRefinementPredicates (SA0TyPrim a0tyePrim1) maybePred1 maybePred2
-              pure $ A0TyPrim a0tyePrim1 maybePred
-            else
-              typeError trav $ CannotMerge0 a0tye1 a0tye2
-        (A0TyList a0tye1' maybePred1, A0TyList a0tye2' maybePred2) -> do
-          a0tye <- go0 a0tye1' a0tye2'
-          maybePred <- mergeRefinementPredicates (SA0TyList (strictify a0tye1')) maybePred1 maybePred2
-          pure $ A0TyList a0tye maybePred
-        (A0TyArrow labelOpt1 (x1opt, a0tye11) a0tye12, A0TyArrow labelOpt2 (x2opt, a0tye21) a0tye22) -> do
-          if labelOpt1 /= labelOpt2
-            then
-              typeError trav $ CannotMerge0 a0tye1 a0tye2
-            else do
-              a0tye1u <- go0 a0tye11 a0tye21
-              (xu, a0tye2u) <-
-                case (x1opt, x2opt) of
-                  (Nothing, Nothing) -> (Nothing,) <$> go0 a0tye12 a0tye22
-                  (Just x1, Nothing) -> (Just x1,) <$> go0 a0tye12 a0tye22
-                  (Nothing, Just x2) -> (Just x2,) <$> go0 a0tye12 a0tye22
-                  (Just x1, Just x2) -> (Just x1,) <$> go0 a0tye12 (subst0 (A0Var x1) x2 a0tye22)
-              pure $ A0TyArrow labelOpt1 (xu, a0tye1u) a0tye2u
-        (A0TyCode a1tye1, A0TyCode a1tye2) ->
-          A0TyCode <$> go1 a1tye1 a1tye2
-        (A0TyInfArrow (x1, a0tye11) a0tye12, A0TyInfArrow (x2, a0tye21) a0tye22) -> do
-          a0tye1u <- go0 a0tye11 a0tye21
-          a0tye2u <- go0 a0tye12 (subst0 (A0Var x1) x2 a0tye22)
-          pure $ A0TyInfArrow (x1, a0tye1u) a0tye2u
-        _ ->
-          typeError trav $ CannotMerge0 a0tye1 a0tye2
+    go0 :: NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M' ConditionalMergeError trav Ass0TypeExpr
+    go0 patAndTypePairs@((a0pat1, a0tye1) :| rest) = do
+      let failure = typeError trav $ CannotMerge0 patAndTypePairs
+      case a0tye1 of
+        A0TyPrim a0tyePrim1 maybePred1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyPrim a0tyePrim maybePred ->
+                      if a0tyePrim == a0tyePrim1
+                        then pure (a0pat, maybePred)
+                        else failure
+                    _ ->
+                      failure
+              )
+              rest
+          let pairs = (a0pat1, maybePred1) :| pairsRest
+          maybePred' <- mergeRefinementPredicates (SA0TyPrim a0tyePrim1) pairs
+          pure $ A0TyPrim a0tyePrim1 maybePred'
+        A0TyList a0tyeElem1 maybePred1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyList a0tyeElem maybePred -> pure (a0pat, (a0tyeElem, maybePred))
+                    _ -> failure
+              )
+              rest
+          let triples = (a0pat1, (a0tyeElem1, maybePred1)) :| triplesRest
+          a0tye' <- go0 (fmap (second fst) triples)
+          maybePred' <- mergeRefinementPredicates (SA0TyList (strictify a0tyeElem1)) (fmap (second snd) triples)
+          pure $ A0TyList a0tye' maybePred'
+        A0TyMaybe a0tyeElem1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyMaybe a0tyeElem -> pure (a0pat, a0tyeElem)
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, a0tyeElem1) :| pairsRest
+          A0TyMaybe <$> go0 pairs
+        A0TyArrow labelOpt1 (xOpt1, a0tyeDom1) a0tyeCod1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyArrow labelOpt (xOpt, a0tyeDom) a0tyeCod ->
+                      if labelOpt == labelOpt1
+                        then pure (a0pat, (xOpt, a0tyeDom, a0tyeCod))
+                        else failure
+                    _ ->
+                      failure
+              )
+              rest
+          let quads = (a0pat1, (xOpt1, a0tyeDom1, a0tyeCod1)) :| quadsRest
+          a0tyeDom' <- go0 (fmap (second (\(_, a0tyeDom, _) -> a0tyeDom)) quads)
+          (xOpt', pairsForCod) <-
+            if all (\(_, (xOpt, _, _)) -> isNothing xOpt) quads
+              then
+                pure (Nothing, fmap (second (\(_, _, a0tyeCod) -> a0tyeCod)) quads)
+              else do
+                ax' <- AssVarStatic <$> generateFreshVar Nothing
+                let pair =
+                      fmap
+                        ( second
+                            ( \(xOpt, _, a0tyeCod) ->
+                                case xOpt of
+                                  Nothing -> a0tyeCod
+                                  Just x -> subst0 (A0Var ax') x a0tyeCod
+                            )
+                        )
+                        quads
+                pure (Just ax', pair)
+          a0tyeCod' <- go0 pairsForCod
+          pure $ A0TyArrow labelOpt1 (xOpt', a0tyeDom') a0tyeCod'
+        A0TyCode a1tye1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyCode a1tye -> pure (a0pat, a1tye)
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, a1tye1) :| pairsRest
+          A0TyCode <$> go1 pairs
+        A0TyInfArrow (x1, a0tyeDom1) a0tyeCod1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyInfArrow (x, a0tyeDom) a0tyeCod -> pure (a0pat, (x, a0tyeDom, a0tyeCod))
+                    _ -> failure
+              )
+              rest
+          let quads = (a0pat1, (x1, a0tyeDom1, a0tyeCod1)) :| quadsRest
+          a0tyeDom' <- go0 (fmap (second (\(_, a0tyeDom, _) -> a0tyeDom)) quads)
+          a0tyeCod' <- go0 ((a0pat1, a0tyeCod1) :| map (second (\(x, _, a0tyeCod) -> subst0 (A0Var x1) x a0tyeCod)) quadsRest)
+          pure $ A0TyInfArrow (x1, a0tyeDom') a0tyeCod'
+        A0TyOmsArrow {} ->
+          error "TODO: mergeTypesByConditional0, A0TyOmsArrow"
+        A0TyProduct a0tyes1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyProduct a0tyes -> pure (a0pat, a0tyes)
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, a0tyes1) :| pairsRest
+          case distributeTwoOrMore pairs of
+            Just zipped -> do
+              a0tyes' <- mapM go0 zipped
+              pure $ A0TyProduct a0tyes'
+            Nothing ->
+              failure
+        A0TyVar atyvar1 -> do
+          mapM_
+            ( \(_a0pat, a0tye) ->
+                case a0tye of
+                  A0TyVar atyvar -> unless (atyvar == atyvar1) failure
+                  _ -> failure
+            )
+            rest
+          pure $ A0TyVar atyvar1
+        A0TyImplicitForAll {} ->
+          error "TODO: unsupported; mergeTypesByConditional0, A0TyImplicitForAll"
 
-    mergeRefinementPredicates :: (Maybe Ass0Expr -> StrictAss0TypeExpr) -> Maybe Ass0Expr -> Maybe Ass0Expr -> M' ConditionalMergeError trav (Maybe Ass0Expr)
-    mergeRefinementPredicates sa0tyef maybePred1 maybePred2 =
-      case (maybePred1, maybePred2) of
-        (Nothing, Nothing) -> pure Nothing
-        (Just a0ePred1, Nothing) -> makeIf (A0App a0ePred1 . A0Var) (\_ -> A0Literal (ALitBool True))
-        (Nothing, Just a0ePred2) -> makeIf (\_ -> A0Literal (ALitBool True)) (A0App a0ePred2 . A0Var)
-        (Just a0ePred1, Just a0ePred2) -> makeIf (A0App a0ePred1 . A0Var) (A0App a0ePred2 . A0Var)
-      where
-        makeIf f1 f2 = do
+    mergeRefinementPredicates :: (Maybe Ass0Expr -> StrictAss0TypeExpr) -> NonEmpty (Ass0Pattern, Maybe Ass0Expr) -> M' ConditionalMergeError trav (Maybe Ass0Expr)
+    mergeRefinementPredicates sa0tyef patAndMaybePredPairs =
+      if all (isNothing . snd) patAndMaybePredPairs
+        then
+          pure Nothing
+        else do
           ax <- AssVarStatic <$> generateFreshVar Nothing
-          pure $ Just (A0Lam Nothing (ax, sa0tyef Nothing) (A0IfThenElse a0e0 (f1 ax) (f2 ax)))
+          let a0branches =
+                fmap
+                  ( \(a0pat, maybePred) ->
+                      A0Branch a0pat $
+                        case maybePred of
+                          Nothing -> A0Literal (ALitBool True)
+                          Just a0ePred -> A0App a0ePred (A0Var ax)
+                  )
+                  patAndMaybePredPairs
+          pure $ Just (A0Lam Nothing (ax, sa0tyef Nothing) (A0Case a0e0 a0branches))
 
-    go1 :: Ass1TypeExpr -> Ass1TypeExpr -> M' ConditionalMergeError trav Ass1TypeExpr
+    go1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
     go1 = mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0
 
-mergeTypesByConditional1 :: forall trav. trav -> Bool -> Ass0Expr -> Ass1TypeExpr -> Ass1TypeExpr -> M' ConditionalMergeError trav Ass1TypeExpr
+mergeTypesByConditional1 :: forall trav. trav -> Bool -> Ass0Expr -> NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
 mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
   where
-    go1 :: Ass1TypeExpr -> Ass1TypeExpr -> M' ConditionalMergeError trav Ass1TypeExpr
-    go1 a1tye1 a1tye2 =
-      case (a1tye1, a1tye2) of
-        (A1TyPrim a1tyePrim1, A1TyPrim a1tyePrim2) ->
+    go1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
+    go1 patAndTypePairs@((a0pat1, a1tye1) :| rest) = do
+      let failure = typeError trav $ CannotMerge1 patAndTypePairs
+      case a1tye1 of
+        A1TyPrim a1tyePrim1 -> do
           A1TyPrim
-            <$> case (a1tyePrim1, a1tyePrim2) of
-              (A1TyPrimBase tyPrimBase1, A1TyPrimBase tyPrimBase2) ->
-                if tyPrimBase1 == tyPrimBase2
-                  then pure a1tyePrim1
-                  else typeError trav $ CannotMerge1 a1tye1 a1tye2
-              (A1TyTensor a0eList1, A1TyTensor a0eList2) ->
-                case (a0eList1, a0eList2) of
+            <$> case a1tyePrim1 of
+              A1TyPrimBase tyPrimBase1 -> do
+                mapM_
+                  ( \(_a0pat, a1tye) ->
+                      case a1tye of
+                        A1TyPrim (A1TyPrimBase tyPrimBase) -> unless (tyPrimBase == tyPrimBase1) failure
+                        _ -> failure
+                  )
+                  rest
+                pure a1tyePrim1
+              A1TyTensor a0eList1 -> do
+                pairsRest <-
+                  mapM
+                    ( \(a0pat, a1tye) ->
+                        case a1tye of
+                          A1TyPrim (A1TyTensor a0eList) -> pure (a0pat, a0eList)
+                          _ -> failure
+                    )
+                    rest
+                let pairs = (a0pat1, a0eList1) :| pairsRest
+                case extractListLiteralsIfAll pairs of
                   -- Slight enhancement for the argument inference:
-                  (A0Literal (ALitList a0es1), A0Literal (ALitList a0es2)) | distributeIfUnderTensorShape ->
-                    case zipExactMay a0es1 a0es2 of
-                      Nothing -> typeError trav $ CannotMerge1 a1tye1 a1tye2
-                      Just zipped -> pure $ A1TyTensor (A0Literal (ALitList (map (uncurry a0branch) zipped)))
+                  Just patAndElemsPairs | distributeIfUnderTensorShape ->
+                    case distribute patAndElemsPairs of
+                      Just patAndElemPairss -> do
+                        let a0es' = map (A0Case a0e0 . fmap (uncurry A0Branch)) patAndElemPairss
+                        pure $ A1TyTensor (A0Literal (ALitList a0es'))
+                      Nothing ->
+                        failure
                   -- General rule:
-                  (_, _) ->
-                    pure $ A1TyTensor (a0branch a0eList1 a0eList2)
-              (A1TyDataset dp1, A1TyDataset dp2) ->
+                  _ ->
+                    pure $ A1TyTensor (A0Case a0e0 (fmap (uncurry A0Branch) pairs))
+              A1TyDataset dp1 -> do
+                pairsRest <-
+                  mapM
+                    ( \(a0pat, a1tye) ->
+                        case a1tye of
+                          A1TyPrim (A1TyDataset dp) -> pure (a0pat, dp)
+                          _ -> failure
+                    )
+                    rest
+                let pairs = (a0pat1, dp1) :| pairsRest
+                let a0branchesNumTrain = fmap (\(a0pat, dp) -> A0Branch a0pat dp.numTrain) pairs
+                let a0branchesNumTest = fmap (\(a0pat, dp) -> A0Branch a0pat dp.numTest) pairs
+                let a0branchesImage = fmap (\(a0pat, dp) -> A0Branch a0pat (runIdentity dp.image)) pairs
+                let a0branchesLabel = fmap (\(a0pat, dp) -> A0Branch a0pat (runIdentity dp.label)) pairs
                 pure . A1TyDataset $
                   DatasetParam
-                    { numTrain = a0branch dp1.numTrain dp2.numTrain,
-                      numTest = a0branch dp1.numTest dp2.numTest,
-                      image = Identity (a0branch (runIdentity dp1.image) (runIdentity dp2.image)),
-                      label = Identity (a0branch (runIdentity dp1.label) (runIdentity dp2.label))
+                    { numTrain = A0Case a0e0 a0branchesNumTrain,
+                      numTest = A0Case a0e0 a0branchesNumTest,
+                      image = Identity (A0Case a0e0 a0branchesImage),
+                      label = Identity (A0Case a0e0 a0branchesLabel)
                     }
-              (A1TyLstm a0eInputSize1 a0eHiddenSize1, A1TyLstm a0eInputSize2 a0eHiddenSize2) ->
-                pure $ A1TyLstm (a0branch a0eInputSize1 a0eInputSize2) (a0branch a0eHiddenSize1 a0eHiddenSize2)
-              (A1TyTextHelper a0eLabels1, A1TyTextHelper a0eLabels2) ->
-                pure $ A1TyTextHelper (a0branch a0eLabels1 a0eLabels2)
-              _ ->
-                typeError trav $ CannotMerge1 a1tye1 a1tye2
-        (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) ->
-          if labelOpt1 == labelOpt2
-            then A1TyArrow labelOpt1 <$> go1 a1tye11 a1tye21 <*> go1 a1tye12 a1tye22
-            else typeError trav $ CannotMerge1 a1tye1 a1tye2
-        _ ->
-          typeError trav $ CannotMerge1 a1tye1 a1tye2
+              A1TyLstm a0eInputSize1 a0eHiddenSize1 -> do
+                triplesRest <-
+                  mapM
+                    ( \(a0pat, a1tye) ->
+                        case a1tye of
+                          A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize) -> pure (a0pat, (a0eInputSize, a0eHiddenSize))
+                          _ -> failure
+                    )
+                    rest
+                let triples = (a0pat1, (a0eInputSize1, a0eHiddenSize1)) :| triplesRest
+                let a0branchesInputSize = fmap (\(a0pat, pair) -> A0Branch a0pat (fst pair)) triples
+                let a0branchesHiddenSize = fmap (\(a0pat, pair) -> A0Branch a0pat (snd pair)) triples
+                pure $ A1TyLstm (A0Case a0e0 a0branchesInputSize) (A0Case a0e0 a0branchesHiddenSize)
+              A1TyTextHelper a0eLabels1 -> do
+                pairsRest <-
+                  mapM
+                    ( \(a0pat, a1tye) ->
+                        case a1tye of
+                          A1TyPrim (A1TyTextHelper a0eLabels) -> pure (a0pat, a0eLabels)
+                          _ -> failure
+                    )
+                    rest
+                let pairs = (a0pat1, a0eLabels1) :| pairsRest
+                let a0branches = fmap (uncurry A0Branch) pairs
+                pure $ A1TyTextHelper (A0Case a0e0 a0branches)
+        A1TyList a1tyeElem1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyList a1tyeElem -> pure (a0pat, a1tyeElem)
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, a1tyeElem1) :| pairsRest
+          a1tyeElem' <- go1 pairs
+          pure $ A1TyList a1tyeElem'
+        A1TyMaybe a1tyeElem1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyMaybe a1tyeElem -> pure (a0pat, a1tyeElem)
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, a1tyeElem1) :| pairsRest
+          a1tyeElem' <- go1 pairs
+          pure $ A1TyMaybe a1tyeElem'
+        A1TyArrow labelOpt1 a1tyeDom1 a1tyeCod1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyArrow labelOpt2 a1tyeDom a1tyeCod ->
+                      if labelOpt1 == labelOpt2
+                        then pure (a0pat, (a1tyeDom, a1tyeCod))
+                        else failure
+                    _ ->
+                      failure
+              )
+              rest
+          let triples = (a0pat1, (a1tyeDom1, a1tyeCod1)) :| triplesRest
+          a1tyeDom' <- go1 (fmap (second fst) triples)
+          a1tyeCod' <- go1 (fmap (second snd) triples)
+          pure $ A1TyArrow labelOpt1 a1tyeDom' a1tyeCod'
+        A1TyProduct a1tyes1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyProduct a1tyes -> pure (a0pat, a1tyes)
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, a1tyes1) :| pairsRest
+          case distributeTwoOrMore pairs of
+            Just zipped -> do
+              a1tyes' <- mapM go1 zipped
+              pure $ A1TyProduct a1tyes'
+            Nothing ->
+              failure
+        A1TyVar atyvar1 -> do
+          mapM_
+            ( \(_a0pat, a1tye) ->
+                case a1tye of
+                  A1TyVar atyvar -> unless (atyvar == atyvar1) failure
+                  _ -> failure
+            )
+            rest
+          pure $ A1TyVar atyvar1
+        A1TyImplicitForAll {} ->
+          error "TODO: unsupported; mergeTypesByConditional1, A1TyImplicitForAll"
 
-    a0branch = A0IfThenElse a0e0
+extractListLiteralsIfAll :: NonEmpty (Ass0Pattern, Ass0Expr) -> Maybe (NonEmpty (Ass0Pattern, [Ass0Expr]))
+extractListLiteralsIfAll =
+  mapM
+    ( \(a0pat, a0e) ->
+        case a0e of
+          A0Literal (ALitList a0es) -> pure (a0pat, a0es)
+          _ -> Nothing
+    )
 
-mergeResultsByConditional0 :: forall trav. trav -> Span -> Ass0Expr -> Result0 -> Result0 -> M trav Result0
+-- Performs the following conversion (i.e., transposition):
+--
+-- [ (p1, [e11, ..., e1N]),          [ (p1, e11),  [ (p1, e12),       [ (p1, e1N),
+--   ...                      ---->    ...           ...                ...
+--   (pM, [eM1, ..., eMN]) ]           (pM, eM1) ],  (pM, eM2) ], ...   (pM, eMN) ]
+distribute :: NonEmpty (Ass0Pattern, [a]) -> Maybe [NonEmpty (Ass0Pattern, a)]
+distribute patAndExprPairs = do
+  let matrix = fmap (\(p, a0es) -> map (p,) a0es) patAndExprPairs
+  NonEmptyUtil.transpose matrix
+
+distributeTwoOrMore :: NonEmpty (Ass0Pattern, TwoOrMore a) -> Maybe (TwoOrMore (NonEmpty (Ass0Pattern, a)))
+distributeTwoOrMore patAndExprPairs = do
+  let matrix = fmap (\(p, a0es) -> fmap (p,) a0es) patAndExprPairs
+  TwoOrMore.transpose matrix
+
+mergeResultsByConditional0 :: forall trav. trav -> Span -> Ass0Expr -> NonEmpty (Ass0Pattern, Result0) -> M trav Result0
 mergeResultsByConditional0 trav loc a0e0 = go
   where
-    go result1 result2 =
-      case (result1, result2) of
-        (Pure a0tye1, Pure a0tye2) ->
-          Pure <$> mergeTypes0 a0tye1 a0tye2
-        (Cast0 cast1 a0tye1 r1, Cast0 cast2 a0tye2 r2) -> do
-          a0tye <- mergeTypes0 a0tye1 a0tye2
-          cast <- mergeCasts cast1 a0tye1 cast2 a0tye2
-          Cast0 cast a0tye <$> go r1 r2
-        (Cast1 cast1 a1tye1 r1, Cast1 cast2 a1tye2 r2) -> do
-          a1tye <- mergeTypes1 a1tye1 a1tye2
-          cast <- mergeCasts cast1 (A0TyCode a1tye1) cast2 (A0TyCode a1tye2)
-          Cast1 cast a1tye <$> go r1 r2
-        (CastGiven0 cast1 a0tye1 r1, CastGiven0 cast2 a0tye2 r2) -> do
-          a0tye <- mergeTypes0 a0tye1 a0tye2
-          cast <- mergeCasts cast1 a0tye1 cast2 a0tye2
-          CastGiven0 cast a0tye <$> go r1 r2
-        (FillInferred0 a0e1 r1, FillInferred0 a0e2 r2) -> do
-          FillInferred0 (a0branch a0e1 a0e2) <$> go r1 r2
-        (InsertInferred0 a0e1 r1, InsertInferred0 a0e2 r2) -> do
-          InsertInferred0 (a0branch a0e1 a0e2) <$> go r1 r2
-        _ -> do
-          -- Reachable if two branches of an if-expression are inconsistent as to `InsertInferred0`.
-          spanInFile <- askSpanInFile loc
-          typeError trav $ CannotMergeResultsByConditionals spanInFile result1 result2
+    go :: NonEmpty (Ass0Pattern, Result0) -> M trav Result0
+    go patAndResultPairs@((a0pat1, result1) :| rest) = do
+      spanInFile <- askSpanInFile loc
+      let failure = typeError trav $ CannotMergeResultsByConditionals spanInFile patAndResultPairs
+      case result1 of
+        Pure a0tye1 -> do
+          patAndTypePairs <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    Pure a0tye -> pure (a0pat, a0tye)
+                    _ -> failure
+              )
+              rest
+          Pure <$> mergeTypes0 ((a0pat1, a0tye1) :| patAndTypePairs)
+        Cast0 cast1 a0tye1 r1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    Cast0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
+                    _ -> failure
+              )
+              rest
+          let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
+          a0tye' <- mergeTypes0 (fmap (second (\(_, a0tye, _) -> a0tye)) quads)
+          cast' <- mergeCasts (fmap (second (\(cast, a0tye, _) -> (cast, a0tye))) quads)
+          Cast0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
+        Cast1 cast1 a1tye1 r1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    Cast1 cast a1tye r -> pure (a0pat, (cast, a1tye, r))
+                    _ -> failure
+              )
+              rest
+          let quads = (a0pat1, (cast1, a1tye1, r1)) :| quadsRest
+          a1tye' <- mergeTypes1 (fmap (second (\(_, a1tye, _) -> a1tye)) quads)
+          cast' <- mergeCasts (fmap (second (\(cast, a1tye, _) -> (cast, A0TyCode a1tye))) quads)
+          Cast1 cast' a1tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
+        CastGiven0 cast1 a0tye1 r1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    CastGiven0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
+                    _ -> failure
+              )
+              rest
+          let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
+          a0tye' <- mergeTypes0 (fmap (\(pat, (_, a0tye, _)) -> (pat, a0tye)) quads)
+          cast' <- mergeCasts (fmap (\(pat, (cast, a0tye, _)) -> (pat, (cast, a0tye))) quads)
+          CastGiven0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
+        FillInferred0 a0e1 r1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    FillInferred0 a0e r -> pure (a0pat, (a0e, r))
+                    _ -> failure
+              )
+              rest
+          let triples = (a0pat1, (a0e1, r1)) :| triplesRest
+          let a0branches = fmap (\(a0pat, (a0e, _)) -> A0Branch a0pat a0e) triples
+          FillInferred0 (A0Case a0e0 a0branches) <$> go (fmap (second (\(_, r) -> r)) triples)
+        InsertInferred0 a0e1 r1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    InsertInferred0 a0e r -> pure (a0pat, (a0e, r))
+                    _ -> failure
+              )
+              rest
+          let triples = (a0pat1, (a0e1, r1)) :| triplesRest
+          let a0branches = fmap (\(a0pat, (a0e, _)) -> A0Branch a0pat a0e) triples
+          InsertInferred0 (A0Case a0e0 a0branches) <$> go (fmap (second (\(_, r) -> r)) triples)
+        InsertType1 {} ->
+          error "TODO: unsupported; mergeResultsByConditional0, InsertType1"
+        InsertInferredType0 {} ->
+          error "TODO: unsupported; mergeResultsByConditional0, InsertInferredType0"
 
-    a0branch = A0IfThenElse a0e0
-
-    mergeTypes0 :: Ass0TypeExpr -> Ass0TypeExpr -> M trav Ass0TypeExpr
-    mergeTypes0 a0tye1 a0tye2 = do
+    mergeTypes0 :: NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M trav Ass0TypeExpr
+    mergeTypes0 pairs = do
       TypecheckConfig {distributeIfUnderTensorShape} <- askConfig
       spanInFile <- askSpanInFile loc
-      mapTypeError (CannotMergeTypesByConditional0 spanInFile a0tye1 a0tye2) $
-        mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 a0tye1 a0tye2
+      mapTypeError (CannotMergeTypesByConditional0 spanInFile pairs) $
+        mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 pairs
 
-    mergeTypes1 :: Ass1TypeExpr -> Ass1TypeExpr -> M trav Ass1TypeExpr
-    mergeTypes1 a1tye1 a1tye2 = do
+    mergeTypes1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M trav Ass1TypeExpr
+    mergeTypes1 pairs = do
       TypecheckConfig {distributeIfUnderTensorShape} <- askConfig
       spanInFile <- askSpanInFile loc
-      mapTypeError (CannotMergeTypesByConditional1 spanInFile a1tye1 a1tye2) $
-        mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 a1tye1 a1tye2
+      mapTypeError (CannotMergeTypesByConditional1 spanInFile pairs) $
+        mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 pairs
 
-    mergeCasts cast1 a0tye1 cast2 a0tye2 =
-      case (cast1, cast2) of
-        (Nothing, Nothing) ->
+    mergeCasts :: NonEmpty (Ass0Pattern, (Maybe Ass0Expr, Ass0TypeExpr)) -> M trav (Maybe Ass0Expr)
+    mergeCasts triples =
+      if all (\(_, (cast, _)) -> cast == Nothing) triples
+        then
           pure Nothing
-        (Just a0e1, Nothing) -> do
-          a0e2 <- makeIdentityLam a0tye2
-          pure $ Just (a0branch a0e1 a0e2)
-        (Nothing, Just a0e2) -> do
-          a0e1 <- makeIdentityLam a0tye1
-          pure $ Just (a0branch a0e1 a0e2)
-        (Just a0e1, Just a0e2) -> do
-          pure $ Just (a0branch a0e1 a0e2)
-
-type VarSolution = Map AssVar (Ass0Expr, Ass0TypeExpr)
-
-type TypeVar0Solution = Map AssTypeVar Ass0TypeExpr
-
-type TypeVar1Solution = Map AssTypeVar Ass1TypeExpr
-
-applyVarSolution :: forall af. (HasVar StaticVar af) => VarSolution -> af StaticVar -> af StaticVar
-applyVarSolution varSolution entity =
-  Map.foldrWithKey (flip subst0) entity (Map.map fst varSolution)
-
-applyTypeVar0Solution :: forall af. (HasTypeVar af) => TypeVar0Solution -> af StaticVar -> af StaticVar
-applyTypeVar0Solution tyvar0Solution entity =
-  Map.foldrWithKey (flip tySubst0) entity tyvar0Solution
-
-applyTypeVar1Solution :: forall af. (HasTypeVar af) => TypeVar1Solution -> af StaticVar -> af StaticVar
-applyTypeVar1Solution tyvar1Solution entity =
-  Map.foldrWithKey (flip tySubst1) entity tyvar1Solution
-
-composeVarSolution :: VarSolution -> VarSolution -> VarSolution
-composeVarSolution solNew solOld =
-  Map.union
-    solNew
-    (Map.map (\(a0e, a0tye) -> (applyVarSolution solNew a0e, applyVarSolution solNew a0tye)) solOld)
-
-composeTypeVar0Solution :: TypeVar0Solution -> TypeVar0Solution -> TypeVar0Solution
-composeTypeVar0Solution solNew solOld =
-  Map.union solNew (Map.map (applyTypeVar0Solution solNew) solOld)
-
-composeTypeVar1Solution :: TypeVar1Solution -> TypeVar1Solution -> TypeVar1Solution
-composeTypeVar1Solution solNew solOld =
-  Map.union solNew (Map.map (applyTypeVar1Solution solNew) solOld)
-
-applySolution0 :: forall af. (HasVar StaticVar af, HasTypeVar af) => VarSolution -> TypeVar0Solution -> af StaticVar -> af StaticVar
-applySolution0 varSolution tyvar0Solution entity =
-  applyTypeVar0Solution tyvar0Solution (applyVarSolution varSolution entity)
-
-applySolution1 :: forall af. (HasVar StaticVar af, HasTypeVar af) => VarSolution -> TypeVar1Solution -> af StaticVar -> af StaticVar
-applySolution1 varSolution tyvar1Solution entity =
-  applyTypeVar1Solution tyvar1Solution (applyVarSolution varSolution entity)
+        else do
+          a0branches <-
+            mapM
+              ( \(a0pat, (cast, a0tye)) ->
+                  A0Branch a0pat
+                    <$> case cast of
+                      Nothing -> makeIdentityLam a0tye
+                      Just a0e -> pure a0e
+              )
+              triples
+          pure $ Just (A0Case a0e0 a0branches)
 
 instantiateGuidedByAppContext0 :: forall trav. trav -> Span -> AppContext -> Ass0TypeExpr -> M trav Result0
 instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
@@ -864,14 +1174,27 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
           pure $ A0Literal (ALitList a0es)
         _ ->
           typeError trav $ CannotForceType0 spanInFile a0tyeReq
-    Tuple e1 e2 -> do
+    Tuple es -> do
       case a0tyeReq of
-        A0TyProduct a0tye1req a0tye2req -> do
-          a0e1 <- forceExpr0 trav tyEnv a0tye1req e1
-          a0e2 <- forceExpr0 trav tyEnv a0tye2req e2
-          pure $ A0Tuple a0e1 a0e2
-        _ -> do
+        A0TyProduct a0tyesReq -> do
+          case TwoOrMore.zipExact a0tyesReq es of
+            Just zipped -> do
+              a0es <- mapM (uncurry (forceExpr0 trav tyEnv)) zipped
+              pure $ A0Tuple a0es
+            Nothing ->
+              typeError trav $ CannotForceType0 spanInFile a0tyeReq
+        _ ->
           typeError trav $ CannotForceType0 spanInFile a0tyeReq
+    Constructor (mods, ctor) ->
+      case (mods, ctor) of
+        ([], "Nothing") ->
+          case a0tyeReq of
+            A0TyMaybe _a0tyeElem -> pure $ A0Constructor "Nothing" []
+            _ -> typeError trav $ CannotForceType0 spanInFile a0tyeReq
+        _ -> do
+          (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
+          (cast, _varSolution, _tyvar0Solution) <- makeAssertiveCast trav loc Set.empty Set.empty a0tye a0tyeReq
+          pure $ applyCast cast a0e
     IfThenElse e0 e1 e2 -> do
       (a0tye0, a0e0) <- typecheckExpr0Single trav tyEnv e0
       case a0tye0 of
@@ -903,6 +1226,47 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
   completeInferredImplicit spanInFile
     =<< case eMain of
+      Constructor (mods, ctor) ->
+        case (mods, ctor) of
+          ([], "Just") ->
+            case appCtx of
+              [] ->
+                error "TODO: Just, empty app context"
+              [AppArg0 Nothing _a0e1 a0tye1] -> do
+                svX <- generateFreshVar Nothing
+                let ax = AssVarStatic svX
+                let a0eRet = A0Lam Nothing (ax, strictify a0tye1) (A0Constructor "Just" [A0Var ax])
+                pure (Cast0 Nothing a0tye1 (Pure (A0TyMaybe a0tye1)), a0eRet)
+              _ ->
+                error "TODO (error): other app contexts"
+          ([], "Nothing") ->
+            error "TODO: Nothing"
+          _ ->
+            error "TODO (error): unknown constructor"
+      Product e1 rest ->
+        case appCtx of
+          [] -> do
+            (a0tye1, a0e1) <- typecheckExpr0Single trav tyEnv e1
+            (a0tye, a0e) <-
+              foldM
+                ( \(a0tyeLeftAcc, a0eLeftAcc) ((_locOp, op), eRightArg) -> do
+                    (a0tyeOp, a0eOp) <- typecheckValVar0 trav loc tyEnv [] op
+                    (a0tyeRightArg, a0eRightArg) <- typecheckExpr0Single trav tyEnv eRightArg
+                    let appCtxOp = [AppArg0 Nothing a0eLeftAcc a0tyeLeftAcc, AppArg0 Nothing a0eRightArg a0tyeRightArg]
+                    result <- instantiateGuidedByAppContext0 trav loc appCtxOp a0tyeOp
+                    case result of
+                      Cast0 castLeftAcc _ (Cast0 castRightArg _ (Pure a0tyeRes)) -> do
+                        let a0eLeftAcc' = applyCast castLeftAcc a0eLeftAcc
+                        let a0eRightArg' = applyCast castRightArg a0eRightArg
+                        pure (a0tyeRes, A0App (A0App a0eOp a0eLeftAcc') a0eRightArg')
+                      _ ->
+                        bug "stage-1, Product, not a (Cast1 (Cast1 Pure))"
+                )
+                (a0tye1, a0e1)
+                rest
+            pure (Pure a0tye, a0e)
+          _ : _ ->
+            error "TODO: typecheckExpr1, Product, non-empty appCtx"
       Literal lit ->
         case appCtx of
           [] -> do
@@ -939,26 +1303,9 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           _ : _ ->
             typeError trav $ CannotApplyLiteral spanInFile
       Var (ms, x) -> do
-        valEntry <- findValVar trav loc ms x tyEnv
-        (a0tye, builtInNameOrSv) <-
-          case valEntry of
-            Ass0Entry a0tye' a0metadataOrSv ->
-              pure $
-                (a0tye',) $
-                  case a0metadataOrSv of
-                    Left Ass0Metadata {ass0builtInName} -> Left ass0builtInName
-                    Right svx -> Right svx
-            AssPersEntry aPtye AssPersMetadata {assPbuiltInName} ->
-              pure (persistentTypeTo0 aPtye, Left (unliftBuiltInName assPbuiltInName))
-            Ass1Entry _ _ ->
-              typeError trav $ NotAStage0Var spanInFile x
+        (a0tye, a0e) <- typecheckValVar0 trav loc tyEnv ms x
         result <- instantiateGuidedByAppContext0 trav loc appCtx a0tye
-        case builtInNameOrSv of
-          Left builtInName ->
-            pure (result, A0BuiltInName builtInName)
-          Right svX -> do
-            let ax = AssVarStatic svX
-            pure (result, A0Var ax)
+        pure (result, a0e)
       Lam recOpt labelOpt (x1, tye1) e2 ->
         case appCtx of
           [] -> do
@@ -1077,23 +1424,35 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             typeError trav $ VarOccursFreelyInAss0Type spanInFile f result2
           else do
             pure (result2, A0LetIn (afOuter, strictify a0tye1Rec) a0e1 a0e2)
-      LetTupleIn xL xR e1 e2 -> do
+      LetTupleIn xs e1@(Expr loc1 _) e2 -> do
         (a0tye1, a0e1) <- typecheckExpr0Single trav tyEnv e1
         case a0tye1 of
-          A0TyProduct a0tyeL a0tyeR -> do
-            svXL <- generateFreshVar (Just xL)
-            let axL = AssVarStatic svXL
-            svXR <- generateFreshVar (Just xR)
-            let axR = AssVarStatic svXR
+          A0TyProduct a0tyes -> do
+            zipped <-
+              case TwoOrMore.zipExact xs a0tyes of
+                Just zipped' ->
+                  pure zipped'
+                Nothing -> do
+                  spanInFile1 <- askSpanInFile loc1
+                  typeError trav $ LetTupleLengthMismatch0 spanInFile1 xs a0tyes
+            triples <-
+              mapM
+                ( \(x, a0tye) -> do
+                    svX <- generateFreshVar (Just x)
+                    pure ((x, a0tye), svX)
+                )
+                zipped
             (result2, a0e2) <- do
-              let tyEnv' =
-                    tyEnv
-                      & TypeEnv.addVal xL (Ass0Entry a0tyeL (Right svXL))
-                      & TypeEnv.addVal xR (Ass0Entry a0tyeR (Right svXR))
-              typecheckExpr0 trav tyEnv' appCtx e2
-            pure (result2, A0LetTupleIn axL axR a0e1 a0e2)
+              let tyEnv2 =
+                    foldl'
+                      ( \tyEnv' ((x, a0tye), svX) ->
+                          TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv'
+                      )
+                      tyEnv
+                      triples
+              typecheckExpr0 trav tyEnv2 appCtx e2
+            pure (result2, A0LetTupleIn (fmap (AssVarStatic . snd) triples) a0e1 a0e2)
           _ -> do
-            let Expr loc1 _ = e1
             spanInFile1 <- askSpanInFile loc1
             typeError trav $ NotATupleAtStage0 spanInFile1 a0tye1
       LetOpenIn m e -> do
@@ -1113,12 +1472,11 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             let Expr loc1 _ = e1
             spanInFile1 <- askSpanInFile loc1
             typeError trav $ NotAUnitTypeForStage0 spanInFile1 a0tye1
-      Tuple e1 e2 -> do
+      Tuple es -> do
         case appCtx of
           [] -> do
-            (a0tye1, a0e1) <- typecheckExpr0Single trav tyEnv e1
-            (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
-            pure (Pure (A0TyProduct a0tye1 a0tye2), (A0Tuple a0e1 a0e2))
+            pairs <- mapM (typecheckExpr0Single trav tyEnv) es
+            pure (Pure (A0TyProduct (fmap fst pairs)), A0Tuple (fmap snd pairs))
           _ : _ -> do
             typeError trav $ CannotApplyTuple spanInFile
       IfThenElse e0 e1 e2 -> do
@@ -1127,12 +1485,20 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           A0TyPrim (A0TyPrimBase ATyPrimBool) _maybePred -> do
             (result1, a0e1) <- typecheckExpr0 trav tyEnv appCtx e1
             (result2, a0e2) <- typecheckExpr0 trav tyEnv appCtx e2
-            result <- mergeResultsByConditional0 trav loc a0e0 result1 result2
+            result <-
+              mergeResultsByConditional0 trav loc a0e0 $
+                (A0PatBool True, result1) :| [(A0PatBool False, result2)]
             pure (result, A0IfThenElse a0e0 a0e1 a0e2)
           _ -> do
             let Expr loc0 _ = e0
             spanInFile0 <- askSpanInFile loc0
             typeError trav $ NotABoolTypeForStage0 spanInFile0 a0tye0
+      Case e0 branches -> do
+        (a0tye0, a0e0) <- typecheckExpr0Single trav tyEnv e0
+        triples <- mapM (forceBranch0 trav tyEnv a0tye0 appCtx) branches
+        result' <- mergeResultsByConditional0 trav loc a0e0 $ fmap (second fst) triples
+        let a0branches = fmap (\(a0pat, (_, a0eRet)) -> A0Branch a0pat a0eRet) triples
+        pure (result', A0Case a0e0 a0branches)
       As e1 tye2 ->
         case appCtx of
           [] -> do
@@ -1147,6 +1513,10 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         pure (result, A0Bracket a1e1)
       Escape _ ->
         typeError trav $ CannotUseEscapeAtStage0 spanInFile
+      Persistent _ ->
+        typeError trav $ CannotUsePersistent spanInFile
+      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
+        error "TODO (error): typecheckExpr0, illegal syntax"
   where
     completeInferredImplicit spanInFile = go
       where
@@ -1159,6 +1529,96 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
               go (result', A0AppType a0e (strictify a0tyeInferred))
             _ ->
               pure pair
+
+forceBranch0 :: trav -> TypeEnv -> Ass0TypeExpr -> AppContext -> Branch -> M trav (Ass0Pattern, (Result0, Ass0Expr))
+forceBranch0 trav tyEnv a0tyePatReq appCtx (Branch pat e) = do
+  (a0pat, binders) <- forcePattern0 trav tyEnv a0tyePatReq pat
+  (result, a0e) <- typecheckExpr0 trav (TypeEnv.addVals binders tyEnv) appCtx e
+  pure (a0pat, (result, a0e))
+
+forceBranch1 :: trav -> TypeEnv -> Ass1TypeExpr -> Branch -> M trav (Ass1Pattern, (Ass1TypeExpr, Ass1Expr))
+forceBranch1 trav tyEnv a1tyePatReq (Branch pat e) = do
+  (a1pat, binders) <- forcePattern1 trav tyEnv a1tyePatReq pat
+  (a1tye, a1e) <- typecheckExpr1Single trav (TypeEnv.addVals binders tyEnv) e
+  pure (a1pat, (a1tye, a1e))
+
+collectPatternArgs :: trav -> Span -> PatternMain -> M trav (ConstructorName, [Pattern])
+collectPatternArgs trav _loc = \case
+  PatConstructor ctor ->
+    pure (ctor, [])
+  PatApp (Pattern loc1 patMain1) pat2 -> do
+    (ctor, patArgs1) <- collectPatternArgs trav loc1 patMain1
+    pure (ctor, patArgs1 ++ [pat2])
+  (PatBool _; PatVar _) ->
+    error "TODO (error): collectPatternArgs, invalid"
+
+forcePattern0 :: trav -> TypeEnv -> Ass0TypeExpr -> Pattern -> M trav (Ass0Pattern, Map Var ValEntry)
+forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) =
+  case patMain of
+    PatConstructor ctor ->
+      case ctor of
+        "Nothing" ->
+          case a0tyePatReq of
+            A0TyMaybe _ -> pure (A0PatConstructor "Nothing" [], Map.empty)
+            _ -> error "TODO (error): forcePattern0, PatConstructor, not Maybe"
+        _ ->
+          error "TODO (error): forcePattern0, PatConstructor, unknown constructor"
+    PatApp _ _ -> do
+      (ctor, patArgs) <- collectPatternArgs trav loc patMain
+      case (ctor, patArgs) of
+        ("Just", [pat1]) ->
+          case a0tyePatReq of
+            A0TyMaybe a0tyePatReq1 -> do
+              (a0pat1, binders) <- forcePattern0 trav tyEnv a0tyePatReq1 pat1
+              pure (A0PatConstructor "Just" [a0pat1], binders)
+            _ ->
+              error "TODO (error): forcePattern0, PatConstructor, not Maybe"
+        (_, _) ->
+          error $ "TODO (error): forcePattern0, PatConstructor, unknown constructor"
+    PatVar x -> do
+      svX <- generateFreshVar (Just x)
+      let ax = AssVarStatic svX
+      pure (A0PatVar ax, Map.singleton x (Ass0Entry a0tyePatReq (Right svX)))
+    PatBool b ->
+      case a0tyePatReq of
+        A0TyPrim (A0TyPrimBase ATyPrimBool) _maybePred ->
+          pure (A0PatBool b, Map.empty)
+        _ ->
+          error $ "TODO (error): forcePattern0, PatBool, not Bool"
+
+forcePattern1 :: trav -> TypeEnv -> Ass1TypeExpr -> Pattern -> M trav (Ass1Pattern, Map Var ValEntry)
+forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) =
+  case patMain of
+    PatConstructor ctor ->
+      case ctor of
+        "Nothing" ->
+          case a1tyePatReq of
+            A1TyMaybe _ -> pure (A1PatConstructor "Nothing" [], Map.empty)
+            _ -> error "TODO (error): forcePattern1, PatConstructor, not Maybe"
+        _ ->
+          error "TODO (error): forcePattern1, PatConstructor, unknown constructor"
+    PatApp _ _ -> do
+      (ctor, patArgs) <- collectPatternArgs trav loc patMain
+      case (ctor, patArgs) of
+        ("Just", [pat1]) ->
+          case a1tyePatReq of
+            A1TyMaybe a1tyePatReq1 -> do
+              (a1pat1, binders) <- forcePattern1 trav tyEnv a1tyePatReq1 pat1
+              pure (A1PatConstructor "Just" [a1pat1], binders)
+            _ ->
+              error "TODO (error): forcePattern1, PatConstructor, not Maybe"
+        (_, _) ->
+          error $ "TODO (error): forcePattern1, PatConstructor, unknown constructor"
+    PatVar x -> do
+      svX <- generateFreshVar (Just x)
+      let ax = AssVarStatic svX
+      pure (A1PatVar ax, Map.singleton x (Ass1Entry a1tyePatReq (Right svX)))
+    PatBool b ->
+      case a1tyePatReq of
+        A1TyPrim (A1TyPrimBase ATyPrimBool) ->
+          pure (A1PatBool b, Map.empty)
+        _ ->
+          error $ "TODO (error): forcePattern1, PatBool, not Bool"
 
 constructFunTypeExpr0 :: trav -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass0TypeExpr
 constructFunTypeExpr0 trav tyEnv params tyeBody = do
@@ -1202,6 +1662,46 @@ constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
     a0tyeBody
     params
 
+typecheckValVar0 :: trav -> Span -> TypeEnv -> [Var] -> Var -> M trav (Ass0TypeExpr, Ass0Expr)
+typecheckValVar0 trav loc tyEnv ms x = do
+  valEntry <- findValVar trav loc ms x tyEnv
+  (a0tye, builtInNameOrSv) <-
+    case valEntry of
+      Ass0Entry a0tye' a0metadataOrSv ->
+        pure . (a0tye',) $
+          case a0metadataOrSv of
+            Left Ass0Metadata {ass0builtInName} -> Left ass0builtInName
+            Right svx -> Right svx
+      AssPersEntry aPtye AssPersMetadata {assPbuiltInName} ->
+        pure (persistentTypeTo0 aPtye, Left (unliftBuiltInName assPbuiltInName))
+      Ass1Entry _ _ -> do
+        spanInFile <- askSpanInFile loc
+        typeError trav $ NotAStage0Var spanInFile x
+  pure . (a0tye,) $
+    case builtInNameOrSv of
+      Left builtInName -> A0BuiltInName builtInName
+      Right svX -> A0Var (AssVarStatic svX)
+
+typecheckValVar1 :: trav -> Span -> TypeEnv -> [Var] -> Var -> M trav (Ass1TypeExpr, Ass1Expr)
+typecheckValVar1 trav loc tyEnv ms x = do
+  valEntry <- findValVar trav loc ms x tyEnv
+  (a1tye, a1builtInNameOrSv) <-
+    case valEntry of
+      Ass0Entry _ _ -> do
+        spanInFile <- askSpanInFile loc
+        typeError trav $ NotAStage1Var spanInFile x
+      AssPersEntry aPtye AssPersMetadata {assPbuiltInName} ->
+        pure (persistentTypeTo1 aPtye, Left assPbuiltInName)
+      Ass1Entry a1tye' a1metadataOrSv ->
+        pure . (a1tye',) $
+          case a1metadataOrSv of
+            Left Ass1Metadata {ass1builtInName} -> Left ass1builtInName
+            Right svX -> Right svX
+  pure . (a1tye,) $
+    case a1builtInNameOrSv of
+      Left a1builtInName -> A1BuiltInName a1builtInName
+      Right svX -> A1Var (AssVarStatic svX)
+
 typecheckLetInBody0 :: trav -> TypeEnv -> [LamBinder] -> Maybe TypeExpr -> Expr -> M trav (Ass0TypeExpr, Ass0Expr)
 typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
   case params of
@@ -1237,14 +1737,27 @@ forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
           pure $ A1Literal (ALitList a1es)
         _ ->
           typeError trav $ CannotForceType1 spanInFile a1tyeReq
-    Tuple e1 e2 -> do
+    Tuple es -> do
       case a1tyeReq of
-        A1TyProduct a1tye1req a1tye2req -> do
-          a1e1 <- forceExpr1 trav tyEnv a1tye1req e1
-          a1e2 <- forceExpr1 trav tyEnv a1tye2req e2
-          pure $ A1Tuple a1e1 a1e2
+        A1TyProduct a1tyesReq ->
+          case TwoOrMore.zipExact a1tyesReq es of
+            Just zipped -> do
+              a1es <- mapM (uncurry (forceExpr1 trav tyEnv)) zipped
+              pure $ A1Tuple a1es
+            Nothing ->
+              typeError trav $ CannotForceType1 spanInFile a1tyeReq
         _ -> do
           typeError trav $ CannotForceType1 spanInFile a1tyeReq
+    Constructor (mods, ctor) ->
+      case (mods, ctor) of
+        ([], "Nothing") ->
+          case a1tyeReq of
+            A1TyMaybe _a1tyeElem -> pure $ A1Constructor "Nothing" []
+            _ -> typeError trav $ CannotForceType1 spanInFile a1tyeReq
+        _ -> do
+          (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
+          (eq, _varSolution, _tyvar1Solution) <- makeEquation1 trav loc Set.empty Set.empty a1tye a1tyeReq
+          pure $ applyEquationCast loc eq a1e
     IfThenElse e0 e1 e2 -> do
       (a1tye0, a1e0) <- typecheckExpr1Single trav tyEnv e0
       case a1tye0 of
@@ -1276,6 +1789,48 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
   completeInferredImplicit
     <$> case eMain of
+      Constructor (mods, ctor) ->
+        case (mods, ctor) of
+          ([], "Just") ->
+            case appCtx of
+              [] ->
+                error "TODO: Just, empty app context"
+              [AppArg1 Nothing a1tye1] -> do
+                svX <- generateFreshVar Nothing
+                let ax = AssVarStatic svX
+                let a1eRet = A1Lam Nothing (ax, a1tye1) (A1Constructor "Just" [A1Var ax])
+                pure (Cast1 Nothing a1tye1 (Pure (A1TyMaybe a1tye1)), a1eRet)
+              _ ->
+                error "TODO (error): other app contexts"
+          ([], "Nothing") ->
+            error "TODO: Nothing"
+          _ ->
+            error "TODO (error): unknown constructor"
+      Product e1 rest ->
+        -- TODO: consider simply falling back to `App`
+        case appCtx of
+          [] -> do
+            (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
+            (a1tye, a1e) <-
+              foldM
+                ( \(a1tyeLeftAcc, a1eLeftAcc) ((_locOp, op), eRightArg) -> do
+                    (a1tyeOp, a1eOp) <- typecheckValVar1 trav loc tyEnv [] op
+                    (a1tyeRightArg, a1eRightArg) <- typecheckExpr1Single trav tyEnv eRightArg
+                    let appCtxOp = [AppArg1 Nothing a1tyeLeftAcc, AppArg1 Nothing a1tyeRightArg]
+                    (result, _) <- instantiateGuidedByAppContext1 trav loc Set.empty appCtxOp a1tyeOp
+                    case result of
+                      Cast1 castLeftAcc _ (Cast1 castRightArg _ (Pure a1tyeRes)) -> do
+                        let a1eLeftAcc' = applyCast1 castLeftAcc a1eLeftAcc
+                        let a1eRightArg' = applyCast1 castRightArg a1eRightArg
+                        pure (a1tyeRes, A1App (A1App a1eOp a1eLeftAcc') a1eRightArg')
+                      _ ->
+                        bug "stage-1, Product, not a (Cast1 (Cast1 Pure))"
+                )
+                (a1tye1, a1e1)
+                rest
+            pure (Pure a1tye, a1e)
+          _ : _ ->
+            error "TODO: typecheckExpr1, Product, non-empty appCtx"
       Literal lit ->
         case appCtx of
           [] -> do
@@ -1319,26 +1874,9 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           _ : _ ->
             typeError trav $ CannotApplyLiteral spanInFile
       Var (ms, x) -> do
-        valEntry <- findValVar trav loc ms x tyEnv
-        (a1tye, a1builtInNameOrSv) <-
-          case valEntry of
-            Ass0Entry _ _ ->
-              typeError trav $ NotAStage1Var spanInFile x
-            AssPersEntry aPtye AssPersMetadata {assPbuiltInName} ->
-              pure (persistentTypeTo1 aPtye, Left assPbuiltInName)
-            Ass1Entry a1tye' a1metadataOrSv ->
-              pure $
-                (a1tye',) $
-                  case a1metadataOrSv of
-                    Left Ass1Metadata {ass1builtInName} -> Left ass1builtInName
-                    Right svX -> Right svX
+        (a1tye, a1e) <- typecheckValVar1 trav loc tyEnv ms x
         (result, _) <- instantiateGuidedByAppContext1 trav loc Set.empty appCtx a1tye
-        case a1builtInNameOrSv of
-          Left a1builtInName ->
-            pure (result, A1BuiltInName a1builtInName)
-          Right svX -> do
-            let ax = AssVarStatic svX
-            pure (result, A1Var ax)
+        pure (result, a1e)
       Lam recOpt labelOpt (x1, tye1) e2 ->
         case appCtx of
           [] -> do
@@ -1426,23 +1964,35 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         if afOuter `occurs1` result2
           then typeError trav $ VarOccursFreelyInAss1Type spanInFile f result2
           else pure (result2, A1LetIn (afOuter, a1tye1Rec) a1e1 a1e2)
-      LetTupleIn xL xR e1 e2 -> do
+      LetTupleIn xs e1@(Expr loc1 _) e2 -> do
         (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
         case a1tye1 of
-          A1TyProduct a1tyeL a1tyeR -> do
-            svXL <- generateFreshVar (Just xL)
-            let axL = AssVarStatic svXL
-            svXR <- generateFreshVar (Just xR)
-            let axR = AssVarStatic svXR
+          A1TyProduct a1tyes -> do
+            zipped <-
+              case TwoOrMore.zipExact xs a1tyes of
+                Just zipped' ->
+                  pure zipped'
+                Nothing -> do
+                  spanInFile1 <- askSpanInFile loc1
+                  typeError trav $ LetTupleLengthMismatch1 spanInFile1 xs a1tyes
+            triples <-
+              mapM
+                ( \(x, a1tye) -> do
+                    svX <- generateFreshVar (Just x)
+                    pure ((x, a1tye), svX)
+                )
+                zipped
             (result2, a1e2) <- do
-              let tyEnv' =
-                    tyEnv
-                      & TypeEnv.addVal xL (Ass1Entry a1tyeL (Right svXL))
-                      & TypeEnv.addVal xR (Ass1Entry a1tyeR (Right svXR))
-              typecheckExpr1 trav tyEnv' appCtx e2
-            pure (result2, A1LetTupleIn axL axR a1e1 a1e2)
+              let tyEnv2 =
+                    foldl'
+                      ( \tyEnv' ((x, a1tye), svX) ->
+                          TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv'
+                      )
+                      tyEnv
+                      triples
+              typecheckExpr1 trav tyEnv2 appCtx e2
+            pure (result2, A1LetTupleIn (fmap (AssVarStatic . snd) triples) a1e1 a1e2)
           _ -> do
-            let Expr loc1 _ = e1
             spanInFile1 <- askSpanInFile loc1
             typeError trav $ NotATupleAtStage1 spanInFile1 a1tye1
       LetOpenIn m e -> do
@@ -1462,12 +2012,11 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             let Expr loc1 _ = e1
             spanInFile1 <- askSpanInFile loc1
             typeError trav $ NotAUnitTypeForStage1 spanInFile1 a1tye1
-      Tuple e1 e2 -> do
+      Tuple es -> do
         case appCtx of
           [] -> do
-            (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
-            (a1tye2, a1e2) <- typecheckExpr1Single trav tyEnv e2
-            pure (Pure (A1TyProduct a1tye1 a1tye2), A1Tuple a1e1 a1e2)
+            pairs <- mapM (typecheckExpr1Single trav tyEnv) es
+            pure (Pure (A1TyProduct (fmap fst pairs)), A1Tuple (fmap snd pairs))
           _ : _ ->
             typeError trav $ CannotApplyTuple spanInFile
       IfThenElse e0 e1 e2 -> do
@@ -1486,6 +2035,14 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             let Expr loc0 _ = e0
             spanInFile0 <- askSpanInFile loc0
             typeError trav $ NotABoolTypeForStage1 spanInFile0 a1tye0
+      Case e0 branches -> do
+        (a1tye0, _a1e0) <- typecheckExpr1Single trav tyEnv e0
+        case appCtx of
+          [] -> do
+            _triples <- mapM (forceBranch1 trav tyEnv a1tye0) branches
+            error "TODO: typecheckExpr1, Case"
+          _ : _ -> do
+            typeError trav $ Stage1CaseRestrictedToEmptyContext spanInFile appCtx
       As e1 tye2 ->
         case appCtx of
           [] -> do
@@ -1510,6 +2067,10 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             )
             result1
         pure (result, A1Escape a0e1)
+      Persistent _ ->
+        typeError trav $ CannotUsePersistent spanInFile
+      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
+        error "TODO (error): typecheckExpr1, invalid syntax"
   where
     completeInferredImplicit pair@(result, a1e) =
       case result of
@@ -1536,7 +2097,7 @@ typecheckLetInBody1 trav tyEnv params tyeBodyOpt e1 =
       let ax = AssVarStatic svX
       pure (A1TyArrow labelOpt a1tye a1tye', A1Lam Nothing (ax, a1tye) a1e')
     ImplicitBinder (_x, tye) : _params' -> do
-      let TypeExpr loc _ = tye -- TODO (enhance): give a better code position
+      let Expr loc _ = tye -- TODO (enhance): give a better code position
       spanInFile <- askSpanInFile loc
       typeError trav $ CannotUseLamImpAtStage1 spanInFile
 
@@ -1551,22 +2112,6 @@ mapMPure f = go
     go (InsertInferred0 a0e r) = InsertInferred0 a0e <$> go r
     go (InsertInferredType0 a0tye r) = InsertInferredType0 a0tye <$> go r
     go (InsertType1 a1tye r) = InsertType1 a1tye <$> go r
-
-validateExprArg0 :: trav -> (IntermediateArgForAss0Type, Span) -> M trav Ass0Expr
-validateExprArg0 trav = \case
-  (IA0ExprArg a0e, _loc) ->
-    pure a0e
-  (IA0TypeArg _a0tye, loc) -> do
-    spanInFile <- askSpanInFile loc
-    typeError trav $ NotAValueArg spanInFile
-
-validateTypeArg0 :: trav -> (IntermediateArgForAss0Type, Span) -> M trav Ass0TypeExpr
-validateTypeArg0 trav = \case
-  (IA0ExprArg _, loc) -> do
-    spanInFile <- askSpanInFile loc
-    typeError trav $ NotATypeArg spanInFile
-  (IA0TypeArg a0tye, _loc) ->
-    pure a0tye
 
 validateIntLiteral :: trav -> Span -> Ass0Expr -> M trav Int
 validateIntLiteral trav loc a0e =
@@ -1592,76 +2137,72 @@ validateIntListLiteral trav loc a0e =
       spanInFile <- askSpanInFile loc
       typeError trav $ NotAnIntListLitArgAtStage0 spanInFile a0e
 
-data IntermediateArgForAss0Type
-  = IA0ExprArg Ass0Expr
-  | IA0TypeArg Ass0TypeExpr
-
 typecheckTypeExpr0 :: trav -> TypeEnv -> TypeExpr -> M trav Ass0TypeExpr
-typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
+typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    TyName tyName args -> do
-      results <-
-        mapM
-          ( \case
-              ExprArgPersistent (Expr loc' _) -> do
-                spanInFile' <- askSpanInFile loc'
-                typeError trav $ CannotUsePersistentArgAtStage0 spanInFile'
-              ExprArgNormal e@(Expr loc' _) -> do
-                (_a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
-                pure (IA0ExprArg a0e, loc')
-              TypeArg tye@(TypeExpr loc' _) -> do
-                a0tye <- typecheckTypeExpr0 trav tyEnv tye
-                pure (IA0TypeArg a0tye, loc')
-          )
-          args
-      case (tyName, results) of
-        ("Nat", []) ->
-          pure BuiltIn.tyNat
-        (_, []) ->
-          case validatePrimBaseType tyName of
-            Just tyPrimBase -> pure $ A0TyPrim (A0TyPrimBase tyPrimBase) Nothing
-            Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName 0
-        ("List", [arg]) -> do
-          a0tye <- validateTypeArg0 trav arg
-          pure $ A0TyList a0tye Nothing
-        ("Vec", [arg1@(_, loc1)]) -> do
-          a0e1 <- validateExprArg0 trav arg1
+    Constructor (mods, tyName) ->
+      case mods of
+        [] ->
+          case tyName of
+            "Nat" ->
+              pure BuiltIn.tyNat
+            _ ->
+              case validatePrimBaseType tyName of
+                Just tyPrimBase -> pure $ A0TyPrim (A0TyPrimBase tyPrimBase) Nothing
+                Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName 0
+        _ : _ ->
+          error "TODO (error): type name with module name prefixes"
+    App _ labelOpt _ -> do
+      () <-
+        case labelOpt of
+          Nothing -> pure ()
+          Just _ -> error "TODO (error): labeled type applications"
+      (tyName, args) <- collectArgs trav tyeMain
+      case (tyName, args) of
+        ("List", [arg1]) -> do
+          a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
+          pure $ A0TyList a0tye1 Nothing
+        ("Maybe", [arg1]) -> do
+          a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
+          pure $ A0TyMaybe a0tye1
+        ("Vec", [arg1@(Expr loc1 _)]) -> do
+          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           n1 <- validateIntLiteral trav loc1 a0e1
           pure $ A0TyPrim (a0TyVec n1) Nothing
-        ("Mat", [arg1@(_, loc1), arg2@(_, loc2)]) -> do
-          a0e1 <- validateExprArg0 trav arg1
-          a0e2 <- validateExprArg0 trav arg2
+        ("Mat", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
+          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
+          a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
           n1 <- validateIntLiteral trav loc1 a0e1
           n2 <- validateIntLiteral trav loc2 a0e2
           pure $ A0TyPrim (a0TyMat n1 n2) Nothing
-        ("Tensor", [arg@(_, loc')]) -> do
-          a0e <- validateExprArg0 trav arg
+        ("Tensor", [arg@(Expr loc' _)]) -> do
+          a0e <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
           ns <- validateIntListLiteral trav loc' a0e
           pure $ A0TyPrim (A0TyTensor ns) Nothing
-        ("Dataset", [arg1@(_, loc1), arg2@(_, loc2), arg3@(_, loc3), arg4@(_, loc4)]) -> do
-          a0e1 <- validateExprArg0 trav arg1
-          a0e2 <- validateExprArg0 trav arg2
-          a0e3 <- validateExprArg0 trav arg3
-          a0e4 <- validateExprArg0 trav arg4
+        ("Dataset", [arg1@(Expr loc1 _), arg2@(Expr loc2 _), arg3@(Expr loc3 _), arg4@(Expr loc4 _)]) -> do
+          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
+          a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
+          a0e3 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
+          a0e4 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg4
           numTrain <- validateIntLiteral trav loc1 a0e1
           numTest <- validateIntLiteral trav loc2 a0e2
           image <- validateIntListLiteral trav loc3 a0e3
           label <- validateIntListLiteral trav loc4 a0e4
           let datasetParam = DatasetParam {numTrain, numTest, image, label}
           pure $ A0TyPrim (A0TyDataset datasetParam) Nothing
-        ("Lstm", [arg1@(_, loc1), arg2@(_, loc2)]) -> do
-          a0e1 <- validateExprArg0 trav arg1
-          a0e2 <- validateExprArg0 trav arg2
+        ("Lstm", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
+          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
+          a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
           inputSize <- validateIntLiteral trav loc1 a0e1
           hiddenSize <- validateIntLiteral trav loc2 a0e2
           pure $ A0TyPrim (A0TyLstm inputSize hiddenSize) Nothing
-        ("TextHelper", [arg1@(_, loc1)]) -> do
-          a0e1 <- validateExprArg0 trav arg1
+        ("TextHelper", [arg1@(Expr loc1 _)]) -> do
+          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           labels <- validateIntLiteral trav loc1 a0e1
           pure $ A0TyPrim (A0TyTextHelper labels) Nothing
         _ ->
-          typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName (List.length results)
+          typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName (length args)
     TyVar tyvar -> do
       tyvarEntry <- findTypeVar trav loc tyvar tyEnv
       case tyvarEntry of
@@ -1679,7 +2220,7 @@ typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
       a0tye2 <- typecheckTypeExpr0 trav tyEnv' tye2
       let axOpt = AssVarStatic <$> svXOpt
       pure $ A0TyArrow labelOpt (axOpt, a0tye1) a0tye2
-    TyCode tye1 -> do
+    Bracket tye1 -> do
       a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
       pure $ A0TyCode a1tye1
     TyImpArrow (x, tye1) tye2 -> do
@@ -1719,23 +2260,32 @@ typecheckTypeExpr0 trav tyEnv (TypeExpr loc tyeMain) = do
                   A0Lam Nothing (ax, strictify a0tye1) $
                     A0App (A0App ass0exprAnd (A0App a0ePredForBase (A0Var ax))) a0e2
             _ -> do
-              let TypeExpr loc1 _ = tye1
+              let Expr loc1 _ = tye1
               spanInFile1 <- askSpanInFile loc1
               typeError trav $ InvalidTypeForRefinement spanInFile1 a0tye1
         _ -> do
           let Expr loc2 _ = e2
           spanInFile2 <- askSpanInFile loc2
           typeError trav $ NotABoolTypeForStage0 spanInFile2 a0tye2
-    TyProduct tye1 tye2 -> do
+    Product tye1 rest -> do
       a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
-      a0tye2 <- typecheckTypeExpr0 trav tyEnv tye2
-      pure $ A0TyProduct a0tye1 a0tye2
+      a0tyesRest <-
+        mapM
+          ( \((_locOp, op), tye) ->
+              case op of
+                "*" -> typecheckTypeExpr0 trav tyEnv tye
+                _ -> error "TODO (error): typecheckTypeExpr0, Product, non-`*` op"
+          )
+          rest
+      pure $ A0TyProduct (TwoOrMore.make1 a0tye1 a0tyesRest)
     TyForAll tyvar tye1 -> do
       atyvar <- generateFreshTypeVar tyvar
       a0tye1 <- do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv
         typecheckTypeExpr0 trav tyEnv' tye1
       pure $ A0TyImplicitForAll atyvar a0tye1
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+      error "TODO (error): typecheckTypeExpr0, illegal syntax"
 
 ass0exprAnd :: Ass0Expr
 ass0exprAnd = A0BuiltInName (BuiltInArity2 BIAnd)
@@ -1743,42 +2293,53 @@ ass0exprAnd = A0BuiltInName (BuiltInArity2 BIAnd)
 ass0exprListMap :: Ass0Expr
 ass0exprListMap = A0BuiltInName (BuiltInArity2 BIListMap)
 
-validatePersistentExprArg1 :: trav -> ArgForType -> M trav Expr
-validatePersistentExprArg1 trav = \case
-  ExprArgPersistent e ->
-    pure e
-  ExprArgNormal (Expr loc _) -> do
-    spanInFile <- askSpanInFile loc
-    typeError trav $ CannotUseNormalArgAtStage1 spanInFile
-  TypeArg (TypeExpr loc _) -> do
-    spanInFile <- askSpanInFile loc
-    typeError trav $ NotAValueArg spanInFile
+ass0exprMaybeMap :: Ass0Expr
+ass0exprMaybeMap = error "TODO: ass0exprMaybeMap"
 
-validateTypeArg1 :: trav -> ArgForType -> M trav TypeExpr
-validateTypeArg1 trav = \case
-  ExprArgPersistent (Expr loc _) -> do
-    spanInFile <- askSpanInFile loc
-    typeError trav $ NotATypeArg spanInFile
-  ExprArgNormal (Expr loc _) -> do
-    spanInFile <- askSpanInFile loc
-    typeError trav $ CannotUseNormalArgAtStage1 spanInFile
-  TypeArg tye ->
-    pure tye
+validatePersistentExprArg1 :: trav -> Expr -> M trav Expr
+validatePersistentExprArg1 trav (Expr loc eMain) =
+  case eMain of
+    Persistent e ->
+      pure e
+    _ -> do
+      spanInFile <- askSpanInFile loc
+      typeError trav $ CannotUseNormalArgAtStage1 spanInFile
+
+collectArgs :: trav -> TypeExprMain -> M trav (TypeName, [Expr])
+collectArgs trav = \case
+  App (Expr _ eFunMain) Nothing eArg -> do
+    (tyName, eArgs) <- collectArgs trav eFunMain
+    pure $ (tyName, eArgs ++ [eArg])
+  Constructor ([], tyName) -> do
+    pure (tyName, [])
+  _ ->
+    error "TODO (error): collectArgs"
 
 typecheckTypeExpr1 :: trav -> TypeEnv -> TypeExpr -> M trav Ass1TypeExpr
-typecheckTypeExpr1 trav tyEnv (TypeExpr loc tyeMain) = do
+typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    TyName tyName args -> do
-      case (tyName, args) of
-        (_, []) ->
+    Constructor (mods, tyName) ->
+      case mods of
+        [] ->
           case validatePrimBaseType tyName of
             Just tyPrimBase -> pure $ A1TyPrim (A1TyPrimBase tyPrimBase)
             Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName 0
-        ("List", [arg]) -> do
-          tye <- validateTypeArg1 trav arg
+        _ : _ ->
+          error "TODO (error): type names with module name prefixes"
+    App _ labelOpt _ -> do
+      () <-
+        case labelOpt of
+          Nothing -> pure ()
+          Just _ -> error "TODO (error): labeled type applications"
+      (tyName, args) <- collectArgs trav tyeMain
+      case (tyName, args) of
+        ("List", [tye]) -> do
           a1tye <- typecheckTypeExpr1 trav tyEnv tye
           pure $ A1TyList a1tye
+        ("Maybe", [tye]) -> do
+          a1tye <- typecheckTypeExpr1 trav tyEnv tye
+          pure $ A1TyMaybe a1tye
         ("Vec", [arg]) -> do
           e <- validatePersistentExprArg1 trav arg
           a0e <- forceExpr0 trav tyEnv BuiltIn.tyNat e
@@ -1825,7 +2386,7 @@ typecheckTypeExpr1 trav tyEnv (TypeExpr loc tyeMain) = do
           a0eLabels <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
           pure $ A1TyPrim (A1TyTextHelper a0eLabels)
         _ ->
-          typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (List.length args)
+          typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (length args)
     TyVar _tyvar ->
       typeError trav $ CannotUseTypeVarAtStage1 spanInFile
     TyArrow labelOpt (xOpt, tye1) tye2 -> do
@@ -1838,20 +2399,29 @@ typecheckTypeExpr1 trav tyEnv (TypeExpr loc tyeMain) = do
       pure $ A1TyArrow labelOpt a1tye1 a1tye2
     TyImpArrow _ _ ->
       typeError trav $ CannotUseImpArrowTypeAtStage1 spanInFile
-    TyCode _ -> do
+    Bracket _ -> do
       typeError trav $ CannotUseCodeTypeAtStage1 spanInFile
     TyRefinement _ _ _ -> do
       typeError trav $ CannotUseRefinementTypeAtStage1 spanInFile
-    TyProduct tye1 tye2 -> do
+    Product tye1 rest -> do
       a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
-      a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
-      pure $ A1TyProduct a1tye1 a1tye2
+      a1tyesRest <-
+        mapM
+          ( \((_locOp, op), tye) ->
+              case op of
+                "*" -> typecheckTypeExpr1 trav tyEnv tye
+                _ -> error "TODO (error): typecheckTypeExpr1, Product, non-`*` op"
+          )
+          rest
+      pure $ A1TyProduct (TwoOrMore.make1 a1tye1 a1tyesRest)
     TyForAll tyvar tye1 -> do
       atyvar <- generateFreshTypeVar tyvar
       a1tye1 <- do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv
         typecheckTypeExpr1 trav tyEnv' tye1
       pure $ A1TyImplicitForAll atyvar a1tye1
+    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+      error "TODO (error): typecheckTypeExpr1, illegal syntax"
 
 validatePersistentType :: trav -> Span -> Ass0TypeExpr -> M trav AssPersTypeExpr
 validatePersistentType trav loc a0tye =
@@ -1876,8 +2446,10 @@ validatePersistentType trav loc a0tye =
         case maybePred of
           Nothing -> APersTyList <$> go a0tye'
           Just _ -> Left Nothing
-      A0TyProduct a0tye1 a0tye2 ->
-        APersTyProduct <$> go a0tye1 <*> go a0tye2
+      A0TyMaybe a0tye' ->
+        APersTyMaybe <$> go a0tye'
+      A0TyProduct a0tyes ->
+        APersTyProduct <$> mapM go a0tyes
       A0TyArrow labelOpt (Nothing, a0tye1) a0tye2 -> do
         aPtye1 <- go a0tye1
         aPtye2 <- go a0tye2
@@ -1898,7 +2470,7 @@ validatePersistentType trav loc a0tye =
 
 extractFromExternal :: ExternalField -> External -> Maybe Text
 extractFromExternal field0 =
-  List.firstJust (\(field, s) -> if field == field0 then Just s else Nothing)
+  firstJust (\(field, s) -> if field == field0 then Just s else Nothing)
 
 typecheckBind :: trav -> TypeEnv -> Bind -> M trav (SigRecord, [AssBind])
 typecheckBind trav tyEnv (Bind loc bindMain) =
