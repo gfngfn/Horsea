@@ -70,9 +70,9 @@ data ExprMainF ann
   | As (ExprF ann) (TypeExprF ann)
   | Bracket (ExprF ann)
   | Escape (ExprF ann)
-  | LamImp (Var, TypeExprF ann) (ExprF ann)
-  | AppImpGiven (ExprF ann) (ExprF ann)
-  | AppImpOmitted (ExprF ann)
+  | LamInf (Var, TypeExprF ann) (ExprF ann)
+  | AppInfGiven (ExprF ann) (ExprF ann)
+  | AppInfOmitted (ExprF ann)
   | LetOpenIn Var (ExprF ann)
   | Sequential (ExprF ann) (ExprF ann)
   | Tuple (TwoOrMore (ExprF ann))
@@ -80,14 +80,14 @@ data ExprMainF ann
   | Persistent (ExprF ann)
   | TyVar TypeVar
   | TyArrow (Maybe Text) (Maybe Var, TypeExprF ann) (TypeExprF ann)
-  | TyImpArrow (Var, TypeExprF ann) (TypeExprF ann)
+  | TyInfArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)
   | TyForAll TypeVar (TypeExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 data LamBinderF ann
   = MandatoryBinder (Maybe Label) (Var, TypeExprF ann)
-  | ImplicitBinder (Var, TypeExprF ann)
+  | InferableBinder (Var, TypeExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 data BranchF ann = Branch (PatternF ann) (ExprF ann)

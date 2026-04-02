@@ -1052,7 +1052,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
               pure (result, varSolution, tyvar0Solution)
         (appCtxEntry : appCtx', A0TyInfArrow (x, a0tye1) a0tye2) ->
           case appCtxEntry of
-            AppArgImpGiven0 a0e1' a0tye1' -> do
+            AppArgInfGiven0 a0e1' a0tye1' -> do
               (cast, varSolution1, tyvar0Solution1) <-
                 makeAssertiveCast trav loc varsToInfer tyvars0ToInfer a0tye1' a0tye1
               let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
@@ -1065,7 +1065,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
               let a0tye1s = applySolution0 varSolution tyvar0Solution a0tye1
               let result = CastGiven0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
               pure (result, varSolution, tyvar0Solution)
-            AppArgImpOmitted0 -> do
+            AppArgInfOmitted0 -> do
               (result', varSolution', tyvar0Solution') <-
                 go (Set.insert x varsToInfer) tyvars0ToInfer appCtx' a0tye2
               (a0eInferred, a0tyeInferred) <-
@@ -1347,7 +1347,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A0App a0e1 (applyCast cast a0e2))
           _ -> do
             bug "stage-0, App, fun"
-      LamImp (x1, tye1) e2 -> do
+      LamInf (x1, tye1) e2 -> do
         svX1 <- generateFreshVar (Just x1)
         let ax1 = AssVarStatic svX1
         case appCtx of
@@ -1360,21 +1360,21 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             pure (Pure (A0TyInfArrow (ax1, a0tye1) a0tye2), A0Lam Nothing (ax1, sa0tye1) a0e2)
           _ : _ ->
             -- TODO: consider supporting lambda abstractions with direct arguments
-            typeError trav $ Unsupported spanInFile $ LamImpWithArguments appCtx
-      AppImpGiven e1 e2 -> do
+            typeError trav $ Unsupported spanInFile $ LamInfWithArguments appCtx
+      AppInfGiven e1 e2 -> do
         (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
-        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgImpGiven0 a0e2 a0tye2 : appCtx) e1
+        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgInfGiven0 a0e2 a0tye2 : appCtx) e1
         case result1 of
           CastGiven0 cast _a0tye11 result -> do
-            logImplicitArg $ LogGivenArg spanInFile a0e2
+            logInferableArg $ LogGivenArg spanInFile a0e2
             pure (result, A0App a0e1 (applyCast cast a0e2))
           _ -> do
             bug "stage-0, AppImpGiven, not a CastGiven0"
-      AppImpOmitted e1 -> do
-        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgImpOmitted0 : appCtx) e1
+      AppInfOmitted e1 -> do
+        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgInfOmitted0 : appCtx) e1
         case result1 of
           FillInferred0 a0eInferred result -> do
-            logImplicitArg $ LogInferredArg spanInFile a0eInferred
+            logInferableArg $ LogInferredArg spanInFile a0eInferred
             pure (result, A0App a0e1 a0eInferred)
           _ -> do
             bug "stage-0, AppImpOmitted, not a FillInferred0"
@@ -1395,7 +1395,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           case params of
             MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->
               pure (labelOpt', x0', tyeParam0', paramsRest')
-            ImplicitBinder _ : _ ->
+            InferableBinder _ : _ ->
               typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             [] ->
               typeError trav $ LetRecRequiresNonEmptyParams spanInFile
@@ -1515,7 +1515,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         typeError trav $ CannotUseEscapeAtStage0 spanInFile
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
-      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
+      (TyVar {}; TyArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr0, illegal syntax"
   where
     completeInferredImplicit spanInFile = go
@@ -1523,7 +1523,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         go pair@(result, a0e) =
           case result of
             InsertInferred0 a0eInferred result' -> do
-              logImplicitArg $ LogInferredArg spanInFile a0eInferred
+              logInferableArg $ LogInferredArg spanInFile a0eInferred
               go (result', A0App a0e a0eInferred)
             InsertInferredType0 a0tyeInferred result' ->
               go (result', A0AppType a0e (strictify a0tyeInferred))
@@ -1633,7 +1633,7 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
               let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
               let f1 = f0 . A0TyArrow labelOpt (Just ax, a0tye)
               pure (tyEnv1, f1)
-            ImplicitBinder (x, tye) -> do
+            InferableBinder (x, tye) -> do
               svX <- generateFreshVar (Just x)
               let ax = AssVarStatic svX
               a0tye <- typecheckTypeExpr0 trav tyEnv0 tye
@@ -1656,8 +1656,8 @@ constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
           MandatoryBinder labelOpt (_x, tye) -> do
             a0tye <- typecheckTypeExpr1 trav tyEnv tye
             pure $ A1TyArrow labelOpt a0tye a0tyeAcc
-          ImplicitBinder (_x, _tye) ->
-            typeError trav $ CannotUseLamImpAtStage1 spanInFile
+          InferableBinder (_x, _tye) ->
+            typeError trav $ CannotUseLamInfAtStage1 spanInFile
     )
     a0tyeBody
     params
@@ -1719,7 +1719,7 @@ typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A0TyArrow labelOpt (Just ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
-    ImplicitBinder (x, tye) : params' -> do
+    InferableBinder (x, tye) : params' -> do
       a0tye <- typecheckTypeExpr0 trav tyEnv tye
       svX <- generateFreshVar (Just x)
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
@@ -1917,12 +1917,12 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A1App a1e1 (applyCast1 cast a1e2))
           _ ->
             bug "stage-1, App, fun, not a Cast1"
-      LamImp _ _ ->
-        typeError trav $ CannotUseLamImpAtStage1 spanInFile
-      AppImpGiven _ _ ->
-        typeError trav $ CannotUseAppImpGivenAtStage1 spanInFile
-      AppImpOmitted _ ->
-        typeError trav $ CannotUseAppImpOmittedAtStage1 spanInFile
+      LamInf _ _ ->
+        typeError trav $ CannotUseLamInfAtStage1 spanInFile
+      AppInfGiven _ _ ->
+        typeError trav $ CannotUseAppInfGivenAtStage1 spanInFile
+      AppInfOmitted _ ->
+        typeError trav $ CannotUseAppInfOmittedAtStage1 spanInFile
       LetIn x params tyeBodyOpt eBody e2 -> do
         svX <- generateFreshVar (Just x)
         (a1tye1, a1e1) <- typecheckLetInBody1 trav tyEnv params tyeBodyOpt eBody
@@ -1938,7 +1938,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           case params of
             MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->
               pure (labelOpt', x0', tyeParam0', paramsRest')
-            ImplicitBinder _ : _ ->
+            InferableBinder _ : _ ->
               typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             [] ->
               typeError trav $ LetRecRequiresNonEmptyParams spanInFile
@@ -2069,7 +2069,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         pure (result, A1Escape a0e1)
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
-      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
+      (TyVar {}; TyArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr1, invalid syntax"
   where
     completeInferredImplicit pair@(result, a1e) =
@@ -2096,10 +2096,10 @@ typecheckLetInBody1 trav tyEnv params tyeBodyOpt e1 =
       (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A1TyArrow labelOpt a1tye a1tye', A1Lam Nothing (ax, a1tye) a1e')
-    ImplicitBinder (_x, tye) : _params' -> do
+    InferableBinder (_x, tye) : _params' -> do
       let Expr loc _ = tye -- TODO (enhance): give a better code position
       spanInFile <- askSpanInFile loc
-      typeError trav $ CannotUseLamImpAtStage1 spanInFile
+      typeError trav $ CannotUseLamInfAtStage1 spanInFile
 
 mapMPure :: (af StaticVar -> M trav (bf StaticVar)) -> ResultF af StaticVar -> M trav (ResultF bf StaticVar)
 mapMPure f = go
@@ -2223,7 +2223,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
     Bracket tye1 -> do
       a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
       pure $ A0TyCode a1tye1
-    TyImpArrow (x, tye1) tye2 -> do
+    TyInfArrow (x, tye1) tye2 -> do
       a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
       svX <- generateFreshVar (Just x)
       a0tye2 <- do
@@ -2284,7 +2284,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv
         typecheckTypeExpr0 trav tyEnv' tye1
       pure $ A0TyImplicitForAll atyvar a0tye1
-    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
       error "TODO (error): typecheckTypeExpr0, illegal syntax"
 
 ass0exprAnd :: Ass0Expr
@@ -2397,11 +2397,11 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
           Just x -> typeError trav $ FunctionTypeCannotBeDependentAtStage1 spanInFile x
       a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
       pure $ A1TyArrow labelOpt a1tye1 a1tye2
-    TyImpArrow _ _ ->
-      typeError trav $ CannotUseImpArrowTypeAtStage1 spanInFile
-    Bracket _ -> do
+    TyInfArrow {} ->
+      typeError trav $ CannotUseInfArrowTypeAtStage1 spanInFile
+    Bracket {} -> do
       typeError trav $ CannotUseCodeTypeAtStage1 spanInFile
-    TyRefinement _ _ _ -> do
+    TyRefinement {} -> do
       typeError trav $ CannotUseRefinementTypeAtStage1 spanInFile
     Product tye1 rest -> do
       a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
@@ -2420,7 +2420,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv
         typecheckTypeExpr1 trav tyEnv' tye1
       pure $ A1TyImplicitForAll atyvar a1tye1
-    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
       error "TODO (error): typecheckTypeExpr1, illegal syntax"
 
 validatePersistentType :: trav -> Span -> Ass0TypeExpr -> M trav AssPersTypeExpr

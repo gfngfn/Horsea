@@ -57,12 +57,12 @@ stageExpr0Main = \case
     Staged.IfThenElse (stageExpr0 e0) (stageExpr0 e1) (stageExpr0 e2)
   BAs e1 tye2 ->
     Staged.As (stageExpr0 e1) (stageTypeExpr0 tye2)
-  BLamImp (x, tye1) e2 ->
-    Staged.LamImp (x, stageTypeExpr0 tye1) (stageExpr0 e2)
-  BAppImpGiven e1 e2 ->
-    Staged.AppImpGiven (stageExpr0 e1) (stageExpr0 e2)
-  BAppImpOmitted e1 ->
-    Staged.AppImpOmitted (stageExpr0 e1)
+  BLamInf (x, tye1) e2 ->
+    Staged.LamInf (x, stageTypeExpr0 tye1) (stageExpr0 e2)
+  BAppInfGiven e1 e2 ->
+    Staged.AppInfGiven (stageExpr0 e1) (stageExpr0 e2)
+  BAppInfOmitted e1 ->
+    Staged.AppInfOmitted (stageExpr0 e1)
 
 stageExpr1 :: (Show ann) => BCExprF ann -> Staged.ExprF ann
 stageExpr1 (BExpr (btc, ann) exprMain) =
@@ -98,12 +98,12 @@ stageExpr1Main = \case
     Staged.IfThenElse (stageExpr1 e0) (stageExpr1 e1) (stageExpr1 e2)
   BAs e1 tye2 ->
     Staged.As (stageExpr1 e1) (stageTypeExpr1 tye2)
-  BLamImp (_x, _tye1) _e2 ->
-    error "bug: stageExpr1Main, LamImp"
-  BAppImpGiven _e1 _e2 ->
-    error "bug: stageExpr1Main, AppImpGiven"
-  BAppImpOmitted _e1 ->
-    error "bug: stageExpr1Main, AppImpOmitted"
+  BLamInf (_x, _tye1) _e2 ->
+    error "bug: stageExpr1Main, BLamInf"
+  BAppInfGiven _e1 _e2 ->
+    error "bug: stageExpr1Main, BAppInfGiven"
+  BAppInfOmitted _e1 ->
+    error "bug: stageExpr1Main, BAppInfOmitted"
 
 tyCode :: Staged.TypeExprF ann -> Staged.TypeExprMainF ann
 tyCode = Staged.Bracket
@@ -130,8 +130,8 @@ stageTypeExpr0Main = \case
       map stageArgForType0 args
   BTyArrow labelOpt (xOpt, tye1) tye2 ->
     Staged.TyArrow labelOpt (xOpt, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
-  BTyImpArrow (x, tye1) tye2 ->
-    Staged.TyImpArrow (x, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
+  BTyInfArrow (x, tye1) tye2 ->
+    Staged.TyInfArrow (x, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
   BTyRefinement x tye1 e2 ->
     Staged.TyRefinement x (stageTypeExpr0 tye1) (stageExpr0 e2)
   BTyProduct tye1 rest ->
@@ -154,8 +154,8 @@ stageTypeExpr1Main :: (Show ann) => BCTypeExprMainF ann -> Staged.TypeExprMainF 
 stageTypeExpr1Main = \case
   BTyName tyName args -> tyNameWithArgs tyName (map stageArgForType1 args)
   BTyArrow labelOpt (_xOpt, tye1) tye2 -> Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
-  BTyImpArrow (_x, _tye1) _tye2 -> error "bug: stageTypeExpr1Main, TyImpArrow"
-  BTyRefinement _x _tye _e -> error "bug: stageTypeExpr1Main, TyRefinement"
+  BTyInfArrow (_x, _tye1) _tye2 -> error "bug: stageTypeExpr1Main, BTyInfArrow"
+  BTyRefinement _x _tye _e -> error "bug: stageTypeExpr1Main, BTyRefinement"
   BTyProduct tye1 rest ->
     Staged.Product
       (stageTypeExpr1 tye1)

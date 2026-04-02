@@ -110,12 +110,12 @@ makeBinOpApp e1@(Expr loc1 _) (Located locBinOp binOp) e2@(Expr loc2 _) =
 
 data FunArg
   = FunArgMandatory (Maybe (Located Text)) Expr
-  | FunArgOptGiven (Located Expr)
-  | FunArgOptOmitted Span
+  | FunArgInfGiven (Located Expr)
+  | FunArgInfOmitted Span
 
 data DomainSpec
   = DomMandatory (Maybe (Located Text)) (Maybe (Span, Var), TypeExpr)
-  | DomImplicit ((Span, Var), TypeExpr)
+  | DomInferable ((Span, Var), TypeExpr)
 
 expr :: P Expr
 expr = letin
@@ -166,23 +166,23 @@ expr = letin
       where
         arg :: P FunArg
         arg =
-          (FunArgOptOmitted <$> token TokUnderscore)
-            <|> (FunArgOptGiven <$> try (brace expr))
+          (FunArgInfOmitted <$> token TokUnderscore)
+            <|> (FunArgInfGiven <$> try (brace expr))
             <|> (FunArgMandatory . Just <$> label <*> staged)
             <|> (FunArgMandatory Nothing <$> staged)
 
         makeApp :: NonEmpty FunArg -> P Expr
         makeApp (FunArgMandatory Nothing eFun :| args) = pure $ foldl' makeAppSingle eFun args
         makeApp (FunArgMandatory (Just (Located loc lab)) _ :| _) = failure (Located loc (TokLabel lab))
-        makeApp (FunArgOptGiven (Located loc _e) :| _) = failure (Located loc TokLeftBrace)
-        makeApp (FunArgOptOmitted loc :| _) = failure (Located loc TokUnderscore)
+        makeApp (FunArgInfGiven (Located loc _e) :| _) = failure (Located loc TokLeftBrace)
+        makeApp (FunArgInfOmitted loc :| _) = failure (Located loc TokUnderscore)
 
         makeAppSingle :: Expr -> FunArg -> Expr
         makeAppSingle e1@(Expr loc1 _) = \case
           FunArgMandatory Nothing e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 Nothing e2)
           FunArgMandatory (Just (Located _ l)) e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 (Just l) e2)
-          FunArgOptGiven (Located loc2 e2) -> Expr (mergeSpan loc1 loc2) (AppImpGiven e1 e2)
-          FunArgOptOmitted loc2 -> Expr (mergeSpan loc1 loc2) (AppImpOmitted e1)
+          FunArgInfGiven (Located loc2 e2) -> Expr (mergeSpan loc1 loc2) (AppInfGiven e1 e2)
+          FunArgInfOmitted loc2 -> Expr (mergeSpan loc1 loc2) (AppInfOmitted e1)
 
     as :: P Expr
     as =
@@ -250,8 +250,8 @@ expr = letin
                   xOpt = fmap snd varOpt
                   labelOpt = fmap (\(Located _ l) -> l) locLabelOpt
                in Expr (mergeSpan loc1 loc2) (TyArrow labelOpt (xOpt, tye1) tye2)
-            DomImplicit ((loc1, x), tye1) ->
-              Expr (mergeSpan loc1 loc2) (TyImpArrow (x, tye1) tye2)
+            DomInferable ((loc1, x), tye1) ->
+              Expr (mergeSpan loc1 loc2) (TyInfArrow (x, tye1) tye2)
         makeForAll (Located loc1 tyvar) tye@(Expr loc2 _) =
           Expr (mergeSpan loc1 loc2) (TyForAll tyvar tye)
 
@@ -259,7 +259,7 @@ expr = letin
     arrowDom =
       (DomMandatory . Just <$> label <*> mandatoryArrowDom)
         <|> (DomMandatory Nothing <$> mandatoryArrowDom)
-        <|> (DomImplicit <$> implicitArrowDom)
+        <|> (DomInferable <$> implicitArrowDom)
       where
         mandatoryArrowDom :: P (Maybe (Span, Var), TypeExpr)
         mandatoryArrowDom =
@@ -286,7 +286,7 @@ expr = letin
           Expr (mergeSpan locFirst locLast) $
             case xBinder' of
               MandatoryBinder labelOpt xBinder -> Lam Nothing labelOpt xBinder e
-              ImplicitBinder xBinder -> LamImp xBinder e
+              InferableBinder xBinder -> LamInf xBinder e
 
         makeRecLam locFirst fBinder xBinder e@(Expr locLast _) =
           Expr (mergeSpan locFirst locLast) (Lam (Just fBinder) Nothing xBinder e)
@@ -301,7 +301,7 @@ expr = letin
     lamBinder =
       (MandatoryBinder . Just <$> noLoc label <*> mandatoryBinder)
         <|> (MandatoryBinder Nothing <$> mandatoryBinder)
-        <|> (ImplicitBinder <$> implicitBinder)
+        <|> (InferableBinder <$> implicitBinder)
 
     mandatoryBinder, implicitBinder :: P (Var, TypeExpr)
     mandatoryBinder = noLoc (paren ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))

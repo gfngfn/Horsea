@@ -1,8 +1,8 @@
 module Staged.Typechecker.Monad
   ( TypecheckConfig (..),
     TypecheckState (..),
-    ImplicitArgLogF (..),
-    ImplicitArgLog,
+    InferableArgLogF (..),
+    InferableArgLog,
     ShapeAnnotLog (..),
     M,
     M',
@@ -13,7 +13,7 @@ module Staged.Typechecker.Monad
     liftEither,
     typeError,
     mapTypeError,
-    logImplicitArg,
+    logInferableArg,
     logShapeAnnot,
     generateFreshVar,
     generateFreshTypeVar,
@@ -45,16 +45,16 @@ data TypecheckState = TypecheckState
     assVarDisplay :: Map StaticVar Text,
     nextTypeVarIndex :: Int,
     assTypeVarDisplay :: Map AssTypeVar Text,
-    implicitArgLogRev :: [ImplicitArgLog],
+    inferableArgLogRev :: [InferableArgLog],
     shapeAnnotLogRev :: [ShapeAnnotLog]
   }
 
-data ImplicitArgLogF sv
+data InferableArgLogF sv
   = LogGivenArg SpanInFile (Ass0ExprF sv)
   | LogInferredArg SpanInFile (Ass0ExprF sv)
   deriving stock (Functor, Generic)
 
-type ImplicitArgLog = ImplicitArgLogF StaticVar
+type InferableArgLog = InferableArgLogF StaticVar
 
 newtype ShapeAnnotLog = ShapeAnnotLog Span
 
@@ -68,10 +68,10 @@ typeError = raiseError
 mapTypeError :: (err1 -> err2) -> M' err1 trav a -> M' err2 trav a
 mapTypeError = mapError
 
-logImplicitArg :: ImplicitArgLog -> M trav ()
-logImplicitArg impArgLog = do
-  tcState@TypecheckState {implicitArgLogRev} <- getState
-  putState $ tcState {implicitArgLogRev = impArgLog : implicitArgLogRev}
+logInferableArg :: InferableArgLog -> M trav ()
+logInferableArg impArgLog = do
+  tcState@TypecheckState {inferableArgLogRev} <- getState
+  putState $ tcState {inferableArgLogRev = impArgLog : inferableArgLogRev}
 
 logShapeAnnot :: ShapeAnnotLog -> M trav ()
 logShapeAnnot shapeAnnotLog = do

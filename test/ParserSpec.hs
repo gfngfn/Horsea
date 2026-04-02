@@ -134,15 +134,15 @@ spec = do
       parseExpr "let f (x : (n : Int) -> Bool) = x y in f"
         `shouldBe` pure (expr (LetIn "f" [MandatoryBinder Nothing ("x", ty)] Nothing (app (var "x") (var "y")) (var "f")))
     it "parses let-expressions (3)" $ do
-      let params = [ImplicitBinder ("n", tyInt), MandatoryBinder Nothing ("x", tyPersVec (var "n"))]
+      let params = [InferableBinder ("n", tyInt), MandatoryBinder Nothing ("x", tyPersVec (var "n"))]
       parseExpr "let f {n : Int} (x : Vec %n) = g x in f"
         `shouldBe` pure (expr (LetIn "f" params Nothing (app (var "g") (var "x")) (var "f")))
     it "parses let-expressions (4)" $ do
-      let params = [ImplicitBinder ("n", tyInt), MandatoryBinder (Just "foo") ("x", tyPersVec (var "n"))]
+      let params = [InferableBinder ("n", tyInt), MandatoryBinder (Just "foo") ("x", tyPersVec (var "n"))]
       parseExpr "let f {n : Int} #foo (x : Vec %n) = g x in f"
         `shouldBe` pure (expr (LetIn "f" params Nothing (app (var "g") (var "x")) (var "f")))
     it "parses let-expressions (5)" $ do
-      let params = [ImplicitBinder ("n", tyInt), MandatoryBinder (Just "foo") ("x", tyPersVec (var "n"))]
+      let params = [InferableBinder ("n", tyInt), MandatoryBinder (Just "foo") ("x", tyPersVec (var "n"))]
       parseExpr "let f {n : Int} #foo (x : Vec %n) : Bool = g x in f"
         `shouldBe` pure (expr (LetIn "f" params (Just tyBool) (app (var "g") (var "x")) (var "f")))
     it "parses let-open-expressions" $
@@ -216,13 +216,13 @@ spec = do
         `shouldBe` pure (upcast (litVec []) (tyPersVec (var "n")))
     it "parses applications of implicit parameters (1)" $
       parseExpr "x {y}"
-        `shouldBe` pure (appOptGiven (var "x") (var "y"))
+        `shouldBe` pure (appInfGiven (var "x") (var "y"))
     it "parses applications of implicit parameters (2)" $
       parseExpr "x {y} {z}"
-        `shouldBe` pure (appOptGiven (appOptGiven (var "x") (var "y")) (var "z"))
+        `shouldBe` pure (appInfGiven (appInfGiven (var "x") (var "y")) (var "z"))
     it "parses applications of implicit parameters (3)" $
       parseExpr "x {y + 1} {z}"
-        `shouldBe` pure (appOptGiven (appOptGiven (var "x") (add (var "y") (litInt 1))) (var "z"))
+        `shouldBe` pure (appInfGiven (appInfGiven (var "x") (add (var "y") (litInt 1))) (var "z"))
     it "parses sequentials (1)" $
       parseExpr "x += 1; f x"
         `shouldBe` pure (expr (Sequential (app (app (var "+=") (var "x")) (litInt 1)) (app (var "f") (var "x"))))
@@ -289,7 +289,7 @@ spec = do
         `shouldBe` pure (tyDepFun "f" (tyDepFun "n" tyInt tyInt) tyBool)
     it "parses implicit function types" $
       parseTypeExpr "{n : Int} -> Bool"
-        `shouldBe` pure (tyImpFun "n" tyInt tyBool)
+        `shouldBe` pure (tyInfFun "n" tyInt tyBool)
     it "parses dependent function types with labels" $
       parseTypeExpr "#foo (n : Int) -> Bool"
         `shouldBe` pure (tyDepFunWithLabel "foo" "n" tyInt tyBool)
@@ -412,12 +412,12 @@ spec = do
         `shouldBe` pure e
     it "parses applications for implicit parameters (1)" $
       parseExprWithLoc "x {y}"
-        `shouldBe` pure (exprLoc 0 5 $ AppImpGiven (exprLoc 0 1 $ short "x") (exprLoc 3 4 $ short "y"))
+        `shouldBe` pure (exprLoc 0 5 $ AppInfGiven (exprLoc 0 1 $ short "x") (exprLoc 3 4 $ short "y"))
     it "parses applications for implicit parameters (2)" $ do
       let e =
             exprLoc 0 9 $
-              AppImpGiven
-                (exprLoc 0 5 $ AppImpGiven (exprLoc 0 1 $ short "x") (exprLoc 3 4 $ short "y"))
+              AppInfGiven
+                (exprLoc 0 5 $ AppInfGiven (exprLoc 0 1 $ short "x") (exprLoc 3 4 $ short "y"))
                 (exprLoc 7 8 $ short "z")
       parseExprWithLoc "x {y} {z}"
         `shouldBe` pure e

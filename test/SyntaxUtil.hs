@@ -48,8 +48,8 @@ tyNondepFun tye1 tye2 = typ (TyArrow Nothing (Nothing, tye1) tye2)
 tyNondepFunWithLabel :: Label -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
 tyNondepFunWithLabel label tye1 tye2 = typ (TyArrow (Just label) (Nothing, tye1) tye2)
 
-tyImpFun :: Var -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
-tyImpFun x tye1 tye2 = typ (TyImpArrow (x, tye1) tye2)
+tyInfFun :: Var -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
+tyInfFun x tye1 tye2 = typ (TyInfArrow (x, tye1) tye2)
 
 tyRefinement :: Var -> TypeExprVoid -> ExprVoid -> TypeExprVoid
 tyRefinement x tye1 e2 = typ (TyRefinement x tye1 e2)
@@ -96,8 +96,8 @@ app e1 e2 = expr (App e1 Nothing e2)
 appWithLabel :: ExprVoid -> Label -> ExprVoid -> ExprVoid
 appWithLabel e1 label e2 = expr (App e1 (Just label) e2)
 
-appOptGiven :: ExprVoid -> ExprVoid -> ExprVoid
-appOptGiven e1 e2 = expr (AppImpGiven e1 e2)
+appInfGiven :: ExprVoid -> ExprVoid -> ExprVoid
+appInfGiven e1 e2 = expr (AppInfGiven e1 e2)
 
 binOp :: Var -> ExprVoid -> ExprVoid -> ExprVoid
 binOp op e1 = app (app (var op) e1)

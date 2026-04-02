@@ -32,7 +32,7 @@ import Staged.EvalError
 import Staged.SrcSyntax
 import Staged.Syntax
 import Staged.TypeError
-import Staged.Typechecker.Monad (ImplicitArgLogF (..))
+import Staged.Typechecker.Monad (InferableArgLogF (..))
 import Surface.BindingTime.Analyzer qualified as Bta
 import Surface.BindingTime.Core qualified as Bta
 import Surface.BindingTime.Stager qualified as Bta
@@ -141,8 +141,8 @@ dispRecLam req f tyeRec labelOpt x tye1 e2 =
         Nothing -> "λ" <> disp x
         Just label -> "λ" <+> "#" <> disp label <+> disp x
 
-dispLamImp :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> expr -> Doc Ann
-dispLamImp req x tye1 e2 =
+dispLamInf :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> expr -> Doc Ann
+dispLamInf req x tye1 e2 =
   deepenParenWhen (req <= FunDomain) $
     group ("λ{" <> disp x <+> ":" <+> disp tye1 <> "}." <> nest 2 (line <> disp e2))
 
@@ -157,13 +157,13 @@ dispApp req e1 labelOpt e2 =
     doc1 = dispGen FunDomain e1
     doc2 = dispGen Atomic e2
 
-dispAppImpGiven :: (Disp expr) => Associativity -> expr -> expr -> Doc Ann
-dispAppImpGiven req e1 e2 =
+dispAppInfGiven :: (Disp expr) => Associativity -> expr -> expr -> Doc Ann
+dispAppInfGiven req e1 e2 =
   deepenParenWhen (req <= Atomic) $
     group (dispGen FunDomain e1 <> nest 2 (line <> "{" <> disp e2 <> "}"))
 
-dispAppImpOmitted :: (Disp expr) => Associativity -> expr -> Doc Ann
-dispAppImpOmitted req e1 =
+dispAppInfOmitted :: (Disp expr) => Associativity -> expr -> Doc Ann
+dispAppInfOmitted req e1 =
   deepenParenWhen (req <= Atomic) $
     group (dispGen FunDomain e1 <> nest 2 (line <> "_"))
 
@@ -313,8 +313,8 @@ dispNondepArrowType :: (Disp ty) => Associativity -> Maybe Label -> ty -> ty -> 
 dispNondepArrowType req labelOpt =
   dispArrowType req labelOpt (Nothing :: Maybe Text)
 
-dispImpArrowType :: (Disp var, Disp ty1, Disp ty2) => Associativity -> var -> ty1 -> ty2 -> Doc Ann
-dispImpArrowType req x tye1 tye2 =
+dispInfArrowType :: (Disp var, Disp ty1, Disp ty2) => Associativity -> var -> ty1 -> ty2 -> Doc Ann
+dispInfArrowType req x tye1 tye2 =
   deepenParenWhen (req <= FunDomain) $
     group (docDom <> " ->" <> line <> disp tye2)
   where
@@ -427,9 +427,9 @@ instance Disp (ExprMainF ann) where
     Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
     App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
-    LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
-    AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
-    AppImpOmitted e1 -> dispAppImpOmitted req e1
+    LamInf (x, tye1) e2 -> dispLamInf req x tye1 e2
+    AppInfGiven e1 e2 -> dispAppInfGiven req e1 e2
+    AppInfOmitted e1 -> dispAppInfOmitted req e1
     LetIn x params tyeOpt e1 e2 -> dispLetIn req x params tyeOpt e1 e2
     LetRecIn x params tye e1 e2 -> dispLetRecIn req x params tye e1 e2
     LetTupleIn xs e1 e2 -> dispLetTupleIn req xs e1 e2
@@ -444,7 +444,7 @@ instance Disp (ExprMainF ann) where
     Persistent e1 -> dispPersistent e1
     TyVar (TypeVar tyvar) -> "'" <> disp tyvar
     TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
-    TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
+    TyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2
     TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
     Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
     TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
@@ -453,7 +453,7 @@ instance Disp (LamBinderF ann) where
   dispGen _ = \case
     MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
     MandatoryBinder (Just label) (x, tye) -> "(#" <> disp label <+> disp x <+> ":" <+> disp tye <> ")"
-    ImplicitBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
+    InferableBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
 
 instance Disp (BranchF ann) where
   dispGen _ (Branch pat e) = dispBranch pat e
@@ -514,11 +514,11 @@ instance Disp Surface.ExprMain where
     Surface.Tuple es -> dispTuple es
     Surface.IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Surface.As e1 tye2 -> dispAs req e1 tye2
-    Surface.LamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
-    Surface.AppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
-    Surface.AppImpOmitted e1 -> dispAppImpOmitted req e1
+    Surface.LamInf (x, tye1) e2 -> dispLamInf req x tye1 e2
+    Surface.AppInfGiven e1 e2 -> dispAppInfGiven req e1 e2
+    Surface.AppInfOmitted e1 -> dispAppInfOmitted req e1
     Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
-    Surface.TyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
+    Surface.TyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2
     Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Surface.Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
 
@@ -526,7 +526,7 @@ instance Disp Surface.LamBinder where
   dispGen _ = \case
     Surface.MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
     Surface.MandatoryBinder (Just label) (x, tye) -> "#" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
-    Surface.ImplicitBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
+    Surface.InferableBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
 
 instance (Disp sv, Disp (af sv)) => Disp (AssLiteralF af sv) where
   dispGen _ = \case
@@ -638,7 +638,7 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyProduct a0tyes -> dispProductType req a0tyes
     A0TyArrow labelOpt (xOpt, a0tye1) a0tye2 -> dispArrowType req labelOpt xOpt a0tye1 a0tye2
     A0TyCode a1tye1 -> dispBracket a1tye1
-    A0TyInfArrow (x, a0tye1) a0tye2 -> dispImpArrowType req x a0tye1 a0tye2
+    A0TyInfArrow (x, a0tye1) a0tye2 -> dispInfArrowType req x a0tye1 a0tye2
     A0TyOmsArrow (xOpt, a0tye1, a0e0) a0tye2 -> dispOmsArrowType req xOpt a0tye1 a0e0 a0tye2
     A0TyImplicitForAll atyvar a0tye -> dispForAllType req atyvar a0tye
 
@@ -767,17 +767,17 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Cannot use Escape (~) at stage 0" <+> disp spanInFile
     CannotUseBracketAtStage1 spanInFile ->
       "Cannot use Bracket (&) at stage 1" <+> disp spanInFile
-    CannotUseLamImpAtStage1 spanInFile ->
+    CannotUseLamInfAtStage1 spanInFile ->
       "Cannot use function with implicit parameters (fun{...} ->) at stage 1" <+> disp spanInFile
-    CannotUseAppImpGivenAtStage1 spanInFile ->
+    CannotUseAppInfGivenAtStage1 spanInFile ->
       "Cannot use application for implicit parameters (... {...}) at stage 1" <+> disp spanInFile
-    CannotUseAppImpOmittedAtStage1 spanInFile ->
+    CannotUseAppInfOmittedAtStage1 spanInFile ->
       "Cannot use application for implicit parameters (... _) at stage 1" <+> disp spanInFile
     FunctionTypeCannotBeDependentAtStage1 spanInFile x ->
       "Function types cannot be dependent at stage 1:" <+> disp x <+> disp spanInFile
     CannotUseCodeTypeAtStage1 spanInFile ->
       "Cannot use code types at stage 1" <+> disp spanInFile
-    CannotUseImpArrowTypeAtStage1 spanInFile ->
+    CannotUseInfArrowTypeAtStage1 spanInFile ->
       "Cannot use implicit function types at stage 1" <+> disp spanInFile
     CannotUseRefinementTypeAtStage1 spanInFile ->
       "Cannot use refinement types at stage 1" <+> disp spanInFile
@@ -978,7 +978,7 @@ instance (Disp sv) => Disp (UnsupportedF sv) where
         <> hardline
         <+> "application context:"
         <> nest 2 (hardline <> disps appCtx)
-    LamImpWithArguments appCtx ->
+    LamInfWithArguments appCtx ->
       "Lambda abstraction for an implicit parameter directly applied to argument(s); consider using let-expressions"
         <> hardline
         <+> "application context:"
@@ -994,8 +994,8 @@ instance (Disp sv) => Disp (AppContextEntryF sv) where
     AppArg0 (Just label) a0e a0tye -> "#" <> disp label <+> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye)
     AppArg1 Nothing a1tye -> stage1Style (disp a1tye)
     AppArg1 (Just label) a1tye -> "#" <> disp label <+> stage1Style (disp a1tye)
-    AppArgImpGiven0 a0e a0tye -> "{" <> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye) <> "}"
-    AppArgImpOmitted0 -> "_"
+    AppArgInfGiven0 a0e a0tye -> "{" <> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye) <> "}"
+    AppArgInfOmitted0 -> "_"
 
 instance (Disp sv, Disp (af sv)) => Disp (ResultF af sv) where
   dispGen _ = \case
@@ -1165,7 +1165,7 @@ instance Disp SpanInFile where
       indentation = disp (replicate (startColumn - 1) ' ')
       hats = disp (replicate (endColumn - startColumn) '^')
 
-instance (Disp sv) => Disp (ImplicitArgLogF sv) where
+instance (Disp sv) => Disp (InferableArgLogF sv) where
   dispGen _ = \case
     LogGivenArg spanInFile a0e ->
       "- given" <+> disp spanInFile <> nest 4 (hardline <> stage0Style (disp a0e))
@@ -1324,7 +1324,7 @@ instance (Disp bt, Disp tv) => Disp (Bta.BITypeMainF bt tv) where
       deepenParenWhen (req <= Atomic) (foldl1 appendWithAsterisk (fmap (dispGen Atomic) bts))
     Bta.BITyArrow bt1 bt2 ->
       deepenParenWhen (req <= Atomic) (dispGen Atomic bt1 <+> "->" <+> dispGen Atomic bt2)
-    Bta.BITyImpArrow bt1 bt2 ->
+    Bta.BITyInfArrow bt1 bt2 ->
       deepenParenWhen (req <= Atomic) ("{" <> dispGen Atomic bt1 <> "} ->" <+> dispGen Atomic bt2)
 
 dispWithBindingTime :: (Disp exprMain) => Bta.BindingTimeConst -> exprMain -> Doc Ann
@@ -1355,9 +1355,9 @@ instance Disp (Bta.BCExprMainF ann) where
     Bta.BTuple es -> dispTuple es
     Bta.BIfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Bta.BAs e1 tye2 -> dispAs req e1 tye2
-    Bta.BLamImp (x, tye1) e2 -> dispLamImp req x tye1 e2
-    Bta.BAppImpGiven e1 e2 -> dispAppImpGiven req e1 e2
-    Bta.BAppImpOmitted e1 -> dispAppImpOmitted req e1
+    Bta.BLamInf (x, tye1) e2 -> dispLamInf req x tye1 e2
+    Bta.BAppInfGiven e1 e2 -> dispAppInfGiven req e1 e2
+    Bta.BAppInfOmitted e1 -> dispAppInfOmitted req e1
 
 instance Disp (Bta.BCTypeExprF ann) where
   dispGen _ (Bta.BTypeExpr (btc, _ann) typeExprMain) =
@@ -1367,7 +1367,7 @@ instance Disp (Bta.BCTypeExprMainF ann) where
   dispGen req = \case
     Bta.BTyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
     Bta.BTyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
-    Bta.BTyImpArrow (x, tye1) tye2 -> dispImpArrowType req x tye1 tye2
+    Bta.BTyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2
     Bta.BTyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Bta.BTyProduct tye1 rest -> dispProduct req tye1 (fmap (first (const "*")) rest)
 
