@@ -90,6 +90,7 @@ data ExprMainF ann
 
 data LamBinderF ann
   = MandatoryBinder (Maybe Label) (Var, TypeExprF ann)
+  | OmissibleBinder Label (Var, TypeExprF ann)
   | InferableBinder (Var, TypeExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 

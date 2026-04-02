@@ -208,7 +208,7 @@ data Ass0TypeExprF sv
   | A0TyProduct (TwoOrMore (Ass0TypeExprF sv))
   | -- | (Possibly dependent) function types.
     A0TyArrow (Maybe Label) (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
-  | -- | Function types with an implicit parameter.
+  | -- | Function types with an inferable parameter.
     A0TyInfArrow (AssVarF sv, Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | -- | Function types with an omissible parameter.
     A0TyOmsArrow Label (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)

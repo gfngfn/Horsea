@@ -409,9 +409,9 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       constraintsEq <- makeConstraintsFromBITypeEquation trav ann bity1 bity2
       let constraints = constraints1 ++ constraints2 ++ constraintsEq ++ [CLeq ann bt bt1, CLeq ann bt bt2]
       pure (BExpr (bt, ann) (BAs e1' btye2'), bity2, constraints)
-    LamOms {} -> do
+    LamOms _label (_x1opt, _tye1) _e2 -> do
       error "TODO: extractConstraintsFromExpr, LamOms"
-    AppOms {} -> do
+    AppOms _e1 _label _e2 -> do
       error "TODO: extractConstraintsFromExpr, AppOms"
     LamInf (x1, btye1) e2 -> do
       (btye1', bity1, constraints1) <- extractConstraintsFromTypeExpr trav btenv btye1
@@ -538,6 +538,10 @@ makeConstraintsFromBITypeEquation trav ann bity1' bity2' = go bity1' bity2'
                   spanInFile <- askSpanInFile ann
                   analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
             (BITyArrow bity11 bity12, BITyArrow bity21 bity22) -> do
+              constraints1 <- go bity11 bity21
+              constraints2 <- go bity12 bity22
+              pure $ constraints1 ++ constraints2
+            (BITyOmsArrow bity11 bity12, BITyOmsArrow bity21 bity22) -> do
               constraints1 <- go bity11 bity21
               constraints2 <- go bity12 bity22
               pure $ constraints1 ++ constraints2
