@@ -131,6 +131,7 @@ enhanceBIType enhBt enhBitv (BIType bt bityMain) =
       BITyBase bityBaseArgs -> BITyBase (map fBIType bityBaseArgs)
       BITyProduct bitys -> BITyProduct (fmap fBIType bitys)
       BITyArrow bity1 bity2 -> BITyArrow (fBIType bity1) (fBIType bity2)
+      BITyOmsArrow bity1 bity2 -> BITyOmsArrow (fBIType bity1) (fBIType bity2)
       BITyInfArrow bity1 bity2 -> BITyInfArrow (fBIType bity1) (fBIType bity2)
   where
     fBIType = enhanceBIType enhBt enhBitv
@@ -472,6 +473,7 @@ occurs bitv = goMain
       BITyBase bitys -> any go bitys
       BITyProduct bitys -> any go bitys
       BITyArrow bity1 bity2 -> go bity1 || go bity2
+      BITyOmsArrow bity1 bity2 -> go bity1 || go bity2
       BITyInfArrow bity1 bity2 -> go bity1 || go bity2
     go (BIType _bt bityMain) =
       goMain bityMain
@@ -633,8 +635,20 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
           let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
           let tye' = BTypeExpr (bt, ann) (BTyArrow labelOpt (Just x1, tye1') tye2')
           pure (tye', BIType bt (BITyArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
-    TyOmsArrow _label (_xOpt1, _tye1) _tye2 -> do
-      error "TODO: extractConstraintsFromTypeExpr, TyOmsArrow"
+    TyOmsArrow label (x1opt, tye1) tye2 -> do
+      (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
+      case x1opt of
+        Nothing -> do
+          (tye2', bity2@(BIType bt2 _), constraints2) <- extractConstraintsFromTypeExpr trav btenv tye2
+          let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
+          let tye' = BTypeExpr (bt, ann) (BTyOmsArrow label (Nothing, tye1') tye2')
+          pure (tye', BIType bt (BITyArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
+        Just x1 -> do
+          (tye2', bity2@(BIType bt2 _), constraints2) <-
+            extractConstraintsFromTypeExpr trav (Map.insert x1 (EntryLocallyBound bt bity1) btenv) tye2
+          let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
+          let tye' = BTypeExpr (bt, ann) (BTyOmsArrow label (Just x1, tye1') tye2')
+          pure (tye', BIType bt (BITyOmsArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
     TyInfArrow (x1, tye1) tye2 -> do
       (tye1', bity1, constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
       (tye2', bity2, constraints2) <-

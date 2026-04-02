@@ -72,6 +72,7 @@ data BITypeMainF bt tv
   | BITyBase [BITypeF bt tv]
   | BITyProduct (TwoOrMore (BITypeF bt tv))
   | BITyArrow (BITypeF bt tv) (BITypeF bt tv)
+  | BITyOmsArrow (BITypeF bt tv) (BITypeF bt tv)
   | BITyInfArrow (BITypeF bt tv) (BITypeF bt tv)
   deriving stock (Functor, Show)
 
@@ -116,6 +117,7 @@ data BTypeExprF ann bt = BTypeExpr (bt, ann) (BTypeExprMainF ann bt)
 data BTypeExprMainF ann bt
   = BTyName TypeName [BArgForTypeF ann bt]
   | BTyArrow (Maybe Label) (Maybe Var, BTypeExprF ann bt) (BTypeExprF ann bt)
+  | BTyOmsArrow Label (Maybe Var, BTypeExprF ann bt) (BTypeExprF ann bt)
   | BTyInfArrow (Var, BTypeExprF ann bt) (BTypeExprF ann bt)
   | BTyRefinement Var (BTypeExprF ann bt) (BExprF ann bt)
   | BTyProduct (BTypeExprF ann bt) (NonEmpty (ann, BTypeExprF ann bt))

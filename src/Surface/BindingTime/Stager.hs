@@ -130,6 +130,8 @@ stageTypeExpr0Main = \case
       map stageArgForType0 args
   BTyArrow labelOpt (xOpt, tye1) tye2 ->
     Staged.TyArrow labelOpt (xOpt, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
+  BTyOmsArrow label (xOpt, tye1) tye2 ->
+    Staged.TyOmsArrow label (xOpt, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
   BTyInfArrow (x, tye1) tye2 ->
     Staged.TyInfArrow (x, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
   BTyRefinement x tye1 e2 ->
@@ -152,10 +154,16 @@ stageTypeExpr1 (BTypeExpr (btc, ann) typeExprMain) =
 
 stageTypeExpr1Main :: (Show ann) => BCTypeExprMainF ann -> Staged.TypeExprMainF ann
 stageTypeExpr1Main = \case
-  BTyName tyName args -> tyNameWithArgs tyName (map stageArgForType1 args)
-  BTyArrow labelOpt (_xOpt, tye1) tye2 -> Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
-  BTyInfArrow (_x, _tye1) _tye2 -> error "bug: stageTypeExpr1Main, BTyInfArrow"
-  BTyRefinement _x _tye _e -> error "bug: stageTypeExpr1Main, BTyRefinement"
+  BTyName tyName args ->
+    tyNameWithArgs tyName (map stageArgForType1 args)
+  BTyArrow labelOpt (_xOpt, tye1) tye2 ->
+    Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
+  BTyOmsArrow label (_xOpt, tye1) tye2 ->
+    Staged.TyOmsArrow label (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
+  BTyInfArrow (_x, _tye1) _tye2 ->
+    error "bug: stageTypeExpr1Main, BTyInfArrow"
+  BTyRefinement _x _tye _e ->
+    error "bug: stageTypeExpr1Main, BTyRefinement"
   BTyProduct tye1 rest ->
     Staged.Product
       (stageTypeExpr1 tye1)

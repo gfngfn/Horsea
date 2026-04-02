@@ -1344,6 +1344,8 @@ instance (Disp bt, Disp tv) => Disp (Bta.BITypeMainF bt tv) where
       deepenParenWhen (req <= Atomic) (foldl1 appendWithAsterisk (fmap (dispGen Atomic) bts))
     Bta.BITyArrow bt1 bt2 ->
       deepenParenWhen (req <= Atomic) (dispGen Atomic bt1 <+> "->" <+> dispGen Atomic bt2)
+    Bta.BITyOmsArrow bt1 bt2 ->
+      deepenParenWhen (req <= Atomic) ("?(" <> dispGen Atomic bt1 <> ") ->" <+> dispGen Atomic bt2)
     Bta.BITyInfArrow bt1 bt2 ->
       deepenParenWhen (req <= Atomic) ("{" <> dispGen Atomic bt1 <> "} ->" <+> dispGen Atomic bt2)
 
@@ -1387,6 +1389,7 @@ instance Disp (Bta.BCTypeExprMainF ann) where
   dispGen req = \case
     Bta.BTyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
     Bta.BTyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
+    Bta.BTyOmsArrow label (xOpt, tye1) tye2 -> dispOmsArrowType req label xOpt tye1 tye2
     Bta.BTyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2
     Bta.BTyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Bta.BTyProduct tye1 rest -> dispProduct req tye1 (fmap (first (const "*")) rest)
