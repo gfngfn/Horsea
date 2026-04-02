@@ -44,7 +44,8 @@ data Token
   | TokLower Text
   | TokUpper Text
   | TokLongLower ([Text], Text)
-  | TokLabel Text
+  | TokLabelNormal Text
+  | TokLabelOmissible Text
   | TokTypeVar Text
   | TokInt Int
   | TokFloat Double
@@ -107,7 +108,8 @@ showToken = \case
   TokLower lower -> Text.unpack lower
   TokUpper upper -> Text.unpack upper
   TokLongLower (mods, lower) -> Text.unpack (Text.intercalate "." mods <> lower)
-  TokLabel label -> "#" ++ Text.unpack label
+  TokLabelNormal label -> "#" ++ Text.unpack label
+  TokLabelOmissible label -> "?" ++ Text.unpack label
   TokTypeVar a -> '\'' : Text.unpack a
   TokInt n -> show n
   TokFloat r -> show r
@@ -206,8 +208,10 @@ token =
       Mp.try (TokOpOr <$> operatorLong '|'),
       TokBar <$ Mp.single '|',
       -- `#`:
-      Mp.try (TokLabel <$> (Mp.single '#' *> lowerIdent)),
+      Mp.try (TokLabelNormal <$> (Mp.single '#' *> lowerIdent)),
       TokMatRight <$ Mp.chunk "#]",
+      -- `?`:
+      TokLabelOmissible <$> (Mp.single '?' *> lowerIdent),
       -- `*`:
       Mp.try (TokOpMult <$> operatorLong '*'),
       TokProd <$ Mp.single '*',

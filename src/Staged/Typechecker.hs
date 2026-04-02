@@ -268,6 +268,8 @@ makeAssertiveCast trav loc =
                   (applySolution0 varSolutionCod tyvar0Solution <$> castDom)
                   castCod
               pure (cast, varSolution, tyvar0Solution)
+        (A0TyOmsArrow {}, A0TyOmsArrow {}) -> do
+          error "TODO: makeAssertiveCast, A0TyOmsArrow"
         (A0TyInfArrow (x1, a0tye11) a0tye12, A0TyInfArrow (x2, a0tye21) a0tye22withX2) -> do
           (castDom, varSolutionDom, tyvar0SolutionDom) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
           let (x, a0tye22) = (x1, subst0 (A0Var x1) x2 a0tye22withX2)
@@ -289,10 +291,6 @@ makeAssertiveCast trav loc =
               (applySolution0 varSolutionCod tyvar0SolutionCod <$> castDom)
               castCod
           pure (cast, varSolution, tyvar0Solution)
-        (A0TyOmsArrow _ _, _) -> do
-          typeError trav $ Unsupported spanInFile $ HigherOrderUseOfFunWithOms0 a0tye1
-        (_, A0TyOmsArrow _ _) -> do
-          typeError trav $ Unsupported spanInFile $ HigherOrderUseOfFunWithOms0 a0tye2
         (A0TyCode a1tye1, A0TyCode a1tye2) -> do
           (eq, varSolution, _tyvar1Solution) <- makeEquation1 trav loc varsToInfer Set.empty a1tye1 a1tye2
           let tyvar0Solution = Map.empty
@@ -1515,7 +1513,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         typeError trav $ CannotUseEscapeAtStage0 spanInFile
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
-      (TyVar {}; TyArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
+      (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr0, illegal syntax"
   where
     completeInferredImplicit spanInFile = go
@@ -2069,7 +2067,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         pure (result, A1Escape a0e1)
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
-      (TyVar {}; TyArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
+      (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr1, invalid syntax"
   where
     completeInferredImplicit pair@(result, a1e) =
@@ -2223,6 +2221,18 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
     Bracket tye1 -> do
       a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
       pure $ A0TyCode a1tye1
+    TyOmsArrow label (xOpt, tye1) tye2 -> do
+      a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
+      (tyEnv', svXOpt) <-
+        case xOpt of
+          Just x -> do
+            svX <- generateFreshVar (Just x)
+            pure (TypeEnv.addVal x (Ass0Entry a0tye1 (Right svX)) tyEnv, Just svX)
+          Nothing ->
+            pure (tyEnv, Nothing)
+      a0tye2 <- typecheckTypeExpr0 trav tyEnv' tye2
+      let axOpt = AssVarStatic <$> svXOpt
+      pure $ A0TyOmsArrow label (axOpt, a0tye1) a0tye2
     TyInfArrow (x, tye1) tye2 -> do
       a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
       svX <- generateFreshVar (Just x)
@@ -2397,6 +2407,8 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
           Just x -> typeError trav $ FunctionTypeCannotBeDependentAtStage1 spanInFile x
       a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
       pure $ A1TyArrow labelOpt a1tye1 a1tye2
+    TyOmsArrow {} ->
+      error "TODO: typecheckTypeExpr1, TyOmsArrow"
     TyInfArrow {} ->
       typeError trav $ CannotUseInfArrowTypeAtStage1 spanInFile
     Bracket {} -> do
@@ -2458,9 +2470,9 @@ validatePersistentType trav loc a0tye =
         Left Nothing
       A0TyInfArrow (_x, _a0tye1) _a0tye2 -> do
         Left Nothing
-      A0TyOmsArrow (Nothing, _a0tye1, _a0e1) _a0tye2 -> do
+      A0TyOmsArrow _label (Nothing, _a0tye1) _a0tye2 -> do
         Left (Just PersistentFunWithOms)
-      A0TyOmsArrow (Just _, _a0tye1, _a0e1) _a0tye2 -> do
+      A0TyOmsArrow _label (Just _, _a0tye1) _a0tye2 -> do
         Left Nothing
       A0TyCode _ ->
         Left Nothing

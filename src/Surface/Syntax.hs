@@ -54,6 +54,7 @@ data ExprMainF ann
   | AppInfGiven (ExprF ann) (ExprF ann)
   | AppInfOmitted (ExprF ann)
   | TyArrow (Maybe Label) (Maybe Var, TypeExprF ann) (TypeExprF ann)
+  | TyOmsArrow Text (Maybe Var, TypeExprF ann) (TypeExprF ann)
   | TyInfArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)
   | Product (TypeExprF ann) (NonEmpty ((ann, Var), TypeExprF ann))

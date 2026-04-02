@@ -297,7 +297,7 @@ dispProductType req tyes =
 dispArrowType :: (Disp var, Disp ty1, Disp ty2) => Associativity -> Maybe Label -> Maybe var -> ty1 -> ty2 -> Doc Ann
 dispArrowType req labelOpt xOpt tye1 tye2 =
   deepenParenWhen (req <= FunDomain) $
-    group (docDom <> " ->" <> line <> disp tye2)
+    group (docDom <+> "->" <> line <> disp tye2)
   where
     docDom =
       case labelOpt of
@@ -316,19 +316,19 @@ dispNondepArrowType req labelOpt =
 dispInfArrowType :: (Disp var, Disp ty1, Disp ty2) => Associativity -> var -> ty1 -> ty2 -> Doc Ann
 dispInfArrowType req x tye1 tye2 =
   deepenParenWhen (req <= FunDomain) $
-    group (docDom <> " ->" <> line <> disp tye2)
+    group (docDom <+> "->" <> line <> disp tye2)
   where
     docDom = "{" <> disp x <+> ":" <+> disp tye1 <> "}"
 
-dispOmsArrowType :: (Disp var, Disp ty1, Disp expr, Disp ty2) => Associativity -> Maybe var -> ty1 -> expr -> ty2 -> Doc Ann
-dispOmsArrowType req xOpt tye1 e0 tye2 =
+dispOmsArrowType :: (Disp var, Disp ty) => Associativity -> Text -> Maybe var -> ty -> ty -> Doc Ann
+dispOmsArrowType req label xOpt tye1 tye2 =
   deepenParenWhen (req <= FunDomain) $
-    group (docDom <> " ->" <> line <> disp tye2)
+    group ("?" <> disp label <+> docDom <+> "->" <> line <> disp tye2)
   where
     docDom =
       case xOpt of
-        Just x -> "{" <> disp x <+> ":" <+> disp tye1 <+> "default" <+> disp e0 <> "}"
-        Nothing -> "{" <> disp tye1 <+> "default" <+> disp e0 <> "}"
+        Just x -> "(" <> disp x <+> ":" <+> disp tye1 <+> "}"
+        Nothing -> disp tye1
 
 dispRefinementType :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> expr -> Doc Ann
 dispRefinementType _req x tye eProp =
@@ -444,6 +444,7 @@ instance Disp (ExprMainF ann) where
     Persistent e1 -> dispPersistent e1
     TyVar (TypeVar tyvar) -> "'" <> disp tyvar
     TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
+    TyOmsArrow label (xOpt, tye1) tye2 -> dispOmsArrowType req label xOpt tye1 tye2
     TyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2
     TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
     Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
@@ -518,6 +519,7 @@ instance Disp Surface.ExprMain where
     Surface.AppInfGiven e1 e2 -> dispAppInfGiven req e1 e2
     Surface.AppInfOmitted e1 -> dispAppInfOmitted req e1
     Surface.TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
+    Surface.TyOmsArrow label (xOpt, tye1) tye2 -> dispOmsArrowType req label xOpt tye1 tye2
     Surface.TyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2
     Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Surface.Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
@@ -639,7 +641,7 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyArrow labelOpt (xOpt, a0tye1) a0tye2 -> dispArrowType req labelOpt xOpt a0tye1 a0tye2
     A0TyCode a1tye1 -> dispBracket a1tye1
     A0TyInfArrow (x, a0tye1) a0tye2 -> dispInfArrowType req x a0tye1 a0tye2
-    A0TyOmsArrow (xOpt, a0tye1, a0e0) a0tye2 -> dispOmsArrowType req xOpt a0tye1 a0e0 a0tye2
+    A0TyOmsArrow label (xOpt, a0tye1) a0tye2 -> dispOmsArrowType req label xOpt a0tye1 a0tye2
     A0TyImplicitForAll atyvar a0tye -> dispForAllType req atyvar a0tye
 
 instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
@@ -985,8 +987,6 @@ instance (Disp sv) => Disp (UnsupportedF sv) where
         <> nest 2 (hardline <> disps appCtx)
     PersistentFunWithOms ->
       "persistent function with an omissible parameter"
-    HigherOrderUseOfFunWithOms0 a0tye ->
-      "higher-order use of function with an omissible parameter:" <+> stage0Style (disp a0tye)
 
 instance (Disp sv) => Disp (AppContextEntryF sv) where
   dispGen _ = \case

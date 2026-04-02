@@ -42,8 +42,11 @@ lower = expectToken (^? #_TokLower)
 upper :: P (Located Text)
 upper = expectToken (^? #_TokUpper)
 
-label :: P (Located Text)
-label = expectToken (^? #_TokLabel)
+labelNormal :: P (Located Text)
+labelNormal = expectToken (^? #_TokLabelNormal)
+
+labelOmissible :: P (Located Text)
+labelOmissible = expectToken (^? #_TokLabelOmissible)
 
 longOrShortLower :: P (Located ([Text], Text))
 longOrShortLower =
@@ -115,6 +118,7 @@ data FunArg
 
 data DomainSpec
   = DomMandatory (Maybe (Located Text)) (Maybe (Span, Var), TypeExpr)
+  | DomOmissible (Located Text) (Maybe (Span, Var), TypeExpr)
   | DomInferable ((Span, Var), TypeExpr)
 
 expr :: P Expr
@@ -168,12 +172,11 @@ expr = letin
         arg =
           (FunArgInfOmitted <$> token TokUnderscore)
             <|> (FunArgInfGiven <$> try (brace expr))
-            <|> (FunArgMandatory . Just <$> label <*> staged)
-            <|> (FunArgMandatory Nothing <$> staged)
+            <|> (FunArgMandatory <$> optional labelNormal <*> staged)
 
         makeApp :: NonEmpty FunArg -> P Expr
         makeApp (FunArgMandatory Nothing eFun :| args) = pure $ foldl' makeAppSingle eFun args
-        makeApp (FunArgMandatory (Just (Located loc lab)) _ :| _) = failure (Located loc (TokLabel lab))
+        makeApp (FunArgMandatory (Just (Located loc lab)) _ :| _) = failure (Located loc (TokLabelNormal lab))
         makeApp (FunArgInfGiven (Located loc _e) :| _) = failure (Located loc TokLeftBrace)
         makeApp (FunArgInfOmitted loc :| _) = failure (Located loc TokUnderscore)
 
@@ -250,6 +253,8 @@ expr = letin
                   xOpt = fmap snd varOpt
                   labelOpt = fmap (\(Located _ l) -> l) locLabelOpt
                in Expr (mergeSpan loc1 loc2) (TyArrow labelOpt (xOpt, tye1) tye2)
+            DomOmissible (Located loc1 label) (varOpt, tye1) ->
+              Expr (mergeSpan loc1 loc2) (TyOmsArrow label (fmap snd varOpt, tye1) tye2)
             DomInferable ((loc1, x), tye1) ->
               Expr (mergeSpan loc1 loc2) (TyInfArrow (x, tye1) tye2)
         makeForAll (Located loc1 tyvar) tye@(Expr loc2 _) =
@@ -257,7 +262,8 @@ expr = letin
 
     arrowDom :: P DomainSpec
     arrowDom =
-      (DomMandatory <$> optional label <*> mandatoryArrowDom)
+      (DomMandatory <$> optional labelNormal <*> mandatoryArrowDom)
+        <|> (DomOmissible <$> labelOmissible <*> mandatoryArrowDom)
         <|> (DomInferable <$> implicitArrowDom)
       where
         mandatoryArrowDom :: P (Maybe (Span, Var), TypeExpr)
@@ -298,8 +304,7 @@ expr = letin
 
     lamBinder :: P LamBinder
     lamBinder =
-      (MandatoryBinder . Just <$> noLoc label <*> mandatoryBinder)
-        <|> (MandatoryBinder Nothing <$> mandatoryBinder)
+      (MandatoryBinder <$> optional (noLoc labelNormal) <*> mandatoryBinder)
         <|> (InferableBinder <$> implicitBinder)
 
     mandatoryBinder, implicitBinder :: P (Var, TypeExpr)

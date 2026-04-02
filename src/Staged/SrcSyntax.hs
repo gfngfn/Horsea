@@ -80,6 +80,7 @@ data ExprMainF ann
   | Persistent (ExprF ann)
   | TyVar TypeVar
   | TyArrow (Maybe Text) (Maybe Var, TypeExprF ann) (TypeExprF ann)
+  | TyOmsArrow Text (Maybe Var, TypeExprF ann) (TypeExprF ann)
   | TyInfArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)
   | TyForAll TypeVar (TypeExprF ann)
