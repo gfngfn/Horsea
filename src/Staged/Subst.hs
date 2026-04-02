@@ -858,7 +858,9 @@ instance (HasVar sv af) => HasVar sv (ResultF af) where
     Pure v -> frees v
     Cast0 cast a0tye r -> unionPairs [frees (Maybe1 cast), frees a0tye, frees r]
     Cast1 eq a1tye r -> unionPairs [frees (Maybe1 eq), frees a1tye, frees r]
-    CastGiven0 cast a0tye r -> unionPairs [frees (Maybe1 cast), frees a0tye, frees r]
+    CastOmsGiven0 cast a0tye r -> unionPairs [frees (Maybe1 cast), frees a0tye, frees r]
+    InsertOmitted0 r -> frees r
+    CastInfGiven0 cast a0tye r -> unionPairs [frees (Maybe1 cast), frees a0tye, frees r]
     FillInferred0 a0e r -> unionPairs [frees a0e, frees r]
     InsertInferred0 a0e r -> unionPairs [frees a0e, frees r]
     InsertInferredType0 a0tye r -> unionPairs [frees a0tye, frees r]
@@ -868,7 +870,9 @@ instance (HasVar sv af) => HasVar sv (ResultF af) where
     Pure v -> Pure (go v)
     Cast0 cast a0tye r -> Cast0 (unMaybe1 . go . Maybe1 $ cast) (go a0tye) (go r)
     Cast1 eq a1tye r -> Cast1 (unMaybe1 . go . Maybe1 $ eq) (go a1tye) (go r)
-    CastGiven0 cast a0tye r -> CastGiven0 (unMaybe1 . go . Maybe1 $ cast) (go a0tye) (go r)
+    CastOmsGiven0 cast a0tye r -> CastOmsGiven0 (unMaybe1 . go . Maybe1 $ cast) (go a0tye) (go r)
+    InsertOmitted0 r -> InsertOmitted0 (go r)
+    CastInfGiven0 cast a0tye r -> CastInfGiven0 (unMaybe1 . go . Maybe1 $ cast) (go a0tye) (go r)
     FillInferred0 a0e r -> FillInferred0 (go a0e) (go r)
     InsertInferred0 a0e r -> InsertInferred0 (go a0e) (go r)
     InsertInferredType0 a0tye r -> InsertInferredType0 (go a0tye) (go r)

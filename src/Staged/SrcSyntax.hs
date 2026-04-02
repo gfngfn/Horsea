@@ -70,6 +70,8 @@ data ExprMainF ann
   | As (ExprF ann) (TypeExprF ann)
   | Bracket (ExprF ann)
   | Escape (ExprF ann)
+  | LamOms Label (Var, TypeExprF ann) (ExprF ann)
+  | AppOms (ExprF ann) Label (ExprF ann)
   | LamInf (Var, TypeExprF ann) (ExprF ann)
   | AppInfGiven (ExprF ann) (ExprF ann)
   | AppInfOmitted (ExprF ann)

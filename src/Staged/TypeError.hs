@@ -94,6 +94,7 @@ data UnsupportedF sv
   | HigherRankPolymorphism (Ass0TypeExprF sv) AssTypeVar (Ass0TypeExprF sv)
   | AsWithArguments (AppContextF sv)
   | LamWithArguments (AppContextF sv)
+  | LamOmsWithArguments (AppContextF sv)
   | LamInfWithArguments (AppContextF sv)
   | PersistentFunWithOms
   deriving stock (Eq, Show, Functor)

@@ -258,8 +258,6 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
   let bt = BTVar btv
   spanInFile <- askSpanInFile ann
   case exprMain of
-    (TyArrow {}; TyInfArrow {}; TyRefinement {}) ->
-      error "TODO (error): extractConstraintsFromExpr, illegal syntax"
     Literal lit -> do
       (lit', bityBaseArgs, constraints) <- extractConstraintsFromLiteral trav btenv (bt, ann) lit
       pure (BExpr (bt, ann) (BLiteral lit'), BIType bt (BITyBase bityBaseArgs), constraints)
@@ -443,6 +441,8 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
             spanInFile1 <- askSpanInFile ann1
             analysisError trav $ NotAnOptFunction spanInFile1 bity1
       pure (BExpr (bt, ann) (BAppInfOmitted e1'), bity, constraints)
+    (TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}) ->
+      error "TODO (error): extractConstraintsFromExpr, illegal syntax"
 
 appendOmittedImplicitArguments :: BExpr -> BIType -> (BExpr, BIType)
 appendOmittedImplicitArguments e@(BExpr (_, ann) _) bity@(BIType _bt bityMain) =
@@ -565,8 +565,6 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
   let bt = BTVar btv
   spanInFile <- askSpanInFile ann
   case typeExprMain of
-    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; LetOpenIn {}; Sequential {}; Tuple {}; IfThenElse {}; As {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}) ->
-      error "TODO (error): extractConstraintsFromTypeExpr, illegal syntax"
     Constructor (mods, tyName) ->
       case mods of
         [] -> do
@@ -635,6 +633,8 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
           let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
           let tye' = BTypeExpr (bt, ann) (BTyArrow labelOpt (Just x1, tye1') tye2')
           pure (tye', BIType bt (BITyArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
+    TyOmsArrow _label (_xOpt1, _tye1) _tye2 -> do
+      error "TODO: extractConstraintsFromTypeExpr, TyOmsArrow"
     TyInfArrow (x1, tye1) tye2 -> do
       (tye1', bity1, constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
       (tye2', bity2, constraints2) <-
@@ -670,6 +670,8 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
       let tye' = BTypeExpr (bt, ann) (BTyProduct tye1' rest')
       let bitysRest = fmap (\(_, (_, bity, _)) -> bity) quadsRest
       pure (tye', BIType bt (BITyProduct (TwoOrMore.make1 bity1 bitysRest)), constraints)
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; LetOpenIn {}; Sequential {}; Tuple {}; IfThenElse {}; As {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}) ->
+      error "TODO (error): extractConstraintsFromTypeExpr, illegal syntax"
   where
     bityNat :: BIType
     bityNat = BIType (BTConst BT0) (BITyBase [])

@@ -141,6 +141,11 @@ dispRecLam req f tyeRec labelOpt x tye1 e2 =
         Nothing -> "λ" <> disp x
         Just label -> "λ" <+> "#" <> disp label <+> disp x
 
+dispLamOms :: (Disp var, Disp ty, Disp expr) => Associativity -> Text -> var -> ty -> expr -> Doc Ann
+dispLamOms req label x tye1 e2 =
+  deepenParenWhen (req <= FunDomain) $
+    group ("λ" <+> "?" <> disp label <+> disp x <+> ":" <+> disp tye1 <> "." <> nest 2 (line <> disp e2))
+
 dispLamInf :: (Disp var, Disp ty, Disp expr) => Associativity -> var -> ty -> expr -> Doc Ann
 dispLamInf req x tye1 e2 =
   deepenParenWhen (req <= FunDomain) $
@@ -156,6 +161,11 @@ dispApp req e1 labelOpt e2 =
   where
     doc1 = dispGen FunDomain e1
     doc2 = dispGen Atomic e2
+
+dispAppOms :: (Disp expr) => Associativity -> expr -> Label -> expr -> Doc Ann
+dispAppOms req e1 label e2 =
+  deepenParenWhen (req <= Atomic) $
+    group (dispGen FunDomain e1 <+> "?" <> disp label <> nest 2 (line <> dispGen Atomic e2))
 
 dispAppInfGiven :: (Disp expr) => Associativity -> expr -> expr -> Doc Ann
 dispAppInfGiven req e1 e2 =
@@ -427,6 +437,8 @@ instance Disp (ExprMainF ann) where
     Lam Nothing labelOpt (x, tye1) e2 -> dispNonrecLam req labelOpt x tye1 e2
     Lam (Just (f, tyeRec)) labelOpt (x, tye1) e2 -> dispRecLam req f tyeRec labelOpt x tye1 e2
     App e1 labelOpt e2 -> dispApp req e1 labelOpt e2
+    LamOms label (x, tye1) e2 -> dispLamOms req label x tye1 e2
+    AppOms e1 label e2 -> dispAppOms req e1 label e2
     LamInf (x, tye1) e2 -> dispLamInf req x tye1 e2
     AppInfGiven e1 e2 -> dispAppInfGiven req e1 e2
     AppInfOmitted e1 -> dispAppInfOmitted req e1
@@ -980,8 +992,13 @@ instance (Disp sv) => Disp (UnsupportedF sv) where
         <> hardline
         <+> "application context:"
         <> nest 2 (hardline <> disps appCtx)
+    LamOmsWithArguments appCtx ->
+      "Lambda abstraction for an omissible parameter directly applied to argument(s); consider using let-expressions"
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
     LamInfWithArguments appCtx ->
-      "Lambda abstraction for an implicit parameter directly applied to argument(s); consider using let-expressions"
+      "Lambda abstraction for an inferrable parameter directly applied to argument(s); consider using let-expressions"
         <> hardline
         <+> "application context:"
         <> nest 2 (hardline <> disps appCtx)
@@ -994,6 +1011,7 @@ instance (Disp sv) => Disp (AppContextEntryF sv) where
     AppArg0 (Just label) a0e a0tye -> "#" <> disp label <+> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye)
     AppArg1 Nothing a1tye -> stage1Style (disp a1tye)
     AppArg1 (Just label) a1tye -> "#" <> disp label <+> stage1Style (disp a1tye)
+    AppArgOmsGiven0 label a0e a0tye -> "?" <> disp label <+> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye)
     AppArgInfGiven0 a0e a0tye -> "{" <> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye) <> "}"
     AppArgInfOmitted0 -> "_"
 
@@ -1002,10 +1020,12 @@ instance (Disp sv, Disp (af sv)) => Disp (ResultF af sv) where
     Pure v -> disp v -- TODO (enhance): add `stage0Style` etc.
     Cast0 _ a0tye r -> "cast0 :" <+> stage0Style (disp a0tye) <> ";" <+> disp r
     Cast1 _ a1tye r -> "cast1 :" <+> stage1Style (disp a1tye) <> ";" <+> disp r
-    CastGiven0 _ a0tye r -> "cast-given0 :" <+> stage0Style (disp a0tye) <> ";" <+> disp r
-    FillInferred0 a0e r -> "fill0" <+> disp a0e <> ";" <+> disp r
-    InsertInferred0 a0e r -> "insert0" <+> disp a0e <> ";" <+> disp r
-    InsertInferredType0 sa0tye r -> "insert-type0" <+> disp sa0tye <> ";" <+> disp r
+    CastOmsGiven0 _ a0tye r -> "cast-oms-given0 :" <+> stage0Style (disp a0tye) <> ";" <+> disp r
+    InsertOmitted0 r -> "insert-omitted0;" <+> disp r
+    CastInfGiven0 _ a0tye r -> "cast-inf-given0 :" <+> stage0Style (disp a0tye) <> ";" <+> disp r
+    FillInferred0 a0e r -> "fill-inferred0" <+> disp a0e <> ";" <+> disp r
+    InsertInferred0 a0e r -> "insert-inferred0" <+> disp a0e <> ";" <+> disp r
+    InsertInferredType0 sa0tye r -> "insert-inferred-type0" <+> disp sa0tye <> ";" <+> disp r
     InsertType1 a1tye r -> "insert-type1" <+> disp a1tye <> ";" <+> disp r
 
 instance (Disp sv) => Disp (Ass0ValF sv) where

@@ -486,7 +486,7 @@ strictify = \case
   A0TyArrow _labelOpt (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, strictify a0tye1) (strictify a0tye2)
   A0TyCode a1tye1 -> SA0TyCode a1tye1
   A0TyInfArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictify a0tye1) (strictify a0tye2)
-  A0TyOmsArrow _label (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, strictify a0tye1) (strictify a0tye2)
+  A0TyOmsArrow _label (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, SA0TyMaybe (strictify a0tye1)) (strictify a0tye2)
   A0TyImplicitForAll atyvar a0tye -> SA0TyExplicitForAll atyvar (strictify a0tye)
 
 a0TyVec :: Int -> Ass0PrimType
@@ -601,6 +601,7 @@ type AppContextF sv = [AppContextEntryF sv]
 data AppContextEntryF sv
   = AppArg0 (Maybe Label) (Ass0ExprF sv) (Ass0TypeExprF sv)
   | AppArg1 (Maybe Label) (Ass1TypeExprF sv)
+  | AppArgOmsGiven0 Label (Ass0ExprF sv) (Ass0TypeExprF sv)
   | AppArgInfGiven0 (Ass0ExprF sv) (Ass0TypeExprF sv)
   | AppArgInfOmitted0
   deriving (Eq, Show, Functor)
@@ -610,7 +611,9 @@ data ResultF af sv
   = Pure (af sv)
   | Cast0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprF sv) (ResultF af sv)
   | Cast1 (Maybe (Ass0ExprF sv)) (Ass1TypeExprF sv) (ResultF af sv)
-  | CastGiven0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprF sv) (ResultF af sv)
+  | CastOmsGiven0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprF sv) (ResultF af sv)
+  | InsertOmitted0 (ResultF af sv)
+  | CastInfGiven0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprF sv) (ResultF af sv)
   | FillInferred0 (Ass0ExprF sv) (ResultF af sv)
   | InsertInferred0 (Ass0ExprF sv) (ResultF af sv)
   | InsertInferredType0 (Ass0TypeExprF sv) (ResultF af sv)

@@ -945,19 +945,43 @@ mergeResultsByConditional0 trav loc a0e0 = go
           a1tye' <- mergeTypes1 (fmap (second (\(_, a1tye, _) -> a1tye)) quads)
           cast' <- mergeCasts (fmap (second (\(cast, a1tye, _) -> (cast, A0TyCode a1tye))) quads)
           Cast1 cast' a1tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
-        CastGiven0 cast1 a0tye1 r1 -> do
+        CastOmsGiven0 cast1 a0tye1 r1 -> do
           quadsRest <-
             mapM
               ( \(a0pat, result) ->
                   case result of
-                    CastGiven0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
+                    CastOmsGiven0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
                     _ -> failure
               )
               rest
           let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
           a0tye' <- mergeTypes0 (fmap (\(pat, (_, a0tye, _)) -> (pat, a0tye)) quads)
           cast' <- mergeCasts (fmap (\(pat, (cast, a0tye, _)) -> (pat, (cast, a0tye))) quads)
-          CastGiven0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
+          CastOmsGiven0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
+        InsertOmitted0 r1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    InsertOmitted0 r -> pure (a0pat, r)
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, r1) :| pairsRest
+          InsertOmitted0 <$> go pairs
+        CastInfGiven0 cast1 a0tye1 r1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    CastInfGiven0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
+                    _ -> failure
+              )
+              rest
+          let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
+          a0tye' <- mergeTypes0 (fmap (\(pat, (_, a0tye, _)) -> (pat, a0tye)) quads)
+          cast' <- mergeCasts (fmap (\(pat, (cast, a0tye, _)) -> (pat, (cast, a0tye))) quads)
+          CastInfGiven0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
         FillInferred0 a0e1 r1 -> do
           triplesRest <-
             mapM
@@ -1048,6 +1072,27 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
               let a0tye1s = applySolution0 varSolution tyvar0Solution a0tye1
               let result = Cast0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
               pure (result, varSolution, tyvar0Solution)
+        (appCtxEntry : appCtx', A0TyOmsArrow label (xOpt, a0tyeElem1) a0tye2) -> do
+          case appCtxEntry of
+            AppArgOmsGiven0 label' a0e1' a0tyeElem1' | label' == label -> do
+              (cast, varSolution1, tyvar0Solution1) <-
+                makeAssertiveCast trav loc varsToInfer tyvars0ToInfer a0tyeElem1' a0tyeElem1
+              let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
+              let tyvars0ToInfer' = tyvars0ToInfer \\ Map.keysSet tyvar0Solution1
+              let a0tye2s = applySolution0 varSolution1 tyvar0Solution1 a0tye2
+              (result', varSolution', tyvar0Solution') <-
+                go varsToInfer' tyvars0ToInfer' appCtx' $
+                  case xOpt of
+                    Nothing -> a0tye2s
+                    Just x -> subst0 a0e1' x a0tye2s
+              let varSolution = composeVarSolution varSolution1 varSolution'
+              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution1 tyvar0Solution'
+              let a0tyeElem1s = applySolution0 varSolution tyvar0Solution a0tyeElem1
+              let result = CastOmsGiven0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tyeElem1s result'
+              pure (result, varSolution, tyvar0Solution)
+            _ -> do
+              (result', varSolution', tyvar0Solution') <- go varsToInfer tyvars0ToInfer appCtx a0tye2
+              pure (InsertOmitted0 result', varSolution', tyvar0Solution')
         (appCtxEntry : appCtx', A0TyInfArrow (x, a0tye1) a0tye2) ->
           case appCtxEntry of
             AppArgInfGiven0 a0e1' a0tye1' -> do
@@ -1061,7 +1106,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
               let varSolution = composeVarSolution varSolution1 varSolution'
               let tyvar0Solution = composeTypeVar0Solution tyvar0Solution1 tyvar0Solution'
               let a0tye1s = applySolution0 varSolution tyvar0Solution a0tye1
-              let result = CastGiven0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
+              let result = CastInfGiven0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
               pure (result, varSolution, tyvar0Solution)
             AppArgInfOmitted0 -> do
               (result', varSolution', tyvar0Solution') <-
@@ -1222,7 +1267,7 @@ typecheckExpr0Single trav tyEnv e@(Expr loc _) = do
 typecheckExpr0 :: trav -> TypeEnv -> AppContext -> Expr -> M trav (Result0, Ass0Expr)
 typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
-  completeInferredImplicit spanInFile
+  completeImplicit spanInFile
     =<< case eMain of
       Constructor (mods, ctor) ->
         case (mods, ctor) of
@@ -1345,6 +1390,32 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A0App a0e1 (applyCast cast a0e2))
           _ -> do
             bug "stage-0, App, fun"
+      LamOms label (x1, tye1) e2 -> do
+        svX1 <- generateFreshVar (Just x1)
+        let ax1 = AssVarStatic svX1
+        case appCtx of
+          [] -> do
+            a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
+            case a0tye1 of
+              A0TyMaybe a0tyeElem1 -> do
+                (a0tye2, a0e2) <- do
+                  let tyEnv' = TypeEnv.addVal x1 (Ass0Entry a0tye1 (Right svX1)) tyEnv
+                  typecheckExpr0Single trav tyEnv' e2
+                let sa0tye1 = strictify a0tye1
+                pure (Pure (A0TyOmsArrow label (Just ax1, a0tyeElem1) a0tye2), A0Lam Nothing (ax1, sa0tye1) a0e2)
+              _ ->
+                error "TODO (error): LamOms, not Maybe"
+          _ : _ ->
+            -- TODO: consider supporting lambda abstractions with direct arguments
+            typeError trav $ Unsupported spanInFile $ LamOmsWithArguments appCtx
+      AppOms e1 label e2 -> do
+        (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
+        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgOmsGiven0 label a0e2 a0tye2 : appCtx) e1
+        case result1 of
+          CastOmsGiven0 cast _a0tyeElem11 result -> do
+            pure (result, A0App a0e1 (A0Constructor "Just" [applyCast cast a0e2]))
+          _ ->
+            bug "stage-0, AppOms, fun"
       LamInf (x1, tye1) e2 -> do
         svX1 <- generateFreshVar (Just x1)
         let ax1 = AssVarStatic svX1
@@ -1363,7 +1434,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgInfGiven0 a0e2 a0tye2 : appCtx) e1
         case result1 of
-          CastGiven0 cast _a0tye11 result -> do
+          CastInfGiven0 cast _a0tye11 result -> do
             logInferableArg $ LogGivenArg spanInFile a0e2
             pure (result, A0App a0e1 (applyCast cast a0e2))
           _ -> do
@@ -1516,10 +1587,12 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
       (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr0, illegal syntax"
   where
-    completeInferredImplicit spanInFile = go
+    completeImplicit spanInFile = go
       where
         go pair@(result, a0e) =
           case result of
+            InsertOmitted0 result' ->
+              go (result', A0App a0e (A0Constructor "Nothing" []))
             InsertInferred0 a0eInferred result' -> do
               logInferableArg $ LogInferredArg spanInFile a0eInferred
               go (result', A0App a0e a0eInferred)
@@ -1915,6 +1988,10 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A1App a1e1 (applyCast1 cast a1e2))
           _ ->
             bug "stage-1, App, fun, not a Cast1"
+      LamOms {} ->
+        error "TODO: typecheckExpr1, LamOms"
+      AppOms {} ->
+        error "TODO: typecheckExpr1, AppOms"
       LamInf _ _ ->
         typeError trav $ CannotUseLamInfAtStage1 spanInFile
       AppInfGiven _ _ ->
@@ -2105,7 +2182,9 @@ mapMPure f = go
     go (Pure v) = Pure <$> f v
     go (Cast0 cast a0tye r) = Cast0 cast a0tye <$> go r
     go (Cast1 eq a1tye r) = Cast1 eq a1tye <$> go r
-    go (CastGiven0 a0e a0tye r) = CastGiven0 a0e a0tye <$> go r
+    go (CastOmsGiven0 a0e a0tye r) = CastOmsGiven0 a0e a0tye <$> go r
+    go (InsertOmitted0 r) = InsertOmitted0 <$> go r
+    go (CastInfGiven0 a0e a0tye r) = CastInfGiven0 a0e a0tye <$> go r
     go (FillInferred0 a0e r) = FillInferred0 a0e <$> go r
     go (InsertInferred0 a0e r) = InsertInferred0 a0e <$> go r
     go (InsertInferredType0 a0tye r) = InsertInferredType0 a0tye <$> go r
@@ -2294,7 +2373,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv
         typecheckTypeExpr0 trav tyEnv' tye1
       pure $ A0TyImplicitForAll atyvar a0tye1
-    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
       error "TODO (error): typecheckTypeExpr0, illegal syntax"
 
 ass0exprAnd :: Ass0Expr
@@ -2432,7 +2511,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv
         typecheckTypeExpr1 trav tyEnv' tye1
       pure $ A1TyImplicitForAll atyvar a1tye1
-    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
       error "TODO (error): typecheckTypeExpr1, illegal syntax"
 
 validatePersistentType :: trav -> Span -> Ass0TypeExpr -> M trav AssPersTypeExpr
