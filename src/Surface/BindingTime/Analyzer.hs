@@ -409,6 +409,10 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       constraintsEq <- makeConstraintsFromBITypeEquation trav ann bity1 bity2
       let constraints = constraints1 ++ constraints2 ++ constraintsEq ++ [CLeq ann bt bt1, CLeq ann bt bt2]
       pure (BExpr (bt, ann) (BAs e1' btye2'), bity2, constraints)
+    LamOms {} -> do
+      error "TODO: extractConstraintsFromExpr, LamOms"
+    AppOms {} -> do
+      error "TODO: extractConstraintsFromExpr, AppOms"
     LamInf (x1, btye1) e2 -> do
       (btye1', bity1, constraints1) <- extractConstraintsFromTypeExpr trav btenv btye1
       (e2', bity2, constraints2) <-
@@ -684,7 +688,7 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
       let tye' = BTypeExpr (bt, ann) (BTyProduct tye1' rest')
       let bitysRest = fmap (\(_, (_, bity, _)) -> bity) quadsRest
       pure (tye', BIType bt (BITyProduct (TwoOrMore.make1 bity1 bitysRest)), constraints)
-    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; LetOpenIn {}; Sequential {}; Tuple {}; IfThenElse {}; As {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}) ->
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; LetOpenIn {}; Sequential {}; Tuple {}; IfThenElse {}; As {}; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}) ->
       error "TODO (error): extractConstraintsFromTypeExpr, illegal syntax"
   where
     bityNat :: BIType

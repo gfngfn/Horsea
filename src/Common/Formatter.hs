@@ -527,6 +527,8 @@ instance Disp Surface.ExprMain where
     Surface.Tuple es -> dispTuple es
     Surface.IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Surface.As e1 tye2 -> dispAs req e1 tye2
+    Surface.LamOms label (x, tye1) e2 -> dispLamOms req label x tye1 e2
+    Surface.AppOms e1 label e2 -> dispAppOms req e1 label e2
     Surface.LamInf (x, tye1) e2 -> dispLamInf req x tye1 e2
     Surface.AppInfGiven e1 e2 -> dispAppInfGiven req e1 e2
     Surface.AppInfOmitted e1 -> dispAppInfOmitted req e1
@@ -1377,6 +1379,8 @@ instance Disp (Bta.BCExprMainF ann) where
     Bta.BTuple es -> dispTuple es
     Bta.BIfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Bta.BAs e1 tye2 -> dispAs req e1 tye2
+    Bta.BLamOms label (x, tye1) e2 -> dispLamOms req label x tye1 e2
+    Bta.BAppOms e1 label e2 -> dispAppOms req e1 label e2
     Bta.BLamInf (x, tye1) e2 -> dispLamInf req x tye1 e2
     Bta.BAppInfGiven e1 e2 -> dispAppInfGiven req e1 e2
     Bta.BAppInfOmitted e1 -> dispAppInfOmitted req e1

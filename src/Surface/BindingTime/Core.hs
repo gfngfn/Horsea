@@ -106,6 +106,8 @@ data BExprMainF ann bt
   | BTuple (TwoOrMore (BExprF ann bt))
   | BIfThenElse (BExprF ann bt) (BExprF ann bt) (BExprF ann bt)
   | BAs (BExprF ann bt) (BTypeExprF ann bt)
+  | BLamOms Label (Var, BTypeExprF ann bt) (BExprF ann bt)
+  | BAppOms (BExprF ann bt) Label (BExprF ann bt)
   | BLamInf (Var, BTypeExprF ann bt) (BExprF ann bt)
   | BAppInfGiven (BExprF ann bt) (BExprF ann bt)
   | BAppInfOmitted (BExprF ann bt)

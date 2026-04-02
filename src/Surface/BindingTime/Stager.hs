@@ -57,6 +57,10 @@ stageExpr0Main = \case
     Staged.IfThenElse (stageExpr0 e0) (stageExpr0 e1) (stageExpr0 e2)
   BAs e1 tye2 ->
     Staged.As (stageExpr0 e1) (stageTypeExpr0 tye2)
+  BLamOms label (xOpt, tye1) e2 ->
+    Staged.LamOms label (xOpt, stageTypeExpr0 tye1) (stageExpr0 e2)
+  BAppOms e1 label e2 ->
+    Staged.AppOms (stageExpr0 e1) label (stageExpr0 e2)
   BLamInf (x, tye1) e2 ->
     Staged.LamInf (x, stageTypeExpr0 tye1) (stageExpr0 e2)
   BAppInfGiven e1 e2 ->
@@ -98,6 +102,10 @@ stageExpr1Main = \case
     Staged.IfThenElse (stageExpr1 e0) (stageExpr1 e1) (stageExpr1 e2)
   BAs e1 tye2 ->
     Staged.As (stageExpr1 e1) (stageTypeExpr1 tye2)
+  BLamOms label (xOpt, tye1) e2 ->
+    Staged.LamOms label (xOpt, stageTypeExpr1 tye1) (stageExpr1 e2)
+  BAppOms e1 label e2 ->
+    Staged.AppOms (stageExpr1 e1) label (stageExpr1 e2)
   BLamInf (_x, _tye1) _e2 ->
     error "bug: stageExpr1Main, BLamInf"
   BAppInfGiven _e1 _e2 ->
