@@ -2630,7 +2630,7 @@ ass0exprListMap :: Ass0Expr
 ass0exprListMap = A0BuiltInName (BuiltInArity2 BIListMap)
 
 ass0exprMaybeMap :: Ass0Expr
-ass0exprMaybeMap = error "TODO: ass0exprMaybeMap"
+ass0exprMaybeMap = A0BuiltInName (BuiltInArity2 BIMaybeMap)
 
 validatePersistentExprArg1 :: trav -> Expr -> M trav Expr
 validatePersistentExprArg1 trav (Expr loc eMain) =
