@@ -1017,6 +1017,7 @@ instance (Disp sv) => Disp (AppContextEntryF sv) where
     AppArg1 Nothing a1tye -> stage1Style (disp a1tye)
     AppArg1 (Just label) a1tye -> "#" <> disp label <+> stage1Style (disp a1tye)
     AppArgOmsGiven0 label a0e a0tye -> "?" <> disp label <+> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye)
+    AppArgOmsGiven1 label a1tye -> "?" <> disp label <+> stage1Style (disp a1tye)
     AppArgInfGiven0 a0e a0tye -> "{" <> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye) <> "}"
     AppArgInfOmitted0 -> "_"
 
@@ -1027,6 +1028,8 @@ instance (Disp sv, Disp (af sv)) => Disp (ResultF af sv) where
     Cast1 _ a1tye r -> "cast1 :" <+> stage1Style (disp a1tye) <> ";" <+> disp r
     CastOmsGiven0 _ a0tye r -> "cast-oms-given0 :" <+> stage0Style (disp a0tye) <> ";" <+> disp r
     InsertOmitted0 r -> "insert-omitted0;" <+> disp r
+    CastOmsGiven1 _ a1tye r -> "cast-oms-given1 :" <+> stage1Style (disp a1tye) <> ";" <+> disp r
+    InsertOmitted1 r -> "insert-omitted1;" <+> disp r
     CastInfGiven0 _ a0tye r -> "cast-inf-given0 :" <+> stage0Style (disp a0tye) <> ";" <+> disp r
     FillInferred0 a0e r -> "fill-inferred0" <+> disp a0e <> ";" <+> disp r
     InsertInferred0 a0e r -> "insert-inferred0" <+> disp a0e <> ";" <+> disp r
