@@ -1443,7 +1443,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           ([], "Just") ->
             case appCtx of
               [] ->
-                error "TODO: Just, empty app context"
+                typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
               [AppArg0 Nothing _a0e1 a0tye1] -> do
                 svX <- generateFreshVar Nothing
                 let ax = AssVarStatic svX
@@ -1452,9 +1452,9 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
               _ ->
                 error "TODO (error): other app contexts"
           ([], "Nothing") ->
-            error "TODO: Nothing"
-          _ ->
-            error "TODO (error): unknown constructor"
+            typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
+          (_, _) ->
+            typeError trav $ UnboundConstructor spanInFile mods ctor
       Product e1 rest ->
         case appCtx of
           [] -> do
@@ -2071,7 +2071,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           ([], "Just") ->
             case appCtx of
               [] ->
-                error "TODO: Just, empty app context"
+                typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
               [AppArg1 Nothing a1tye1] -> do
                 svX <- generateFreshVar Nothing
                 let ax = AssVarStatic svX
@@ -2080,9 +2080,9 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
               _ ->
                 error "TODO (error): other app contexts"
           ([], "Nothing") ->
-            error "TODO: Nothing"
-          _ ->
-            error "TODO (error): unknown constructor"
+            typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
+          (_, _) ->
+            typeError trav $ UnboundConstructor spanInFile mods ctor
       Product e1 rest ->
         -- TODO: consider simply falling back to `App`
         case appCtx of

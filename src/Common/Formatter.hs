@@ -756,6 +756,8 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Not a stage-0 variable:" <+> disp x <+> disp spanInFile
     NotAStage1Var spanInFile x ->
       "Not a stage-1 variable:" <+> disp x <+> disp spanInFile
+    UnboundConstructor spanInFile mods ctor ->
+      "Unbound constructor" <+> dispQualified mods ctor <+> disp spanInFile
     UnboundConstructorOrInvalidArity spanInFile mods ctor n ->
       "Unbound constructor or invalid arity:" <+> dispQualified mods ctor <> "," <+> disp n <+> disp spanInFile
     UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName n ->

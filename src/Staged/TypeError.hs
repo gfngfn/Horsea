@@ -27,6 +27,7 @@ data TypeErrorF sv
   | UnboundModule SpanInFile ModuleName
   | NotAStage0Var SpanInFile Var
   | NotAStage1Var SpanInFile Var
+  | UnboundConstructor SpanInFile [ModuleName] ConstructorName
   | UnboundConstructorOrInvalidArity SpanInFile [ModuleName] ConstructorName Int
   | UnknownTypeOrInvalidArityAtStage0 SpanInFile [Var] TypeName Int
   | UnknownTypeOrInvalidArityAtStage1 SpanInFile [Var] TypeName Int
