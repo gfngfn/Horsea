@@ -437,7 +437,7 @@ definitions =
       [|
         do
           () <- validateUnitLiteral a0v1
-          error "UNIMPLEMENTED: Device.gen_cuda_if_available"
+          pure $ A0ValBracket (A1ValLiteral ALitUnit) -- TODO: return a value of type `Device`
         |],
     gen ["tensor"] "zeros" [ParamIntList],
     gen ["tensor"] "ones" [ParamIntList],
