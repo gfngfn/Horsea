@@ -119,6 +119,11 @@ deepenParenWhen b doc = if b then "(" <> nest 2 doc <> ")" else doc
 dispBool :: Bool -> Doc Ann
 dispBool b = if b then "true" else "false"
 
+dispMaybe :: (Disp a) => Maybe a -> Doc Ann
+dispMaybe = \case
+  Nothing -> "Nothing"
+  Just v -> "Just" <+> dispGen Atomic v
+
 dispNonrecLam :: (Disp var, Disp ty, Disp expr) => Associativity -> Maybe Label -> var -> ty -> expr -> Doc Ann
 dispNonrecLam req labelOpt x tye1 e2 =
   deepenParenWhen (req <= FunDomain) $
@@ -1229,6 +1234,8 @@ instance (Disp sv) => Disp (BugF sv) where
       "Not a tuple:" <+> disp a0v
     NotAPair a0v ->
       "Not a pair:" <+> disp a0v
+    NotAMaybe a0v ->
+      "Not a Maybe:" <+> disp a0v
     TupleLengthMismatch xs a0vs ->
       "Tuple length mismatch:" <+> dispTuple xs <> "," <+> dispTuple a0vs
     FoundSymbol x symb ->

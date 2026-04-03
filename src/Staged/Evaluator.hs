@@ -127,6 +127,12 @@ validateListValue = \case
   A0ValLiteral (ALitList a0vs) -> pure a0vs
   a0v -> bug $ NotAList a0v
 
+validateIntMaybe :: Ass0Val -> M (Maybe Int)
+validateIntMaybe = \case
+  A0ValConstructor "Nothing" [] -> pure Nothing
+  A0ValConstructor "Just" [a0v] -> Just <$> validateIntLiteral a0v
+  a0v -> bug $ NotAMaybe a0v
+
 validateIntListLiteral :: Ass0Val -> M [Int]
 validateIntListLiteral a0v = do
   a0vs <- validateListValue a0v

@@ -53,6 +53,7 @@ data VersatileSpec = VersatileSpec
 
 data ParamSpec
   = ParamInt
+  | ParamIntMaybe
   | ParamIntList
   | ParamIntPair
   | ParamString
@@ -199,6 +200,7 @@ noBang = TH.Bang TH.NoSourceUnpackedness TH.NoSourceStrictness
 makeParam :: ParamSpec -> TH.Type
 makeParam = \case
   ParamInt -> TH.ConT ''Int
+  ParamIntMaybe -> TH.AppT (TH.ConT ''Maybe) (TH.ConT ''Int)
   ParamIntList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Int)
   ParamIntPair -> TH.AppT (TH.AppT (TH.TupleT 2) (TH.ConT ''Int)) (TH.ConT ''Int)
   ParamString -> TH.ConT ''Text
@@ -288,6 +290,7 @@ deriveDeltaReductionPerArity allBiSpecs arity = do
                 TH.mkName $
                   case paramSpec of
                     ParamInt -> "validateIntLiteral"
+                    ParamIntMaybe -> "validateIntMaybe"
                     ParamIntList -> "validateIntListLiteral"
                     ParamIntPair -> "validateIntPairLiteral"
                     ParamString -> "validateStringLiteral"
@@ -348,6 +351,7 @@ makeParamDisp (pName, paramSpec) =
     dispFun =
       case paramSpec of
         ParamInt -> "disp"
+        ParamIntMaybe -> "dispMaybe"
         ParamIntList -> "dispListLiteral"
         ParamIntPair -> "dispPairLiteral"
         ParamString -> "dispStringLiteral"

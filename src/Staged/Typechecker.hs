@@ -215,8 +215,8 @@ makeAssertiveCast trav loc =
                   pure
                     ( ( varsToInfer' \\ Map.keysSet varSolution,
                         tyvars0ToInfer' \\ Map.keysSet tyvar0Solution,
-                        composeVarSolution varSolution' varSolution,
-                        composeTypeVar0Solution tyvar0Solution' tyvar0Solution
+                        composeVarSolution varSolution varSolution',
+                        composeTypeVar0Solution tyvar0Solution tyvar0Solution'
                       ),
                       (cast, a0tye1')
                     )
@@ -256,7 +256,7 @@ makeAssertiveCast trav loc =
                   (tyvars0ToInfer \\ Map.keysSet tyvar0SolutionDom)
                   (applySolution0 varSolutionDom tyvar0SolutionDom a0tye12)
                   (applySolution0 varSolutionDom tyvar0SolutionDom a0tye22)
-              let varSolution = composeVarSolution varSolutionDom varSolutionCod
+              let varSolution = composeVarSolution varSolutionCod varSolutionDom
               let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionDom tyvar0SolutionCod
               cast <-
                 makeArrowTypeCast
@@ -292,8 +292,8 @@ makeAssertiveCast trav loc =
                   (tyvars0ToInfer \\ Map.keysSet tyvar0SolutionDom)
                   (applySolution0 varSolutionDom tyvar0SolutionDom a0tye12)
                   (applySolution0 varSolutionDom tyvar0SolutionDom a0tye22)
-              let varSolution = composeVarSolution varSolutionDom varSolutionCod
-              let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionDom tyvar0SolutionCod
+              let varSolution = composeVarSolution varSolutionCod varSolutionDom
+              let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionCod tyvar0SolutionDom
               cast <-
                 makeArrowTypeCast
                   trav
@@ -313,8 +313,8 @@ makeAssertiveCast trav loc =
               (tyvars0ToInfer \\ Map.keysSet tyvar0SolutionDom)
               (applySolution0 varSolutionDom tyvar0SolutionDom a0tye12)
               (applySolution0 varSolutionDom tyvar0SolutionDom a0tye22)
-          let varSolution = composeVarSolution varSolutionDom varSolutionCod
-          let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionDom tyvar0SolutionCod
+          let varSolution = composeVarSolution varSolutionCod varSolutionDom
+          let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionCod tyvar0SolutionDom
           -- We can use the same cast function as `A0TyArrow`:
           cast <-
             makeArrowTypeCast
@@ -1158,8 +1158,8 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
                 case xOpt of
                   Nothing -> go varsToInfer' tyvars0ToInfer' appCtx' a0tye2s
                   Just x -> go varsToInfer' tyvars0ToInfer' appCtx' (subst0 a0e1' x a0tye2s)
-              let varSolution = composeVarSolution varSolution1 varSolution'
-              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution1 tyvar0Solution'
+              let varSolution = composeVarSolution varSolution' varSolution1
+              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution' tyvar0Solution1
               let a0tye1s = applySolution0 varSolution tyvar0Solution a0tye1
               let result = Cast0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
               pure (result, varSolution, tyvar0Solution)
@@ -1176,14 +1176,18 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
                   case xOpt of
                     Nothing -> a0tye2s
                     Just x -> subst0 a0e1' x a0tye2s
-              let varSolution = composeVarSolution varSolution1 varSolution'
-              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution1 tyvar0Solution'
+              let varSolution = composeVarSolution varSolution' varSolution1
+              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution' tyvar0Solution1
               let a0tyeElem1s = applySolution0 varSolution tyvar0Solution a0tyeElem1
               let result = CastOmsGiven0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tyeElem1s result'
               pure (result, varSolution, tyvar0Solution)
             _ -> do
               -- Recurses by using `appCtx`, not `appCtx'`:
-              (result', varSolution', tyvar0Solution') <- go varsToInfer tyvars0ToInfer appCtx a0tye2
+              (result', varSolution', tyvar0Solution') <-
+                go varsToInfer tyvars0ToInfer appCtx $
+                  case xOpt of
+                    Nothing -> a0tye2
+                    Just x -> subst0 (A0Constructor "Nothing" []) x a0tye2
               pure (InsertOmitted0 result', varSolution', tyvar0Solution')
         (appCtxEntry : appCtx', A0TyInfArrow (x, a0tye1) a0tye2) ->
           case appCtxEntry of
@@ -1195,8 +1199,8 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
               let a0tye2s = applySolution0 varSolution1 tyvar0Solution1 a0tye2
               (result', varSolution', tyvar0Solution') <-
                 go varsToInfer' tyvars0ToInfer' appCtx' (subst0 a0e1' x a0tye2s)
-              let varSolution = composeVarSolution varSolution1 varSolution'
-              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution1 tyvar0Solution'
+              let varSolution = composeVarSolution varSolution' varSolution1
+              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution' tyvar0Solution1
               let a0tye1s = applySolution0 varSolution tyvar0Solution a0tye1
               let result = CastInfGiven0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
               pure (result, varSolution, tyvar0Solution)
@@ -1291,8 +1295,8 @@ instantiateGuidedByAppContext1 trav loc varsToInfer0 appCtx0 a1tye0 = do
                   (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
                   appCtx'
                   (applySolution1 varSolution1 tyvar1Solution1 a1tye2)
-              let varSolution = composeVarSolution varSolution1 varSolution'
-              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution'
+              let varSolution = composeVarSolution varSolution' varSolution1
+              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution' tyvar1Solution1
               let result = Cast1 (fmap (applySolution1 varSolution' tyvar1Solution' . A0TyEqAssert loc) eq) a1tye1 result'
               pure (result, varSolution, tyvar1Solution)
         (appCtxEntry : appCtx', A1TyOmsArrow label a1tye1 a1tye2) ->
@@ -1306,8 +1310,8 @@ instantiateGuidedByAppContext1 trav loc varsToInfer0 appCtx0 a1tye0 = do
                   (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
                   appCtx'
                   (applySolution1 varSolution1 tyvar1Solution1 a1tye2)
-              let varSolution = composeVarSolution varSolution1 varSolution'
-              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution'
+              let varSolution = composeVarSolution varSolution' varSolution1
+              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution' tyvar1Solution1
               let result = CastOmsGiven1 (fmap (applySolution1 varSolution' tyvar1Solution' . A0TyEqAssert loc) eq) a1tye1 result'
               pure (result, varSolution, tyvar1Solution)
             _ -> do

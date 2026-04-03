@@ -18,7 +18,7 @@ let gen_create_generator {shape : {s : List Nat | List.length s == 4 && List.nth
       rand_input
         |> ~Layer.gen_forward
           ( ~(Layer.gen_conv_transpose2d_
-                #ksize 7 #stride 1 #padding 0 #output_padding 0
+                #ksize 7 #stride 1 #padding 0
                 #input_dim 100
                 #output_dim 64
                 {shape}
@@ -30,7 +30,7 @@ let gen_create_generator {shape : {s : List Nat | List.length s == 4 && List.nth
         |> ~Tensor.gen_relu
         |> ~Layer.gen_forward
           ( ~(Layer.gen_conv_transpose2d_
-                #ksize 4 #stride 2 #padding 1 #output_padding 0
+                #ksize 4 #stride 2 #padding 1
                 #input_dim 64
                 #output_dim 32
                 {[List.nth 0 shape, 64, List.nth 2 shape + 6, List.nth 3 shape + 6]}
@@ -42,7 +42,7 @@ let gen_create_generator {shape : {s : List Nat | List.length s == 4 && List.nth
         |> ~Tensor.gen_relu
         |> ~Layer.gen_forward
           ( ~(Layer.gen_conv_transpose2d_
-                #ksize 4 #stride 2 #padding 1 #output_padding 0
+                #ksize 4 #stride 2 #padding 1
                 #input_dim 32
                 #output_dim 1
                 {[List.nth 0 shape, 32, (List.nth 2 shape + 6) * 2, (List.nth 3 shape + 6) * 2]}

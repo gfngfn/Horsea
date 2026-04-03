@@ -18,7 +18,7 @@ let create_generator
   rand_input
     |> Layer.forward
       ( Layer.conv_transpose2d_
-          #ksize 7 #stride 1 #padding 0 #output_padding 0
+          #ksize 7 #stride 1 #padding 0
           #input_dim 100
           #output_dim 64
           {shape}
@@ -29,7 +29,7 @@ let create_generator
     |> Tensor.relu
     |> Layer.forward
       ( Layer.conv_transpose2d_
-          #ksize 4 #stride 2 #padding 1 #output_padding 0
+          #ksize 4 #stride 2 #padding 1
           #input_dim 64
           #output_dim 32
           {[List.nth 0 shape, 64, List.nth 2 shape + 6, List.nth 3 shape + 6]}
@@ -40,7 +40,7 @@ let create_generator
     |> Tensor.relu
     |> Layer.forward
       ( Layer.conv_transpose2d_
-          #ksize 4 #stride 2 #padding 1 #output_padding 0
+          #ksize 4 #stride 2 #padding 1
           #input_dim 32
           #output_dim 1
           {[List.nth 0 shape, 32, (List.nth 2 shape + 6) * 2, (List.nth 3 shape + 6) * 2]}
