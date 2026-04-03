@@ -6,6 +6,7 @@ where
 import Common.LocationInFile (SpanInFile)
 import Data.List.TwoOrMore (TwoOrMore)
 import Staged.Core (Label)
+import Staged.SrcSyntax (ModuleName)
 import Surface.BindingTime.Core
 import Surface.Syntax
 import Prelude
@@ -23,7 +24,7 @@ data AnalysisError
   | BITypeContradiction SpanInFile BIType BIType BIType BIType
   | BITypeInclusionLeft SpanInFile BIType BIType BITypeVar BIType
   | BITypeInclusionRight SpanInFile BIType BIType BIType BITypeVar
-  | UnknownTypeOrInvalidArgs SpanInFile TypeName [Expr]
+  | UnknownTypeOrInvalidArity SpanInFile [ModuleName] TypeName Int
   | NotATuple SpanInFile BIType
   | TupleLengthMismatch SpanInFile (TwoOrMore Var) (TwoOrMore BIType)
   | LetRecParamsCannotStartWithImplicit SpanInFile

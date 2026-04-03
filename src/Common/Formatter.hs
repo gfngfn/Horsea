@@ -264,7 +264,7 @@ dispBranch :: (Disp pat, Disp expr) => pat -> expr -> Doc Ann
 dispBranch pat e = "|" <+> disp pat <+> "->" <+> nest 4 (line <> disp e)
 
 dispStringLiteral :: Text -> Doc Ann
-dispStringLiteral t = "\"" <> disp t <> "\"" -- TODO: escape special characters
+dispStringLiteral t = "\"" <> disp t <> "\"" -- TODO (enhance): escape special characters
 
 dispAs :: (Disp expr, Disp ty) => Associativity -> expr -> ty -> Doc Ann
 dispAs req e1 tye2 =
@@ -1354,9 +1354,8 @@ instance Disp Bta.AnalysisError where
         <+> disp bity1Local
         <+> "includes"
         <+> disp bitv2
-    Bta.UnknownTypeOrInvalidArgs spanInFile tyName _args ->
-      -- TODO (enhance): detailed report
-      "Unknown type or invalid arguments:" <+> disp tyName <+> disp spanInFile
+    Bta.UnknownTypeOrInvalidArity spanInFile mods tyName arity ->
+      "Unknown type or invalid arguments:" <+> dispQualified mods tyName <> "," <+> disp arity <+> disp spanInFile
     Bta.LetRecParamsCannotStartWithImplicit spanInFile ->
       "Recursive function definitions cannot have an implicit parameter as the first one" <+> disp spanInFile
     Bta.LetRecRequiresNonEmptyParams spanInFile ->

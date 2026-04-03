@@ -142,7 +142,7 @@ showToken = \case
   TokOpOr op -> Text.unpack op
 
 instance Mp.TraversableStream [Located Token] where
-  reachOffset _n posState = (Nothing, posState) -- TODO
+  reachOffset _n posState = (Nothing, posState) -- TODO (enhance): make this more informative
 
 keywordMap :: Map Text Token
 keywordMap =

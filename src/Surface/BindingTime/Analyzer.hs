@@ -18,6 +18,7 @@ import Data.Set (Set)
 import Data.Void (absurd)
 import Safe.Exact (zipExactMay)
 import Staged.Core (Label)
+import Staged.SrcSyntax (ModuleName)
 import Staged.Syntax qualified as Staged
 import Surface.BindingTime.AnalysisError
 import Surface.BindingTime.Constraint
@@ -213,15 +214,15 @@ makeInstantiationMap =
     )
     Map.empty
 
-collectTypeArgs :: trav -> Span -> ExprMain -> M trav (TypeName, [Expr])
+collectTypeArgs :: trav -> Span -> ExprMain -> M trav (([ModuleName], TypeName), [Expr])
 collectTypeArgs trav loc = go
   where
     go = \case
       App (Expr _ eFunMain) Nothing eArg -> do
         (tyName, eArgs) <- go eFunMain
         pure (tyName, eArgs ++ [eArg])
-      Constructor ([], tyName) -> do
-        pure (tyName, [])
+      Constructor (mods, tyName) -> do
+        pure ((mods, tyName), [])
       _ -> do
         spanInFile <- askSpanInFile loc
         analysisError trav $ InvalidSyntaxAsTypeExpr spanInFile
@@ -640,48 +641,48 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
               _ ->
                 case Staged.validatePrimBaseType tyName of
                   Just _tyPrimBase -> pure []
-                  Nothing -> analysisError trav $ UnknownTypeOrInvalidArgs spanInFile tyName []
+                  Nothing -> analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName 0
           let tye' = BTypeExpr (bt, ann) (BTyName tyName [])
           pure (tye', BIType bt (BITyBase []), constraints)
         _ : _ ->
-          error "TODO: non-empty module name prefixes"
+          analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName 0
     App _ labelOpt _ -> do
       () <-
         case labelOpt of
           Nothing -> pure ()
           Just _ -> analysisError trav $ InvalidSyntaxAsTypeExpr spanInFile
-      (tyName, args) <- collectTypeArgs trav ann typeExprMain
+      ((mods, tyName), args) <- collectTypeArgs trav ann typeExprMain
       (args', bityBaseArgs, constraints) <-
-        case (tyName, args) of
-          ("List", [tye]) -> do
+        case (mods, tyName, args) of
+          ([], "List", [tye]) -> do
             (tyeElem, bity@(BIType btElem _), cs) <- extractConstraintsFromTypeExpr trav btenv tye
             pure ([BTypeExprArg tyeElem], [bity], cs ++ [CLeq ann bt btElem])
-          ("Vec", [e]) -> do
+          ([], "Vec", [e]) -> do
             (exprArgs, cs) <- extractConstraintsFromExprArgsForType trav btenv bt ann [(e, bityNat)]
             pure (map BExprArg exprArgs, [], cs)
-          ("Mat", [e1, e2]) -> do
+          ([], "Mat", [e1, e2]) -> do
             (exprArgs, cs) <- extractConstraintsFromExprArgsForType trav btenv bt ann [(e1, bityNat), (e2, bityNat)]
             pure (map BExprArg exprArgs, [], cs)
-          ("Tensor", [eList]) -> do
+          ([], "Tensor", [eList]) -> do
             (exprArgs, cs) <- extractConstraintsFromExprArgsForType trav btenv bt ann [(eList, bityNatList)]
             pure (map BExprArg exprArgs, [], cs)
-          ("Dataset", [e1, e2, e3, e4]) -> do
+          ([], "Dataset", [e1, e2, e3, e4]) -> do
             (exprArgs, cs) <-
               extractConstraintsFromExprArgsForType trav btenv bt ann $
                 [(e1, bityNat), (e2, bityNat), (e3, bityNatList), (e4, bityNatList)]
             pure (map BExprArg exprArgs, [], cs)
-          ("Lstm", [eInputSize, eHiddenSize]) -> do
+          ([], "Lstm", [eInputSize, eHiddenSize]) -> do
             (exprArgs, cs) <-
               extractConstraintsFromExprArgsForType trav btenv bt ann $
                 [(eInputSize, bityNat), (eHiddenSize, bityNat)]
             pure (map BExprArg exprArgs, [], cs)
-          ("TextHelper", [eLabels]) -> do
+          ([], "TextHelper", [eLabels]) -> do
             (exprArgs, cs) <-
               extractConstraintsFromExprArgsForType trav btenv bt ann $
                 [(eLabels, bityNat)]
             pure (map BExprArg exprArgs, [], cs)
-          (_, _) ->
-            analysisError trav $ UnknownTypeOrInvalidArgs spanInFile tyName args
+          (_, _, _) ->
+            analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName (length args)
       let tye' = BTypeExpr (bt, ann) (BTyName tyName args')
       pure (tye', BIType bt (BITyBase bityBaseArgs), constraints)
     TyArrow labelOpt (x1opt, tye1) tye2 -> do

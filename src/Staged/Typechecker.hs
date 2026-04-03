@@ -1456,6 +1456,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           (_, _) ->
             typeError trav $ UnboundConstructor spanInFile mods ctor
       Product e1 rest ->
+        -- TODO: consider simply falling back to `App`
         case appCtx of
           [] -> do
             (a0tye1, a0e1) <- typecheckExpr0Single trav tyEnv e1
@@ -1549,7 +1550,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                 let sa0tye1 = strictify a0tye1
                 pure (Pure a0tyeRec, applyCast cast (A0Lam (Just (af, sa0tyeRec)) (ax1, sa0tye1) a0e2))
           _ : _ ->
-            -- TODO: consider supporting lambda abstractions with direct arguments
+            -- TODO (enhance): consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamWithArguments appCtx
       App e1 labelOpt e2 -> do
         (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
@@ -1576,7 +1577,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                 spanInFile1 <- askSpanInFile locTye1
                 typeError trav $ NonMaybeAnnotForLamOms0 spanInFile1 a0tye1
           _ : _ ->
-            -- TODO: consider supporting lambda abstractions with direct arguments
+            -- TODO (enhance): consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamOmsWithArguments appCtx
       AppOms e1 label e2 -> do
         (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
@@ -1598,7 +1599,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             let sa0tye1 = strictify a0tye1
             pure (Pure (A0TyInfArrow (ax1, a0tye1) a0tye2), A0Lam Nothing (ax1, sa0tye1) a0e2)
           _ : _ ->
-            -- TODO: consider supporting lambda abstractions with direct arguments
+            -- TODO (enhance): consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamInfWithArguments appCtx
       AppInfGiven e1 e2 -> do
         (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
@@ -2183,7 +2184,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                   makeEquation1 trav loc Set.empty Set.empty a1tyeSynth a1tyeRec
                 pure (Pure a1tyeRec, applyEquationCast loc eq (A1Lam (Just (af, a1tyeRec)) (ax1, a1tye1) a1e2))
           _ : _ ->
-            -- TODO: consider supporting lambda abstractions with direct arguments
+            -- TODO (enhance): consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamWithArguments appCtx
       App e1 labelOpt e2 -> do
         (a1tye2, a1e2) <- typecheckExpr1Single trav tyEnv e2
@@ -2210,7 +2211,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                 spanInFile1 <- askSpanInFile locTye1
                 typeError trav $ NonMaybeAnnotForLamOms1 spanInFile1 a1tye1
           _ : _ ->
-            -- TODO: consider supporting lambda abstractions with direct arguments
+            -- TODO (enhance): consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamOmsWithArguments appCtx
       AppOms e1 label e2 -> do
         (a1tye2, a1e2) <- typecheckExpr1Single trav tyEnv e2

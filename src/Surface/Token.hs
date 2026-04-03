@@ -41,6 +41,7 @@ data Token
   | TokLower Text
   | TokUpper Text
   | TokLongLower ([Text], Text)
+  | TokLongUpper ([Text], Text)
   | TokLabelNormal Text
   | TokLabelOmissible Text
   | TokInt Int
@@ -93,6 +94,7 @@ showToken = \case
   TokLower lower -> Text.unpack lower
   TokUpper upper -> Text.unpack upper
   TokLongLower (mods, lower) -> Text.unpack (Text.intercalate "." mods <> lower)
+  TokLongUpper (mods, upper) -> Text.unpack (Text.intercalate "." mods <> upper)
   TokLabelNormal label -> "#" ++ Text.unpack label
   TokLabelOmissible label -> "?" ++ Text.unpack label
   TokInt n -> show n
@@ -116,7 +118,7 @@ showToken = \case
   TokOpOr op -> Text.unpack op
 
 instance Mp.TraversableStream [Located Token] where
-  reachOffset _n posState = (Nothing, posState) -- TODO
+  reachOffset _n posState = (Nothing, posState) -- TODO (enhance): make this more informative
 
 keywordMap :: Map Text Token
 keywordMap =
@@ -189,6 +191,7 @@ token =
       -- identifiers:
       lowerIdentOrKeyword,
       Mp.try (TokLongLower <$> longLowerIdent),
+      Mp.try (TokLongUpper <$> longUpperIdent),
       TokUpper <$> upperIdent,
       -- numeric literals (possibly starting with `-`):
       Mp.try (TokFloat <$> floatLiteral),

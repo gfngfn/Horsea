@@ -50,7 +50,7 @@ findVal x0 tyEnv =
     (\(x, valEntry) -> if x == x0 then Just valEntry else Nothing)
     tyEnv.envVals
 
--- TODO: eliminate the duplication of same names
+-- TODO (enhance): eliminate the duplication of same names
 addTypeVar :: TypeVar -> TypeVarEntry -> TypeEnv -> TypeEnv
 addTypeVar tyvar tyVarEntry tyEnv =
   tyEnv {envTypeVars = (tyvar, tyVarEntry) : tyEnv.envTypeVars}

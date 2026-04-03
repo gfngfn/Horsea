@@ -86,7 +86,7 @@ data Ass0PartialBuiltInAppArity7 val
   = PartialBuiltInAppArity7Nil BuiltInArity7
   deriving stock (Eq, Show, Functor)
 
--- TODO: generate this function by Template Haskell;
+-- TODO (refactor): generate this function by Template Haskell;
 -- essential for persistent built-in functions.
 unliftBuiltInName :: Ass1BuiltIn -> BuiltIn
 unliftBuiltInName = \case
