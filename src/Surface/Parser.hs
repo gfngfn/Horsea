@@ -275,6 +275,7 @@ expr = letin
           Expr (mergeSpan locFirst locLast) $
             case xBinder' of
               MandatoryBinder labelOpt xBinder -> Lam Nothing labelOpt xBinder e
+              OmissibleBinder label xBinder -> LamOms label xBinder e
               InferableBinder xBinder -> LamInf xBinder e
 
         makeRecLam locFirst fBinder xBinder e@(Expr locLast _) =
@@ -285,7 +286,8 @@ expr = letin
 
     lamBinder :: P LamBinder
     lamBinder =
-      (MandatoryBinder <$> optional (noLoc labelNormal) <*> mandatoryBinder)
+      (OmissibleBinder <$> noLoc labelOmissible <*> mandatoryBinder)
+        <|> (MandatoryBinder <$> optional (noLoc labelNormal) <*> mandatoryBinder)
         <|> (InferableBinder <$> implicitBinder)
 
     mandatoryBinder, implicitBinder :: P (Var, TypeExpr)

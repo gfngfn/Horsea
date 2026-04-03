@@ -214,13 +214,22 @@ spec = do
     it "parses upcasts" $
       parseExpr "[| |] as Vec %n"
         `shouldBe` pure (upcast (litVec []) (tyPersVec (var "n")))
-    it "parses applications of implicit parameters (1)" $
+    it "parses abstractions for omissible parameters" $
+      parseExpr "fun ?foo (n : Int) -> n"
+        `shouldBe` pure (lamOms "foo" ("n", tyInt) (var "n"))
+    it "parses applications of omissible parameters" $
+      parseExpr "x ?foo y"
+        `shouldBe` pure (appOms (var "x") "foo" (var "y"))
+    it "parses abstractions for inferable parameters" $
+      parseExpr "fun {n : Nat} -> n"
+        `shouldBe` pure (lamInf ("n", tyNat) (var "n"))
+    it "parses applications of inferable parameters (1)" $
       parseExpr "x {y}"
         `shouldBe` pure (appInfGiven (var "x") (var "y"))
-    it "parses applications of implicit parameters (2)" $
+    it "parses applications of inferable parameters (2)" $
       parseExpr "x {y} {z}"
         `shouldBe` pure (appInfGiven (appInfGiven (var "x") (var "y")) (var "z"))
-    it "parses applications of implicit parameters (3)" $
+    it "parses applications of inferable parameters (3)" $
       parseExpr "x {y + 1} {z}"
         `shouldBe` pure (appInfGiven (appInfGiven (var "x") (add (var "y") (litInt 1))) (var "z"))
     it "parses sequentials (1)" $
