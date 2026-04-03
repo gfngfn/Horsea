@@ -17,6 +17,7 @@ import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Void (absurd)
 import Safe.Exact (zipExactMay)
+import Staged.Core (Label)
 import Staged.Syntax qualified as Staged
 import Surface.BindingTime.AnalysisError
 import Surface.BindingTime.Constraint
@@ -131,7 +132,7 @@ enhanceBIType enhBt enhBitv (BIType bt bityMain) =
       BITyBase bityBaseArgs -> BITyBase (map fBIType bityBaseArgs)
       BITyProduct bitys -> BITyProduct (fmap fBIType bitys)
       BITyArrow bity1 bity2 -> BITyArrow (fBIType bity1) (fBIType bity2)
-      BITyOmsArrow bity1 bity2 -> BITyOmsArrow (fBIType bity1) (fBIType bity2)
+      BITyOmsArrow label bity1 bity2 -> BITyOmsArrow label (fBIType bity1) (fBIType bity2)
       BITyInfArrow bity1 bity2 -> BITyInfArrow (fBIType bity1) (fBIType bity2)
   where
     fBIType = enhanceBIType enhBt enhBitv
@@ -409,10 +410,22 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       constraintsEq <- makeConstraintsFromBITypeEquation trav ann bity1 bity2
       let constraints = constraints1 ++ constraints2 ++ constraintsEq ++ [CLeq ann bt bt1, CLeq ann bt bt2]
       pure (BExpr (bt, ann) (BAs e1' btye2'), bity2, constraints)
-    LamOms _label (_x1opt, _tye1) _e2 -> do
-      error "TODO: extractConstraintsFromExpr, LamOms"
-    AppOms _e1 _label _e2 -> do
-      error "TODO: extractConstraintsFromExpr, AppOms"
+    LamOms label (x1, btye1) e2 -> do
+      (btye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv btye1
+      (e2', bity2@(BIType bt2 _), constraints2) <-
+        extractConstraintsFromExpr trav (Map.insert x1 (EntryLocallyBound bt bity1) btenv) e2
+      let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
+      let e' = BExpr (bt, ann) (BLamOms label (x1, btye1') e2')
+      pure (e', BIType bt (BITyOmsArrow label bity1 bity2), constraints1 ++ constraints2 ++ constraints)
+    AppOms e1 label e2 -> do
+      (e1WithoutOpts, bity1WithoutOpts, constraints1) <- extractConstraintsFromExpr trav btenv e1
+      (e1', (bt1, bity11, bity12)) <-
+        appendOmittedImplicitArgumentsBeforeOms trav label e1WithoutOpts bity1WithoutOpts
+      (e2', bity2, constraints2) <- extractConstraintsFromExpr trav btenv e2
+      constraintsEq <- makeConstraintsFromBITypeEquation trav ann bity2 bity11
+      let constraints = constraints1 ++ constraints2 ++ constraintsEq ++ [CEqual ann bt bt1]
+      constraintsEq <- makeConstraintsFromBITypeEquation trav ann bity2 bity11
+      pure (BExpr (bt, ann) (BAppOms e1' label e2'), bity12, constraints)
     LamInf (x1, btye1) e2 -> do
       (btye1', bity1, constraints1) <- extractConstraintsFromTypeExpr trav btenv btye1
       (e2', bity2, constraints2) <-
@@ -449,9 +462,26 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
     (TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}) ->
       error "TODO (error): extractConstraintsFromExpr, illegal syntax"
 
+appendOmittedImplicitArgumentsBeforeOms :: trav -> Label -> BExpr -> BIType -> M trav (BExpr, (BindingTime, BIType, BIType))
+appendOmittedImplicitArgumentsBeforeOms trav labelReq = go
+  where
+    go e@(BExpr (_, ann) _) bity@(BIType bt bityMain) = do
+      case bityMain of
+        BITyOmsArrow label bity1 bity2 ->
+          if label == labelReq
+            then pure (e, (bt, bity1, bity2))
+            else go e bity2
+        BITyInfArrow _bity1 bity2 ->
+          -- TODO (enhance): give better location than `ann`
+          go (BExpr (BTConst BT0, ann) (BAppInfOmitted e)) bity2
+        _ ->
+          error "TODO (error): appendOmittedImplicitArgumentsBeforeOms, not BITyOmsArrow"
+
 appendOmittedImplicitArguments :: BExpr -> BIType -> (BExpr, BIType)
 appendOmittedImplicitArguments e@(BExpr (_, ann) _) bity@(BIType _bt bityMain) =
   case bityMain of
+    BITyOmsArrow _label _bity1 bity2 ->
+      appendOmittedImplicitArguments e bity2
     BITyInfArrow _bity1 bity2 ->
       -- TODO (enhance): give better location than `ann`
       appendOmittedImplicitArguments (BExpr (BTConst BT0, ann) (BAppInfOmitted e)) bity2
@@ -477,7 +507,7 @@ occurs bitv = goMain
       BITyBase bitys -> any go bitys
       BITyProduct bitys -> any go bitys
       BITyArrow bity1 bity2 -> go bity1 || go bity2
-      BITyOmsArrow bity1 bity2 -> go bity1 || go bity2
+      BITyOmsArrow _label bity1 bity2 -> go bity1 || go bity2
       BITyInfArrow bity1 bity2 -> go bity1 || go bity2
     go (BIType _bt bityMain) =
       goMain bityMain
@@ -541,10 +571,15 @@ makeConstraintsFromBITypeEquation trav ann bity1' bity2' = go bity1' bity2'
               constraints1 <- go bity11 bity21
               constraints2 <- go bity12 bity22
               pure $ constraints1 ++ constraints2
-            (BITyOmsArrow bity11 bity12, BITyOmsArrow bity21 bity22) -> do
-              constraints1 <- go bity11 bity21
-              constraints2 <- go bity12 bity22
-              pure $ constraints1 ++ constraints2
+            (BITyOmsArrow label1 bity11 bity12, BITyOmsArrow label2 bity21 bity22) -> do
+              if label1 == label2
+                then do
+                  constraints1 <- go bity11 bity21
+                  constraints2 <- go bity12 bity22
+                  pure $ constraints1 ++ constraints2
+                else do
+                  spanInFile <- askSpanInFile ann
+                  analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
             (BITyInfArrow bity11 bity12, BITyInfArrow bity21 bity22) -> do
               constraints1 <- go bity11 bity21
               constraints2 <- go bity12 bity22
@@ -656,7 +691,7 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
             extractConstraintsFromTypeExpr trav (Map.insert x1 (EntryLocallyBound bt bity1) btenv) tye2
           let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
           let tye' = BTypeExpr (bt, ann) (BTyOmsArrow label (Just x1, tye1') tye2')
-          pure (tye', BIType bt (BITyOmsArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
+          pure (tye', BIType bt (BITyOmsArrow label bity1 bity2), constraints1 ++ constraints2 ++ constraints)
     TyInfArrow (x1, tye1) tye2 -> do
       (tye1', bity1, constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
       (tye2', bity2, constraints2) <-

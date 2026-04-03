@@ -109,6 +109,7 @@ makeBinOpApp e1@(Expr loc1 _) (Located locBinOp binOp) e2@(Expr loc2 _) =
 
 data FunArg
   = FunArgMandatory (Maybe (Located Text)) Expr
+  | FunArgOms (Located Text) Expr
   | FunArgInfGiven (Located Expr)
   | FunArgInfOmitted Span
 
@@ -156,11 +157,13 @@ expr = letin
         arg =
           (FunArgInfOmitted <$> token TokUnderscore)
             <|> (FunArgInfGiven <$> try (brace expr))
+            <|> (FunArgOms <$> labelOmissible <*> atom)
             <|> (FunArgMandatory <$> optional labelNormal <*> atom)
 
         makeApp :: NonEmpty FunArg -> P Expr
         makeApp (FunArgMandatory Nothing eFun :| args) = pure $ foldl' makeAppSingle eFun args
         makeApp (FunArgMandatory (Just (Located loc lab)) _ :| _) = failure (Located loc (TokLabelNormal lab))
+        makeApp (FunArgOms (Located loc lab) _ :| _) = failure (Located loc (TokLabelOmissible lab))
         makeApp (FunArgInfGiven (Located loc _e) :| _) = failure (Located loc TokLeftBrace)
         makeApp (FunArgInfOmitted loc :| _) = failure (Located loc TokUnderscore)
 
@@ -168,6 +171,7 @@ expr = letin
         makeAppSingle e1@(Expr loc1 _) = \case
           FunArgMandatory Nothing e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 Nothing e2)
           FunArgMandatory (Just (Located _ l)) e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 (Just l) e2)
+          FunArgOms (Located _ l) e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (AppOms e1 l e2)
           FunArgInfGiven (Located loc2 e2) -> Expr (mergeSpan loc1 loc2) (AppInfGiven e1 e2)
           FunArgInfOmitted loc2 -> Expr (mergeSpan loc1 loc2) (AppInfOmitted e1)
 

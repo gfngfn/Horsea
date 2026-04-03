@@ -72,7 +72,7 @@ data BITypeMainF bt tv
   | BITyBase [BITypeF bt tv]
   | BITyProduct (TwoOrMore (BITypeF bt tv))
   | BITyArrow (BITypeF bt tv) (BITypeF bt tv)
-  | BITyOmsArrow (BITypeF bt tv) (BITypeF bt tv)
+  | BITyOmsArrow Label (BITypeF bt tv) (BITypeF bt tv)
   | BITyInfArrow (BITypeF bt tv) (BITypeF bt tv)
   deriving stock (Functor, Show)
 

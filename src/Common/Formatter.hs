@@ -465,7 +465,8 @@ instance Disp (ExprMainF ann) where
 instance Disp (LamBinderF ann) where
   dispGen _ = \case
     MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
-    MandatoryBinder (Just label) (x, tye) -> "(#" <> disp label <+> disp x <+> ":" <+> disp tye <> ")"
+    MandatoryBinder (Just label) (x, tye) -> "#" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
+    OmissibleBinder label (x, tye) -> "?" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
     InferableBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
 
 instance Disp (BranchF ann) where
@@ -1346,8 +1347,8 @@ instance (Disp bt, Disp tv) => Disp (Bta.BITypeMainF bt tv) where
       deepenParenWhen (req <= Atomic) (foldl1 appendWithAsterisk (fmap (dispGen Atomic) bts))
     Bta.BITyArrow bt1 bt2 ->
       deepenParenWhen (req <= Atomic) (dispGen Atomic bt1 <+> "->" <+> dispGen Atomic bt2)
-    Bta.BITyOmsArrow bt1 bt2 ->
-      deepenParenWhen (req <= Atomic) ("?(" <> dispGen Atomic bt1 <> ") ->" <+> dispGen Atomic bt2)
+    Bta.BITyOmsArrow label bt1 bt2 ->
+      deepenParenWhen (req <= Atomic) ("?" <> disp label <+> dispGen Atomic bt1 <+> "->" <+> dispGen Atomic bt2)
     Bta.BITyInfArrow bt1 bt2 ->
       deepenParenWhen (req <= Atomic) ("{" <> dispGen Atomic bt1 <> "} ->" <+> dispGen Atomic bt2)
 
