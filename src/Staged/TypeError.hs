@@ -30,8 +30,6 @@ data TypeErrorF sv
   | UnknownTypeOrInvalidArityAtStage1 SpanInFile TypeName Int
   | NotAnIntLitArgAtStage0 SpanInFile (Ass0ExprF sv)
   | NotAnIntListLitArgAtStage0 SpanInFile (Ass0ExprF sv)
-  | NotAValueArg SpanInFile
-  | NotATypeArg SpanInFile
   | TypeContradictionAtStage0 SpanInFile (Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | TypeContradictionAtStage1 SpanInFile (Ass1TypeExprF sv) (Ass1TypeExprF sv)
   | NotABoolTypeForStage0 SpanInFile (Ass0TypeExprF sv)
@@ -50,7 +48,6 @@ data TypeErrorF sv
   | CannotUseRefinementTypeAtStage1 SpanInFile
   | CannotUsePersistent SpanInFile
   | CannotUseNormalArgAtStage1 SpanInFile
-  | CannotUseTypeVarAtStage1 SpanInFile
   | VarOccursFreelyInAss0Type SpanInFile Var (ResultF Ass0TypeExprF sv)
   | VarOccursFreelyInAss1Type SpanInFile Var (ResultF Ass1TypeExprF sv)
   | InvalidMatrixLiteral SpanInFile (Matrix.ConstructionError Int)

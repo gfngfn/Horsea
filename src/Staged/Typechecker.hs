@@ -2722,20 +2722,23 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
           pure $ A1TyPrim (A1TyTextHelper a0eLabels)
         _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (length args)
-    TyVar _tyvar ->
-      typeError trav $ CannotUseTypeVarAtStage1 spanInFile
+    TyVar tyvar -> do
+      tyvarEntry <- findTypeVar trav loc tyvar tyEnv
+      case tyvarEntry of
+        TypeVarEntry0 _ -> typeError trav $ NotAStage1TypeVar spanInFile tyvar
+        TypeVarEntry1 atyvar -> pure $ A1TyVar atyvar
     TyArrow labelOpt (xOpt, tye1) tye2 -> do
       a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
-      () <-
-        case xOpt of
-          Nothing -> pure ()
-          Just x -> typeError trav $ FunctionTypeCannotBeDependentAtStage1 spanInFile x
-      a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
-      pure $ A1TyArrow labelOpt a1tye1 a1tye2
+      case xOpt of
+        Just x ->
+          typeError trav $ FunctionTypeCannotBeDependentAtStage1 spanInFile x
+        Nothing -> do
+          a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
+          pure $ A1TyArrow labelOpt a1tye1 a1tye2
     TyOmsArrow label (xOpt, tye1) tye2 -> do
       case xOpt of
-        Just _x -> do
-          error "TODO (error): typecheckTypeExpr1, TyOmsArrow, var"
+        Just x ->
+          typeError trav $ FunctionTypeCannotBeDependentAtStage1 spanInFile x
         Nothing -> do
           a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
           a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
@@ -2753,7 +2756,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
           ( \((_locOp, op), tye) ->
               case op of
                 "*" -> typecheckTypeExpr1 trav tyEnv tye
-                _ -> error "TODO (error): typecheckTypeExpr1, Product, non-`*` op"
+                _ -> typeError trav $ IllegalSyntaxAsTypeExpr spanInFile
           )
           rest
       pure $ A1TyProduct (TwoOrMore.make1 a1tye1 a1tyesRest)
@@ -2764,7 +2767,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         typecheckTypeExpr1 trav tyEnv' tye1
       pure $ A1TyImplicitForAll atyvar a1tye1
     (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
-      error "TODO (error): typecheckTypeExpr1, illegal syntax"
+      typeError trav $ IllegalSyntaxAsTypeExpr spanInFile
 
 validatePersistentType :: trav -> Span -> Ass0TypeExpr -> M trav AssPersTypeExpr
 validatePersistentType trav loc a0tye =

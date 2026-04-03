@@ -759,10 +759,6 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "An argument expression at stage 0 is not an integer literal:" <+> stage0Style (disp a0e) <+> disp spanInFile
     NotAnIntListLitArgAtStage0 spanInFile a0e ->
       "An argument expression at stage 0 is not an integer list literal:" <+> stage0Style (disp a0e) <+> disp spanInFile
-    NotAValueArg spanInFile ->
-      "Expected a value argument here, but is not" <+> disp spanInFile
-    NotATypeArg spanInFile ->
-      "Expected a type argument here, but is not" <+> disp spanInFile
     TypeContradictionAtStage0 spanInFile a0tye1 a0tye2 ->
       "Type contradiction at stage 0"
         <+> disp spanInFile
@@ -813,8 +809,6 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Cannot use persistence here" <+> disp spanInFile
     CannotUseNormalArgAtStage1 spanInFile ->
       "Cannot use normal arguments at stage 1" <+> disp spanInFile
-    CannotUseTypeVarAtStage1 spanInFile ->
-      "Cannot use type variables at stage 1" <+> disp spanInFile
     VarOccursFreelyInAss0Type spanInFile x a0result ->
       "Variable" <+> disp x <+> "occurs in stage-0 type" <+> stage0Style (disp a0result) <+> disp spanInFile
     VarOccursFreelyInAss1Type spanInFile x a1result ->
