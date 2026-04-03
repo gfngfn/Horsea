@@ -301,7 +301,7 @@ let labels = 1000 in (* TODO *)
 
 &(let device = ~(Device.gen_cuda_if_available ()) in
   let dataset = ~(TextHelper.gen_create {labels} #filename "data/input.txt") in
-  let vs = VarStore.create #frozen false #name "min-gpt" #device device () in
+  let vs = VarStore.create #name "min-gpt" #device device () in
   print_string
     ( "Dataset loaded, length: "
         ++ show_int (~TextHelper.gen_total_length dataset)

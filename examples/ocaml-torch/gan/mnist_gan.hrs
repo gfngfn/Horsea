@@ -87,9 +87,9 @@ let write_samples (samples : Tensor [batch_size, image_dim]) #filename (filename
   )
 in
 let mnist = MnistHelper.dataset in
-let generator_vs = VarStore.create #frozen false #name "gen" #device device () in
+let generator_vs = VarStore.create #name "gen" #device device () in
 let opt_g = Optimizer.adam generator_vs #learning_rate learning_rate in
-let discriminator_vs = VarStore.create #frozen false #name "disc" #device device () in
+let discriminator_vs = VarStore.create #name "disc" #device device () in
 let opt_d = Optimizer.adam discriminator_vs #learning_rate learning_rate in
 
 let fixed_noise = random () in
