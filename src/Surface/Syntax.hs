@@ -50,18 +50,22 @@ data ExprMainF ann
   | Tuple (TwoOrMore (ExprF ann))
   | IfThenElse (ExprF ann) (ExprF ann) (ExprF ann)
   | As (ExprF ann) (TypeExprF ann)
-  | LamImp (Var, TypeExprF ann) (ExprF ann)
-  | AppImpGiven (ExprF ann) (ExprF ann)
-  | AppImpOmitted (ExprF ann)
+  | LamOms Label (Var, TypeExprF ann) (ExprF ann)
+  | AppOms (ExprF ann) Label (ExprF ann)
+  | LamInf (Var, TypeExprF ann) (ExprF ann)
+  | AppInfGiven (ExprF ann) (ExprF ann)
+  | AppInfOmitted (ExprF ann)
   | TyArrow (Maybe Label) (Maybe Var, TypeExprF ann) (TypeExprF ann)
-  | TyImpArrow (Var, TypeExprF ann) (TypeExprF ann)
+  | TyOmsArrow Text (Maybe Var, TypeExprF ann) (TypeExprF ann)
+  | TyInfArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)
   | Product (TypeExprF ann) (NonEmpty ((ann, Var), TypeExprF ann))
   deriving stock (Show, Functor)
 
 data LamBinderF ann
   = MandatoryBinder (Maybe Label) (Var, TypeExprF ann)
-  | ImplicitBinder (Var, TypeExprF ann)
+  | OmissibleBinder Label (Var, TypeExprF ann)
+  | InferableBinder (Var, TypeExprF ann)
   deriving stock (Show, Functor)
 
 type Expr = ExprF Span

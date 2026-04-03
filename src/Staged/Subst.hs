@@ -447,10 +447,20 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
        in (var0set, var1set)
     A0TyCode a1tye1 ->
       frees a1tye1
-    A0TyImpArrow (y, a0tye1) a0tye2 ->
+    A0TyInfArrow (y, a0tye1) a0tye2 ->
       let (var0set1, var1set1) = frees a0tye1
           (var0set2, var1set2) = frees a0tye2
           var0set = Set.union var0set1 (Set.delete y var0set2)
+          var1set = Set.union var1set1 var1set2
+       in (var0set, var1set)
+    A0TyOmsArrow _label (yOpt, a0tye1) a0tye2 ->
+      let (var0set1, var1set1) = frees a0tye1
+          (var0set2, var1set2) = frees a0tye2
+          var0set =
+            Set.union var0set1 $
+              case yOpt of
+                Just y -> Set.delete y var0set2
+                Nothing -> var0set2
           var1set = Set.union var1set1 var1set2
        in (var0set, var1set)
     A0TyImplicitForAll _atyvar a0tye ->
@@ -475,11 +485,17 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
           (_, Subst1 _ _) -> go a0tye2
     A0TyCode a1tye1 ->
       A0TyCode (go a1tye1)
-    A0TyImpArrow (y, a0tye1) a0tye2 ->
-      A0TyImpArrow (y, go a0tye1) $
+    A0TyInfArrow (y, a0tye1) a0tye2 ->
+      A0TyInfArrow (y, go a0tye1) $
         case s of
           Subst0 x _ -> if y == x then a0tye2 else go a0tye2
           Subst1 _ _ -> go a0tye2
+    A0TyOmsArrow label (yOpt, a0tye1) a0tye2 ->
+      A0TyOmsArrow label (yOpt, go a0tye1) $
+        case (yOpt, s) of
+          (Just y, Subst0 x _) -> if y == x then a0tye2 else go a0tye2
+          (Nothing, _) -> go a0tye2
+          (_, Subst1 _ _) -> go a0tye2
     A0TyImplicitForAll atyvar a0tye ->
       A0TyImplicitForAll atyvar (go a0tye)
     where
@@ -509,8 +525,16 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
               go a0tye12 (subst0 (A0Var y1) y2 a0tye22)
       (A0TyCode a1tye1, A0TyCode a1tye2) ->
         go a1tye1 a1tye2
-      (A0TyImpArrow (y1, a0tye11) a0tye12, A0TyImpArrow (y2, a0tye21) a0tye22) ->
+      (A0TyInfArrow (y1, a0tye11) a0tye12, A0TyInfArrow (y2, a0tye21) a0tye22) ->
         go a0tye11 a0tye21 && go a0tye12 (subst0 (A0Var y1) y2 a0tye22)
+      (A0TyOmsArrow label1 (y1opt, a0tye11) a0tye12, A0TyOmsArrow label2 (y2opt, a0tye21) a0tye22) ->
+        label1 == label2
+          && go a0tye11 a0tye21
+          && case (y1opt, y2opt) of
+            (Nothing, Nothing) -> go a0tye12 a0tye22
+            (Just y1, Nothing) -> not (occurs0 y1 a0tye12) && go a0tye12 a0tye22
+            (Nothing, Just y2) -> not (occurs0 y2 a0tye22) && go a0tye12 a0tye22
+            (Just y1, Just y2) -> go a0tye12 (subst0 (A0Var y1) y2 a0tye22)
       (A0TyImplicitForAll atyvar1 a0tye1', A0TyImplicitForAll atyvar2 a0tye2') ->
         -- TODO: true alpha-equivalence
         atyvar1 == atyvar2 && go a0tye1' a0tye2'
@@ -549,6 +573,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       unionPairs (map frees (TwoOrMore.toList a1tyes))
     A1TyArrow _labelOpt a1tye1 a1tye2 ->
       unionPairs [frees a1tye1, frees a1tye2]
+    A1TyOmsArrow _label a1tye1 a1tye2 ->
+      unionPairs [frees a1tye1, frees a1tye2]
     A1TyImplicitForAll _atyvar a1tye2 ->
       frees a1tye2
 
@@ -570,6 +596,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       A1TyProduct (fmap go a1tyes)
     A1TyArrow labelOpt a1tye1 a1tye2 ->
       A1TyArrow labelOpt (go a1tye1) (go a1tye2)
+    A1TyOmsArrow label a1tye1 a1tye2 ->
+      A1TyOmsArrow label (go a1tye1) (go a1tye2)
     A1TyImplicitForAll atyvar a1tye2 ->
       A1TyImplicitForAll atyvar (go a1tye2)
     where
@@ -590,6 +618,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
         go a1tye1' a1tye2'
       (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) ->
         labelOpt1 == labelOpt2 && go a1tye11 a1tye21 && go a1tye12 a1tye22
+      (A1TyOmsArrow label1 a1tye11 a1tye12, A1TyOmsArrow label2 a1tye21 a1tye22) ->
+        label1 == label2 && go a1tye11 a1tye21 && go a1tye12 a1tye22
       (_, _) ->
         False
     where
@@ -692,6 +722,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       frees ty1eqElem
     TyEq1Arrow _labelOpt ty1eqDom ty1eqCod ->
       unionPairs [frees ty1eqDom, frees ty1eqCod]
+    TyEq1OmsArrow _label ty1eqDom ty1eqCod ->
+      unionPairs [frees ty1eqDom, frees ty1eqCod]
     TyEq1Product ty1eqs ->
       unionPairs (map frees (TwoOrMore.toList ty1eqs))
     TyEq1TypeVar _atyvar ->
@@ -714,6 +746,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       TyEq1Maybe (go ty1eqElem)
     TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
       TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
+    TyEq1OmsArrow label ty1eqDom ty1eqCod ->
+      TyEq1OmsArrow label (go ty1eqDom) (go ty1eqCod)
     TyEq1Product ty1eqs ->
       TyEq1Product (fmap go ty1eqs)
     TyEq1TypeVar atyvar ->
@@ -834,7 +868,11 @@ instance (HasVar sv af) => HasVar sv (ResultF af) where
     Pure v -> frees v
     Cast0 cast a0tye r -> unionPairs [frees (Maybe1 cast), frees a0tye, frees r]
     Cast1 eq a1tye r -> unionPairs [frees (Maybe1 eq), frees a1tye, frees r]
-    CastGiven0 cast a0tye r -> unionPairs [frees (Maybe1 cast), frees a0tye, frees r]
+    CastOmsGiven0 cast a0tye r -> unionPairs [frees (Maybe1 cast), frees a0tye, frees r]
+    InsertOmitted0 r -> frees r
+    CastOmsGiven1 cast a1tye r -> unionPairs [frees (Maybe1 cast), frees a1tye, frees r]
+    InsertOmitted1 r -> frees r
+    CastInfGiven0 cast a0tye r -> unionPairs [frees (Maybe1 cast), frees a0tye, frees r]
     FillInferred0 a0e r -> unionPairs [frees a0e, frees r]
     InsertInferred0 a0e r -> unionPairs [frees a0e, frees r]
     InsertInferredType0 a0tye r -> unionPairs [frees a0tye, frees r]
@@ -844,7 +882,11 @@ instance (HasVar sv af) => HasVar sv (ResultF af) where
     Pure v -> Pure (go v)
     Cast0 cast a0tye r -> Cast0 (unMaybe1 . go . Maybe1 $ cast) (go a0tye) (go r)
     Cast1 eq a1tye r -> Cast1 (unMaybe1 . go . Maybe1 $ eq) (go a1tye) (go r)
-    CastGiven0 cast a0tye r -> CastGiven0 (unMaybe1 . go . Maybe1 $ cast) (go a0tye) (go r)
+    CastOmsGiven0 cast a0tye r -> CastOmsGiven0 (unMaybe1 . go . Maybe1 $ cast) (go a0tye) (go r)
+    InsertOmitted0 r -> InsertOmitted0 (go r)
+    CastOmsGiven1 cast a1tye r -> CastOmsGiven1 (unMaybe1 . go . Maybe1 $ cast) (go a1tye) (go r)
+    InsertOmitted1 r -> InsertOmitted1 (go r)
+    CastInfGiven0 cast a0tye r -> CastInfGiven0 (unMaybe1 . go . Maybe1 $ cast) (go a0tye) (go r)
     FillInferred0 a0e r -> FillInferred0 (go a0e) (go r)
     InsertInferred0 a0e r -> InsertInferred0 (go a0e) (go r)
     InsertInferredType0 a0tye r -> InsertInferredType0 (go a0tye) (go r)

@@ -14,7 +14,6 @@ let gen_create_generator {shape : {s : List Nat | List.length s > 0 && List.last
             {shape}
           )
           vs
-          #use_bias true
           Layer.Activation.leaky_relu
       in
       let linear2 =
@@ -24,7 +23,6 @@ let gen_create_generator {shape : {s : List Nat | List.length s > 0 && List.last
             {List.append (List.init shape) [generator_hidden_nodes]}
           )
           vs
-          #use_bias true
           Layer.Activation.tanh
       in
       fun (rand_input : Tensor %shape) ->
@@ -41,7 +39,6 @@ let gen_create_discriminator {shape : {s : List Nat | List.length s > 0 && List.
             {shape}
           )
           vs
-          #use_bias true
           Layer.Activation.leaky_relu
       in
       let linear2 =
@@ -51,7 +48,6 @@ let gen_create_discriminator {shape : {s : List Nat | List.length s > 0 && List.
             {List.append (List.init shape) [discriminator_hidden_nodes]}
           )
           vs
-          #use_bias true
           Layer.Activation.sigmoid
       in
       fun (xs : Tensor %shape) ->
@@ -98,9 +94,9 @@ in
     )
   in
   let mnist = MnistHelper.dataset in
-  let generator_vs = VarStore.create #frozen false #name "gen" #device device () in
+  let generator_vs = VarStore.create #name "gen" #device device () in
   let opt_g = Optimizer.adam generator_vs #learning_rate learning_rate in
-  let discriminator_vs = VarStore.create #frozen false #name "disc" #device device () in
+  let discriminator_vs = VarStore.create #name "disc" #device device () in
   let opt_d = Optimizer.adam discriminator_vs #learning_rate learning_rate in
 
   let fixed_noise = random () in

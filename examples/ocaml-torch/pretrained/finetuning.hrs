@@ -6,7 +6,7 @@ let image_dim = [3, image_height, image_width] in
 (* Precompute the last layer of the pre-trained model on the whole dataset. *)
 let precompute_activations {ntrain : Nat} {ntest : Nat} (model_path : String) (dataset0 : Dataset ntrain ntest image_dim []) =
   let dataset1 =
-    let frozen_vs = VarStore.create #frozen true #name "rn" #device Device.cpu () in
+    let frozen_vs = VarStore.create ?frozen true #name "rn" #device Device.cpu () in
     let pretrained_model =
       TorchVision.Resnet.resnet18 {4 :: image_dim} #num_classes num_classes frozen_vs
     in
@@ -43,12 +43,11 @@ let dataset =
   in
   DatasetHelper.print_summary dataset;
   let dataset = precompute_activations model_path dataset in
-  let train_vs = VarStore.create #frozen false #name "rn-vs" #device Device.cpu () in
+  let train_vs = VarStore.create #name "rn-vs" #device Device.cpu () in
   let model (xs : Tensor [batch_size, num_classes]) =
     Layer.forward
       ( Layer.linear #input_dim num_classes #output_dim (List.length classes) {[batch_size, num_classes]}
           train_vs
-          #use_bias true
           Layer.Activation.none
       )
       xs

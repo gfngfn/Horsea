@@ -3,7 +3,7 @@ let batch_size = 256 in
 &(let epochs = 5000 in
   let learning_rate = 0.001 in
   let device = ~(Device.gen_cuda_if_available ()) in
-  let vs = VarStore.create #frozen false #name "cnn" #device device () in
+  let vs = VarStore.create #name "cnn" #device device () in
   let conv2d1 (t : Tensor %[batch_size, 1, 28, 28]) =
     ~(Layer.gen_conv2d_ #ksize 5 #stride 1 #padding 0 #input_dim 1 #output_dim 32)
       vs
@@ -19,13 +19,11 @@ let batch_size = 256 in
   let linear1 =
     ~(Layer.gen_linear #input_dim 1024 #output_dim 1024 {[batch_size, 1024]})
       vs
-      #use_bias true
       Layer.Activation.relu
   in
   let linear2 =
     ~(Layer.gen_linear #input_dim 1024 #output_dim MnistHelper.label_count {[batch_size, 1024]})
       vs
-      #use_bias true
       Layer.Activation.none
   in
   let adam = Optimizer.adam vs #learning_rate learning_rate in

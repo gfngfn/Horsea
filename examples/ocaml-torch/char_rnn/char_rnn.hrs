@@ -54,7 +54,7 @@ let learning_rate = 0.01 in
 let epochs = 100 in
 let device = Device.cuda_if_available () in
 let dataset = TextHelper.create {labels} #filename "data/input.txt" in
-let vs = VarStore.create #frozen false #name "char-rnn" #device device () in
+let vs = VarStore.create #name "char-rnn" #device device () in
 print_string "length:";
 print_int (TextHelper.total_length dataset);
 print_string "labels:";
@@ -63,7 +63,6 @@ let lstm = Layer.Lstm.create #input_dim labels #hidden_size hidden_size vs in
 let linear (shape : List Nat) =
   Layer.linear #input_dim hidden_size #output_dim labels {List.append shape [hidden_size]}
     vs
-    #use_bias true
     Layer.Activation.none
 in
 let adam = Optimizer.adam vs #learning_rate learning_rate in

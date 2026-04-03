@@ -15,7 +15,6 @@ let create_generator
       #output_dim generator_hidden_nodes
       {shape}
       vs
-      #use_bias true
       Layer.Activation.leaky_relu
   in
   let linear2 =
@@ -24,7 +23,6 @@ let create_generator
       #output_dim image_dim
       {List.append (List.init shape) [generator_hidden_nodes]}
       vs
-      #use_bias true
       Layer.Activation.tanh
   in
   fun (rand_input : Tensor shape) ->
@@ -40,7 +38,6 @@ let create_discriminator
       #output_dim discriminator_hidden_nodes
       {shape}
       vs
-      #use_bias true
       Layer.Activation.leaky_relu
   in
   let linear2 =
@@ -49,7 +46,6 @@ let create_discriminator
       #output_dim 1
       {List.append (List.init shape) [discriminator_hidden_nodes]}
       vs
-      #use_bias true
       Layer.Activation.sigmoid
   in
   fun (xs : Tensor shape) ->
@@ -87,9 +83,9 @@ let write_samples (samples : Tensor [batch_size, image_dim]) #filename (filename
   )
 in
 let mnist = MnistHelper.dataset in
-let generator_vs = VarStore.create #frozen false #name "gen" #device device () in
+let generator_vs = VarStore.create #name "gen" #device device () in
 let opt_g = Optimizer.adam generator_vs #learning_rate learning_rate in
-let discriminator_vs = VarStore.create #frozen false #name "disc" #device device () in
+let discriminator_vs = VarStore.create #name "disc" #device device () in
 let opt_d = Optimizer.adam discriminator_vs #learning_rate learning_rate in
 
 let fixed_noise = random () in

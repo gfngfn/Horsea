@@ -19,3 +19,6 @@ spec = do
     it "tokenizes /" $ do
       lex "float -1 / x"
         `shouldBe` pure [TokLower "float", TokInt (-1), TokOpMult "/", TokLower "x"]
+    it "tokenizes ?foo" $ do
+      lex "?foo Int -> Bool"
+        `shouldBe` pure [TokLabelOmissible "foo", TokUpper "Int", TokArrow, TokUpper "Bool"]

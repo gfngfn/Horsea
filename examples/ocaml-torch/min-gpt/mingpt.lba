@@ -19,7 +19,6 @@ let gen_causal_self_attention
       let linear (n : String) =
         ~(Layer.gen_linear #input_dim cfg_n_embd #output_dim cfg_n_embd {[b, seq_len, cfg_n_embd]})
           (let open VarStore in vs / n)
-          #use_bias true
           Layer.Activation.none
       in
       let key = linear "key" in
@@ -104,7 +103,6 @@ let gen_block
             {[b, seq_len, cfg_n_embd]}
           )
           (let open VarStore in vs / "lin1")
-          #use_bias true
           Layer.Activation.none
       in
       let lin2 =
@@ -114,7 +112,6 @@ let gen_block
             {[b, seq_len, 4 * cfg_n_embd]}
           )
           (let open VarStore in vs / "lin2")
-          #use_bias true
           Layer.Activation.none
       in
       ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %[b, seq_len, cfg_n_embd]) ->
@@ -164,7 +161,7 @@ let gen_gpt
       let head =
         ~(Layer.gen_linear #input_dim cfg_n_embd #output_dim cfg_vocab_size {[b, seq_len, cfg_n_embd]})
           (let open VarStore in vs / "head")
-          #use_bias false
+          ?use_bias false
           Layer.Activation.none
       in
       let blocks =
@@ -301,7 +298,7 @@ let labels = 1000 in (* TODO *)
 
 &(let device = ~(Device.gen_cuda_if_available ()) in
   let dataset = ~(TextHelper.gen_create {labels} #filename "data/input.txt") in
-  let vs = VarStore.create #frozen false #name "min-gpt" #device device () in
+  let vs = VarStore.create #name "min-gpt" #device device () in
   print_string
     ( "Dataset loaded, length: "
         ++ show_int (~TextHelper.gen_total_length dataset)

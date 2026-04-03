@@ -215,8 +215,8 @@ makeAssertiveCast trav loc =
                   pure
                     ( ( varsToInfer' \\ Map.keysSet varSolution,
                         tyvars0ToInfer' \\ Map.keysSet tyvar0Solution,
-                        composeVarSolution varSolution' varSolution,
-                        composeTypeVar0Solution tyvar0Solution' tyvar0Solution
+                        composeVarSolution varSolution varSolution',
+                        composeTypeVar0Solution tyvar0Solution tyvar0Solution'
                       ),
                       (cast, a0tye1')
                     )
@@ -256,10 +256,10 @@ makeAssertiveCast trav loc =
                   (tyvars0ToInfer \\ Map.keysSet tyvar0SolutionDom)
                   (applySolution0 varSolutionDom tyvar0SolutionDom a0tye12)
                   (applySolution0 varSolutionDom tyvar0SolutionDom a0tye22)
-              let varSolution = composeVarSolution varSolutionDom varSolutionCod
+              let varSolution = composeVarSolution varSolutionCod varSolutionDom
               let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionDom tyvar0SolutionCod
               cast <-
-                makeFunctionTypeCast
+                makeArrowTypeCast
                   trav
                   x
                   (applySolution0 varSolution tyvar0Solution a0tye11)
@@ -268,7 +268,43 @@ makeAssertiveCast trav loc =
                   (applySolution0 varSolutionCod tyvar0Solution <$> castDom)
                   castCod
               pure (cast, varSolution, tyvar0Solution)
-        (A0TyImpArrow (x1, a0tye11) a0tye12, A0TyImpArrow (x2, a0tye21) a0tye22withX2) -> do
+        (A0TyOmsArrow label1 (x1opt, a0tye11) a0tye12, A0TyOmsArrow label2 (x2opt, a0tye21) a0tye22withX2opt) -> do
+          if label1 /= label2
+            then
+              typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
+            else do
+              (castDom, varSolutionDom, tyvar0SolutionDom) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
+              (x, a0tye22) <-
+                case (x1opt, x2opt) of
+                  (Nothing, Nothing) -> do
+                    sv <- generateFreshVar Nothing
+                    let x0 = AssVarStatic sv
+                    pure (x0, a0tye22withX2opt)
+                  (Just x1, Nothing) ->
+                    pure (x1, a0tye22withX2opt)
+                  (Nothing, Just x2) ->
+                    pure (x2, a0tye22withX2opt)
+                  (Just x1, Just x2) ->
+                    pure (x1, subst0 (A0Var x1) x2 a0tye22withX2opt)
+              (castCod, varSolutionCod, tyvar0SolutionCod) <-
+                go
+                  (varsToInfer \\ Map.keysSet varSolutionDom)
+                  (tyvars0ToInfer \\ Map.keysSet tyvar0SolutionDom)
+                  (applySolution0 varSolutionDom tyvar0SolutionDom a0tye12)
+                  (applySolution0 varSolutionDom tyvar0SolutionDom a0tye22)
+              let varSolution = composeVarSolution varSolutionCod varSolutionDom
+              let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionCod tyvar0SolutionDom
+              cast <-
+                makeArrowTypeCast
+                  trav
+                  x
+                  (A0TyMaybe (applySolution0 varSolution tyvar0Solution a0tye11))
+                  (applySolution0 varSolution tyvar0Solution a0tye12)
+                  (A0TyMaybe (applySolution0 varSolution tyvar0Solution a0tye21))
+                  (applySolution0 varSolutionCod tyvar0Solution <$> castDom)
+                  castCod
+              pure (cast, varSolution, tyvar0Solution)
+        (A0TyInfArrow (x1, a0tye11) a0tye12, A0TyInfArrow (x2, a0tye21) a0tye22withX2) -> do
           (castDom, varSolutionDom, tyvar0SolutionDom) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
           let (x, a0tye22) = (x1, subst0 (A0Var x1) x2 a0tye22withX2)
           (castCod, varSolutionCod, tyvar0SolutionCod) <-
@@ -277,10 +313,11 @@ makeAssertiveCast trav loc =
               (tyvars0ToInfer \\ Map.keysSet tyvar0SolutionDom)
               (applySolution0 varSolutionDom tyvar0SolutionDom a0tye12)
               (applySolution0 varSolutionDom tyvar0SolutionDom a0tye22)
-          let varSolution = composeVarSolution varSolutionDom varSolutionCod
-          let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionDom tyvar0SolutionCod
+          let varSolution = composeVarSolution varSolutionCod varSolutionDom
+          let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionCod tyvar0SolutionDom
+          -- We can use the same cast function as `A0TyArrow`:
           cast <-
-            makeFunctionTypeCast
+            makeArrowTypeCast
               trav
               x
               (applySolution0 varSolution tyvar0Solution a0tye11)
@@ -296,20 +333,20 @@ makeAssertiveCast trav loc =
         (_, _) ->
           typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
 
-    makeFunctionTypeCast :: trav -> AssVar -> Ass0TypeExpr -> Ass0TypeExpr -> Ass0TypeExpr -> Maybe Ass0Expr -> Maybe Ass0Expr -> M trav (Maybe Ass0Expr)
-    makeFunctionTypeCast _trav x a0tye11 a0tye12 a0tye21 castDom castCod =
+    makeArrowTypeCast :: trav -> AssVar -> Ass0TypeExpr -> Ass0TypeExpr -> Ass0TypeExpr -> Maybe Ass0Expr -> Maybe Ass0Expr -> M trav (Maybe Ass0Expr)
+    makeArrowTypeCast _trav x a0tye11 a0tye12 a0tye21 castDom castCod =
       case (castDom, castCod) of
         (Nothing, Nothing) ->
           pure Nothing
         (_, _) -> do
-          let a0tye1 = A0TyArrow Nothing (Just x, a0tye11) a0tye12
           f <- AssVarStatic <$> generateFreshVar Nothing
           x' <- AssVarStatic <$> generateFreshVar Nothing
           let fDom = applyCast castDom
           let fCod = applyCast castCod
+          let sa0tye1 = SA0TyArrow (Just x, strictify a0tye11) (strictify a0tye12)
           pure $
             Just $
-              A0Lam Nothing (f, strictify a0tye1) $
+              A0Lam Nothing (f, sa0tye1) $
                 A0Lam Nothing (x, strictify a0tye21) $
                   A0App (A0Lam Nothing (x', strictify a0tye11) (fCod (A0App (A0Var f) (A0Var x')))) (fDom (A0Var x))
 
@@ -519,6 +556,21 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
               let varSolution = composeVarSolution varSolution1 varSolution2
               let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2
               pure (trivial1 && trivial2, TyEq1Arrow labelOpt1 ty1eqDom ty1eqCod, varSolution, tyvar1Solution)
+        (A1TyOmsArrow label1 a1tye11 a1tye12, A1TyOmsArrow label2 a1tye21 a1tye22) -> do
+          if label1 /= label2
+            then
+              Left ()
+            else do
+              (trivial1, ty1eqDom, varSolution1, tyvar1Solution1) <- go varsToInfer tyvars1ToInfer a1tye11 a1tye21
+              (trivial2, ty1eqCod, varSolution2, tyvar1Solution2) <-
+                go
+                  (varsToInfer \\ Map.keysSet varSolution1)
+                  (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
+                  a1tye12
+                  (applyVarSolution varSolution1 a1tye22)
+              let varSolution = composeVarSolution varSolution1 varSolution2
+              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2
+              pure (trivial1 && trivial2, TyEq1OmsArrow label1 ty1eqDom ty1eqCod, varSolution, tyvar1Solution)
         (_, A1TyImplicitForAll atyvar2 a1tye22) ->
           -- Not confident. TODO (theory): ensure that this works correctly
           go varsToInfer (Set.insert atyvar2 tyvars1ToInfer) a1tye1 a1tye22
@@ -655,19 +707,53 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
               rest
           let pairs = (a0pat1, a1tye1) :| pairsRest
           A0TyCode <$> go1 pairs
-        A0TyImpArrow (x1, a0tyeDom1) a0tyeCod1 -> do
+        A0TyOmsArrow label1 (x1opt, a0tyeDom1) a0tyeCod1 -> do
           quadsRest <-
             mapM
               ( \(a0pat, a0tye) ->
                   case a0tye of
-                    A0TyImpArrow (x, a0tyeDom) a0tyeCod -> pure (a0pat, (x, a0tyeDom, a0tyeCod))
+                    A0TyOmsArrow label (xOpt, a0tyeDom) a0tyeCod ->
+                      if label == label1
+                        then pure (a0pat, (xOpt, a0tyeDom, a0tyeCod))
+                        else failure
+                    _ ->
+                      failure
+              )
+              rest
+          let quads = (a0pat1, (x1opt, a0tyeDom1, a0tyeCod1)) :| quadsRest
+          a0tyeDom' <- go0 (fmap (second (\(_, a0tyeDom, _) -> a0tyeDom)) quads)
+          (xOpt', pairsForCod) <-
+            if all (\(_, (xOpt, _, _)) -> isNothing xOpt) quads
+              then
+                pure (Nothing, fmap (second (\(_, _, a0tyeCod) -> a0tyeCod)) quads)
+              else do
+                ax' <- AssVarStatic <$> generateFreshVar Nothing
+                let pair =
+                      fmap
+                        ( second
+                            ( \(xOpt, _, a0tyeCod) ->
+                                case xOpt of
+                                  Nothing -> a0tyeCod
+                                  Just x -> subst0 (A0Var ax') x a0tyeCod
+                            )
+                        )
+                        quads
+                pure (Just ax', pair)
+          a0tyeCod' <- go0 pairsForCod
+          pure $ A0TyOmsArrow label1 (xOpt', a0tyeDom') a0tyeCod'
+        A0TyInfArrow (x1, a0tyeDom1) a0tyeCod1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyInfArrow (x, a0tyeDom) a0tyeCod -> pure (a0pat, (x, a0tyeDom, a0tyeCod))
                     _ -> failure
               )
               rest
           let quads = (a0pat1, (x1, a0tyeDom1, a0tyeCod1)) :| quadsRest
           a0tyeDom' <- go0 (fmap (second (\(_, a0tyeDom, _) -> a0tyeDom)) quads)
           a0tyeCod' <- go0 ((a0pat1, a0tyeCod1) :| map (second (\(x, _, a0tyeCod) -> subst0 (A0Var x1) x a0tyeCod)) quadsRest)
-          pure $ A0TyImpArrow (x1, a0tyeDom') a0tyeCod'
+          pure $ A0TyInfArrow (x1, a0tyeDom') a0tyeCod'
         A0TyProduct a0tyes1 -> do
           pairsRest <-
             mapM
@@ -833,8 +919,8 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
             mapM
               ( \(a0pat, a1tye) ->
                   case a1tye of
-                    A1TyArrow labelOpt2 a1tyeDom a1tyeCod ->
-                      if labelOpt1 == labelOpt2
+                    A1TyArrow labelOpt a1tyeDom a1tyeCod ->
+                      if labelOpt == labelOpt1
                         then pure (a0pat, (a1tyeDom, a1tyeCod))
                         else failure
                     _ ->
@@ -845,6 +931,23 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
           a1tyeDom' <- go1 (fmap (second fst) triples)
           a1tyeCod' <- go1 (fmap (second snd) triples)
           pure $ A1TyArrow labelOpt1 a1tyeDom' a1tyeCod'
+        A1TyOmsArrow label1 a1tyeDom1 a1tyeCod1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyOmsArrow label a1tyeDom a1tyeCod ->
+                      if label == label1
+                        then pure (a0pat, (a1tyeDom, a1tyeCod))
+                        else failure
+                    _ ->
+                      failure
+              )
+              rest
+          let triples = (a0pat1, (a1tyeDom1, a1tyeCod1)) :| triplesRest
+          a1tyeDom' <- go1 (fmap (second fst) triples)
+          a1tyeCod' <- go1 (fmap (second snd) triples)
+          pure $ A1TyOmsArrow label1 a1tyeDom' a1tyeCod'
         A1TyProduct a1tyes1 -> do
           pairsRest <-
             mapM
@@ -941,19 +1044,67 @@ mergeResultsByConditional0 trav loc a0e0 = go
           a1tye' <- mergeTypes1 (fmap (second (\(_, a1tye, _) -> a1tye)) quads)
           cast' <- mergeCasts (fmap (second (\(cast, a1tye, _) -> (cast, A0TyCode a1tye))) quads)
           Cast1 cast' a1tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
-        CastGiven0 cast1 a0tye1 r1 -> do
+        CastOmsGiven0 cast1 a0tye1 r1 -> do
           quadsRest <-
             mapM
               ( \(a0pat, result) ->
                   case result of
-                    CastGiven0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
+                    CastOmsGiven0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
                     _ -> failure
               )
               rest
           let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
           a0tye' <- mergeTypes0 (fmap (\(pat, (_, a0tye, _)) -> (pat, a0tye)) quads)
           cast' <- mergeCasts (fmap (\(pat, (cast, a0tye, _)) -> (pat, (cast, a0tye))) quads)
-          CastGiven0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
+          CastOmsGiven0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
+        InsertOmitted0 r1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    InsertOmitted0 r -> pure (a0pat, r)
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, r1) :| pairsRest
+          InsertOmitted0 <$> go pairs
+        CastOmsGiven1 cast1 a1tye1 r1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    CastOmsGiven1 cast a1tye r -> pure (a0pat, (cast, a1tye, r))
+                    _ -> failure
+              )
+              rest
+          let quads = (a0pat1, (cast1, a1tye1, r1)) :| quadsRest
+          a1tye' <- mergeTypes1 (fmap (\(pat, (_, a1tye, _)) -> (pat, a1tye)) quads)
+          cast' <- mergeCasts (fmap (\(pat, (cast, a1tye, _)) -> (pat, (cast, A0TyCode a1tye))) quads)
+          CastOmsGiven1 cast' a1tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
+        InsertOmitted1 r1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    InsertOmitted1 r -> pure (a0pat, r)
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, r1) :| pairsRest
+          InsertOmitted1 <$> go pairs
+        CastInfGiven0 cast1 a0tye1 r1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    CastInfGiven0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
+                    _ -> failure
+              )
+              rest
+          let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
+          a0tye' <- mergeTypes0 (fmap (\(pat, (_, a0tye, _)) -> (pat, a0tye)) quads)
+          cast' <- mergeCasts (fmap (\(pat, (cast, a0tye, _)) -> (pat, (cast, a0tye))) quads)
+          CastInfGiven0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
         FillInferred0 a0e1 r1 -> do
           triplesRest <-
             mapM
@@ -1039,14 +1190,40 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
                 case xOpt of
                   Nothing -> go varsToInfer' tyvars0ToInfer' appCtx' a0tye2s
                   Just x -> go varsToInfer' tyvars0ToInfer' appCtx' (subst0 a0e1' x a0tye2s)
-              let varSolution = composeVarSolution varSolution1 varSolution'
-              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution1 tyvar0Solution'
+              let varSolution = composeVarSolution varSolution' varSolution1
+              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution' tyvar0Solution1
               let a0tye1s = applySolution0 varSolution tyvar0Solution a0tye1
               let result = Cast0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
               pure (result, varSolution, tyvar0Solution)
-        (appCtxEntry : appCtx', A0TyImpArrow (x, a0tye1) a0tye2) ->
+        (appCtxEntry : appCtx', A0TyOmsArrow label (xOpt, a0tyeElem1) a0tye2) -> do
           case appCtxEntry of
-            AppArgImpGiven0 a0e1' a0tye1' -> do
+            AppArgOmsGiven0 label' a0e1' a0tyeElem1' | label' == label -> do
+              (cast, varSolution1, tyvar0Solution1) <-
+                makeAssertiveCast trav loc varsToInfer tyvars0ToInfer a0tyeElem1' a0tyeElem1
+              let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
+              let tyvars0ToInfer' = tyvars0ToInfer \\ Map.keysSet tyvar0Solution1
+              let a0tye2s = applySolution0 varSolution1 tyvar0Solution1 a0tye2
+              (result', varSolution', tyvar0Solution') <-
+                go varsToInfer' tyvars0ToInfer' appCtx' $
+                  case xOpt of
+                    Nothing -> a0tye2s
+                    Just x -> subst0 a0e1' x a0tye2s
+              let varSolution = composeVarSolution varSolution' varSolution1
+              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution' tyvar0Solution1
+              let a0tyeElem1s = applySolution0 varSolution tyvar0Solution a0tyeElem1
+              let result = CastOmsGiven0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tyeElem1s result'
+              pure (result, varSolution, tyvar0Solution)
+            _ -> do
+              -- Recurses by using `appCtx`, not `appCtx'`:
+              (result', varSolution', tyvar0Solution') <-
+                go varsToInfer tyvars0ToInfer appCtx $
+                  case xOpt of
+                    Nothing -> a0tye2
+                    Just x -> subst0 (A0Constructor "Nothing" []) x a0tye2
+              pure (InsertOmitted0 result', varSolution', tyvar0Solution')
+        (appCtxEntry : appCtx', A0TyInfArrow (x, a0tye1) a0tye2) ->
+          case appCtxEntry of
+            AppArgInfGiven0 a0e1' a0tye1' -> do
               (cast, varSolution1, tyvar0Solution1) <-
                 makeAssertiveCast trav loc varsToInfer tyvars0ToInfer a0tye1' a0tye1
               let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
@@ -1054,12 +1231,12 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
               let a0tye2s = applySolution0 varSolution1 tyvar0Solution1 a0tye2
               (result', varSolution', tyvar0Solution') <-
                 go varsToInfer' tyvars0ToInfer' appCtx' (subst0 a0e1' x a0tye2s)
-              let varSolution = composeVarSolution varSolution1 varSolution'
-              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution1 tyvar0Solution'
+              let varSolution = composeVarSolution varSolution' varSolution1
+              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution' tyvar0Solution1
               let a0tye1s = applySolution0 varSolution tyvar0Solution a0tye1
-              let result = CastGiven0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
+              let result = CastInfGiven0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
               pure (result, varSolution, tyvar0Solution)
-            AppArgImpOmitted0 -> do
+            AppArgInfOmitted0 -> do
               (result', varSolution', tyvar0Solution') <-
                 go (Set.insert x varsToInfer) tyvars0ToInfer appCtx' a0tye2
               (a0eInferred, a0tyeInferred) <-
@@ -1080,6 +1257,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
               let result = FillInferred0 (applyCast cast' a0eInferred) result'
               pure (result, varSolution', tyvar0Solution')
             _ -> do
+              -- Recurses by using `appCtx`, not `appCtx'`:
               (result', varSolution', tyvar0Solution') <-
                 go (Set.insert x varsToInfer) tyvars0ToInfer appCtx a0tye2
               (a0eInferred, a0tyeInferred) <-
@@ -1149,10 +1327,29 @@ instantiateGuidedByAppContext1 trav loc varsToInfer0 appCtx0 a1tye0 = do
                   (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
                   appCtx'
                   (applySolution1 varSolution1 tyvar1Solution1 a1tye2)
-              let varSolution = composeVarSolution varSolution1 varSolution'
-              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution'
+              let varSolution = composeVarSolution varSolution' varSolution1
+              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution' tyvar1Solution1
               let result = Cast1 (fmap (applySolution1 varSolution' tyvar1Solution' . A0TyEqAssert loc) eq) a1tye1 result'
               pure (result, varSolution, tyvar1Solution)
+        (appCtxEntry : appCtx', A1TyOmsArrow label a1tye1 a1tye2) ->
+          case appCtxEntry of
+            AppArgOmsGiven1 label' a1tye1' | label' == label -> do
+              (eq, varSolution1, tyvar1Solution1) <-
+                makeEquation1 trav loc varsToInfer tyvars1ToInfer a1tye1' a1tye1
+              (result', varSolution', tyvar1Solution') <-
+                go
+                  (varsToInfer \\ Map.keysSet varSolution1)
+                  (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
+                  appCtx'
+                  (applySolution1 varSolution1 tyvar1Solution1 a1tye2)
+              let varSolution = composeVarSolution varSolution' varSolution1
+              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution' tyvar1Solution1
+              let result = CastOmsGiven1 (fmap (applySolution1 varSolution' tyvar1Solution' . A0TyEqAssert loc) eq) a1tye1 result'
+              pure (result, varSolution, tyvar1Solution)
+            _ -> do
+              -- Recurses by using `appCtx`, not `appCtx'`:
+              (result', varSolution', tyvar0Solution') <- go varsToInfer tyvars1ToInfer appCtx a1tye2
+              pure (InsertOmitted1 result', varSolution', tyvar0Solution')
         _ -> do
           spanInFile <- askSpanInFile loc
           typeError trav $ CannotInstantiateGuidedByAppContext1 spanInFile appCtx a1tye
@@ -1218,7 +1415,7 @@ typecheckExpr0Single trav tyEnv e@(Expr loc _) = do
 typecheckExpr0 :: trav -> TypeEnv -> AppContext -> Expr -> M trav (Result0, Ass0Expr)
 typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
-  completeInferredImplicit spanInFile
+  completeImplicit spanInFile
     =<< case eMain of
       Constructor (mods, ctor) ->
         case (mods, ctor) of
@@ -1341,7 +1538,33 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A0App a0e1 (applyCast cast a0e2))
           _ -> do
             bug "stage-0, App, fun"
-      LamImp (x1, tye1) e2 -> do
+      LamOms label (x1, tye1) e2 -> do
+        svX1 <- generateFreshVar (Just x1)
+        let ax1 = AssVarStatic svX1
+        case appCtx of
+          [] -> do
+            a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
+            case a0tye1 of
+              A0TyMaybe a0tyeElem1 -> do
+                (a0tye2, a0e2) <- do
+                  let tyEnv' = TypeEnv.addVal x1 (Ass0Entry a0tye1 (Right svX1)) tyEnv
+                  typecheckExpr0Single trav tyEnv' e2
+                let sa0tye1 = strictify a0tye1
+                pure (Pure (A0TyOmsArrow label (Just ax1, a0tyeElem1) a0tye2), A0Lam Nothing (ax1, sa0tye1) a0e2)
+              _ ->
+                error "TODO (error): LamOms, not Maybe"
+          _ : _ ->
+            -- TODO: consider supporting lambda abstractions with direct arguments
+            typeError trav $ Unsupported spanInFile $ LamOmsWithArguments appCtx
+      AppOms e1 label e2 -> do
+        (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
+        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgOmsGiven0 label a0e2 a0tye2 : appCtx) e1
+        case result1 of
+          CastOmsGiven0 cast _a0tyeElem11 result -> do
+            pure (result, A0App a0e1 (A0Constructor "Just" [applyCast cast a0e2]))
+          _ ->
+            bug "stage-0, AppOms, fun"
+      LamInf (x1, tye1) e2 -> do
         svX1 <- generateFreshVar (Just x1)
         let ax1 = AssVarStatic svX1
         case appCtx of
@@ -1351,24 +1574,24 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
               let tyEnv' = TypeEnv.addVal x1 (Ass0Entry a0tye1 (Right svX1)) tyEnv
               typecheckExpr0Single trav tyEnv' e2
             let sa0tye1 = strictify a0tye1
-            pure (Pure (A0TyImpArrow (ax1, a0tye1) a0tye2), A0Lam Nothing (ax1, sa0tye1) a0e2)
+            pure (Pure (A0TyInfArrow (ax1, a0tye1) a0tye2), A0Lam Nothing (ax1, sa0tye1) a0e2)
           _ : _ ->
             -- TODO: consider supporting lambda abstractions with direct arguments
-            typeError trav $ Unsupported spanInFile $ LamImpWithArguments appCtx
-      AppImpGiven e1 e2 -> do
+            typeError trav $ Unsupported spanInFile $ LamInfWithArguments appCtx
+      AppInfGiven e1 e2 -> do
         (a0tye2, a0e2) <- typecheckExpr0Single trav tyEnv e2
-        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgImpGiven0 a0e2 a0tye2 : appCtx) e1
+        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgInfGiven0 a0e2 a0tye2 : appCtx) e1
         case result1 of
-          CastGiven0 cast _a0tye11 result -> do
-            logImplicitArg $ LogGivenArg spanInFile a0e2
+          CastInfGiven0 cast _a0tye11 result -> do
+            logInferableArg $ LogGivenArg spanInFile a0e2
             pure (result, A0App a0e1 (applyCast cast a0e2))
           _ -> do
             bug "stage-0, AppImpGiven, not a CastGiven0"
-      AppImpOmitted e1 -> do
-        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgImpOmitted0 : appCtx) e1
+      AppInfOmitted e1 -> do
+        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgInfOmitted0 : appCtx) e1
         case result1 of
           FillInferred0 a0eInferred result -> do
-            logImplicitArg $ LogInferredArg spanInFile a0eInferred
+            logInferableArg $ LogInferredArg spanInFile a0eInferred
             pure (result, A0App a0e1 a0eInferred)
           _ -> do
             bug "stage-0, AppImpOmitted, not a FillInferred0"
@@ -1389,7 +1612,9 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           case params of
             MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->
               pure (labelOpt', x0', tyeParam0', paramsRest')
-            ImplicitBinder _ : _ ->
+            OmissibleBinder {} : _ ->
+              typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
+            InferableBinder {} : _ ->
               typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             [] ->
               typeError trav $ LetRecRequiresNonEmptyParams spanInFile
@@ -1509,15 +1734,17 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         typeError trav $ CannotUseEscapeAtStage0 spanInFile
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
-      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
+      (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr0, illegal syntax"
   where
-    completeInferredImplicit spanInFile = go
+    completeImplicit spanInFile = go
       where
         go pair@(result, a0e) =
           case result of
+            InsertOmitted0 result' ->
+              go (result', A0App a0e (A0Constructor "Nothing" []))
             InsertInferred0 a0eInferred result' -> do
-              logImplicitArg $ LogInferredArg spanInFile a0eInferred
+              logInferableArg $ LogInferredArg spanInFile a0eInferred
               go (result', A0App a0e a0eInferred)
             InsertInferredType0 a0tyeInferred result' ->
               go (result', A0AppType a0e (strictify a0tyeInferred))
@@ -1627,12 +1854,23 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
               let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
               let f1 = f0 . A0TyArrow labelOpt (Just ax, a0tye)
               pure (tyEnv1, f1)
-            ImplicitBinder (x, tye) -> do
+            OmissibleBinder label (x, tye) -> do
+              svX <- generateFreshVar (Just x)
+              let ax = AssVarStatic svX
+              a0tye <- typecheckTypeExpr0 trav tyEnv0 tye
+              case a0tye of
+                A0TyMaybe a0tyeElem -> do
+                  let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
+                  let f1 = f0 . A0TyOmsArrow label (Just ax, a0tyeElem)
+                  pure (tyEnv1, f1)
+                _ ->
+                  error "TODO (error): constructFunTypeExpr0, OmissibleBinder, not Maybe"
+            InferableBinder (x, tye) -> do
               svX <- generateFreshVar (Just x)
               let ax = AssVarStatic svX
               a0tye <- typecheckTypeExpr0 trav tyEnv0 tye
               let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
-              let f1 = f0 . A0TyImpArrow (ax, a0tye)
+              let f1 = f0 . A0TyInfArrow (ax, a0tye)
               pure (tyEnv1, f1)
       )
       (tyEnv, id)
@@ -1643,17 +1881,24 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
 constructFunTypeExpr1 :: trav -> Span -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass1TypeExpr
 constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
   spanInFile <- askSpanInFile loc
-  a0tyeBody <- typecheckTypeExpr1 trav tyEnv tyeBody
+  a1tyeBody <- typecheckTypeExpr1 trav tyEnv tyeBody
   foldrM
-    ( \param a0tyeAcc ->
+    ( \param a1tyeAcc ->
         case param of
           MandatoryBinder labelOpt (_x, tye) -> do
-            a0tye <- typecheckTypeExpr1 trav tyEnv tye
-            pure $ A1TyArrow labelOpt a0tye a0tyeAcc
-          ImplicitBinder (_x, _tye) ->
-            typeError trav $ CannotUseLamImpAtStage1 spanInFile
+            a1tye <- typecheckTypeExpr1 trav tyEnv tye
+            pure $ A1TyArrow labelOpt a1tye a1tyeAcc
+          OmissibleBinder label (_x, tye) -> do
+            a1tye <- typecheckTypeExpr1 trav tyEnv tye
+            case a1tye of
+              A1TyMaybe a1tyeElem ->
+                pure $ A1TyOmsArrow label a1tyeElem a1tyeAcc
+              _ ->
+                error "TODO (error): constructFunTypeExpr1, OmissibleBinder, not Maybe"
+          InferableBinder (_x, _tye) ->
+            typeError trav $ CannotUseLamInfAtStage1 spanInFile
     )
-    a0tyeBody
+    a1tyeBody
     params
 
 typecheckValVar0 :: trav -> Span -> TypeEnv -> [Var] -> Var -> M trav (Ass0TypeExpr, Ass0Expr)
@@ -1713,12 +1958,22 @@ typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A0TyArrow labelOpt (Just ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
-    ImplicitBinder (x, tye) : params' -> do
+    OmissibleBinder label (x, tye) : params' -> do
+      a0tye <- typecheckTypeExpr0 trav tyEnv tye
+      case a0tye of
+        A0TyMaybe a0tyeElem -> do
+          svX <- generateFreshVar (Just x)
+          (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
+          let ax = AssVarStatic svX
+          pure (A0TyOmsArrow label (Just ax, a0tyeElem) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
+        _ ->
+          error "TODO (error): typecheckLetInBody0, OmissibleBinder, not Maybe"
+    InferableBinder (x, tye) : params' -> do
       a0tye <- typecheckTypeExpr0 trav tyEnv tye
       svX <- generateFreshVar (Just x)
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
-      pure (A0TyImpArrow (ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
+      pure (A0TyInfArrow (ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
 
 forceExpr1 :: trav -> TypeEnv -> Ass1TypeExpr -> Expr -> M trav Ass1Expr
 forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
@@ -1781,7 +2036,7 @@ typecheckExpr1Single trav tyEnv e@(Expr loc _) = do
 typecheckExpr1 :: trav -> TypeEnv -> AppContext -> Expr -> M trav (Result1, Ass1Expr)
 typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
-  completeInferredImplicit
+  completeImplicit
     <$> case eMain of
       Constructor (mods, ctor) ->
         case (mods, ctor) of
@@ -1911,12 +2166,38 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A1App a1e1 (applyCast1 cast a1e2))
           _ ->
             bug "stage-1, App, fun, not a Cast1"
-      LamImp _ _ ->
-        typeError trav $ CannotUseLamImpAtStage1 spanInFile
-      AppImpGiven _ _ ->
-        typeError trav $ CannotUseAppImpGivenAtStage1 spanInFile
-      AppImpOmitted _ ->
-        typeError trav $ CannotUseAppImpOmittedAtStage1 spanInFile
+      LamOms label (x1, tye1) e2 ->
+        case appCtx of
+          [] -> do
+            svX1 <- generateFreshVar (Just x1)
+            a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
+            case a1tye1 of
+              A1TyMaybe a1tyeElem1 -> do
+                (a1tye2, a1e2) <- do
+                  let tyEnv' = TypeEnv.addVal x1 (Ass1Entry a1tye1 (Right svX1)) tyEnv
+                  typecheckExpr1Single trav tyEnv' e2
+                let ax1 = AssVarStatic svX1
+                pure (Pure (A1TyOmsArrow label a1tyeElem1 a1tye2), A1Lam Nothing (ax1, a1tye1) a1e2)
+              _ ->
+                error "TODO (error): typecheckExpr1, LamOms, not Maybe"
+          _ : _ ->
+            -- TODO: consider supporting lambda abstractions with direct arguments
+            typeError trav $ Unsupported spanInFile $ LamOmsWithArguments appCtx
+      AppOms e1 label e2 -> do
+        (a1tye2, a1e2) <- typecheckExpr1Single trav tyEnv e2
+        (result1, a1e1) <- typecheckExpr1 trav tyEnv (AppArgOmsGiven1 label a1tye2 : appCtx) e1
+        case result1 of
+          CastOmsGiven1 cast _a1tye11 result ->
+            -- Embeds type equality assertion at stage 0 here!
+            pure (result, A1App a1e1 (A1Constructor "Just" [applyCast1 cast a1e2]))
+          _ ->
+            bug "stage-1, AppOms, fun, not a CastOms1"
+      LamInf _ _ ->
+        typeError trav $ CannotUseLamInfAtStage1 spanInFile
+      AppInfGiven _ _ ->
+        typeError trav $ CannotUseAppInfGivenAtStage1 spanInFile
+      AppInfOmitted _ ->
+        typeError trav $ CannotUseAppInfOmittedAtStage1 spanInFile
       LetIn x params tyeBodyOpt eBody e2 -> do
         svX <- generateFreshVar (Just x)
         (a1tye1, a1e1) <- typecheckLetInBody1 trav tyEnv params tyeBodyOpt eBody
@@ -1932,7 +2213,9 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           case params of
             MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->
               pure (labelOpt', x0', tyeParam0', paramsRest')
-            ImplicitBinder _ : _ ->
+            OmissibleBinder {} : _ ->
+              typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
+            InferableBinder {} : _ ->
               typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             [] ->
               typeError trav $ LetRecRequiresNonEmptyParams spanInFile
@@ -2063,13 +2346,15 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         pure (result, A1Escape a0e1)
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
-      (TyVar {}; TyArrow {}; TyImpArrow {}; TyRefinement {}; TyForAll {}) ->
+      (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr1, invalid syntax"
   where
-    completeInferredImplicit pair@(result, a1e) =
+    completeImplicit pair@(result, a1e) =
       case result of
+        InsertOmitted1 result' ->
+          completeImplicit (result', A1App a1e (A1Constructor "Nothing" []))
         InsertType1 a1tyeInferred result' ->
-          completeInferredImplicit (result', A1AppType a1e a1tyeInferred)
+          completeImplicit (result', A1AppType a1e a1tyeInferred)
         _ ->
           pair
 
@@ -2090,10 +2375,20 @@ typecheckLetInBody1 trav tyEnv params tyeBodyOpt e1 =
       (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A1TyArrow labelOpt a1tye a1tye', A1Lam Nothing (ax, a1tye) a1e')
-    ImplicitBinder (_x, tye) : _params' -> do
+    OmissibleBinder label (x, tye) : params' -> do
+      a1tye <- typecheckTypeExpr1 trav tyEnv tye
+      case a1tye of
+        A1TyMaybe a1tyeElem -> do
+          svX <- generateFreshVar (Just x)
+          (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv) params' tyeBodyOpt e1
+          let ax = AssVarStatic svX
+          pure (A1TyOmsArrow label a1tyeElem a1tye', A1Lam Nothing (ax, a1tye) a1e')
+        _ ->
+          error "TODO (error): OmissibleBinder, not Maybe"
+    InferableBinder (_x, tye) : _params' -> do
       let Expr loc _ = tye -- TODO (enhance): give a better code position
       spanInFile <- askSpanInFile loc
-      typeError trav $ CannotUseLamImpAtStage1 spanInFile
+      typeError trav $ CannotUseLamInfAtStage1 spanInFile
 
 mapMPure :: (af StaticVar -> M trav (bf StaticVar)) -> ResultF af StaticVar -> M trav (ResultF bf StaticVar)
 mapMPure f = go
@@ -2101,7 +2396,11 @@ mapMPure f = go
     go (Pure v) = Pure <$> f v
     go (Cast0 cast a0tye r) = Cast0 cast a0tye <$> go r
     go (Cast1 eq a1tye r) = Cast1 eq a1tye <$> go r
-    go (CastGiven0 a0e a0tye r) = CastGiven0 a0e a0tye <$> go r
+    go (CastOmsGiven0 cast a0tye r) = CastOmsGiven0 cast a0tye <$> go r
+    go (InsertOmitted0 r) = InsertOmitted0 <$> go r
+    go (CastOmsGiven1 eq a1tye r) = CastOmsGiven1 eq a1tye <$> go r
+    go (InsertOmitted1 r) = InsertOmitted1 <$> go r
+    go (CastInfGiven0 a0e a0tye r) = CastInfGiven0 a0e a0tye <$> go r
     go (FillInferred0 a0e r) = FillInferred0 a0e <$> go r
     go (InsertInferred0 a0e r) = InsertInferred0 a0e <$> go r
     go (InsertInferredType0 a0tye r) = InsertInferredType0 a0tye <$> go r
@@ -2217,14 +2516,26 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
     Bracket tye1 -> do
       a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
       pure $ A0TyCode a1tye1
-    TyImpArrow (x, tye1) tye2 -> do
+    TyOmsArrow label (xOpt, tye1) tye2 -> do
+      a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
+      (tyEnv', svXOpt) <-
+        case xOpt of
+          Just x -> do
+            svX <- generateFreshVar (Just x)
+            pure (TypeEnv.addVal x (Ass0Entry a0tye1 (Right svX)) tyEnv, Just svX)
+          Nothing ->
+            pure (tyEnv, Nothing)
+      a0tye2 <- typecheckTypeExpr0 trav tyEnv' tye2
+      let axOpt = AssVarStatic <$> svXOpt
+      pure $ A0TyOmsArrow label (axOpt, a0tye1) a0tye2
+    TyInfArrow (x, tye1) tye2 -> do
       a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
       svX <- generateFreshVar (Just x)
       a0tye2 <- do
         let tyEnv' = TypeEnv.addVal x (Ass0Entry a0tye1 (Right svX)) tyEnv
         typecheckTypeExpr0 trav tyEnv' tye2
       let ax = AssVarStatic svX
-      pure $ A0TyImpArrow (ax, a0tye1) a0tye2
+      pure $ A0TyInfArrow (ax, a0tye1) a0tye2
     TyRefinement x tye1 e2 -> do
       a0tye1 <- typecheckTypeExpr0 trav tyEnv tye1
       svX <- generateFreshVar (Just x)
@@ -2278,7 +2589,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv
         typecheckTypeExpr0 trav tyEnv' tye1
       pure $ A0TyImplicitForAll atyvar a0tye1
-    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
       error "TODO (error): typecheckTypeExpr0, illegal syntax"
 
 ass0exprAnd :: Ass0Expr
@@ -2391,11 +2702,19 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
           Just x -> typeError trav $ FunctionTypeCannotBeDependentAtStage1 spanInFile x
       a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
       pure $ A1TyArrow labelOpt a1tye1 a1tye2
-    TyImpArrow _ _ ->
-      typeError trav $ CannotUseImpArrowTypeAtStage1 spanInFile
-    Bracket _ -> do
+    TyOmsArrow label (xOpt, tye1) tye2 -> do
+      case xOpt of
+        Just _x -> do
+          error "TODO (error): typecheckTypeExpr1, TyOmsArrow, var"
+        Nothing -> do
+          a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
+          a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
+          pure $ A1TyOmsArrow label a1tye1 a1tye2
+    TyInfArrow {} ->
+      typeError trav $ CannotUseInfArrowTypeAtStage1 spanInFile
+    Bracket {} -> do
       typeError trav $ CannotUseCodeTypeAtStage1 spanInFile
-    TyRefinement _ _ _ -> do
+    TyRefinement {} -> do
       typeError trav $ CannotUseRefinementTypeAtStage1 spanInFile
     Product tye1 rest -> do
       a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
@@ -2414,29 +2733,32 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv
         typecheckTypeExpr1 trav tyEnv' tye1
       pure $ A1TyImplicitForAll atyvar a1tye1
-    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamImp {}; AppImpGiven {}; AppImpOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
+    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
       error "TODO (error): typecheckTypeExpr1, illegal syntax"
 
 validatePersistentType :: trav -> Span -> Ass0TypeExpr -> M trav AssPersTypeExpr
 validatePersistentType trav loc a0tye =
   case go a0tye of
-    Just aPtye ->
+    Right aPtye ->
       pure aPtye
-    Nothing -> do
+    Left unsupportedOpt -> do
       spanInFile <- askSpanInFile loc
-      typeError trav $ InvalidPersistentType spanInFile a0tye
+      typeError trav $
+        case unsupportedOpt of
+          Nothing -> InvalidPersistentType spanInFile a0tye
+          Just u -> Unsupported spanInFile u
   where
     go = \case
       A0TyPrim a0tyPrim maybePred ->
         case maybePred of
           Nothing -> pure $ APersTyPrim a0tyPrim
-          Just _ -> Nothing
+          Just _ -> Left Nothing
       A0TyVar atyvar ->
         pure $ APersTyVar atyvar
       A0TyList a0tye' maybePred ->
         case maybePred of
           Nothing -> APersTyList <$> go a0tye'
-          Just _ -> Nothing
+          Just _ -> Left Nothing
       A0TyMaybe a0tye' ->
         APersTyMaybe <$> go a0tye'
       A0TyProduct a0tyes ->
@@ -2446,11 +2768,15 @@ validatePersistentType trav loc a0tye =
         aPtye2 <- go a0tye2
         pure $ APersTyArrow labelOpt aPtye1 aPtye2
       A0TyArrow _labelOpt (Just _x, _a0tye1) _a0tye2 -> do
-        Nothing
-      A0TyImpArrow (_x, _a0tye1) _a0tye2 -> do
-        Nothing
+        Left Nothing
+      A0TyInfArrow (_x, _a0tye1) _a0tye2 -> do
+        Left Nothing
+      A0TyOmsArrow _label (Nothing, _a0tye1) _a0tye2 -> do
+        Left (Just PersistentFunWithOms)
+      A0TyOmsArrow _label (Just _, _a0tye1) _a0tye2 -> do
+        Left Nothing
       A0TyCode _ ->
-        Nothing
+        Left Nothing
       A0TyImplicitForAll atyvar a0tye' -> do
         aPtye' <- go a0tye'
         pure $ APersTyImplicitForAll atyvar aPtye'

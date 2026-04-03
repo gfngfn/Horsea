@@ -96,6 +96,15 @@ module String = struct
     external (builtin = "string__from_char_list", surface = "from_char_list")
 end
 
+module Maybe = struct
+  (* TODO: make this polymorphic *)
+  val ~unwrap = fun(d : Int) -> fun(x : Maybe Int) ->
+    case x of
+    | Just v -> v
+    | Nothing -> d
+    end
+end
+
 module List = struct
   val %map : forall 'a -> forall 'b -> ('a -> 'b) -> List 'a -> List 'b
     external (builtin = "list__map", surface = "map")
@@ -402,7 +411,7 @@ end
 
 module VarStore = struct
   val create :
-    #frozen Bool ->
+    ?frozen Bool -> (* default: false *)
     #name String ->
     #device Device ->
     Unit -> VarStore
@@ -496,21 +505,21 @@ module Layer = struct
     #ksize (ksize : Nat) ->
     #stride (stride : Nat) ->
     #padding (padding : Nat) ->
-    #output_padding (output_padding : Nat) -> (* default: 0 *)
+    ?output_padding (output_padding : Maybe Nat) -> (* default: 0 *)
     (* #groups Nat -> *)
     #input_dim (input_dim : Nat) ->
     #output_dim (output_dim : Nat) ->
     {shape : {s : List Nat | List.length s == 4 && List.nth 1 s == input_dim}} ->
     &(VarStore ->
-      (* #use_bias Bool -> *) (* default: true *)
-      (* #w_init VarStore.Init -> *)
+      ?use_bias Bool -> (* default: true *)
+      ?w_init VarStoreInit ->
       Activation ->
       Tensor %shape ->
       Tensor %[
         List.nth 0 shape,
         output_dim,
-        (List.nth 2 shape - 1) * stride - 2 * padding + ksize + output_padding,
-        (List.nth 3 shape - 1) * stride - 2 * padding + ksize + output_padding
+        (List.nth 2 shape - 1) * stride - 2 * padding + ksize + Maybe.unwrap 0 output_padding,
+        (List.nth 3 shape - 1) * stride - 2 * padding + ksize + Maybe.unwrap 0 output_padding
       ]
     )
     external (builtin = "layer__gen_conv_transpose2d_", surface = "conv_transpose2d_")
@@ -519,8 +528,8 @@ module Layer = struct
     #output_dim (output_dim : Nat) ->
     {shape : {s : List Nat | List.length s >= 1 && List.last s == input_dim}} ->
     &(VarStore ->
-      #use_bias Bool -> (* default: true *)
-      (* #w_init VarStore.Init -> *)
+      ?use_bias Bool -> (* default: true *)
+      ?w_init VarStoreInit ->
       Activation ->
       Tensor %shape ->
       Tensor %(List.append (List.init shape) [output_dim])

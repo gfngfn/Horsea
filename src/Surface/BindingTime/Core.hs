@@ -72,7 +72,8 @@ data BITypeMainF bt tv
   | BITyBase [BITypeF bt tv]
   | BITyProduct (TwoOrMore (BITypeF bt tv))
   | BITyArrow (BITypeF bt tv) (BITypeF bt tv)
-  | BITyImpArrow (BITypeF bt tv) (BITypeF bt tv)
+  | BITyOmsArrow Label (BITypeF bt tv) (BITypeF bt tv)
+  | BITyInfArrow (BITypeF bt tv) (BITypeF bt tv)
   deriving stock (Functor, Show)
 
 type BIType = BITypeF BindingTime BITypeVar
@@ -105,9 +106,11 @@ data BExprMainF ann bt
   | BTuple (TwoOrMore (BExprF ann bt))
   | BIfThenElse (BExprF ann bt) (BExprF ann bt) (BExprF ann bt)
   | BAs (BExprF ann bt) (BTypeExprF ann bt)
-  | BLamImp (Var, BTypeExprF ann bt) (BExprF ann bt)
-  | BAppImpGiven (BExprF ann bt) (BExprF ann bt)
-  | BAppImpOmitted (BExprF ann bt)
+  | BLamOms Label (Var, BTypeExprF ann bt) (BExprF ann bt)
+  | BAppOms (BExprF ann bt) Label (BExprF ann bt)
+  | BLamInf (Var, BTypeExprF ann bt) (BExprF ann bt)
+  | BAppInfGiven (BExprF ann bt) (BExprF ann bt)
+  | BAppInfOmitted (BExprF ann bt)
   deriving stock (Functor, Show)
 
 data BTypeExprF ann bt = BTypeExpr (bt, ann) (BTypeExprMainF ann bt)
@@ -116,7 +119,8 @@ data BTypeExprF ann bt = BTypeExpr (bt, ann) (BTypeExprMainF ann bt)
 data BTypeExprMainF ann bt
   = BTyName TypeName [BArgForTypeF ann bt]
   | BTyArrow (Maybe Label) (Maybe Var, BTypeExprF ann bt) (BTypeExprF ann bt)
-  | BTyImpArrow (Var, BTypeExprF ann bt) (BTypeExprF ann bt)
+  | BTyOmsArrow Label (Maybe Var, BTypeExprF ann bt) (BTypeExprF ann bt)
+  | BTyInfArrow (Var, BTypeExprF ann bt) (BTypeExprF ann bt)
   | BTyRefinement Var (BTypeExprF ann bt) (BExprF ann bt)
   | BTyProduct (BTypeExprF ann bt) (NonEmpty (ann, BTypeExprF ann bt))
   deriving stock (Functor, Show)
@@ -172,8 +176,10 @@ fromStaged0 = goPoly 0 Map.empty
               pure $ wrap0 (BITyProduct bitys)
             Staged.A0TyArrow _labelOpt (_, a0tye1) a0tye2 ->
               wrap0 <$> (BITyArrow <$> go a0tye1 <*> go a0tye2)
-            Staged.A0TyImpArrow (_, a0tye1) a0tye2 ->
-              wrap0 <$> (BITyImpArrow <$> go a0tye1 <*> go a0tye2)
+            Staged.A0TyOmsArrow label (_, a0tye1) a0tye2 ->
+              wrap0 <$> (BITyOmsArrow label <$> go a0tye1 <*> go a0tye2)
+            Staged.A0TyInfArrow (_, a0tye1) a0tye2 ->
+              wrap0 <$> (BITyInfArrow <$> go a0tye1 <*> go a0tye2)
             Staged.A0TyCode a1tye ->
               pure $ vacuous $ fromStaged1 a1tye
             Staged.A0TyImplicitForAll _atyvar _a0tye ->
@@ -196,6 +202,8 @@ fromStaged1 = \case
     wrap1 $ BITyProduct (fmap fromStaged1 a1tyes)
   Staged.A1TyArrow _labelOpt a1tye1 a1tye2 ->
     wrap1 $ BITyArrow (fromStaged1 a1tye1) (fromStaged1 a1tye2)
+  Staged.A1TyOmsArrow label a1tye1 a1tye2 ->
+    wrap1 $ BITyOmsArrow label (fromStaged1 a1tye1) (fromStaged1 a1tye2)
   Staged.A1TyImplicitForAll _atyvar a1tye2 ->
     -- TODO: support type application
     fromStaged1 a1tye2

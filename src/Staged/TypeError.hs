@@ -39,12 +39,12 @@ data TypeErrorF sv
   | NotACodeType SpanInFile (Ass0TypeExprF sv)
   | CannotUseEscapeAtStage0 SpanInFile
   | CannotUseBracketAtStage1 SpanInFile
-  | CannotUseLamImpAtStage1 SpanInFile
-  | CannotUseAppImpGivenAtStage1 SpanInFile
-  | CannotUseAppImpOmittedAtStage1 SpanInFile
+  | CannotUseLamInfAtStage1 SpanInFile
+  | CannotUseAppInfGivenAtStage1 SpanInFile
+  | CannotUseAppInfOmittedAtStage1 SpanInFile
   | FunctionTypeCannotBeDependentAtStage1 SpanInFile Var
   | CannotUseCodeTypeAtStage1 SpanInFile
-  | CannotUseImpArrowTypeAtStage1 SpanInFile
+  | CannotUseInfArrowTypeAtStage1 SpanInFile
   | CannotUseRefinementTypeAtStage1 SpanInFile
   | CannotUsePersistent SpanInFile
   | CannotUseNormalArgAtStage1 SpanInFile
@@ -94,7 +94,9 @@ data UnsupportedF sv
   | HigherRankPolymorphism (Ass0TypeExprF sv) AssTypeVar (Ass0TypeExprF sv)
   | AsWithArguments (AppContextF sv)
   | LamWithArguments (AppContextF sv)
-  | LamImpWithArguments (AppContextF sv)
+  | LamOmsWithArguments (AppContextF sv)
+  | LamInfWithArguments (AppContextF sv)
+  | PersistentFunWithOms
   deriving stock (Eq, Show, Functor)
 
 type TypeError = TypeErrorF StaticVar

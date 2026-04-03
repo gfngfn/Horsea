@@ -27,7 +27,7 @@ let vars_shape = [314] in (* TODO *)
 let image_shape = [1, 3, image_height, image_width] in
 
 let image = TorchVision.Imagenet.load_image {image_shape} image_path in
-let vs = VarStore.create #frozen false #name "rn" #device Device.cpu () in
+let vs = VarStore.create #name "rn" #device Device.cpu () in
 let model =
   TorchVision.Vgg.vgg11 {image_shape} #num_classes 1000 vs
 (* TODO: support case expressions *) (*

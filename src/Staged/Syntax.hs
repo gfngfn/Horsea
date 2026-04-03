@@ -208,8 +208,10 @@ data Ass0TypeExprF sv
   | A0TyProduct (TwoOrMore (Ass0TypeExprF sv))
   | -- | (Possibly dependent) function types.
     A0TyArrow (Maybe Label) (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
-  | -- | Function types with an implicit parameter.
-    A0TyImpArrow (AssVarF sv, Ass0TypeExprF sv) (Ass0TypeExprF sv)
+  | -- | Function types with an inferable parameter.
+    A0TyInfArrow (AssVarF sv, Ass0TypeExprF sv) (Ass0TypeExprF sv)
+  | -- | Function types with an omissible parameter.
+    A0TyOmsArrow Label (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | A0TyCode (Ass1TypeExprF sv)
   | -- | Polymorphic types.
     A0TyImplicitForAll AssTypeVar (Ass0TypeExprF sv)
@@ -281,6 +283,7 @@ data Ass1TypeExprF sv
   | A1TyVar AssTypeVar
   | A1TyProduct (TwoOrMore (Ass1TypeExprF sv))
   | A1TyArrow (Maybe Label) (Ass1TypeExprF sv) (Ass1TypeExprF sv)
+  | A1TyOmsArrow Label (Ass1TypeExprF sv) (Ass1TypeExprF sv)
   | A1TyImplicitForAll AssTypeVar (Ass1TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
@@ -399,6 +402,7 @@ data Ass1TypeValF sv
   | A1TyValVar AssTypeVar
   | A1TyValProduct (TwoOrMore (Ass1TypeValF sv))
   | A1TyValArrow (Maybe Label) (Ass1TypeValF sv) (Ass1TypeValF sv)
+  | A1TyValOmsArrow Label (Ass1TypeValF sv) (Ass1TypeValF sv)
   | A1TyValImplicitForAll AssTypeVar (Ass1TypeValF sv)
   deriving stock (Eq, Show, Functor)
 
@@ -416,6 +420,7 @@ data Type1EquationF sv
   | TyEq1List (Type1EquationF sv)
   | TyEq1Maybe (Type1EquationF sv)
   | TyEq1Arrow (Maybe Label) (Type1EquationF sv) (Type1EquationF sv)
+  | TyEq1OmsArrow Label (Type1EquationF sv) (Type1EquationF sv)
   | TyEq1Product (TwoOrMore (Type1EquationF sv))
   | -- | Only for trivial equations.
     TyEq1TypeVar AssTypeVar
@@ -483,7 +488,8 @@ strictify = \case
   A0TyProduct a0tyes -> SA0TyProduct (fmap strictify a0tyes)
   A0TyArrow _labelOpt (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, strictify a0tye1) (strictify a0tye2)
   A0TyCode a1tye1 -> SA0TyCode a1tye1
-  A0TyImpArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictify a0tye1) (strictify a0tye2)
+  A0TyInfArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictify a0tye1) (strictify a0tye2)
+  A0TyOmsArrow _label (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, SA0TyMaybe (strictify a0tye1)) (strictify a0tye2)
   A0TyImplicitForAll atyvar a0tye -> SA0TyExplicitForAll atyvar (strictify a0tye)
 
 a0TyVec :: Int -> Ass0PrimType
@@ -527,6 +533,8 @@ makeTrivialEquationFromType1 = \case
     TyEq1Product (fmap makeTrivialEquationFromType1 a1tyes)
   A1TyArrow labelOpt a1tye1 a1tye2 ->
     TyEq1Arrow labelOpt (makeTrivialEquationFromType1 a1tye1) (makeTrivialEquationFromType1 a1tye2)
+  A1TyOmsArrow label a1tye1 a1tye2 ->
+    TyEq1OmsArrow label (makeTrivialEquationFromType1 a1tye1) (makeTrivialEquationFromType1 a1tye2)
   A1TyImplicitForAll atyvar a1tye ->
     TyEq1ImplicitForAll atyvar (makeTrivialEquationFromType1 a1tye)
 
@@ -573,6 +581,10 @@ decomposeType1Equation = \case
     let (a1tye11, a1tye21) = decomposeType1Equation ty1eqDom
         (a1tye12, a1tye22) = decomposeType1Equation ty1eqCod
      in (A1TyArrow labelOpt a1tye11 a1tye12, A1TyArrow labelOpt a1tye21 a1tye22)
+  TyEq1OmsArrow label ty1eqDom ty1eqCod ->
+    let (a1tye11, a1tye21) = decomposeType1Equation ty1eqDom
+        (a1tye12, a1tye22) = decomposeType1Equation ty1eqCod
+     in (A1TyOmsArrow label a1tye11 a1tye12, A1TyOmsArrow label a1tye21 a1tye22)
   TyEq1Product ty1eqs ->
     let a1tyePairs = fmap decomposeType1Equation ty1eqs
      in (A1TyProduct (fmap fst a1tyePairs), A1TyProduct (fmap snd a1tyePairs))
@@ -598,8 +610,10 @@ type AppContextF sv = [AppContextEntryF sv]
 data AppContextEntryF sv
   = AppArg0 (Maybe Label) (Ass0ExprF sv) (Ass0TypeExprF sv)
   | AppArg1 (Maybe Label) (Ass1TypeExprF sv)
-  | AppArgImpGiven0 (Ass0ExprF sv) (Ass0TypeExprF sv)
-  | AppArgImpOmitted0
+  | AppArgOmsGiven0 Label (Ass0ExprF sv) (Ass0TypeExprF sv)
+  | AppArgOmsGiven1 Label (Ass1TypeExprF sv)
+  | AppArgInfGiven0 (Ass0ExprF sv) (Ass0TypeExprF sv)
+  | AppArgInfOmitted0
   deriving (Eq, Show, Functor)
 
 -- | The type of the results of the "Let arguments go first" traversal.
@@ -607,7 +621,11 @@ data ResultF af sv
   = Pure (af sv)
   | Cast0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprF sv) (ResultF af sv)
   | Cast1 (Maybe (Ass0ExprF sv)) (Ass1TypeExprF sv) (ResultF af sv)
-  | CastGiven0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprF sv) (ResultF af sv)
+  | CastOmsGiven0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprF sv) (ResultF af sv)
+  | InsertOmitted0 (ResultF af sv)
+  | CastOmsGiven1 (Maybe (Ass0ExprF sv)) (Ass1TypeExprF sv) (ResultF af sv)
+  | InsertOmitted1 (ResultF af sv)
+  | CastInfGiven0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprF sv) (ResultF af sv)
   | FillInferred0 (Ass0ExprF sv) (ResultF af sv)
   | InsertInferred0 (Ass0ExprF sv) (ResultF af sv)
   | InsertInferredType0 (Ass0TypeExprF sv) (ResultF af sv)
