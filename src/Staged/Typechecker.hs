@@ -2000,7 +2000,7 @@ typecheckExpr1Single trav tyEnv e@(Expr loc _) = do
 typecheckExpr1 :: trav -> TypeEnv -> AppContext -> Expr -> M trav (Result1, Ass1Expr)
 typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
-  completeInferredImplicit
+  completeImplicit
     <$> case eMain of
       Constructor (mods, ctor) ->
         case (mods, ctor) of
@@ -2313,10 +2313,12 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
       (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
         error "TODO (error): typecheckExpr1, invalid syntax"
   where
-    completeInferredImplicit pair@(result, a1e) =
+    completeImplicit pair@(result, a1e) =
       case result of
+        InsertOmitted1 result' ->
+          completeImplicit (result', A1App a1e (A1Constructor "Nothing" []))
         InsertType1 a1tyeInferred result' ->
-          completeInferredImplicit (result', A1AppType a1e a1tyeInferred)
+          completeImplicit (result', A1AppType a1e a1tyeInferred)
         _ ->
           pair
 
