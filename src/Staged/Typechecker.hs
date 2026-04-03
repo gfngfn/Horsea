@@ -1009,7 +1009,7 @@ mergeResultsByConditional0 trav loc a0e0 = go
       let failure = typeError trav $ CannotMergeResultsByConditionals spanInFile patAndResultPairs
       case result1 of
         Pure a0tye1 -> do
-          patAndTypePairs <-
+          pairsRest <-
             mapM
               ( \(a0pat, result) ->
                   case result of
@@ -1017,7 +1017,8 @@ mergeResultsByConditional0 trav loc a0e0 = go
                     _ -> failure
               )
               rest
-          Pure <$> mergeTypes0 ((a0pat1, a0tye1) :| patAndTypePairs)
+          let pairs = (a0pat1, a0tye1) :| pairsRest
+          Pure <$> mergeTypes0 pairs
         Cast0 cast1 a0tye1 r1 -> do
           quadsRest <-
             mapM
@@ -1054,8 +1055,8 @@ mergeResultsByConditional0 trav loc a0e0 = go
               )
               rest
           let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
-          a0tye' <- mergeTypes0 (fmap (\(pat, (_, a0tye, _)) -> (pat, a0tye)) quads)
-          cast' <- mergeCasts (fmap (\(pat, (cast, a0tye, _)) -> (pat, (cast, a0tye))) quads)
+          a0tye' <- mergeTypes0 (fmap (second (\(_, a0tye, _) -> a0tye)) quads)
+          cast' <- mergeCasts (fmap (second (\(cast, a0tye, _) -> (cast, a0tye))) quads)
           CastOmsGiven0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
         InsertOmitted0 r1 -> do
           pairsRest <-
@@ -1078,8 +1079,8 @@ mergeResultsByConditional0 trav loc a0e0 = go
               )
               rest
           let quads = (a0pat1, (cast1, a1tye1, r1)) :| quadsRest
-          a1tye' <- mergeTypes1 (fmap (\(pat, (_, a1tye, _)) -> (pat, a1tye)) quads)
-          cast' <- mergeCasts (fmap (\(pat, (cast, a1tye, _)) -> (pat, (cast, A0TyCode a1tye))) quads)
+          a1tye' <- mergeTypes1 (fmap (second (\(_, a1tye, _) -> a1tye)) quads)
+          cast' <- mergeCasts (fmap (second (\(cast, a1tye, _) -> (cast, A0TyCode a1tye))) quads)
           CastOmsGiven1 cast' a1tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
         InsertOmitted1 r1 -> do
           pairsRest <-
@@ -1102,8 +1103,8 @@ mergeResultsByConditional0 trav loc a0e0 = go
               )
               rest
           let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
-          a0tye' <- mergeTypes0 (fmap (\(pat, (_, a0tye, _)) -> (pat, a0tye)) quads)
-          cast' <- mergeCasts (fmap (\(pat, (cast, a0tye, _)) -> (pat, (cast, a0tye))) quads)
+          a0tye' <- mergeTypes0 (fmap (second (\(_, a0tye, _) -> a0tye)) quads)
+          cast' <- mergeCasts (fmap (second (\(cast, a0tye, _) -> (cast, a0tye))) quads)
           CastInfGiven0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
         FillInferred0 a0e1 r1 -> do
           triplesRest <-
@@ -1116,7 +1117,7 @@ mergeResultsByConditional0 trav loc a0e0 = go
               rest
           let triples = (a0pat1, (a0e1, r1)) :| triplesRest
           let a0branches = fmap (\(a0pat, (a0e, _)) -> A0Branch a0pat a0e) triples
-          FillInferred0 (A0Case a0e0 a0branches) <$> go (fmap (second (\(_, r) -> r)) triples)
+          FillInferred0 (A0Case a0e0 a0branches) <$> go (fmap (second snd) triples)
         InsertInferred0 a0e1 r1 -> do
           triplesRest <-
             mapM
@@ -1128,11 +1129,31 @@ mergeResultsByConditional0 trav loc a0e0 = go
               rest
           let triples = (a0pat1, (a0e1, r1)) :| triplesRest
           let a0branches = fmap (\(a0pat, (a0e, _)) -> A0Branch a0pat a0e) triples
-          InsertInferred0 (A0Case a0e0 a0branches) <$> go (fmap (second (\(_, r) -> r)) triples)
-        InsertType1 {} ->
-          error "TODO: unsupported; mergeResultsByConditional0, InsertType1"
-        InsertInferredType0 {} ->
-          error "TODO: unsupported; mergeResultsByConditional0, InsertInferredType0"
+          InsertInferred0 (A0Case a0e0 a0branches) <$> go (fmap (second snd) triples)
+        InsertType1 a1tye1 r1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    InsertType1 a1tye r -> pure (a0pat, (a1tye, r))
+                    _ -> failure
+              )
+              rest
+          let triples = (a0pat1, (a1tye1, r1)) :| triplesRest
+          a1tye' <- mergeTypes1 (fmap (second fst) triples)
+          InsertType1 a1tye' <$> go (fmap (second snd) triples)
+        InsertInferredType0 a0tye1 r1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    InsertInferredType0 a0tye r -> pure (a0pat, (a0tye, r))
+                    _ -> failure
+              )
+              rest
+          let triples = (a0pat1, (a0tye1, r1)) :| triplesRest
+          a0tye' <- mergeTypes0 (fmap (second fst) triples)
+          InsertInferredType0 a0tye' <$> go (fmap (second snd) triples)
 
     mergeTypes0 :: NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M trav Ass0TypeExpr
     mergeTypes0 pairs = do
@@ -1150,7 +1171,7 @@ mergeResultsByConditional0 trav loc a0e0 = go
 
     mergeCasts :: NonEmpty (Ass0Pattern, (Maybe Ass0Expr, Ass0TypeExpr)) -> M trav (Maybe Ass0Expr)
     mergeCasts triples =
-      if all (\(_, (cast, _)) -> cast == Nothing) triples
+      if all (\(_, (cast, _)) -> isNothing cast) triples
         then
           pure Nothing
         else do
