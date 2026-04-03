@@ -1433,7 +1433,7 @@ instance Disp (Bta.BCTypeExprF ann) where
 
 instance Disp (Bta.BCTypeExprMainF ann) where
   dispGen req = \case
-    Bta.BTyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
+    Bta.BTyName (_, tyName) args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
     Bta.BTyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     Bta.BTyOmsArrow label (xOpt, tye1) tye2 -> dispOmsArrowType req label xOpt tye1 tye2
     Bta.BTyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2

@@ -117,7 +117,7 @@ data BTypeExprF ann bt = BTypeExpr (bt, ann) (BTypeExprMainF ann bt)
   deriving stock (Functor, Show)
 
 data BTypeExprMainF ann bt
-  = BTyName TypeName [BArgForTypeF ann bt]
+  = BTyName (ann, TypeName) [BArgForTypeF ann bt]
   | BTyArrow (Maybe Label) (Maybe Var, BTypeExprF ann bt) (BTypeExprF ann bt)
   | BTyOmsArrow Label (Maybe Var, BTypeExprF ann bt) (BTypeExprF ann bt)
   | BTyInfArrow (Var, BTypeExprF ann bt) (BTypeExprF ann bt)
