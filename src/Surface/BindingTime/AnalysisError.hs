@@ -4,12 +4,16 @@ module Surface.BindingTime.AnalysisError
 where
 
 import Common.LocationInFile (SpanInFile)
+import Data.List.TwoOrMore (TwoOrMore)
+import Staged.Core (Label)
 import Surface.BindingTime.Core
 import Surface.Syntax
 import Prelude
 
 data AnalysisError
-  = UnboundVar SpanInFile [Var] Var
+  = InvalidSyntaxAsExpr SpanInFile
+  | InvalidSyntaxAsTypeExpr SpanInFile
+  | UnboundVar SpanInFile [Var] Var
   | NotAVal SpanInFile [Var] Var
   | NotAModule SpanInFile Var
   | NotAFunction SpanInFile BIType
@@ -21,6 +25,8 @@ data AnalysisError
   | BITypeInclusionRight SpanInFile BIType BIType BIType BITypeVar
   | UnknownTypeOrInvalidArgs SpanInFile TypeName [Expr]
   | NotATuple SpanInFile BIType
+  | TupleLengthMismatch SpanInFile (TwoOrMore Var) (TwoOrMore BIType)
   | LetRecParamsCannotStartWithImplicit SpanInFile
   | LetRecRequiresNonEmptyParams SpanInFile
+  | NoOmissibleParameter SpanInFile Label
   deriving stock (Show)

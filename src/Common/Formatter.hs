@@ -1302,6 +1302,10 @@ instance (Disp sv) => Disp (EvalErrorF sv) where
 
 instance Disp Bta.AnalysisError where
   dispGen _ = \case
+    Bta.InvalidSyntaxAsExpr spanInFile ->
+      "Invalid syntax as expression" <+> disp spanInFile
+    Bta.InvalidSyntaxAsTypeExpr spanInFile ->
+      "Invalid syntax as type expression" <+> disp spanInFile
     Bta.UnboundVar spanInFile ms x ->
       "Unbound variable" <+> disp (Text.intercalate "." (ms ++ [x])) <+> disp spanInFile
     Bta.NotAVal spanInFile ms x ->
@@ -1316,6 +1320,8 @@ instance Disp Bta.AnalysisError where
       "Not of base type;" <+> disp bity <+> disp spanInFile
     Bta.NotATuple spanInFile bity ->
       "Not a tuple;" <+> disp bity <+> disp spanInFile
+    Bta.TupleLengthMismatch spanInFile xs bitys ->
+      "Tuple length mismatch;" <+> dispTuple xs <+> "and" <+> dispProductType Outermost bitys <+> disp spanInFile
     Bta.BindingTimeContradiction spanInFile ->
       "Binding-time contradiction" <+> disp spanInFile
     Bta.BITypeContradiction spanInFile bity1 bity2 bity1Local bity2Local ->
@@ -1355,6 +1361,8 @@ instance Disp Bta.AnalysisError where
       "Recursive function definitions cannot have an implicit parameter as the first one" <+> disp spanInFile
     Bta.LetRecRequiresNonEmptyParams spanInFile ->
       "Recursive function definitions require at least one parameter" <+> disp spanInFile
+    Bta.NoOmissibleParameter spanInFile label ->
+      "No omissible parameter expected with label" <+> disp label <+> disp spanInFile
 
 instance Disp Bta.BindingTime where
   dispGen _req = \case

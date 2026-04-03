@@ -213,15 +213,18 @@ makeInstantiationMap =
     )
     Map.empty
 
-collectArgs :: trav -> ExprMain -> M trav (TypeName, [Expr])
-collectArgs trav = \case
-  App (Expr _ eFunMain) Nothing eArg -> do
-    (tyName, eArgs) <- collectArgs trav eFunMain
-    pure $ (tyName, eArgs ++ [eArg])
-  Constructor ([], tyName) -> do
-    pure (tyName, [])
-  _ ->
-    error "TODO (error): collectArgs"
+collectTypeArgs :: trav -> Span -> ExprMain -> M trav (TypeName, [Expr])
+collectTypeArgs trav loc = go
+  where
+    go = \case
+      App (Expr _ eFunMain) Nothing eArg -> do
+        (tyName, eArgs) <- go eFunMain
+        pure (tyName, eArgs ++ [eArg])
+      Constructor ([], tyName) -> do
+        pure (tyName, [])
+      _ -> do
+        spanInFile <- askSpanInFile loc
+        analysisError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
 extractConstraintsFromVar :: trav -> BindingTimeEnv -> BindingTime -> Span -> [Var] -> Var -> M trav (Var, BIType, [Constraint Span])
 extractConstraintsFromVar trav btenv bt ann ms x = do
@@ -368,7 +371,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
               let e' = BExpr (bt, ann) (BLetTupleIn xs e1' e2')
               pure (e', bity2, constraints1 ++ constraints2 ++ [CEqual ann bt bt1, CLeq ann bt bt2])
             Nothing ->
-              error "TODO (error): extractConstraintsFromExpr, LetTupleIn, tuple length mismatch"
+              analysisError trav $ TupleLengthMismatch spanInFile xs bitys
         _ -> do
           let Expr ann1 _ = e1
           spanInFile1 <- askSpanInFile ann1
@@ -429,7 +432,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
     AppOms e1 label e2 -> do
       (e1WithoutOpts, bity1WithoutOpts, constraints1) <- extractConstraintsFromExpr trav btenv e1
       (e1', (bt1, bity11, bity12)) <-
-        appendOmittedImplicitArgumentsBeforeOms trav label e1WithoutOpts bity1WithoutOpts
+        appendOmittedImplicitArgumentsBeforeOms trav ann label e1WithoutOpts bity1WithoutOpts
       (e2', bity2, constraints2) <- extractConstraintsFromExpr trav btenv e2
       constraintsEq <- makeConstraintsFromBITypeEquation trav ann bity2 bity11
       let constraints = constraints1 ++ constraints2 ++ constraintsEq ++ [CEqual ann bt bt1]
@@ -470,7 +473,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
             analysisError trav $ NotAnOptFunction spanInFile1 bity1
       pure (BExpr (bt, ann) (BAppInfOmitted e1'), bity, constraints)
     (TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}) ->
-      error "TODO (error): extractConstraintsFromExpr, illegal syntax"
+      analysisError trav $ InvalidSyntaxAsExpr spanInFile
 
 skipOmittedArgumentsBeforeInf :: BIType -> BIType
 skipOmittedArgumentsBeforeInf bity@(BIType _bt bityMain) =
@@ -478,8 +481,8 @@ skipOmittedArgumentsBeforeInf bity@(BIType _bt bityMain) =
     BITyOmsArrow _label _bity1 bity2 -> skipOmittedArgumentsBeforeInf bity2
     _ -> bity
 
-appendOmittedImplicitArgumentsBeforeOms :: trav -> Label -> BExpr -> BIType -> M trav (BExpr, (BindingTime, BIType, BIType))
-appendOmittedImplicitArgumentsBeforeOms _trav labelReq = go
+appendOmittedImplicitArgumentsBeforeOms :: trav -> Span -> Label -> BExpr -> BIType -> M trav (BExpr, (BindingTime, BIType, BIType))
+appendOmittedImplicitArgumentsBeforeOms trav loc labelReq = go
   where
     go e@(BExpr (_, ann) _) (BIType bt bityMain) = do
       case bityMain of
@@ -490,8 +493,9 @@ appendOmittedImplicitArgumentsBeforeOms _trav labelReq = go
         BITyInfArrow _bity1 bity2 ->
           -- TODO (enhance): give better location than `ann`
           go (BExpr (BTConst BT0, ann) (BAppInfOmitted e)) bity2
-        _ ->
-          error "TODO (error): appendOmittedImplicitArgumentsBeforeOms, not BITyOmsArrow"
+        _ -> do
+          spanInFile <- askSpanInFile loc
+          analysisError trav $ NoOmissibleParameter spanInFile labelReq
 
 appendOmittedImplicitArguments :: BExpr -> BIType -> (BExpr, BIType)
 appendOmittedImplicitArguments e@(BExpr (_, ann) _) bity@(BIType _bt bityMain) =
@@ -645,8 +649,8 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
       () <-
         case labelOpt of
           Nothing -> pure ()
-          Just _ -> error "TODO (error): labeled type applications"
-      (tyName, args) <- collectArgs trav typeExprMain
+          Just _ -> analysisError trav $ InvalidSyntaxAsTypeExpr spanInFile
+      (tyName, args) <- collectTypeArgs trav ann typeExprMain
       (args', bityBaseArgs, constraints) <-
         case (tyName, args) of
           ("List", [tye]) -> do
@@ -729,7 +733,7 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
           ( \((locAster, op), tye) ->
               case op of
                 "*" -> (locAster,) <$> extractConstraintsFromTypeExpr trav btenv tye
-                _ -> error "TODO (error): Product, non-`*` op"
+                _ -> analysisError trav $ InvalidSyntaxAsTypeExpr spanInFile
           )
           rest
       let constraintsRest =
@@ -744,7 +748,7 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
       let bitysRest = fmap (\(_, (_, bity, _)) -> bity) quadsRest
       pure (tye', BIType bt (BITyProduct (TwoOrMore.make1 bity1 bitysRest)), constraints)
     (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; LetOpenIn {}; Sequential {}; Tuple {}; IfThenElse {}; As {}; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}) ->
-      error "TODO (error): extractConstraintsFromTypeExpr, illegal syntax"
+      analysisError trav $ InvalidSyntaxAsTypeExpr spanInFile
   where
     bityNat :: BIType
     bityNat = BIType (BTConst BT0) (BITyBase [])
