@@ -19,15 +19,16 @@ import Prelude
 
 data TypeErrorF sv
   = Unsupported SpanInFile (UnsupportedF sv)
-  | IllegalSyntaxAsExpr SpanInFile
-  | IllegalSyntaxAsTypeExpr SpanInFile
+  | InvalidSyntaxAsExpr SpanInFile
+  | InvalidSyntaxAsPattern SpanInFile
+  | InvalidSyntaxAsTypeExpr SpanInFile
   | UnboundVar SpanInFile [Var] Var
   | UnboundTypeVar SpanInFile TypeVar
   | UnboundModule SpanInFile Var
   | NotAStage0Var SpanInFile Var
   | NotAStage1Var SpanInFile Var
-  | UnknownTypeOrInvalidArityAtStage0 SpanInFile TypeName Int
-  | UnknownTypeOrInvalidArityAtStage1 SpanInFile TypeName Int
+  | UnknownTypeOrInvalidArityAtStage0 SpanInFile [Var] TypeName Int
+  | UnknownTypeOrInvalidArityAtStage1 SpanInFile [Var] TypeName Int
   | NotAnIntLitArgAtStage0 SpanInFile (Ass0ExprF sv)
   | NotAnIntListLitArgAtStage0 SpanInFile (Ass0ExprF sv)
   | TypeContradictionAtStage0 SpanInFile (Ass0TypeExprF sv) (Ass0TypeExprF sv)

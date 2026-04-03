@@ -1757,7 +1757,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
       (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
-        typeError trav $ IllegalSyntaxAsExpr spanInFile
+        typeError trav $ InvalidSyntaxAsExpr spanInFile
   where
     completeImplicit spanInFile = go
       where
@@ -1786,14 +1786,15 @@ forceBranch1 trav tyEnv a1tyePatReq (Branch pat e) = do
   pure (a1pat, (a1tye, a1e))
 
 collectPatternArgs :: trav -> Span -> PatternMain -> M trav (ConstructorName, [Pattern])
-collectPatternArgs trav _loc = \case
+collectPatternArgs trav loc = \case
   PatConstructor ctor ->
     pure (ctor, [])
   PatApp (Pattern loc1 patMain1) pat2 -> do
     (ctor, patArgs1) <- collectPatternArgs trav loc1 patMain1
     pure (ctor, patArgs1 ++ [pat2])
-  (PatBool _; PatVar _) ->
-    error "TODO (error): collectPatternArgs, invalid"
+  (PatBool _; PatVar _) -> do
+    spanInFile <- askSpanInFile loc
+    typeError trav $ InvalidSyntaxAsPattern spanInFile
 
 forcePattern0 :: trav -> TypeEnv -> Ass0TypeExpr -> Pattern -> M trav (Ass0Pattern, Map Var ValEntry)
 forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) =
@@ -2373,7 +2374,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
       (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
-        typeError trav $ IllegalSyntaxAsExpr spanInFile
+        typeError trav $ InvalidSyntaxAsExpr spanInFile
   where
     completeImplicit pair@(result, a1e) =
       case result of
@@ -2470,15 +2471,15 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
             _ ->
               case validatePrimBaseType tyName of
                 Just tyPrimBase -> pure $ A0TyPrim (A0TyPrimBase tyPrimBase) Nothing
-                Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName 0
+                Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
         _ : _ ->
-          error "TODO (error): type name with module name prefixes"
+          typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
     App _ labelOpt _ -> do
       () <-
         case labelOpt of
           Nothing -> pure ()
-          Just _ -> typeError trav $ IllegalSyntaxAsTypeExpr spanInFile
-      (tyName, args) <- collectArgs trav loc tyeMain
+          Just _ -> typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
+      ((mods, tyName), args) <- collectArgs trav loc tyeMain
       case (tyName, args) of
         ("List", [arg1]) -> do
           a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
@@ -2522,7 +2523,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           labels <- validateIntLiteral trav loc1 a0e1
           pure $ A0TyPrim (A0TyTextHelper labels) Nothing
         _ ->
-          typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile tyName (length args)
+          typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName (length args)
     TyVar tyvar -> do
       tyvarEntry <- findTypeVar trav loc tyvar tyEnv
       case tyvarEntry of
@@ -2606,7 +2607,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           ( \((_locOp, op), tye) ->
               case op of
                 "*" -> typecheckTypeExpr0 trav tyEnv tye
-                _ -> typeError trav $ IllegalSyntaxAsTypeExpr spanInFile
+                _ -> typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
           )
           rest
       pure $ A0TyProduct (TwoOrMore.make1 a0tye1 a0tyesRest)
@@ -2617,7 +2618,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
         typecheckTypeExpr0 trav tyEnv' tye1
       pure $ A0TyImplicitForAll atyvar a0tye1
     (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
-      typeError trav $ IllegalSyntaxAsTypeExpr spanInFile
+      typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
 ass0exprAnd :: Ass0Expr
 ass0exprAnd = A0BuiltInName (BuiltInArity2 BIAnd)
@@ -2637,18 +2638,18 @@ validatePersistentExprArg1 trav (Expr loc eMain) =
       spanInFile <- askSpanInFile loc
       typeError trav $ CannotUseNormalArgAtStage1 spanInFile
 
-collectArgs :: trav -> Span -> TypeExprMain -> M trav (TypeName, [Expr])
+collectArgs :: trav -> Span -> TypeExprMain -> M trav (([Var], TypeName), [Expr])
 collectArgs trav loc = go
   where
     go = \case
       App (Expr _ eFunMain) Nothing eArg -> do
-        (tyName, eArgs) <- go eFunMain
-        pure (tyName, eArgs ++ [eArg])
-      Constructor ([], tyName) -> do
-        pure (tyName, [])
+        (qualTyName, eArgs) <- go eFunMain
+        pure (qualTyName, eArgs ++ [eArg])
+      Constructor (mods, tyName) -> do
+        pure ((mods, tyName), [])
       _ -> do
         spanInFile <- askSpanInFile loc
-        typeError trav $ IllegalSyntaxAsTypeExpr spanInFile
+        typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
 typecheckTypeExpr1 :: trav -> TypeEnv -> TypeExpr -> M trav Ass1TypeExpr
 typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
@@ -2659,15 +2660,15 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         [] ->
           case validatePrimBaseType tyName of
             Just tyPrimBase -> pure $ A1TyPrim (A1TyPrimBase tyPrimBase)
-            Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName 0
+            Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
         _ : _ ->
-          error "TODO (error): type names with module name prefixes"
+          typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
     App _ labelOpt _ -> do
       () <-
         case labelOpt of
           Nothing -> pure ()
           Just _ -> error "TODO (error): labeled type applications"
-      (tyName, args) <- collectArgs trav loc tyeMain
+      ((mods, tyName), args) <- collectArgs trav loc tyeMain
       case (tyName, args) of
         ("List", [tye]) -> do
           a1tye <- typecheckTypeExpr1 trav tyEnv tye
@@ -2721,7 +2722,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
           a0eLabels <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
           pure $ A1TyPrim (A1TyTextHelper a0eLabels)
         _ ->
-          typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile tyName (length args)
+          typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName (length args)
     TyVar tyvar -> do
       tyvarEntry <- findTypeVar trav loc tyvar tyEnv
       case tyvarEntry of
@@ -2756,7 +2757,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
           ( \((_locOp, op), tye) ->
               case op of
                 "*" -> typecheckTypeExpr1 trav tyEnv tye
-                _ -> typeError trav $ IllegalSyntaxAsTypeExpr spanInFile
+                _ -> typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
           )
           rest
       pure $ A1TyProduct (TwoOrMore.make1 a1tye1 a1tyesRest)
@@ -2767,7 +2768,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         typecheckTypeExpr1 trav tyEnv' tye1
       pure $ A1TyImplicitForAll atyvar a1tye1
     (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
-      typeError trav $ IllegalSyntaxAsTypeExpr spanInFile
+      typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
 validatePersistentType :: trav -> Span -> Ass0TypeExpr -> M trav AssPersTypeExpr
 validatePersistentType trav loc a0tye =

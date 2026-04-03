@@ -105,6 +105,9 @@ appendWithComma d1 d2 = d1 <> "," <+> d2
 appendWithAsterisk :: Doc Ann -> Doc Ann -> Doc Ann
 appendWithAsterisk d1 d2 = d1 <+> "*" <+> d2
 
+dispQualified :: (Disp modName, Disp name) => [modName] -> name -> Doc Ann
+dispQualified mods x = foldr (\modName d -> disp modName <> "." <> d) (disp x) mods
+
 disps :: (Disp a) => [a] -> Doc Ann
 disps = disps' disp
 
@@ -737,10 +740,12 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
   dispGen _ = \case
     Unsupported spanInFile detail ->
       "Unsupported feature" <+> disp spanInFile <> hardline <+> disp detail
-    IllegalSyntaxAsExpr spanInFile ->
-      "Illegal syntax as expression" <+> disp spanInFile
-    IllegalSyntaxAsTypeExpr spanInFile ->
-      "Illegal syntax as type expression" <+> disp spanInFile
+    InvalidSyntaxAsExpr spanInFile ->
+      "Invalid syntax as expression" <+> disp spanInFile
+    InvalidSyntaxAsPattern spanInFile ->
+      "Invalid syntax as pattern" <+> disp spanInFile
+    InvalidSyntaxAsTypeExpr spanInFile ->
+      "Invalid syntax as type expression" <+> disp spanInFile
     UnboundVar spanInFile ms x ->
       "Unbound variable" <+> dispLongName ms x <+> disp spanInFile
     UnboundTypeVar spanInFile (TypeVar a) ->
@@ -751,10 +756,10 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Not a stage-0 variable:" <+> disp x <+> disp spanInFile
     NotAStage1Var spanInFile x ->
       "Not a stage-1 variable:" <+> disp x <+> disp spanInFile
-    UnknownTypeOrInvalidArityAtStage0 spanInFile tyName n ->
-      "Unknown type or invalid arity (at stage 0):" <+> disp tyName <> "," <+> disp n <+> disp spanInFile
-    UnknownTypeOrInvalidArityAtStage1 spanInFile tyName n ->
-      "Unknown type or invalid arity (at stage 1):" <+> disp tyName <> "," <+> disp n <+> disp spanInFile
+    UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName n ->
+      "Unknown type or invalid arity (at stage 0):" <+> dispQualified mods tyName <> "," <+> disp n <+> disp spanInFile
+    UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName n ->
+      "Unknown type or invalid arity (at stage 1):" <+> dispQualified mods tyName <> "," <+> disp n <+> disp spanInFile
     NotAnIntLitArgAtStage0 spanInFile a0e ->
       "An argument expression at stage 0 is not an integer literal:" <+> stage0Style (disp a0e) <+> disp spanInFile
     NotAnIntListLitArgAtStage0 spanInFile a0e ->
