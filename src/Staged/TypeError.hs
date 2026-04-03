@@ -19,6 +19,8 @@ import Prelude
 
 data TypeErrorF sv
   = Unsupported SpanInFile (UnsupportedF sv)
+  | IllegalSyntaxAsExpr SpanInFile
+  | IllegalSyntaxAsTypeExpr SpanInFile
   | UnboundVar SpanInFile [Var] Var
   | UnboundTypeVar SpanInFile TypeVar
   | UnboundModule SpanInFile Var
@@ -82,6 +84,8 @@ data TypeErrorF sv
   | NotAStage1TypeVar SpanInFile TypeVar
   | LetTupleLengthMismatch0 SpanInFile (TwoOrMore Var) (TwoOrMore (Ass0TypeExprF sv))
   | LetTupleLengthMismatch1 SpanInFile (TwoOrMore Var) (TwoOrMore (Ass1TypeExprF sv))
+  | NonMaybeAnnotForLamOms0 SpanInFile (Ass0TypeExprF sv)
+  | NonMaybeAnnotForLamOms1 SpanInFile (Ass1TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv

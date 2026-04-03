@@ -737,6 +737,10 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
   dispGen _ = \case
     Unsupported spanInFile detail ->
       "Unsupported feature" <+> disp spanInFile <> hardline <+> disp detail
+    IllegalSyntaxAsExpr spanInFile ->
+      "Illegal syntax as expression" <+> disp spanInFile
+    IllegalSyntaxAsTypeExpr spanInFile ->
+      "Illegal syntax as type expression" <+> disp spanInFile
     UnboundVar spanInFile ms x ->
       "Unbound variable" <+> dispLongName ms x <+> disp spanInFile
     UnboundTypeVar spanInFile (TypeVar a) ->
@@ -972,6 +976,16 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> nest 2 (dispTuple xs)
         <> ("but got tuples of length" <+> disp (length a1tyes) <> ":")
         <> nest 2 (dispProductType Outermost a1tyes)
+    NonMaybeAnnotForLamOms0 spanInFile a0tye ->
+      "The type annotation for an omissible parameter is not Maybe"
+        <+> disp spanInFile
+        <> hardline
+        <> nest 2 (hardline <> stage0Style (disp a0tye))
+    NonMaybeAnnotForLamOms1 spanInFile a1tye ->
+      "The type annotation for an omissible parameter is not Maybe"
+        <+> disp spanInFile
+        <> hardline
+        <> nest 2 (hardline <> stage0Style (disp a1tye))
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case

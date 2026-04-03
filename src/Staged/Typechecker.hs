@@ -1559,7 +1559,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A0App a0e1 (applyCast cast a0e2))
           _ -> do
             bug "stage-0, App, fun"
-      LamOms label (x1, tye1) e2 -> do
+      LamOms label (x1, tye1@(Expr locTye1 _)) e2 -> do
         svX1 <- generateFreshVar (Just x1)
         let ax1 = AssVarStatic svX1
         case appCtx of
@@ -1572,8 +1572,9 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                   typecheckExpr0Single trav tyEnv' e2
                 let sa0tye1 = strictify a0tye1
                 pure (Pure (A0TyOmsArrow label (Just ax1, a0tyeElem1) a0tye2), A0Lam Nothing (ax1, sa0tye1) a0e2)
-              _ ->
-                error "TODO (error): LamOms, not Maybe"
+              _ -> do
+                spanInFile1 <- askSpanInFile locTye1
+                typeError trav $ NonMaybeAnnotForLamOms0 spanInFile1 a0tye1
           _ : _ ->
             -- TODO: consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamOmsWithArguments appCtx
@@ -1756,7 +1757,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
       (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
-        error "TODO (error): typecheckExpr0, illegal syntax"
+        typeError trav $ IllegalSyntaxAsExpr spanInFile
   where
     completeImplicit spanInFile = go
       where
@@ -1875,7 +1876,7 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
               let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
               let f1 = f0 . A0TyArrow labelOpt (Just ax, a0tye)
               pure (tyEnv1, f1)
-            OmissibleBinder label (x, tye) -> do
+            OmissibleBinder label (x, tye@(Expr locTye _)) -> do
               svX <- generateFreshVar (Just x)
               let ax = AssVarStatic svX
               a0tye <- typecheckTypeExpr0 trav tyEnv0 tye
@@ -1884,8 +1885,9 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
                   let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
                   let f1 = f0 . A0TyOmsArrow label (Just ax, a0tyeElem)
                   pure (tyEnv1, f1)
-                _ ->
-                  error "TODO (error): constructFunTypeExpr0, OmissibleBinder, not Maybe"
+                _ -> do
+                  spanInFile <- askSpanInFile locTye
+                  typeError trav $ NonMaybeAnnotForLamOms0 spanInFile a0tye
             InferableBinder (x, tye) -> do
               svX <- generateFreshVar (Just x)
               let ax = AssVarStatic svX
@@ -1909,13 +1911,14 @@ constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
           MandatoryBinder labelOpt (_x, tye) -> do
             a1tye <- typecheckTypeExpr1 trav tyEnv tye
             pure $ A1TyArrow labelOpt a1tye a1tyeAcc
-          OmissibleBinder label (_x, tye) -> do
+          OmissibleBinder label (_x, tye@(Expr locTye _)) -> do
             a1tye <- typecheckTypeExpr1 trav tyEnv tye
             case a1tye of
               A1TyMaybe a1tyeElem ->
                 pure $ A1TyOmsArrow label a1tyeElem a1tyeAcc
-              _ ->
-                error "TODO (error): constructFunTypeExpr1, OmissibleBinder, not Maybe"
+              _ -> do
+                spanInFile' <- askSpanInFile locTye
+                typeError trav $ NonMaybeAnnotForLamOms1 spanInFile' a1tye
           InferableBinder (_x, _tye) ->
             typeError trav $ CannotUseLamInfAtStage1 spanInFile
     )
@@ -1979,7 +1982,7 @@ typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A0TyArrow labelOpt (Just ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
-    OmissibleBinder label (x, tye) : params' -> do
+    OmissibleBinder label (x, tye@(Expr locTye _)) : params' -> do
       a0tye <- typecheckTypeExpr0 trav tyEnv tye
       case a0tye of
         A0TyMaybe a0tyeElem -> do
@@ -1987,8 +1990,9 @@ typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
           (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
           let ax = AssVarStatic svX
           pure (A0TyOmsArrow label (Just ax, a0tyeElem) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
-        _ ->
-          error "TODO (error): typecheckLetInBody0, OmissibleBinder, not Maybe"
+        _ -> do
+          spanInFile <- askSpanInFile locTye
+          typeError trav $ NonMaybeAnnotForLamOms0 spanInFile a0tye
     InferableBinder (x, tye) : params' -> do
       a0tye <- typecheckTypeExpr0 trav tyEnv tye
       svX <- generateFreshVar (Just x)
@@ -2187,7 +2191,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A1App a1e1 (applyCast1 cast a1e2))
           _ ->
             bug "stage-1, App, fun, not a Cast1"
-      LamOms label (x1, tye1) e2 ->
+      LamOms label (x1, tye1@(Expr locTye1 _)) e2 ->
         case appCtx of
           [] -> do
             svX1 <- generateFreshVar (Just x1)
@@ -2199,8 +2203,9 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                   typecheckExpr1Single trav tyEnv' e2
                 let ax1 = AssVarStatic svX1
                 pure (Pure (A1TyOmsArrow label a1tyeElem1 a1tye2), A1Lam Nothing (ax1, a1tye1) a1e2)
-              _ ->
-                error "TODO (error): typecheckExpr1, LamOms, not Maybe"
+              _ -> do
+                spanInFile1 <- askSpanInFile locTye1
+                typeError trav $ NonMaybeAnnotForLamOms1 spanInFile1 a1tye1
           _ : _ ->
             -- TODO: consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamOmsWithArguments appCtx
@@ -2368,7 +2373,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
       (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
-        error "TODO (error): typecheckExpr1, invalid syntax"
+        typeError trav $ IllegalSyntaxAsExpr spanInFile
   where
     completeImplicit pair@(result, a1e) =
       case result of
@@ -2396,7 +2401,7 @@ typecheckLetInBody1 trav tyEnv params tyeBodyOpt e1 =
       (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A1TyArrow labelOpt a1tye a1tye', A1Lam Nothing (ax, a1tye) a1e')
-    OmissibleBinder label (x, tye) : params' -> do
+    OmissibleBinder label (x, tye@(Expr locTye _)) : params' -> do
       a1tye <- typecheckTypeExpr1 trav tyEnv tye
       case a1tye of
         A1TyMaybe a1tyeElem -> do
@@ -2404,8 +2409,9 @@ typecheckLetInBody1 trav tyEnv params tyeBodyOpt e1 =
           (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv) params' tyeBodyOpt e1
           let ax = AssVarStatic svX
           pure (A1TyOmsArrow label a1tyeElem a1tye', A1Lam Nothing (ax, a1tye) a1e')
-        _ ->
-          error "TODO (error): OmissibleBinder, not Maybe"
+        _ -> do
+          spanInFile1 <- askSpanInFile locTye
+          typeError trav $ NonMaybeAnnotForLamOms1 spanInFile1 a1tye
     InferableBinder (_x, tye) : _params' -> do
       let Expr loc _ = tye -- TODO (enhance): give a better code position
       spanInFile <- askSpanInFile loc
@@ -2471,8 +2477,8 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
       () <-
         case labelOpt of
           Nothing -> pure ()
-          Just _ -> error "TODO (error): labeled type applications"
-      (tyName, args) <- collectArgs trav tyeMain
+          Just _ -> typeError trav $ IllegalSyntaxAsTypeExpr spanInFile
+      (tyName, args) <- collectArgs trav loc tyeMain
       case (tyName, args) of
         ("List", [arg1]) -> do
           a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
@@ -2600,7 +2606,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           ( \((_locOp, op), tye) ->
               case op of
                 "*" -> typecheckTypeExpr0 trav tyEnv tye
-                _ -> error "TODO (error): typecheckTypeExpr0, Product, non-`*` op"
+                _ -> typeError trav $ IllegalSyntaxAsTypeExpr spanInFile
           )
           rest
       pure $ A0TyProduct (TwoOrMore.make1 a0tye1 a0tyesRest)
@@ -2611,7 +2617,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
         typecheckTypeExpr0 trav tyEnv' tye1
       pure $ A0TyImplicitForAll atyvar a0tye1
     (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; Persistent {}) ->
-      error "TODO (error): typecheckTypeExpr0, illegal syntax"
+      typeError trav $ IllegalSyntaxAsTypeExpr spanInFile
 
 ass0exprAnd :: Ass0Expr
 ass0exprAnd = A0BuiltInName (BuiltInArity2 BIAnd)
@@ -2631,15 +2637,18 @@ validatePersistentExprArg1 trav (Expr loc eMain) =
       spanInFile <- askSpanInFile loc
       typeError trav $ CannotUseNormalArgAtStage1 spanInFile
 
-collectArgs :: trav -> TypeExprMain -> M trav (TypeName, [Expr])
-collectArgs trav = \case
-  App (Expr _ eFunMain) Nothing eArg -> do
-    (tyName, eArgs) <- collectArgs trav eFunMain
-    pure $ (tyName, eArgs ++ [eArg])
-  Constructor ([], tyName) -> do
-    pure (tyName, [])
-  _ ->
-    error "TODO (error): collectArgs"
+collectArgs :: trav -> Span -> TypeExprMain -> M trav (TypeName, [Expr])
+collectArgs trav loc = go
+  where
+    go = \case
+      App (Expr _ eFunMain) Nothing eArg -> do
+        (tyName, eArgs) <- go eFunMain
+        pure (tyName, eArgs ++ [eArg])
+      Constructor ([], tyName) -> do
+        pure (tyName, [])
+      _ -> do
+        spanInFile <- askSpanInFile loc
+        typeError trav $ IllegalSyntaxAsTypeExpr spanInFile
 
 typecheckTypeExpr1 :: trav -> TypeEnv -> TypeExpr -> M trav Ass1TypeExpr
 typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
@@ -2658,7 +2667,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         case labelOpt of
           Nothing -> pure ()
           Just _ -> error "TODO (error): labeled type applications"
-      (tyName, args) <- collectArgs trav tyeMain
+      (tyName, args) <- collectArgs trav loc tyeMain
       case (tyName, args) of
         ("List", [tye]) -> do
           a1tye <- typecheckTypeExpr1 trav tyEnv tye
