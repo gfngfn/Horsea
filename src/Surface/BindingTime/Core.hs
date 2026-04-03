@@ -202,6 +202,8 @@ fromStaged1 = \case
     wrap1 $ BITyProduct (fmap fromStaged1 a1tyes)
   Staged.A1TyArrow _labelOpt a1tye1 a1tye2 ->
     wrap1 $ BITyArrow (fromStaged1 a1tye1) (fromStaged1 a1tye2)
+  Staged.A1TyOmsArrow label a1tye1 a1tye2 ->
+    wrap1 $ BITyOmsArrow label (fromStaged1 a1tye1) (fromStaged1 a1tye2)
   Staged.A1TyImplicitForAll _atyvar a1tye2 ->
     -- TODO: support type application
     fromStaged1 a1tye2

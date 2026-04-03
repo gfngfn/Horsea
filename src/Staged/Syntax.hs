@@ -283,6 +283,7 @@ data Ass1TypeExprF sv
   | A1TyVar AssTypeVar
   | A1TyProduct (TwoOrMore (Ass1TypeExprF sv))
   | A1TyArrow (Maybe Label) (Ass1TypeExprF sv) (Ass1TypeExprF sv)
+  | A1TyOmsArrow Label (Ass1TypeExprF sv) (Ass1TypeExprF sv)
   | A1TyImplicitForAll AssTypeVar (Ass1TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
@@ -401,6 +402,7 @@ data Ass1TypeValF sv
   | A1TyValVar AssTypeVar
   | A1TyValProduct (TwoOrMore (Ass1TypeValF sv))
   | A1TyValArrow (Maybe Label) (Ass1TypeValF sv) (Ass1TypeValF sv)
+  | A1TyValOmsArrow Label (Ass1TypeValF sv) (Ass1TypeValF sv)
   | A1TyValImplicitForAll AssTypeVar (Ass1TypeValF sv)
   deriving stock (Eq, Show, Functor)
 
@@ -418,6 +420,7 @@ data Type1EquationF sv
   | TyEq1List (Type1EquationF sv)
   | TyEq1Maybe (Type1EquationF sv)
   | TyEq1Arrow (Maybe Label) (Type1EquationF sv) (Type1EquationF sv)
+  | TyEq1OmsArrow Label (Type1EquationF sv) (Type1EquationF sv)
   | TyEq1Product (TwoOrMore (Type1EquationF sv))
   | -- | Only for trivial equations.
     TyEq1TypeVar AssTypeVar
@@ -530,6 +533,8 @@ makeTrivialEquationFromType1 = \case
     TyEq1Product (fmap makeTrivialEquationFromType1 a1tyes)
   A1TyArrow labelOpt a1tye1 a1tye2 ->
     TyEq1Arrow labelOpt (makeTrivialEquationFromType1 a1tye1) (makeTrivialEquationFromType1 a1tye2)
+  A1TyOmsArrow label a1tye1 a1tye2 ->
+    TyEq1OmsArrow label (makeTrivialEquationFromType1 a1tye1) (makeTrivialEquationFromType1 a1tye2)
   A1TyImplicitForAll atyvar a1tye ->
     TyEq1ImplicitForAll atyvar (makeTrivialEquationFromType1 a1tye)
 
@@ -576,6 +581,10 @@ decomposeType1Equation = \case
     let (a1tye11, a1tye21) = decomposeType1Equation ty1eqDom
         (a1tye12, a1tye22) = decomposeType1Equation ty1eqCod
      in (A1TyArrow labelOpt a1tye11 a1tye12, A1TyArrow labelOpt a1tye21 a1tye22)
+  TyEq1OmsArrow label ty1eqDom ty1eqCod ->
+    let (a1tye11, a1tye21) = decomposeType1Equation ty1eqDom
+        (a1tye12, a1tye22) = decomposeType1Equation ty1eqCod
+     in (A1TyOmsArrow label a1tye11 a1tye12, A1TyOmsArrow label a1tye21 a1tye22)
   TyEq1Product ty1eqs ->
     let a1tyePairs = fmap decomposeType1Equation ty1eqs
      in (A1TyProduct (fmap fst a1tyePairs), A1TyProduct (fmap snd a1tyePairs))

@@ -569,6 +569,10 @@ evalTypeExpr1 env = \case
     a1tyv1 <- evalTypeExpr1 env a1tye1
     a1tyv2 <- evalTypeExpr1 env a1tye2
     pure $ A1TyValArrow labelOpt a1tyv1 a1tyv2
+  A1TyOmsArrow label a1tye1 a1tye2 -> do
+    a1tyv1 <- evalTypeExpr1 env a1tye1
+    a1tyv2 <- evalTypeExpr1 env a1tye2
+    pure $ A1TyValOmsArrow label a1tyv1 a1tyv2
   A1TyImplicitForAll atyvar a1tye2 -> do
     a1tyv2 <- evalTypeExpr1 env a1tye2
     pure $ A1TyValImplicitForAll atyvar a1tyv2
@@ -636,5 +640,7 @@ unliftTypeVal = \case
     SA0TyProduct (fmap unliftTypeVal a1tyvs)
   A1TyValArrow _labelOpt a1tyv1 a1tyv2 ->
     SA0TyArrow (Nothing, unliftTypeVal a1tyv1) (unliftTypeVal a1tyv2)
+  A1TyValOmsArrow _label a1tyv1 a1tyv2 ->
+    SA0TyArrow (Nothing, SA0TyMaybe (unliftTypeVal a1tyv1)) (unliftTypeVal a1tyv2)
   A1TyValImplicitForAll atyvar a1tyv2 ->
     SA0TyExplicitForAll atyvar (unliftTypeVal a1tyv2)

@@ -100,6 +100,7 @@ instance HasTypeVar Ass1TypeExprF where
         TypeSubst1 atyvar' a1tye' -> if atyvar == atyvar' then a1tye' else A1TyVar atyvar
     A1TyProduct a1tyes -> A1TyProduct (fmap go a1tyes)
     A1TyArrow labelOpt a1tye1 a1tye2 -> A1TyArrow labelOpt (go a1tye1) (go a1tye2)
+    A1TyOmsArrow label a1tye1 a1tye2 -> A1TyOmsArrow label (go a1tye1) (go a1tye2)
     A1TyImplicitForAll atyvar a1tye2 ->
       A1TyImplicitForAll atyvar $
         case s of
@@ -183,6 +184,8 @@ instance HasTypeVar Type1EquationF where
       TyEq1Maybe (go ty1eqElem)
     TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
       TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
+    TyEq1OmsArrow label ty1eqDom ty1eqCod ->
+      TyEq1OmsArrow label (go ty1eqDom) (go ty1eqCod)
     TyEq1Product ty1eqs ->
       TyEq1Product (fmap go ty1eqs)
     TyEq1TypeVar atyvar ->

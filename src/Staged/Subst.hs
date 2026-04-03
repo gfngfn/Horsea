@@ -573,6 +573,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       unionPairs (map frees (TwoOrMore.toList a1tyes))
     A1TyArrow _labelOpt a1tye1 a1tye2 ->
       unionPairs [frees a1tye1, frees a1tye2]
+    A1TyOmsArrow _label a1tye1 a1tye2 ->
+      unionPairs [frees a1tye1, frees a1tye2]
     A1TyImplicitForAll _atyvar a1tye2 ->
       frees a1tye2
 
@@ -594,6 +596,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       A1TyProduct (fmap go a1tyes)
     A1TyArrow labelOpt a1tye1 a1tye2 ->
       A1TyArrow labelOpt (go a1tye1) (go a1tye2)
+    A1TyOmsArrow label a1tye1 a1tye2 ->
+      A1TyOmsArrow label (go a1tye1) (go a1tye2)
     A1TyImplicitForAll atyvar a1tye2 ->
       A1TyImplicitForAll atyvar (go a1tye2)
     where
@@ -614,6 +618,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
         go a1tye1' a1tye2'
       (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) ->
         labelOpt1 == labelOpt2 && go a1tye11 a1tye21 && go a1tye12 a1tye22
+      (A1TyOmsArrow label1 a1tye11 a1tye12, A1TyOmsArrow label2 a1tye21 a1tye22) ->
+        label1 == label2 && go a1tye11 a1tye21 && go a1tye12 a1tye22
       (_, _) ->
         False
     where
@@ -716,6 +722,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       frees ty1eqElem
     TyEq1Arrow _labelOpt ty1eqDom ty1eqCod ->
       unionPairs [frees ty1eqDom, frees ty1eqCod]
+    TyEq1OmsArrow _label ty1eqDom ty1eqCod ->
+      unionPairs [frees ty1eqDom, frees ty1eqCod]
     TyEq1Product ty1eqs ->
       unionPairs (map frees (TwoOrMore.toList ty1eqs))
     TyEq1TypeVar _atyvar ->
@@ -738,6 +746,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       TyEq1Maybe (go ty1eqElem)
     TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
       TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
+    TyEq1OmsArrow label ty1eqDom ty1eqCod ->
+      TyEq1OmsArrow label (go ty1eqDom) (go ty1eqCod)
     TyEq1Product ty1eqs ->
       TyEq1Product (fmap go ty1eqs)
     TyEq1TypeVar atyvar ->

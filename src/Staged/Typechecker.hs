@@ -837,8 +837,8 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
             mapM
               ( \(a0pat, a1tye) ->
                   case a1tye of
-                    A1TyArrow labelOpt2 a1tyeDom a1tyeCod ->
-                      if labelOpt1 == labelOpt2
+                    A1TyArrow labelOpt a1tyeDom a1tyeCod ->
+                      if labelOpt == labelOpt1
                         then pure (a0pat, (a1tyeDom, a1tyeCod))
                         else failure
                     _ ->
@@ -849,6 +849,23 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
           a1tyeDom' <- go1 (fmap (second fst) triples)
           a1tyeCod' <- go1 (fmap (second snd) triples)
           pure $ A1TyArrow labelOpt1 a1tyeDom' a1tyeCod'
+        A1TyOmsArrow label1 a1tyeDom1 a1tyeCod1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyOmsArrow label a1tyeDom a1tyeCod ->
+                      if label == label1
+                        then pure (a0pat, (a1tyeDom, a1tyeCod))
+                        else failure
+                    _ ->
+                      failure
+              )
+              rest
+          let triples = (a0pat1, (a1tyeDom1, a1tyeCod1)) :| triplesRest
+          a1tyeDom' <- go1 (fmap (second fst) triples)
+          a1tyeCod' <- go1 (fmap (second snd) triples)
+          pure $ A1TyOmsArrow label1 a1tyeDom' a1tyeCod'
         A1TyProduct a1tyes1 -> do
           pairsRest <-
             mapM
@@ -1464,7 +1481,9 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           case params of
             MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->
               pure (labelOpt', x0', tyeParam0', paramsRest')
-            InferableBinder _ : _ ->
+            OmissibleBinder {} : _ ->
+              typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
+            InferableBinder {} : _ ->
               typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             [] ->
               typeError trav $ LetRecRequiresNonEmptyParams spanInFile
@@ -1704,6 +1723,17 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
               let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
               let f1 = f0 . A0TyArrow labelOpt (Just ax, a0tye)
               pure (tyEnv1, f1)
+            OmissibleBinder label (x, tye) -> do
+              svX <- generateFreshVar (Just x)
+              let ax = AssVarStatic svX
+              a0tye <- typecheckTypeExpr0 trav tyEnv0 tye
+              case a0tye of
+                A0TyMaybe a0tyeElem -> do
+                  let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
+                  let f1 = f0 . A0TyOmsArrow label (Just ax, a0tyeElem)
+                  pure (tyEnv1, f1)
+                _ ->
+                  error "TODO (error): constructFunTypeExpr0, OmissibleBinder, not Maybe"
             InferableBinder (x, tye) -> do
               svX <- generateFreshVar (Just x)
               let ax = AssVarStatic svX
@@ -1720,17 +1750,24 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
 constructFunTypeExpr1 :: trav -> Span -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass1TypeExpr
 constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
   spanInFile <- askSpanInFile loc
-  a0tyeBody <- typecheckTypeExpr1 trav tyEnv tyeBody
+  a1tyeBody <- typecheckTypeExpr1 trav tyEnv tyeBody
   foldrM
-    ( \param a0tyeAcc ->
+    ( \param a1tyeAcc ->
         case param of
           MandatoryBinder labelOpt (_x, tye) -> do
-            a0tye <- typecheckTypeExpr1 trav tyEnv tye
-            pure $ A1TyArrow labelOpt a0tye a0tyeAcc
+            a1tye <- typecheckTypeExpr1 trav tyEnv tye
+            pure $ A1TyArrow labelOpt a1tye a1tyeAcc
+          OmissibleBinder label (_x, tye) -> do
+            a1tye <- typecheckTypeExpr1 trav tyEnv tye
+            case a1tye of
+              A1TyMaybe a1tyeElem ->
+                pure $ A1TyOmsArrow label a1tyeElem a1tyeAcc
+              _ ->
+                error "TODO (error): constructFunTypeExpr1, OmissibleBinder, not Maybe"
           InferableBinder (_x, _tye) ->
             typeError trav $ CannotUseLamInfAtStage1 spanInFile
     )
-    a0tyeBody
+    a1tyeBody
     params
 
 typecheckValVar0 :: trav -> Span -> TypeEnv -> [Var] -> Var -> M trav (Ass0TypeExpr, Ass0Expr)
@@ -1790,6 +1827,16 @@ typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A0TyArrow labelOpt (Just ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
+    OmissibleBinder label (x, tye) : params' -> do
+      a0tye <- typecheckTypeExpr0 trav tyEnv tye
+      case a0tye of
+        A0TyMaybe a0tyeElem -> do
+          svX <- generateFreshVar (Just x)
+          (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
+          let ax = AssVarStatic svX
+          pure (A0TyOmsArrow label (Just ax, a0tyeElem) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
+        _ ->
+          error "TODO: OmissibleBinder, not Maybe"
     InferableBinder (x, tye) : params' -> do
       a0tye <- typecheckTypeExpr0 trav tyEnv tye
       svX <- generateFreshVar (Just x)
@@ -1988,8 +2035,23 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             pure (result, A1App a1e1 (applyCast1 cast a1e2))
           _ ->
             bug "stage-1, App, fun, not a Cast1"
-      LamOms {} ->
-        error "TODO: typecheckExpr1, LamOms"
+      LamOms label (x1, tye1) e2 ->
+        case appCtx of
+          [] -> do
+            svX1 <- generateFreshVar (Just x1)
+            a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
+            case a1tye1 of
+              A1TyMaybe a1tyeElem1 -> do
+                (a1tye2, a1e2) <- do
+                  let tyEnv' = TypeEnv.addVal x1 (Ass1Entry a1tye1 (Right svX1)) tyEnv
+                  typecheckExpr1Single trav tyEnv' e2
+                let ax1 = AssVarStatic svX1
+                pure (Pure (A1TyOmsArrow label a1tyeElem1 a1tye2), A1Lam Nothing (ax1, a1tye1) a1e2)
+              _ ->
+                error "TODO (error): LamOms, not Maybe"
+          _ : _ ->
+            -- TODO: consider supporting lambda abstractions with direct arguments
+            typeError trav $ Unsupported spanInFile $ LamOmsWithArguments appCtx
       AppOms {} ->
         error "TODO: typecheckExpr1, AppOms"
       LamInf _ _ ->
@@ -2013,7 +2075,9 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           case params of
             MandatoryBinder labelOpt' (x0', tyeParam0') : paramsRest' ->
               pure (labelOpt', x0', tyeParam0', paramsRest')
-            InferableBinder _ : _ ->
+            OmissibleBinder {} : _ ->
+              typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
+            InferableBinder {} : _ ->
               typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             [] ->
               typeError trav $ LetRecRequiresNonEmptyParams spanInFile
@@ -2171,6 +2235,16 @@ typecheckLetInBody1 trav tyEnv params tyeBodyOpt e1 =
       (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A1TyArrow labelOpt a1tye a1tye', A1Lam Nothing (ax, a1tye) a1e')
+    OmissibleBinder label (x, tye) : params' -> do
+      a1tye <- typecheckTypeExpr1 trav tyEnv tye
+      case a1tye of
+        A1TyMaybe a1tyeElem -> do
+          svX <- generateFreshVar (Just x)
+          (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addVal x (Ass1Entry a1tye (Right svX)) tyEnv) params' tyeBodyOpt e1
+          let ax = AssVarStatic svX
+          pure (A1TyOmsArrow label a1tyeElem a1tye', A1Lam Nothing (ax, a1tye) a1e')
+        _ ->
+          error "TODO (error): OmissibleBinder, not Maybe"
     InferableBinder (_x, tye) : _params' -> do
       let Expr loc _ = tye -- TODO (enhance): give a better code position
       spanInFile <- askSpanInFile loc

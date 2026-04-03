@@ -543,6 +543,7 @@ instance Disp Surface.LamBinder where
   dispGen _ = \case
     Surface.MandatoryBinder Nothing (x, tye) -> "(" <> disp x <+> ":" <+> disp tye <> ")"
     Surface.MandatoryBinder (Just label) (x, tye) -> "#" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
+    Surface.OmissibleBinder label (x, tye) -> "?" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
     Surface.InferableBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
 
 instance (Disp sv, Disp (af sv)) => Disp (AssLiteralF af sv) where
@@ -696,6 +697,7 @@ instance (Disp sv) => Disp (Ass1TypeExprF sv) where
     A1TyVar atyvar -> disp atyvar
     A1TyProduct a1tyes -> dispProductType req a1tyes
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2
+    A1TyOmsArrow label a1tye1 a1tye2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tye1 a1tye2
     A1TyImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
 
 instance Disp FrontError where
@@ -1151,6 +1153,7 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
       let (a1tyv1, a1tyvsRest) = TwoOrMore.decompose1 a1tyvs
        in dispProduct req a1tyv1 (fmap ("*",) a1tyvsRest)
     A1TyValArrow labelOpt a1tyv1 a1tyv2 -> dispNondepArrowType req labelOpt a1tyv1 a1tyv2
+    A1TyValOmsArrow label a1tyv1 a1tyv2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tyv1 a1tyv2
     A1TyValImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
 
 instance Disp Ass1PrimTypeVal where
