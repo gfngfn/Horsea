@@ -402,7 +402,7 @@ end
 
 module VarStore = struct
   val create :
-    #frozen Bool ->
+    ?frozen Bool ->
     #name String ->
     #device Device ->
     Unit -> VarStore
