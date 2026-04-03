@@ -502,8 +502,8 @@ module Layer = struct
     #output_dim (output_dim : Nat) ->
     {shape : {s : List Nat | List.length s == 4 && List.nth 1 s == input_dim}} ->
     &(VarStore ->
-      (* #use_bias Bool -> *) (* default: true *)
-      (* #w_init VarStore.Init -> *)
+      ?use_bias Bool -> (* default: true *)
+      ?w_init VarStoreInit ->
       Activation ->
       Tensor %shape ->
       Tensor %[
@@ -519,8 +519,8 @@ module Layer = struct
     #output_dim (output_dim : Nat) ->
     {shape : {s : List Nat | List.length s >= 1 && List.last s == input_dim}} ->
     &(VarStore ->
-      #use_bias Bool -> (* default: true *)
-      (* #w_init VarStore.Init -> *)
+      ?use_bias Bool -> (* default: true *)
+      ?w_init VarStoreInit ->
       Activation ->
       Tensor %shape ->
       Tensor %(List.append (List.init shape) [output_dim])

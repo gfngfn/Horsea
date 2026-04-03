@@ -19,13 +19,11 @@ in
 let linear1 =
   Layer.linear #input_dim 1024 #output_dim 1024 {[batch_size, 1024]}
     vs
-    #use_bias true
     Layer.Activation.relu
 in
 let linear2 =
   Layer.linear #input_dim 1024 #output_dim MnistHelper.label_count {[batch_size, 1024]}
     vs
-    #use_bias true
     Layer.Activation.none
 in
 let adam = Optimizer.adam vs #learning_rate learning_rate in

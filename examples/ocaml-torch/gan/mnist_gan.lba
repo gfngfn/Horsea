@@ -14,7 +14,6 @@ let gen_create_generator {shape : {s : List Nat | List.length s > 0 && List.last
             {shape}
           )
           vs
-          #use_bias true
           Layer.Activation.leaky_relu
       in
       let linear2 =
@@ -24,7 +23,6 @@ let gen_create_generator {shape : {s : List Nat | List.length s > 0 && List.last
             {List.append (List.init shape) [generator_hidden_nodes]}
           )
           vs
-          #use_bias true
           Layer.Activation.tanh
       in
       fun (rand_input : Tensor %shape) ->
@@ -41,7 +39,6 @@ let gen_create_discriminator {shape : {s : List Nat | List.length s > 0 && List.
             {shape}
           )
           vs
-          #use_bias true
           Layer.Activation.leaky_relu
       in
       let linear2 =
@@ -51,7 +48,6 @@ let gen_create_discriminator {shape : {s : List Nat | List.length s > 0 && List.
             {List.append (List.init shape) [discriminator_hidden_nodes]}
           )
           vs
-          #use_bias true
           Layer.Activation.sigmoid
       in
       fun (xs : Tensor %shape) ->

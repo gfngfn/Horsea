@@ -61,7 +61,6 @@ in
   ~(let gen_linear (shape : List Nat) =
       &(~(Layer.gen_linear #input_dim hidden_size #output_dim labels {List.append shape [hidden_size]})
           vs
-          #use_bias true
           Layer.Activation.none
       )
     in
