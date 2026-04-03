@@ -51,6 +51,12 @@ tyNondepFun tye1 tye2 = typ (TyArrow Nothing (Nothing, tye1) tye2)
 tyNondepFunWithLabel :: Label -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
 tyNondepFunWithLabel label tye1 tye2 = typ (TyArrow (Just label) (Nothing, tye1) tye2)
 
+tyDepOmsFun :: Label -> Var -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
+tyDepOmsFun label x tye1 tye2 = typ (TyOmsArrow label (Just x, tye1) tye2)
+
+tyNondepOmsFun :: Label -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
+tyNondepOmsFun label tye1 tye2 = typ (TyOmsArrow label (Nothing, tye1) tye2)
+
 tyInfFun :: Var -> TypeExprVoid -> TypeExprVoid -> TypeExprVoid
 tyInfFun x tye1 tye2 = typ (TyInfArrow (x, tye1) tye2)
 
