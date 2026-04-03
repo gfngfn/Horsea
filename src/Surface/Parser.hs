@@ -48,9 +48,10 @@ labelOmissible :: P (Located Text)
 labelOmissible = expectToken (^? #_TokLabelOmissible)
 
 longOrShortLower :: P (Located ([Text], Text))
-longOrShortLower =
-  expectToken (^? #_TokLongLower)
-    <|> (fmap ([],) <$> lower)
+longOrShortLower = expectToken (^? #_TokLongLower) <|> (fmap ([],) <$> lower)
+
+longOrShortUpper :: P (Located ([Text], Text))
+longOrShortUpper = expectToken (^? #_TokLongUpper) <|> (fmap ([],) <$> upper)
 
 standaloneOp :: P (Located Text)
 standaloneOp = paren (noLoc operator)
@@ -132,7 +133,7 @@ expr = letin
         <|> (makeBool True <$> token TokTrue)
         <|> (makeBool False <$> token TokFalse)
         <|> (located Var <$> longOrShortLower)
-        <|> (makeConstructor <$> upper)
+        <|> (makeConstructor <$> longOrShortUpper)
         <|> try (located (\x -> Var ([], x)) <$> standaloneOp)
         <|> try (makeLitUnit <$> token TokLeftParen <*> token TokRightParen)
         <|> (makeEnclosed <$> paren ((,) <$> expr <*> many (token TokComma *> expr)))
@@ -146,7 +147,7 @@ expr = letin
               Nothing -> eMain
               Just esRest -> Tuple (TwoOrMore.make1 e1 esRest)
         makeBool b loc = Expr loc (Literal (LitBool b))
-        makeConstructor (Located loc t) = Expr loc (Constructor ([], t))
+        makeConstructor (Located loc qualCtor) = Expr loc (Constructor qualCtor)
         makeRefinement (Located loc (x, tye, e)) = Expr loc (TyRefinement x tye e)
 
     app :: P Expr

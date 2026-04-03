@@ -257,7 +257,7 @@ instance (Ord sv) => HasVar sv Ass0BranchF where
       go = subst s
 
   alphaEquivalent _a0branch1 _a0branch2 =
-    False --  TODO: Ass0Branch, alphaEquivalent
+    False --  TODO (enhance): Ass0Branch, alphaEquivalent
 
 freesInPattern0 :: (Ord sv) => Ass0PatternF sv -> Set (AssVarF sv)
 freesInPattern0 = \case
@@ -415,7 +415,7 @@ instance (Ord sv) => HasVar sv Ass1BranchF where
       go = subst s
 
   alphaEquivalent _a0branch1 _a0branch2 =
-    False -- TODO: Ass1Branch, alphaEquivalent
+    False -- TODO (enhance): Ass1Branch, alphaEquivalent
 
 freesInPattern1 :: (Ord sv) => Ass1PatternF sv -> Set (AssVarF sv)
 freesInPattern1 = \case
@@ -536,7 +536,7 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
             (Nothing, Just y2) -> not (occurs0 y2 a0tye22) && go a0tye12 a0tye22
             (Just y1, Just y2) -> go a0tye12 (subst0 (A0Var y1) y2 a0tye22)
       (A0TyImplicitForAll atyvar1 a0tye1', A0TyImplicitForAll atyvar2 a0tye2') ->
-        -- TODO: true alpha-equivalence
+        -- TODO (enhance): true alpha-equivalence
         atyvar1 == atyvar2 && go a0tye1' a0tye2'
       (_, _) ->
         False
@@ -699,7 +699,7 @@ instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
       (SA0TyCode a1tye1, SA0TyCode a1tye2) ->
         go a1tye1 a1tye2
       (SA0TyExplicitForAll atyvar1 sa0tye1', SA0TyExplicitForAll atyvar2 sa0tye2') ->
-        -- TODO: true alpha-equivalence
+        -- TODO (enhance): true alpha-equivalence
         atyvar1 == atyvar2 && go sa0tye1' sa0tye2'
       (_, _) ->
         False
@@ -895,5 +895,5 @@ instance (HasVar sv af) => HasVar sv (ResultF af) where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv
       go = subst s
 
-  alphaEquivalent =
-    error "TODO (enhance): Result a, alphaEquivalent"
+  alphaEquivalent _ _ =
+    False -- TODO (enhance): Result a, alphaEquivalent

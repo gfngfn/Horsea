@@ -97,6 +97,8 @@ module String = struct
 end
 
 module Maybe = struct
+  val %map : forall 'a -> forall 'b -> ('a -> 'b) -> Maybe 'a -> Maybe 'b
+    external (builtin = "maybe__map", surface = "map")
   (* TODO: make this polymorphic *)
   val ~unwrap = fun(d : Int) -> fun(x : Maybe Int) ->
     case x of

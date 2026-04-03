@@ -8,6 +8,7 @@ module Surface.BindingTime.Stager
   )
 where
 
+import Common.TokenUtil (Span, mergeSpan)
 import Staged.SrcSyntax qualified as Staged
 import Surface.BindingTime.Core
 import Surface.Syntax
@@ -23,13 +24,13 @@ type BCTypeExprMainF ann = BTypeExprMainF ann BindingTimeConst
 
 type BCArgForTypeF ann = BArgForTypeF ann BindingTimeConst
 
-stageExpr0 :: (Show ann) => BCExprF ann -> Staged.ExprF ann
+stageExpr0 :: BCExprF Span -> Staged.Expr
 stageExpr0 (BExpr (btc, ann) exprMain) =
   case btc of
     BT0 -> Staged.Expr ann (stageExpr0Main exprMain)
     BT1 -> Staged.Expr ann (Staged.Bracket (Staged.Expr ann (stageExpr1Main exprMain)))
 
-stageExpr0Main :: (Show ann) => BCExprMainF ann -> Staged.ExprMainF ann
+stageExpr0Main :: BCExprMainF Span -> Staged.ExprMain
 stageExpr0Main = \case
   BLiteral lit ->
     Staged.Literal (convertLiteral stageExpr0 lit)
@@ -68,13 +69,13 @@ stageExpr0Main = \case
   BAppInfOmitted e1 ->
     Staged.AppInfOmitted (stageExpr0 e1)
 
-stageExpr1 :: (Show ann) => BCExprF ann -> Staged.ExprF ann
+stageExpr1 :: BCExprF Span -> Staged.Expr
 stageExpr1 (BExpr (btc, ann) exprMain) =
   case btc of
     BT0 -> Staged.Expr ann (Staged.Escape (Staged.Expr ann (stageExpr0Main exprMain)))
     BT1 -> Staged.Expr ann (stageExpr1Main exprMain)
 
-stageExpr1Main :: (Show ann) => BCExprMainF ann -> Staged.ExprMainF ann
+stageExpr1Main :: BCExprMainF Span -> Staged.ExprMain
 stageExpr1Main = \case
   BLiteral lit ->
     Staged.Literal (convertLiteral stageExpr1 lit)
@@ -116,26 +117,28 @@ stageExpr1Main = \case
 tyCode :: Staged.TypeExprF ann -> Staged.TypeExprMainF ann
 tyCode = Staged.Bracket
 
-tyNameWithArgs :: TypeName -> [Staged.ExprF ann] -> Staged.TypeExprMainF ann
-tyNameWithArgs tyName =
-  foldl'
-    (\eMain argExpr -> Staged.App (Staged.Expr ann eMain) Nothing argExpr)
-    (Staged.Constructor ([], tyName))
+tyNameWithArgs :: Span -> TypeName -> [Staged.Expr] -> Staged.TypeExprMain
+tyNameWithArgs loc tyName eArgs = eMain
   where
-    ann = error "TODO: tyNameWithArgs, ann"
+    Staged.Expr _ eMain =
+      foldl'
+        ( \eFunAcc@(Staged.Expr loc1 _) eArg@(Staged.Expr loc2 _) ->
+            Staged.Expr (mergeSpan loc1 loc2) (Staged.App eFunAcc Nothing eArg)
+        )
+        (Staged.Expr loc (Staged.Constructor ([], tyName)))
+        eArgs
 
-stageTypeExpr0 :: (Show ann) => BCTypeExprF ann -> Staged.TypeExprF ann
+stageTypeExpr0 :: BCTypeExprF Span -> Staged.TypeExpr
 stageTypeExpr0 (BTypeExpr (btc, ann) typeExprMain) =
   case btc of
     BT1 -> Staged.Expr ann (tyCode (Staged.Expr ann (stageTypeExpr1Main typeExprMain)))
     BT0 -> Staged.Expr ann (stageTypeExpr0Main typeExprMain)
 
-stageTypeExpr0Main :: (Show ann) => BCTypeExprMainF ann -> Staged.TypeExprMainF ann
+stageTypeExpr0Main :: BCTypeExprMainF Span -> Staged.TypeExprMain
 stageTypeExpr0Main = \case
-  BTyName tyName args ->
+  BTyName (loc, tyName) args ->
     -- TODO: check that `ExprArg` only contains literals
-    tyNameWithArgs tyName $
-      map stageArgForType0 args
+    tyNameWithArgs loc tyName (map stageArgForType0 args)
   BTyArrow labelOpt (xOpt, tye1) tye2 ->
     Staged.TyArrow labelOpt (xOpt, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
   BTyOmsArrow label (xOpt, tye1) tye2 ->
@@ -149,21 +152,21 @@ stageTypeExpr0Main = \case
       (stageTypeExpr0 tye1)
       (fmap (\(locAster, tye) -> ((locAster, "*"), stageTypeExpr0 tye)) rest)
 
-stageArgForType0 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
+stageArgForType0 :: BCArgForTypeF Span -> Staged.Expr
 stageArgForType0 = \case
   BExprArg e -> stageExpr0 e
   BTypeExprArg tye -> stageTypeExpr0 tye
 
-stageTypeExpr1 :: (Show ann) => BCTypeExprF ann -> Staged.TypeExprF ann
+stageTypeExpr1 :: BCTypeExprF Span -> Staged.TypeExpr
 stageTypeExpr1 (BTypeExpr (btc, ann) typeExprMain) =
   case btc of
     BT0 -> error $ "bug: stageTypeExpr1, BT0; " ++ show typeExprMain
     BT1 -> Staged.Expr ann (stageTypeExpr1Main typeExprMain)
 
-stageTypeExpr1Main :: (Show ann) => BCTypeExprMainF ann -> Staged.TypeExprMainF ann
+stageTypeExpr1Main :: BCTypeExprMainF Span -> Staged.TypeExprMain
 stageTypeExpr1Main = \case
-  BTyName tyName args ->
-    tyNameWithArgs tyName (map stageArgForType1 args)
+  BTyName (loc, tyName) args ->
+    tyNameWithArgs loc tyName (map stageArgForType1 args)
   BTyArrow labelOpt (_xOpt, tye1) tye2 ->
     Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
   BTyOmsArrow label (_xOpt, tye1) tye2 ->
@@ -177,7 +180,7 @@ stageTypeExpr1Main = \case
       (stageTypeExpr1 tye1)
       (fmap (\(locAster, tye) -> ((locAster, "*"), stageTypeExpr1 tye)) rest)
 
-stageArgForType1 :: (Show ann) => BCArgForTypeF ann -> Staged.ExprF ann
+stageArgForType1 :: BCArgForTypeF Span -> Staged.Expr
 stageArgForType1 = \case
   BExprArg e@(BExpr (_btc, ann) _) -> Staged.Expr ann (Staged.Persistent (stageExpr0 e))
   BTypeExprArg tye -> stageTypeExpr1 tye

@@ -7,6 +7,7 @@ module Common.TokenUtil
     lowerIdent,
     upperIdent,
     longLowerIdent,
+    longUpperIdent,
     operator,
     operatorLong,
     integerLiteral,
@@ -66,14 +67,21 @@ upperIdent = Text.pack <$> ((:) <$> p1 <*> p2)
     p1 = Mp.satisfy Char.isUpper
     p2 = Mp.many (Mp.satisfy isRestChar) <* Mp.notFollowedBy (Mp.satisfy isRestCharOrDot)
 
--- Parses a lowercased identifier preceded by a sequence of module names.
-longLowerIdent :: Tokenizer ([Text], Text)
-longLowerIdent =
-  (,) <$> Mp.many (buildModuleName <$> p1 <*> (p2 <* Mp.single '.')) <*> lowerIdent
+long :: Tokenizer Text -> Tokenizer ([Text], Text)
+long pMain =
+  (,) <$> Mp.many (buildModuleName <$> p1 <*> (p2 <* Mp.single '.')) <*> pMain
   where
     p1 = Mp.satisfy Char.isUpper
     p2 = Mp.many (Mp.satisfy isRestChar)
     buildModuleName c cs = Text.pack (c : cs)
+
+-- Parses a lowercased identifier preceded by a sequence of module names.
+longLowerIdent :: Tokenizer ([Text], Text)
+longLowerIdent = long lowerIdent
+
+-- Parses a lowercased identifier preceded by a sequence of module names.
+longUpperIdent :: Tokenizer ([Text], Text)
+longUpperIdent = long upperIdent
 
 opRestCharSet :: Set Char
 opRestCharSet =

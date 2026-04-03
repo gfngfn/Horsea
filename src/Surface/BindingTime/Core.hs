@@ -117,7 +117,7 @@ data BTypeExprF ann bt = BTypeExpr (bt, ann) (BTypeExprMainF ann bt)
   deriving stock (Functor, Show)
 
 data BTypeExprMainF ann bt
-  = BTyName TypeName [BArgForTypeF ann bt]
+  = BTyName (ann, TypeName) [BArgForTypeF ann bt]
   | BTyArrow (Maybe Label) (Maybe Var, BTypeExprF ann bt) (BTypeExprF ann bt)
   | BTyOmsArrow Label (Maybe Var, BTypeExprF ann bt) (BTypeExprF ann bt)
   | BTyInfArrow (Var, BTypeExprF ann bt) (BTypeExprF ann bt)
@@ -205,7 +205,7 @@ fromStaged1 = \case
   Staged.A1TyOmsArrow label a1tye1 a1tye2 ->
     wrap1 $ BITyOmsArrow label (fromStaged1 a1tye1) (fromStaged1 a1tye2)
   Staged.A1TyImplicitForAll _atyvar a1tye2 ->
-    -- TODO: support type application
+    -- TODO: support type instantiation
     fromStaged1 a1tye2
   where
     wrap1 = BIType BT1

@@ -42,7 +42,7 @@ data GenSpec = GenSpec
     constructorDisplay1 :: String
   }
 
--- TODO: refactor; non-null `fixedParams` implies that `name0` be `Nothing`.
+-- TODO (refactor): non-null `fixedParams` implies that `name0` be `Nothing`.
 data VersatileSpec = VersatileSpec
   { name0 :: Maybe String,
     nameAndConstructor1 :: Maybe (String, String),

@@ -105,6 +105,9 @@ appendWithComma d1 d2 = d1 <> "," <+> d2
 appendWithAsterisk :: Doc Ann -> Doc Ann -> Doc Ann
 appendWithAsterisk d1 d2 = d1 <+> "*" <+> d2
 
+dispQualified :: (Disp modName, Disp name) => [modName] -> name -> Doc Ann
+dispQualified mods x = foldr (\modName d -> disp modName <> "." <> d) (disp x) mods
+
 disps :: (Disp a) => [a] -> Doc Ann
 disps = disps' disp
 
@@ -261,7 +264,7 @@ dispBranch :: (Disp pat, Disp expr) => pat -> expr -> Doc Ann
 dispBranch pat e = "|" <+> disp pat <+> "->" <+> nest 4 (line <> disp e)
 
 dispStringLiteral :: Text -> Doc Ann
-dispStringLiteral t = "\"" <> disp t <> "\"" -- TODO: escape special characters
+dispStringLiteral t = "\"" <> disp t <> "\"" -- TODO (enhance): escape special characters
 
 dispAs :: (Disp expr, Disp ty) => Associativity -> expr -> ty -> Doc Ann
 dispAs req e1 tye2 =
@@ -482,7 +485,7 @@ instance Disp (PatternF ann) where
 
 instance Disp (PatternMainF ann) where
   dispGen req = \case
-    PatConstructor ctor -> disp ctor
+    PatConstructor (mods, ctor) -> dispQualified mods ctor
     PatApp pat1 pat2 -> dispApp req pat1 Nothing pat2
     PatVar x -> disp x
     PatBool b -> dispBool b
@@ -737,6 +740,12 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
   dispGen _ = \case
     Unsupported spanInFile detail ->
       "Unsupported feature" <+> disp spanInFile <> hardline <+> disp detail
+    InvalidSyntaxAsExpr spanInFile ->
+      "Invalid syntax as expression" <+> disp spanInFile
+    InvalidSyntaxAsPattern spanInFile ->
+      "Invalid syntax as pattern" <+> disp spanInFile
+    InvalidSyntaxAsTypeExpr spanInFile ->
+      "Invalid syntax as type expression" <+> disp spanInFile
     UnboundVar spanInFile ms x ->
       "Unbound variable" <+> dispLongName ms x <+> disp spanInFile
     UnboundTypeVar spanInFile (TypeVar a) ->
@@ -747,18 +756,18 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Not a stage-0 variable:" <+> disp x <+> disp spanInFile
     NotAStage1Var spanInFile x ->
       "Not a stage-1 variable:" <+> disp x <+> disp spanInFile
-    UnknownTypeOrInvalidArityAtStage0 spanInFile tyName n ->
-      "Unknown type or invalid arity (at stage 0):" <+> disp tyName <> "," <+> disp n <+> disp spanInFile
-    UnknownTypeOrInvalidArityAtStage1 spanInFile tyName n ->
-      "Unknown type or invalid arity (at stage 1):" <+> disp tyName <> "," <+> disp n <+> disp spanInFile
+    UnboundConstructor spanInFile mods ctor ->
+      "Unbound constructor" <+> dispQualified mods ctor <+> disp spanInFile
+    UnboundConstructorOrInvalidArity spanInFile mods ctor n ->
+      "Unbound constructor or invalid arity:" <+> dispQualified mods ctor <> "," <+> disp n <+> disp spanInFile
+    UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName n ->
+      "Unknown type or invalid arity (at stage 0):" <+> dispQualified mods tyName <> "," <+> disp n <+> disp spanInFile
+    UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName n ->
+      "Unknown type or invalid arity (at stage 1):" <+> dispQualified mods tyName <> "," <+> disp n <+> disp spanInFile
     NotAnIntLitArgAtStage0 spanInFile a0e ->
       "An argument expression at stage 0 is not an integer literal:" <+> stage0Style (disp a0e) <+> disp spanInFile
     NotAnIntListLitArgAtStage0 spanInFile a0e ->
       "An argument expression at stage 0 is not an integer list literal:" <+> stage0Style (disp a0e) <+> disp spanInFile
-    NotAValueArg spanInFile ->
-      "Expected a value argument here, but is not" <+> disp spanInFile
-    NotATypeArg spanInFile ->
-      "Expected a type argument here, but is not" <+> disp spanInFile
     TypeContradictionAtStage0 spanInFile a0tye1 a0tye2 ->
       "Type contradiction at stage 0"
         <+> disp spanInFile
@@ -809,8 +818,6 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Cannot use persistence here" <+> disp spanInFile
     CannotUseNormalArgAtStage1 spanInFile ->
       "Cannot use normal arguments at stage 1" <+> disp spanInFile
-    CannotUseTypeVarAtStage1 spanInFile ->
-      "Cannot use type variables at stage 1" <+> disp spanInFile
     VarOccursFreelyInAss0Type spanInFile x a0result ->
       "Variable" <+> disp x <+> "occurs in stage-0 type" <+> stage0Style (disp a0result) <+> disp spanInFile
     VarOccursFreelyInAss1Type spanInFile x a1result ->
@@ -937,6 +944,10 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Cannot force type" <+> stage0Style (disp a0tye) <+> "on the expression" <+> disp spanInFile
     CannotForceType1 spanInFile a1tye ->
       "Cannot force type" <+> stage1Style (disp a1tye) <+> "on the expression" <+> disp spanInFile
+    CannotForceTypeOnPattern0 spanInFile a0tye ->
+      "Cannot force type" <+> stage0Style (disp a0tye) <+> "on the pattern" <+> disp spanInFile
+    CannotForceTypeOnPattern1 spanInFile a1tye ->
+      "Cannot force type" <+> stage1Style (disp a1tye) <+> "on the pattern" <+> disp spanInFile
     ApplicationLabelMismatch spanInFile appCtx labelOptGot labelOptExpected ->
       "Label mismatch"
         <+> disp spanInFile
@@ -972,6 +983,16 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> nest 2 (dispTuple xs)
         <> ("but got tuples of length" <+> disp (length a1tyes) <> ":")
         <> nest 2 (dispProductType Outermost a1tyes)
+    NonMaybeAnnotForLamOms0 spanInFile a0tye ->
+      "The type annotation for an omissible parameter is not Maybe"
+        <+> disp spanInFile
+        <> hardline
+        <> nest 2 (hardline <> stage0Style (disp a0tye))
+    NonMaybeAnnotForLamOms1 spanInFile a1tye ->
+      "The type annotation for an omissible parameter is not Maybe"
+        <+> disp spanInFile
+        <> hardline
+        <> nest 2 (hardline <> stage0Style (disp a1tye))
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case
@@ -1281,6 +1302,10 @@ instance (Disp sv) => Disp (EvalErrorF sv) where
 
 instance Disp Bta.AnalysisError where
   dispGen _ = \case
+    Bta.InvalidSyntaxAsExpr spanInFile ->
+      "Invalid syntax as expression" <+> disp spanInFile
+    Bta.InvalidSyntaxAsTypeExpr spanInFile ->
+      "Invalid syntax as type expression" <+> disp spanInFile
     Bta.UnboundVar spanInFile ms x ->
       "Unbound variable" <+> disp (Text.intercalate "." (ms ++ [x])) <+> disp spanInFile
     Bta.NotAVal spanInFile ms x ->
@@ -1295,6 +1320,8 @@ instance Disp Bta.AnalysisError where
       "Not of base type;" <+> disp bity <+> disp spanInFile
     Bta.NotATuple spanInFile bity ->
       "Not a tuple;" <+> disp bity <+> disp spanInFile
+    Bta.TupleLengthMismatch spanInFile xs bitys ->
+      "Tuple length mismatch;" <+> dispTuple xs <+> "and" <+> dispProductType Outermost bitys <+> disp spanInFile
     Bta.BindingTimeContradiction spanInFile ->
       "Binding-time contradiction" <+> disp spanInFile
     Bta.BITypeContradiction spanInFile bity1 bity2 bity1Local bity2Local ->
@@ -1327,13 +1354,14 @@ instance Disp Bta.AnalysisError where
         <+> disp bity1Local
         <+> "includes"
         <+> disp bitv2
-    Bta.UnknownTypeOrInvalidArgs spanInFile tyName _args ->
-      -- TODO (enhance): detailed report
-      "Unknown type or invalid arguments:" <+> disp tyName <+> disp spanInFile
+    Bta.UnknownTypeOrInvalidArity spanInFile mods tyName arity ->
+      "Unknown type or invalid arguments:" <+> dispQualified mods tyName <> "," <+> disp arity <+> disp spanInFile
     Bta.LetRecParamsCannotStartWithImplicit spanInFile ->
       "Recursive function definitions cannot have an implicit parameter as the first one" <+> disp spanInFile
     Bta.LetRecRequiresNonEmptyParams spanInFile ->
       "Recursive function definitions require at least one parameter" <+> disp spanInFile
+    Bta.NoOmissibleParameter spanInFile label ->
+      "No omissible parameter expected with label" <+> disp label <+> disp spanInFile
 
 instance Disp Bta.BindingTime where
   dispGen _req = \case
@@ -1405,7 +1433,7 @@ instance Disp (Bta.BCTypeExprF ann) where
 
 instance Disp (Bta.BCTypeExprMainF ann) where
   dispGen req = \case
-    Bta.BTyName tyName args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
+    Bta.BTyName (_, tyName) args -> dispNameWithArgs req (disp tyName) (dispGen Atomic) args
     Bta.BTyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     Bta.BTyOmsArrow label (xOpt, tye1) tye2 -> dispOmsArrowType req label xOpt tye1 tye2
     Bta.BTyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2

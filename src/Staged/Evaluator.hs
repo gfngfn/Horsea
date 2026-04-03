@@ -122,16 +122,23 @@ validatePairValue a0v = do
     [] -> pure (a0v1, a0v2)
     _ : _ -> bug $ NotAPair a0v
 
+validateMaybeValue :: Ass0Val -> M (Maybe Ass0Val)
+validateMaybeValue = \case
+  A0ValConstructor "Nothing" [] -> pure Nothing
+  A0ValConstructor "Just" [a0vElem] -> pure (Just a0vElem)
+  a0v -> bug $ NotAMaybe a0v
+
+validateIntMaybe :: Ass0Val -> M (Maybe Int)
+validateIntMaybe a0v = do
+  a0vOpt <- validateMaybeValue a0v
+  case a0vOpt of
+    Nothing -> pure Nothing
+    Just a0vElem -> Just <$> validateIntLiteral a0vElem
+
 validateListValue :: Ass0Val -> M [Ass0Val]
 validateListValue = \case
   A0ValLiteral (ALitList a0vs) -> pure a0vs
   a0v -> bug $ NotAList a0v
-
-validateIntMaybe :: Ass0Val -> M (Maybe Int)
-validateIntMaybe = \case
-  A0ValConstructor "Nothing" [] -> pure Nothing
-  A0ValConstructor "Just" [a0v] -> Just <$> validateIntLiteral a0v
-  a0v -> bug $ NotAMaybe a0v
 
 validateIntListLiteral :: Ass0Val -> M [Int]
 validateIntListLiteral a0v = do

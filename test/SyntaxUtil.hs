@@ -152,7 +152,7 @@ patVar :: Var -> PatternVoid
 patVar = pat . PatVar
 
 patConstructor :: ConstructorName -> PatternVoid
-patConstructor = pat . PatConstructor
+patConstructor ctor = pat (PatConstructor ([], ctor))
 
 patApp :: PatternVoid -> PatternVoid -> PatternVoid
 patApp pat1 = pat . PatApp pat1

@@ -19,17 +19,20 @@ import Prelude
 
 data TypeErrorF sv
   = Unsupported SpanInFile (UnsupportedF sv)
-  | UnboundVar SpanInFile [Var] Var
+  | InvalidSyntaxAsExpr SpanInFile
+  | InvalidSyntaxAsPattern SpanInFile
+  | InvalidSyntaxAsTypeExpr SpanInFile
+  | UnboundVar SpanInFile [ModuleName] Var
   | UnboundTypeVar SpanInFile TypeVar
-  | UnboundModule SpanInFile Var
+  | UnboundModule SpanInFile ModuleName
   | NotAStage0Var SpanInFile Var
   | NotAStage1Var SpanInFile Var
-  | UnknownTypeOrInvalidArityAtStage0 SpanInFile TypeName Int
-  | UnknownTypeOrInvalidArityAtStage1 SpanInFile TypeName Int
+  | UnboundConstructor SpanInFile [ModuleName] ConstructorName
+  | UnboundConstructorOrInvalidArity SpanInFile [ModuleName] ConstructorName Int
+  | UnknownTypeOrInvalidArityAtStage0 SpanInFile [Var] TypeName Int
+  | UnknownTypeOrInvalidArityAtStage1 SpanInFile [Var] TypeName Int
   | NotAnIntLitArgAtStage0 SpanInFile (Ass0ExprF sv)
   | NotAnIntListLitArgAtStage0 SpanInFile (Ass0ExprF sv)
-  | NotAValueArg SpanInFile
-  | NotATypeArg SpanInFile
   | TypeContradictionAtStage0 SpanInFile (Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | TypeContradictionAtStage1 SpanInFile (Ass1TypeExprF sv) (Ass1TypeExprF sv)
   | NotABoolTypeForStage0 SpanInFile (Ass0TypeExprF sv)
@@ -48,7 +51,6 @@ data TypeErrorF sv
   | CannotUseRefinementTypeAtStage1 SpanInFile
   | CannotUsePersistent SpanInFile
   | CannotUseNormalArgAtStage1 SpanInFile
-  | CannotUseTypeVarAtStage1 SpanInFile
   | VarOccursFreelyInAss0Type SpanInFile Var (ResultF Ass0TypeExprF sv)
   | VarOccursFreelyInAss1Type SpanInFile Var (ResultF Ass1TypeExprF sv)
   | InvalidMatrixLiteral SpanInFile (Matrix.ConstructionError Int)
@@ -77,11 +79,15 @@ data TypeErrorF sv
   | CannotSynthesizeTypeFromExpr SpanInFile
   | CannotForceType0 SpanInFile (Ass0TypeExprF sv)
   | CannotForceType1 SpanInFile (Ass1TypeExprF sv)
+  | CannotForceTypeOnPattern0 SpanInFile (Ass0TypeExprF sv)
+  | CannotForceTypeOnPattern1 SpanInFile (Ass1TypeExprF sv)
   | ApplicationLabelMismatch SpanInFile (AppContextF sv) (Maybe Label) (Maybe Label)
   | NotAStage0TypeVar SpanInFile TypeVar
   | NotAStage1TypeVar SpanInFile TypeVar
   | LetTupleLengthMismatch0 SpanInFile (TwoOrMore Var) (TwoOrMore (Ass0TypeExprF sv))
   | LetTupleLengthMismatch1 SpanInFile (TwoOrMore Var) (TwoOrMore (Ass1TypeExprF sv))
+  | NonMaybeAnnotForLamOms0 SpanInFile (Ass0TypeExprF sv)
+  | NonMaybeAnnotForLamOms1 SpanInFile (Ass1TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv
