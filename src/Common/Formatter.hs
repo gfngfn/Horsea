@@ -940,6 +940,10 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Cannot force type" <+> stage0Style (disp a0tye) <+> "on the expression" <+> disp spanInFile
     CannotForceType1 spanInFile a1tye ->
       "Cannot force type" <+> stage1Style (disp a1tye) <+> "on the expression" <+> disp spanInFile
+    CannotForceTypeOnPattern0 spanInFile a0tye ->
+      "Cannot force type" <+> stage0Style (disp a0tye) <+> "on the pattern" <+> disp spanInFile
+    CannotForceTypeOnPattern1 spanInFile a1tye ->
+      "Cannot force type" <+> stage1Style (disp a1tye) <+> "on the pattern" <+> disp spanInFile
     ApplicationLabelMismatch spanInFile appCtx labelOptGot labelOptExpected ->
       "Label mismatch"
         <+> disp spanInFile

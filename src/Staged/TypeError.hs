@@ -77,6 +77,8 @@ data TypeErrorF sv
   | CannotSynthesizeTypeFromExpr SpanInFile
   | CannotForceType0 SpanInFile (Ass0TypeExprF sv)
   | CannotForceType1 SpanInFile (Ass1TypeExprF sv)
+  | CannotForceTypeOnPattern0 SpanInFile (Ass0TypeExprF sv)
+  | CannotForceTypeOnPattern1 SpanInFile (Ass1TypeExprF sv)
   | ApplicationLabelMismatch SpanInFile (AppContextF sv) (Maybe Label) (Maybe Label)
   | NotAStage0TypeVar SpanInFile TypeVar
   | NotAStage1TypeVar SpanInFile TypeVar

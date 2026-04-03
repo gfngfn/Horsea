@@ -1797,14 +1797,15 @@ collectPatternArgs trav loc = \case
     typeError trav $ InvalidSyntaxAsPattern spanInFile
 
 forcePattern0 :: trav -> TypeEnv -> Ass0TypeExpr -> Pattern -> M trav (Ass0Pattern, Map Var ValEntry)
-forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) =
+forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) = do
+  spanInFile <- askSpanInFile loc
   case patMain of
     PatConstructor ctor ->
       case ctor of
         "Nothing" ->
           case a0tyePatReq of
             A0TyMaybe _ -> pure (A0PatConstructor "Nothing" [], Map.empty)
-            _ -> error "TODO (error): forcePattern0, PatConstructor, not Maybe"
+            _ -> typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
         _ ->
           error "TODO (error): forcePattern0, PatConstructor, unknown constructor"
     PatApp _ _ -> do
@@ -1816,7 +1817,7 @@ forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) =
               (a0pat1, binders) <- forcePattern0 trav tyEnv a0tyePatReq1 pat1
               pure (A0PatConstructor "Just" [a0pat1], binders)
             _ ->
-              error "TODO (error): forcePattern0, PatConstructor, not Maybe"
+              typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
         (_, _) ->
           error $ "TODO (error): forcePattern0, PatConstructor, unknown constructor"
     PatVar x -> do
@@ -1828,17 +1829,18 @@ forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) =
         A0TyPrim (A0TyPrimBase ATyPrimBool) _maybePred ->
           pure (A0PatBool b, Map.empty)
         _ ->
-          error $ "TODO (error): forcePattern0, PatBool, not Bool"
+          typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
 
 forcePattern1 :: trav -> TypeEnv -> Ass1TypeExpr -> Pattern -> M trav (Ass1Pattern, Map Var ValEntry)
-forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) =
+forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) = do
+  spanInFile <- askSpanInFile loc
   case patMain of
     PatConstructor ctor ->
       case ctor of
         "Nothing" ->
           case a1tyePatReq of
             A1TyMaybe _ -> pure (A1PatConstructor "Nothing" [], Map.empty)
-            _ -> error "TODO (error): forcePattern1, PatConstructor, not Maybe"
+            _ -> typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
         _ ->
           error "TODO (error): forcePattern1, PatConstructor, unknown constructor"
     PatApp _ _ -> do
@@ -1850,7 +1852,7 @@ forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) =
               (a1pat1, binders) <- forcePattern1 trav tyEnv a1tyePatReq1 pat1
               pure (A1PatConstructor "Just" [a1pat1], binders)
             _ ->
-              error "TODO (error): forcePattern1, PatConstructor, not Maybe"
+              typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
         (_, _) ->
           error $ "TODO (error): forcePattern1, PatConstructor, unknown constructor"
     PatVar x -> do
@@ -1862,7 +1864,7 @@ forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) =
         A1TyPrim (A1TyPrimBase ATyPrimBool) ->
           pure (A1PatBool b, Map.empty)
         _ ->
-          error $ "TODO (error): forcePattern1, PatBool, not Bool"
+          typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
 
 constructFunTypeExpr0 :: trav -> TypeEnv -> [LamBinder] -> TypeExpr -> M trav Ass0TypeExpr
 constructFunTypeExpr0 trav tyEnv params tyeBody = do
@@ -2667,7 +2669,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
       () <-
         case labelOpt of
           Nothing -> pure ()
-          Just _ -> error "TODO (error): labeled type applications"
+          Just _ -> typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
       ((mods, tyName), args) <- collectArgs trav loc tyeMain
       case (tyName, args) of
         ("List", [tye]) -> do
