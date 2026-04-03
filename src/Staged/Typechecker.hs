@@ -2664,8 +2664,14 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
           Just x -> typeError trav $ FunctionTypeCannotBeDependentAtStage1 spanInFile x
       a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
       pure $ A1TyArrow labelOpt a1tye1 a1tye2
-    TyOmsArrow {} ->
-      error "TODO: typecheckTypeExpr1, TyOmsArrow"
+    TyOmsArrow label (xOpt, tye1) tye2 -> do
+      case xOpt of
+        Just _x -> do
+          error "TODO (error): typecheckTypeExpr1, TyOmsArrow, var"
+        Nothing -> do
+          a1tye1 <- typecheckTypeExpr1 trav tyEnv tye1
+          a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
+          pure $ A1TyOmsArrow label a1tye1 a1tye2
     TyInfArrow {} ->
       typeError trav $ CannotUseInfArrowTypeAtStage1 spanInFile
     Bracket {} -> do
