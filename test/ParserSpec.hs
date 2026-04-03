@@ -359,9 +359,12 @@ spec = do
     it "parses code types (4)" $
       parseTypeExpr "&(Int -> Bool)"
         `shouldBe` pure (tyCode (tyNondepFun tyInt tyBool))
-    it "parses refinement types" $
+    it "parses refinement types (1)" $
       parseTypeExpr "{n : Int | 0 <= n}"
         `shouldBe` pure (tyRefinement "n" tyInt (app (app (var "<=") (litInt 0)) (var "n")))
+    it "parses refinement types (2)" $
+      parseTypeExpr "{n : Int | 0 <= n} -> Int"
+        `shouldBe` pure (tyNondepFun (tyRefinement "n" tyInt (app (app (var "<=") (litInt 0)) (var "n"))) tyInt)
   describe "Parser.parseExpr (with code locations)" $ do
     it "parses integer literals" $
       parseExprWithLoc "42"
