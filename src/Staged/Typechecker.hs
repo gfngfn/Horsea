@@ -42,6 +42,7 @@ import Staged.SrcSyntax
 import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
+import Staged.TypeSubst
 import Staged.Typechecker.Monad
 import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
@@ -779,8 +780,17 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
             )
             rest
           pure $ A0TyVar atyvar1
-        A0TyImplicitForAll {} ->
-          error "TODO: unsupported; mergeTypesByConditional0, A0TyImplicitForAll"
+        A0TyImplicitForAll atyvar1 a0tyeSub1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyImplicitForAll atyvar a0tyeSub -> pure (a0pat, (atyvar, a0tyeSub))
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, a0tyeSub1) :| map (second (uncurry (tySubst0 (A0TyVar atyvar1)))) triplesRest
+          A0TyImplicitForAll atyvar1 <$> go0 pairs
 
     mergeRefinementPredicates :: (Maybe Ass0Expr -> StrictAss0TypeExpr) -> NonEmpty (Ass0Pattern, Maybe Ass0Expr) -> M' ConditionalMergeError trav (Maybe Ass0Expr)
     mergeRefinementPredicates sa0tyef patAndMaybePredPairs =
@@ -973,8 +983,17 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
             )
             rest
           pure $ A1TyVar atyvar1
-        A1TyImplicitForAll {} ->
-          error "TODO: unsupported; mergeTypesByConditional1, A1TyImplicitForAll"
+        A1TyImplicitForAll atyvar1 a1tyeSub1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyImplicitForAll atyvar a1tyeSub -> pure (a0pat, (atyvar, a1tyeSub))
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, a1tyeSub1) :| map (second (uncurry (tySubst1 (A1TyVar atyvar1)))) triplesRest
+          A1TyImplicitForAll atyvar1 <$> go1 pairs
 
 extractListLiteralsIfAll :: NonEmpty (Ass0Pattern, Ass0Expr) -> Maybe (NonEmpty (Ass0Pattern, [Ass0Expr]))
 extractListLiteralsIfAll =

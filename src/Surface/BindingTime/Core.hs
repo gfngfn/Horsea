@@ -205,7 +205,7 @@ fromStaged1 = \case
   Staged.A1TyOmsArrow label a1tye1 a1tye2 ->
     wrap1 $ BITyOmsArrow label (fromStaged1 a1tye1) (fromStaged1 a1tye2)
   Staged.A1TyImplicitForAll _atyvar a1tye2 ->
-    -- TODO: support type application
+    -- TODO: support type instantiation
     fromStaged1 a1tye2
   where
     wrap1 = BIType BT1
