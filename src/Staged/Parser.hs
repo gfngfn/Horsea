@@ -49,9 +49,10 @@ labelOmissible :: P (Located Text)
 labelOmissible = expectToken (^? #_TokLabelOmissible)
 
 longOrShortLower :: P (Located ([Text], Text))
-longOrShortLower =
-  expectToken (^? #_TokLongLower)
-    <|> (fmap ([],) <$> lower)
+longOrShortLower = expectToken (^? #_TokLongLower) <|> (fmap ([],) <$> lower)
+
+longOrShortUpper :: P (Located ([Text], Text))
+longOrShortUpper = expectToken (^? #_TokLongUpper) <|> (fmap ([],) <$> upper)
 
 typeVar :: P (Located TypeVar)
 typeVar = fmap TypeVar <$> expectToken (^? #_TokTypeVar)
@@ -136,7 +137,7 @@ expr = letin
         <|> (makeBool True <$> token TokTrue)
         <|> (makeBool False <$> token TokFalse)
         <|> (located Var <$> longOrShortLower)
-        <|> (makeConstructor <$> upper)
+        <|> (makeConstructor <$> longOrShortUpper)
         <|> (makeTypeVar <$> typeVar)
         <|> try (located (\x -> Var ([], x)) <$> standaloneOp)
         <|> try (makeLitUnit <$> token TokLeftParen <*> token TokRightParen)
@@ -151,7 +152,7 @@ expr = letin
               Nothing -> eMain
               Just esRest -> Tuple (TwoOrMore.make1 e1 esRest)
         makeBool b loc = Expr loc (Literal (LitBool b))
-        makeConstructor (Located loc t) = Expr loc (Constructor ([], t))
+        makeConstructor (Located loc qualCtor) = Expr loc (Constructor qualCtor)
         makeTypeVar (Located loc a) = Expr loc (TyVar a)
         makeRefinement (Located loc (x, tye, e)) = Expr loc (TyRefinement x tye e)
 
@@ -356,13 +357,13 @@ pat = app
       (makeBool True <$> token TokTrue)
         <|> (makeBool False <$> token TokFalse)
         <|> (makeVar <$> lower)
-        <|> (makeConstructor <$> upper)
+        <|> (makeConstructor <$> longOrShortUpper)
         <|> (makeEnclosed <$> paren pat)
       where
         makeVar (Located loc e) = Pattern loc (PatVar e)
         makeEnclosed (Located loc (Pattern _ patMain)) = Pattern loc patMain
         makeBool b loc = Pattern loc (PatBool b)
-        makeConstructor (Located loc t) = Pattern loc (PatConstructor t)
+        makeConstructor (Located loc qualCtor) = Pattern loc (PatConstructor qualCtor)
 
     app :: P Pattern
     app =

@@ -22,11 +22,12 @@ data TypeErrorF sv
   | InvalidSyntaxAsExpr SpanInFile
   | InvalidSyntaxAsPattern SpanInFile
   | InvalidSyntaxAsTypeExpr SpanInFile
-  | UnboundVar SpanInFile [Var] Var
+  | UnboundVar SpanInFile [ModuleName] Var
   | UnboundTypeVar SpanInFile TypeVar
-  | UnboundModule SpanInFile Var
+  | UnboundModule SpanInFile ModuleName
   | NotAStage0Var SpanInFile Var
   | NotAStage1Var SpanInFile Var
+  | UnboundConstructorOrInvalidArity SpanInFile [ModuleName] ConstructorName Int
   | UnknownTypeOrInvalidArityAtStage0 SpanInFile [Var] TypeName Int
   | UnknownTypeOrInvalidArityAtStage1 SpanInFile [Var] TypeName Int
   | NotAnIntLitArgAtStage0 SpanInFile (Ass0ExprF sv)

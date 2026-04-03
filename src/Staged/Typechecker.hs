@@ -1785,13 +1785,13 @@ forceBranch1 trav tyEnv a1tyePatReq (Branch pat e) = do
   (a1tye, a1e) <- typecheckExpr1Single trav (TypeEnv.addVals binders tyEnv) e
   pure (a1pat, (a1tye, a1e))
 
-collectPatternArgs :: trav -> Span -> PatternMain -> M trav (ConstructorName, [Pattern])
+collectPatternArgs :: trav -> Span -> PatternMain -> M trav (([ModuleName], ConstructorName), [Pattern])
 collectPatternArgs trav loc = \case
-  PatConstructor ctor ->
-    pure (ctor, [])
+  PatConstructor (mods, ctor) ->
+    pure ((mods, ctor), [])
   PatApp (Pattern loc1 patMain1) pat2 -> do
-    (ctor, patArgs1) <- collectPatternArgs trav loc1 patMain1
-    pure (ctor, patArgs1 ++ [pat2])
+    (qualCtor, patArgs1) <- collectPatternArgs trav loc1 patMain1
+    pure (qualCtor, patArgs1 ++ [pat2])
   (PatBool _; PatVar _) -> do
     spanInFile <- askSpanInFile loc
     typeError trav $ InvalidSyntaxAsPattern spanInFile
@@ -1800,26 +1800,26 @@ forcePattern0 :: trav -> TypeEnv -> Ass0TypeExpr -> Pattern -> M trav (Ass0Patte
 forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) = do
   spanInFile <- askSpanInFile loc
   case patMain of
-    PatConstructor ctor ->
-      case ctor of
-        "Nothing" ->
+    PatConstructor (mods, ctor) ->
+      case (mods, ctor) of
+        ([], "Nothing") ->
           case a0tyePatReq of
             A0TyMaybe _ -> pure (A0PatConstructor "Nothing" [], Map.empty)
             _ -> typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
-        _ ->
-          error "TODO (error): forcePattern0, PatConstructor, unknown constructor"
+        (_, _) ->
+          typeError trav $ UnboundConstructorOrInvalidArity spanInFile mods ctor 0
     PatApp _ _ -> do
-      (ctor, patArgs) <- collectPatternArgs trav loc patMain
-      case (ctor, patArgs) of
-        ("Just", [pat1]) ->
+      ((mods, ctor), patArgs) <- collectPatternArgs trav loc patMain
+      case (mods, ctor, patArgs) of
+        ([], "Just", [pat1]) ->
           case a0tyePatReq of
             A0TyMaybe a0tyePatReq1 -> do
               (a0pat1, binders) <- forcePattern0 trav tyEnv a0tyePatReq1 pat1
               pure (A0PatConstructor "Just" [a0pat1], binders)
             _ ->
               typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
-        (_, _) ->
-          error $ "TODO (error): forcePattern0, PatConstructor, unknown constructor"
+        (_, _, _) ->
+          typeError trav $ UnboundConstructorOrInvalidArity spanInFile mods ctor (length patArgs)
     PatVar x -> do
       svX <- generateFreshVar (Just x)
       let ax = AssVarStatic svX
@@ -1835,26 +1835,26 @@ forcePattern1 :: trav -> TypeEnv -> Ass1TypeExpr -> Pattern -> M trav (Ass1Patte
 forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) = do
   spanInFile <- askSpanInFile loc
   case patMain of
-    PatConstructor ctor ->
-      case ctor of
-        "Nothing" ->
+    PatConstructor (mods, ctor) ->
+      case (mods, ctor) of
+        (_, "Nothing") ->
           case a1tyePatReq of
             A1TyMaybe _ -> pure (A1PatConstructor "Nothing" [], Map.empty)
             _ -> typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
         _ ->
-          error "TODO (error): forcePattern1, PatConstructor, unknown constructor"
+          typeError trav $ UnboundConstructorOrInvalidArity spanInFile mods ctor 0
     PatApp _ _ -> do
-      (ctor, patArgs) <- collectPatternArgs trav loc patMain
-      case (ctor, patArgs) of
-        ("Just", [pat1]) ->
+      ((mods, ctor), patArgs) <- collectPatternArgs trav loc patMain
+      case (mods, ctor, patArgs) of
+        ([], "Just", [pat1]) ->
           case a1tyePatReq of
             A1TyMaybe a1tyePatReq1 -> do
               (a1pat1, binders) <- forcePattern1 trav tyEnv a1tyePatReq1 pat1
               pure (A1PatConstructor "Just" [a1pat1], binders)
             _ ->
               typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
-        (_, _) ->
-          error $ "TODO (error): forcePattern1, PatConstructor, unknown constructor"
+        (_, _, _) ->
+          typeError trav $ UnboundConstructorOrInvalidArity spanInFile mods ctor (length patArgs)
     PatVar x -> do
       svX <- generateFreshVar (Just x)
       let ax = AssVarStatic svX
@@ -1928,9 +1928,9 @@ constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
     a1tyeBody
     params
 
-typecheckValVar0 :: trav -> Span -> TypeEnv -> [Var] -> Var -> M trav (Ass0TypeExpr, Ass0Expr)
-typecheckValVar0 trav loc tyEnv ms x = do
-  valEntry <- findValVar trav loc ms x tyEnv
+typecheckValVar0 :: trav -> Span -> TypeEnv -> [ModuleName] -> Var -> M trav (Ass0TypeExpr, Ass0Expr)
+typecheckValVar0 trav loc tyEnv mods x = do
+  valEntry <- findValVar trav loc mods x tyEnv
   (a0tye, builtInNameOrSv) <-
     case valEntry of
       Ass0Entry a0tye' a0metadataOrSv ->
@@ -1948,9 +1948,9 @@ typecheckValVar0 trav loc tyEnv ms x = do
       Left builtInName -> A0BuiltInName builtInName
       Right svX -> A0Var (AssVarStatic svX)
 
-typecheckValVar1 :: trav -> Span -> TypeEnv -> [Var] -> Var -> M trav (Ass1TypeExpr, Ass1Expr)
-typecheckValVar1 trav loc tyEnv ms x = do
-  valEntry <- findValVar trav loc ms x tyEnv
+typecheckValVar1 :: trav -> Span -> TypeEnv -> [ModuleName] -> Var -> M trav (Ass1TypeExpr, Ass1Expr)
+typecheckValVar1 trav loc tyEnv mods x = do
+  valEntry <- findValVar trav loc mods x tyEnv
   (a1tye, a1builtInNameOrSv) <-
     case valEntry of
       Ass0Entry _ _ -> do
@@ -2481,7 +2481,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
         case labelOpt of
           Nothing -> pure ()
           Just _ -> typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
-      ((mods, tyName), args) <- collectArgs trav loc tyeMain
+      ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
       case (tyName, args) of
         ("List", [arg1]) -> do
           a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
@@ -2640,8 +2640,8 @@ validatePersistentExprArg1 trav (Expr loc eMain) =
       spanInFile <- askSpanInFile loc
       typeError trav $ CannotUseNormalArgAtStage1 spanInFile
 
-collectArgs :: trav -> Span -> TypeExprMain -> M trav (([Var], TypeName), [Expr])
-collectArgs trav loc = go
+collectTypeArgs :: trav -> Span -> TypeExprMain -> M trav (([ModuleName], TypeName), [Expr])
+collectTypeArgs trav loc = go
   where
     go = \case
       App (Expr _ eFunMain) Nothing eArg -> do
@@ -2670,7 +2670,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         case labelOpt of
           Nothing -> pure ()
           Just _ -> typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
-      ((mods, tyName), args) <- collectArgs trav loc tyeMain
+      ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
       case (tyName, args) of
         ("List", [tye]) -> do
           a1tye <- typecheckTypeExpr1 trav tyEnv tye

@@ -1,5 +1,6 @@
 module Staged.SrcSyntax
   ( Var,
+    ModuleName,
     Literal (..),
     ExprF (..),
     ExprMainF (..),
@@ -41,6 +42,8 @@ import Prelude
 
 type Var = Text
 
+type ModuleName = Text
+
 data Literal e
   = LitInt Int
   | LitFloat Double
@@ -58,8 +61,8 @@ data ExprF ann = Expr ann (ExprMainF ann)
 
 data ExprMainF ann
   = Literal (Literal (ExprF ann))
-  | Var ([Var], Var) -- A module name chain and a value identifier
-  | Constructor ([Var], Text)
+  | Var ([ModuleName], Var)
+  | Constructor ([ModuleName], Text)
   | Lam (Maybe (Var, TypeExprF ann)) (Maybe Label) (Var, TypeExprF ann) (ExprF ann)
   | App (ExprF ann) (Maybe Label) (ExprF ann)
   | LetIn Var [LamBinderF ann] (Maybe (TypeExprF ann)) (ExprF ann) (ExprF ann)
@@ -75,7 +78,7 @@ data ExprMainF ann
   | LamInf (Var, TypeExprF ann) (ExprF ann)
   | AppInfGiven (ExprF ann) (ExprF ann)
   | AppInfOmitted (ExprF ann)
-  | LetOpenIn Var (ExprF ann)
+  | LetOpenIn ModuleName (ExprF ann)
   | Sequential (ExprF ann) (ExprF ann)
   | Tuple (TwoOrMore (ExprF ann))
   | Product (ExprF ann) (NonEmpty ((ann, Var), ExprF ann))
@@ -103,7 +106,7 @@ data PatternF ann = Pattern ann (PatternMainF ann)
 data PatternMainF ann
   = PatVar Var
   | PatBool Bool
-  | PatConstructor ConstructorName
+  | PatConstructor ([ModuleName], ConstructorName)
   | PatApp (PatternF ann) (PatternF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
