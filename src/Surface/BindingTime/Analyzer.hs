@@ -442,7 +442,8 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       let e' = BExpr (bt, ann) (BLamInf (x1, btye1') e2')
       pure (e', BIType bt (BITyInfArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
     AppInfGiven e1 e2 -> do
-      (e1', bity1@(BIType bt1 bityMain1), constraints1) <- extractConstraintsFromExpr trav btenv e1
+      (e1', bity1', constraints1) <- extractConstraintsFromExpr trav btenv e1
+      let bity1@(BIType bt1 bityMain1) = skipOmittedArgumentsBeforeInf bity1'
       (e2', bity2, constraints2) <- extractConstraintsFromExpr trav btenv e2
       (bity, constraints) <-
         case bityMain1 of
@@ -456,7 +457,8 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
             analysisError trav $ NotAnOptFunction spanInFile1 bity1
       pure (BExpr (bt, ann) (BAppInfGiven e1' e2'), bity, constraints)
     AppInfOmitted e1 -> do
-      (e1', bity1@(BIType bt1 bityMain1), constraints1) <- extractConstraintsFromExpr trav btenv e1
+      (e1', bity1', constraints1) <- extractConstraintsFromExpr trav btenv e1
+      let bity1@(BIType bt1 bityMain1) = skipOmittedArgumentsBeforeInf bity1'
       (bity, constraints) <-
         case bityMain1 of
           BITyInfArrow _bity11 bity12 -> do
@@ -469,6 +471,12 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       pure (BExpr (bt, ann) (BAppInfOmitted e1'), bity, constraints)
     (TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}) ->
       error "TODO (error): extractConstraintsFromExpr, illegal syntax"
+
+skipOmittedArgumentsBeforeInf :: BIType -> BIType
+skipOmittedArgumentsBeforeInf bity@(BIType _bt bityMain) =
+  case bityMain of
+    BITyOmsArrow _label _bity1 bity2 -> skipOmittedArgumentsBeforeInf bity2
+    _ -> bity
 
 appendOmittedImplicitArgumentsBeforeOms :: trav -> Label -> BExpr -> BIType -> M trav (BExpr, (BindingTime, BIType, BIType))
 appendOmittedImplicitArgumentsBeforeOms _trav labelReq = go
