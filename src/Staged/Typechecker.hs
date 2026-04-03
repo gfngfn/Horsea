@@ -707,6 +707,40 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
               rest
           let pairs = (a0pat1, a1tye1) :| pairsRest
           A0TyCode <$> go1 pairs
+        A0TyOmsArrow label1 (x1opt, a0tyeDom1) a0tyeCod1 -> do
+          quadsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyOmsArrow label (xOpt, a0tyeDom) a0tyeCod ->
+                      if label == label1
+                        then pure (a0pat, (xOpt, a0tyeDom, a0tyeCod))
+                        else failure
+                    _ ->
+                      failure
+              )
+              rest
+          let quads = (a0pat1, (x1opt, a0tyeDom1, a0tyeCod1)) :| quadsRest
+          a0tyeDom' <- go0 (fmap (second (\(_, a0tyeDom, _) -> a0tyeDom)) quads)
+          (xOpt', pairsForCod) <-
+            if all (\(_, (xOpt, _, _)) -> isNothing xOpt) quads
+              then
+                pure (Nothing, fmap (second (\(_, _, a0tyeCod) -> a0tyeCod)) quads)
+              else do
+                ax' <- AssVarStatic <$> generateFreshVar Nothing
+                let pair =
+                      fmap
+                        ( second
+                            ( \(xOpt, _, a0tyeCod) ->
+                                case xOpt of
+                                  Nothing -> a0tyeCod
+                                  Just x -> subst0 (A0Var ax') x a0tyeCod
+                            )
+                        )
+                        quads
+                pure (Just ax', pair)
+          a0tyeCod' <- go0 pairsForCod
+          pure $ A0TyOmsArrow label1 (xOpt', a0tyeDom') a0tyeCod'
         A0TyInfArrow (x1, a0tyeDom1) a0tyeCod1 -> do
           quadsRest <-
             mapM
@@ -720,8 +754,6 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
           a0tyeDom' <- go0 (fmap (second (\(_, a0tyeDom, _) -> a0tyeDom)) quads)
           a0tyeCod' <- go0 ((a0pat1, a0tyeCod1) :| map (second (\(x, _, a0tyeCod) -> subst0 (A0Var x1) x a0tyeCod)) quadsRest)
           pure $ A0TyInfArrow (x1, a0tyeDom') a0tyeCod'
-        A0TyOmsArrow {} ->
-          error "TODO: mergeTypesByConditional0, A0TyOmsArrow"
         A0TyProduct a0tyes1 -> do
           pairsRest <-
             mapM
