@@ -83,6 +83,9 @@ makeLam params tyeBodyOpt eBody = do
     go (MandatoryBinder labelOpt (x, ty@(Expr loc1 _))) e@(Expr loc2 _) =
       -- TODO (enhance): give better range:
       Expr (mergeSpan loc1 loc2) (Lam Nothing labelOpt (x, ty) e)
+    go (OmissibleBinder label (x, ty@(Expr loc1 _))) e@(Expr loc2 _) =
+      -- TODO (enhance): give better range:
+      Expr (mergeSpan loc1 loc2) (LamOms label (x, ty) e)
     go (InferableBinder (x, ty@(Expr loc1 _))) e@(Expr loc2 _) =
       -- TODO (enhance): give better range:
       Expr (mergeSpan loc1 loc2) (LamInf (x, ty) e)
@@ -93,7 +96,8 @@ makeRecLam trav ann f params tyBody eBody = do
   (labelOpt0, x0, ty0, paramsRest) <-
     case params of
       MandatoryBinder labelOpt0' (x0', ty0') : paramsRest' -> pure (labelOpt0', x0', ty0', paramsRest')
-      InferableBinder _ : _ -> analysisError trav $ LetRecParamsCannotStartWithImplicit spanInFile
+      OmissibleBinder {} : _ -> analysisError trav $ LetRecParamsCannotStartWithImplicit spanInFile
+      InferableBinder {} : _ -> analysisError trav $ LetRecParamsCannotStartWithImplicit spanInFile
       [] -> analysisError trav $ LetRecRequiresNonEmptyParams spanInFile
   let (eRest, tyRest) = foldr go (eBody, tyBody) paramsRest
   let annTyRec =
@@ -109,6 +113,11 @@ makeRecLam trav ann f params tyBody eBody = do
       let ann' = mergeSpan loc1 loc2 -- TODO (enhance): give better code position
       let eAcc' = Expr ann' (Lam Nothing labelOpt (x, ty) eAcc)
       let tyAcc' = Expr ann' (TyArrow labelOpt (Just x, ty) tyAcc)
+      (eAcc', tyAcc')
+    go (OmissibleBinder label (x, ty@(Expr loc1 _))) (eAcc@(Expr loc2 _), tyAcc) = do
+      let ann' = mergeSpan loc1 loc2 -- TODO (enhance): give better code position
+      let eAcc' = Expr ann' (LamOms label (x, ty) eAcc)
+      let tyAcc' = Expr ann' (TyOmsArrow label (Just x, ty) tyAcc)
       (eAcc', tyAcc')
     go (InferableBinder (x, ty@(Expr loc1 _))) (eAcc@(Expr loc2 _), tyAcc) = do
       let ann' = mergeSpan loc1 loc2 -- TODO (enhance): give better code position
@@ -424,7 +433,6 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       (e2', bity2, constraints2) <- extractConstraintsFromExpr trav btenv e2
       constraintsEq <- makeConstraintsFromBITypeEquation trav ann bity2 bity11
       let constraints = constraints1 ++ constraints2 ++ constraintsEq ++ [CEqual ann bt bt1]
-      constraintsEq <- makeConstraintsFromBITypeEquation trav ann bity2 bity11
       pure (BExpr (bt, ann) (BAppOms e1' label e2'), bity12, constraints)
     LamInf (x1, btye1) e2 -> do
       (btye1', bity1, constraints1) <- extractConstraintsFromTypeExpr trav btenv btye1
@@ -463,9 +471,9 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       error "TODO (error): extractConstraintsFromExpr, illegal syntax"
 
 appendOmittedImplicitArgumentsBeforeOms :: trav -> Label -> BExpr -> BIType -> M trav (BExpr, (BindingTime, BIType, BIType))
-appendOmittedImplicitArgumentsBeforeOms trav labelReq = go
+appendOmittedImplicitArgumentsBeforeOms _trav labelReq = go
   where
-    go e@(BExpr (_, ann) _) bity@(BIType bt bityMain) = do
+    go e@(BExpr (_, ann) _) (BIType bt bityMain) = do
       case bityMain of
         BITyOmsArrow label bity1 bity2 ->
           if label == labelReq
