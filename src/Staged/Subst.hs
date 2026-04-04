@@ -887,7 +887,9 @@ instance (HasVar sv af) => HasVar sv (ResultF af) where
     CastInfGiven0 cast a0tye r -> unionPairs [frees (Maybe1 cast), frees a0tye, frees r]
     FillInferred0 a0e r -> unionPairs [frees a0e, frees r]
     InsertInferred0 a0e r -> unionPairs [frees a0e, frees r]
+    Instantiated0 r -> frees r
     InsertInferredType0 a0tye r -> unionPairs [frees a0tye, frees r]
+    Instantiated1 r -> frees r
     InsertType1 a1tye r -> unionPairs [frees a1tye, frees r]
 
   subst s = \case
@@ -901,7 +903,9 @@ instance (HasVar sv af) => HasVar sv (ResultF af) where
     CastInfGiven0 cast a0tye r -> CastInfGiven0 (unMaybe1 . go . Maybe1 $ cast) (go a0tye) (go r)
     FillInferred0 a0e r -> FillInferred0 (go a0e) (go r)
     InsertInferred0 a0e r -> InsertInferred0 (go a0e) (go r)
+    Instantiated0 r -> Instantiated0 (go r)
     InsertInferredType0 a0tye r -> InsertInferredType0 (go a0tye) (go r)
+    Instantiated1 r -> Instantiated1 (go r)
     InsertType1 a1tye r -> InsertType1 (go a1tye) (go r)
     where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv

@@ -195,6 +195,11 @@ dispAppInfOmitted req e1 =
   deepenParenWhen (req <= Atomic) $
     group (dispGen FunDomain e1 <> nest 2 (line <> "_"))
 
+dispAppInfType :: (Disp expr, Disp ty) => Associativity -> expr -> ty -> Doc Ann
+dispAppInfType req e1 tye2 =
+  deepenParenWhen (req <= Atomic) $
+    group (dispGen FunDomain e1 <> nest 2 (line <> "{type" <+> disp tye2 <> "}"))
+
 dispAppType :: (Disp expr, Disp ty) => Associativity -> expr -> ty -> Doc Ann
 dispAppType req e1 tye2 =
   deepenParenWhen (req <= Atomic) $
@@ -472,6 +477,7 @@ instance Disp (ExprMainF ann) where
     Bracket e1 -> dispBracket e1
     Escape e1 -> dispEscape e1
     LamInfType tyvar1 e2 -> dispLamInfType req tyvar1 e2
+    AppInfType e1 tye2 -> dispAppInfType req e1 tye2
     Persistent e1 -> dispPersistent e1
     TyVar tyvar -> disp tyvar
     TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
@@ -1061,6 +1067,8 @@ instance (Disp sv) => Disp (AppContextEntryF sv) where
     AppArgOmsGiven1 label a1tye -> "?" <> disp label <+> stage1Style (disp a1tye)
     AppArgInfGiven0 a0e a0tye -> "{" <> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye) <> "}"
     AppArgInfOmitted0 -> "_"
+    AppArgInfTypeGiven0 a0tye -> "{type" <+> stage0Style (disp a0tye) <> "}"
+    AppArgInfTypeGiven1 a1tye -> "{type" <+> stage1Style (disp a1tye) <> "}"
 
 instance (Disp sv, Disp (af sv)) => Disp (ResultF af sv) where
   dispGen _ = \case
@@ -1074,7 +1082,9 @@ instance (Disp sv, Disp (af sv)) => Disp (ResultF af sv) where
     CastInfGiven0 _ a0tye r -> "cast-inf-given0 :" <+> stage0Style (disp a0tye) <> ";" <+> disp r
     FillInferred0 a0e r -> "fill-inferred0" <+> disp a0e <> ";" <+> disp r
     InsertInferred0 a0e r -> "insert-inferred0" <+> disp a0e <> ";" <+> disp r
+    Instantiated0 r -> "instantiated0;" <+> disp r
     InsertInferredType0 sa0tye r -> "insert-inferred-type0" <+> disp sa0tye <> ";" <+> disp r
+    Instantiated1 r -> "instantiated1;" <+> disp r
     InsertType1 a1tye r -> "insert-type1" <+> disp a1tye <> ";" <+> disp r
 
 instance (Disp sv) => Disp (Ass0ValF sv) where

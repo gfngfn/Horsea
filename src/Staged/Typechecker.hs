@@ -1152,18 +1152,17 @@ mergeResultsByConditional0 trav loc a0e0 = go
           let triples = (a0pat1, (a0e1, r1)) :| triplesRest
           let a0branches = fmap (\(a0pat, (a0e, _)) -> A0Branch a0pat a0e) triples
           InsertInferred0 (A0Case a0e0 a0branches) <$> go (fmap (second snd) triples)
-        InsertType1 a1tye1 r1 -> do
-          triplesRest <-
+        Instantiated0 r1 -> do
+          pairsRest <-
             mapM
               ( \(a0pat, result) ->
                   case result of
-                    InsertType1 a1tye r -> pure (a0pat, (a1tye, r))
+                    Instantiated0 r -> pure (a0pat, r)
                     _ -> failure
               )
               rest
-          let triples = (a0pat1, (a1tye1, r1)) :| triplesRest
-          a1tye' <- mergeTypes1 (fmap (second fst) triples)
-          InsertType1 a1tye' <$> go (fmap (second snd) triples)
+          let pairs = (a0pat1, r1) :| pairsRest
+          Instantiated0 <$> go pairs
         InsertInferredType0 a0tye1 r1 -> do
           triplesRest <-
             mapM
@@ -1176,6 +1175,29 @@ mergeResultsByConditional0 trav loc a0e0 = go
           let triples = (a0pat1, (a0tye1, r1)) :| triplesRest
           a0tye' <- mergeTypes0 (fmap (second fst) triples)
           InsertInferredType0 a0tye' <$> go (fmap (second snd) triples)
+        Instantiated1 r1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    Instantiated1 r -> pure (a0pat, r)
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, r1) :| pairsRest
+          Instantiated1 <$> go pairs
+        InsertType1 a1tye1 r1 -> do
+          triplesRest <-
+            mapM
+              ( \(a0pat, result) ->
+                  case result of
+                    InsertType1 a1tye r -> pure (a0pat, (a1tye, r))
+                    _ -> failure
+              )
+              rest
+          let triples = (a0pat1, (a1tye1, r1)) :| triplesRest
+          a1tye' <- mergeTypes1 (fmap (second fst) triples)
+          InsertType1 a1tye' <$> go (fmap (second snd) triples)
 
     mergeTypes0 :: NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M trav Ass0TypeExpr
     mergeTypes0 pairs = do
@@ -1324,15 +1346,22 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
           let tyvar0Solution = Map.empty
           result <- mapMPure (pure . A0TyCode) result'
           pure (result, varSolution, tyvar0Solution)
-        (_ : _, A0TyForAll atyvar a0tye2) -> do
-          (result', varSolution', tyvar0Solution') <-
-            go varsToInfer (Set.insert atyvar tyvars0ToInfer) appCtx a0tye2
-          case Map.lookup atyvar tyvar0Solution' of
-            Just a0tyeInferred ->
-              pure (InsertInferredType0 a0tyeInferred result', varSolution', tyvar0Solution')
-            Nothing -> do
-              spanInFile <- askSpanInFile loc
-              typeError trav $ CannotInferTypeVariableInstance0 spanInFile atyvar appCtx a0tye
+        (appCtxEntry : appCtx', A0TyForAll atyvar a0tye2) -> do
+          case appCtxEntry of
+            AppArgInfTypeGiven0 a0tye1' -> do
+              (result', varSolution', tyvar0Solution') <-
+                go varsToInfer tyvars0ToInfer appCtx' (tySubst0 a0tye1' atyvar a0tye2)
+              pure (Instantiated0 result', varSolution', tyvar0Solution')
+            _ -> do
+              -- Recurses by using `appCtx`, not `appCtx'`:
+              (result', varSolution', tyvar0Solution') <-
+                go varsToInfer (Set.insert atyvar tyvars0ToInfer) appCtx a0tye2
+              case Map.lookup atyvar tyvar0Solution' of
+                Just a0tyeInferred ->
+                  pure (InsertInferredType0 a0tyeInferred result', varSolution', tyvar0Solution')
+                Nothing -> do
+                  spanInFile <- askSpanInFile loc
+                  typeError trav $ CannotInferTypeVariableInstance0 spanInFile atyvar appCtx a0tye
         _ -> do
           spanInFile <- askSpanInFile loc
           typeError trav $ CannotInstantiateGuidedByAppContext0 spanInFile appCtx a0tye
@@ -1789,6 +1818,14 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             pure (Pure (A0TyForAll atyvar1 a0tye2), A0LamType atyvar1 a0e2)
           _ : _ ->
             error "TODO: typecheckExpr0, LamInfType, non-empty context"
+      AppInfType e1 tye2 -> do
+        a0tye2 <- typecheckTypeExpr0 trav tyEnv tye2
+        (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgInfTypeGiven0 a0tye2 : appCtx) e1
+        case result1 of
+          Instantiated0 result -> do
+            pure (result, A0AppType a0e1 (strictify a0tye2))
+          _ -> do
+            bug "stage-0, AppInfType"
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
       (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
@@ -2432,6 +2469,14 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             pure (Pure (A1TyForAll atyvar1 a1tye2), A1LamType atyvar1 a1e2)
           _ : _ ->
             error "TODO: typecheckExpr0, LamInfType, non-empty context"
+      AppInfType e1 tye2 -> do
+        a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
+        (result1, a1e1) <- typecheckExpr1 trav tyEnv (AppArgInfTypeGiven1 a1tye2 : appCtx) e1
+        case result1 of
+          Instantiated1 result -> do
+            pure (result, A1AppType a1e1 a1tye2)
+          _ -> do
+            bug "stage-1, AppInfType"
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
       (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
@@ -2496,7 +2541,9 @@ mapMPure f = go
     go (CastInfGiven0 a0e a0tye r) = CastInfGiven0 a0e a0tye <$> go r
     go (FillInferred0 a0e r) = FillInferred0 a0e <$> go r
     go (InsertInferred0 a0e r) = InsertInferred0 a0e <$> go r
+    go (Instantiated0 r) = Instantiated0 <$> go r
     go (InsertInferredType0 a0tye r) = InsertInferredType0 a0tye <$> go r
+    go (Instantiated1 r) = Instantiated1 <$> go r
     go (InsertType1 a1tye r) = InsertType1 a1tye <$> go r
 
 validateIntLiteral :: trav -> Span -> Ass0Expr -> M trav Int
@@ -2682,7 +2729,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv
         typecheckTypeExpr0 trav tyEnv' tye1
       pure $ A0TyForAll atyvar a0tye1
-    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfType {}; Persistent {}) ->
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfType {}; AppInfType {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
 ass0exprAnd :: Ass0Expr
@@ -2832,7 +2879,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv
         typecheckTypeExpr1 trav tyEnv' tye1
       pure $ A1TyForAll atyvar a1tye1
-    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfType {}; Persistent {}) ->
+    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfType {}; AppInfType {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
 validatePersistentType :: trav -> Span -> Ass0TypeExpr -> M trav AssPersTypeExpr

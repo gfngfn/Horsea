@@ -634,6 +634,8 @@ data AppContextEntryF sv
   | AppArgOmsGiven1 Label (Ass1TypeExprF sv)
   | AppArgInfGiven0 (Ass0ExprF sv) (Ass0TypeExprF sv)
   | AppArgInfOmitted0
+  | AppArgInfTypeGiven0 (Ass0TypeExprF sv)
+  | AppArgInfTypeGiven1 (Ass1TypeExprF sv)
   deriving (Eq, Show, Functor)
 
 -- | The type of the results of the "Let arguments go first" traversal.
@@ -648,7 +650,9 @@ data ResultF af sv
   | CastInfGiven0 (Maybe (Ass0ExprF sv)) (Ass0TypeExprF sv) (ResultF af sv)
   | FillInferred0 (Ass0ExprF sv) (ResultF af sv)
   | InsertInferred0 (Ass0ExprF sv) (ResultF af sv)
+  | Instantiated0 (ResultF af sv)
   | InsertInferredType0 (Ass0TypeExprF sv) (ResultF af sv)
+  | Instantiated1 (ResultF af sv)
   | InsertType1 (Ass1TypeExprF sv) (ResultF af sv)
   deriving (Eq, Show, Functor)
 
