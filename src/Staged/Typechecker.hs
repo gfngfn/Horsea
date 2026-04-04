@@ -1779,7 +1779,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         pure (result, A0Bracket a1e1)
       Escape _ ->
         typeError trav $ CannotUseEscapeAtStage0 spanInFile
-      LamInfTy tyvar1 e2 ->
+      LamInfType tyvar1 e2 ->
         case appCtx of
           [] -> do
             atyvar1 <- generateFreshTypeVar tyvar1
@@ -1788,7 +1788,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
               typecheckExpr0Single trav tyEnv' e2
             pure (Pure (A0TyForAll atyvar1 a0tye2), A0LamType atyvar1 a0e2)
           _ : _ ->
-            error "TODO: typecheckExpr0, LamInfTy, non-empty context"
+            error "TODO: typecheckExpr0, LamInfType, non-empty context"
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
       (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
@@ -2422,7 +2422,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             )
             result1
         pure (result, A1Escape a0e1)
-      LamInfTy tyvar1 e2 ->
+      LamInfType tyvar1 e2 ->
         case appCtx of
           [] -> do
             atyvar1 <- generateFreshTypeVar tyvar1
@@ -2431,7 +2431,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
               typecheckExpr1Single trav tyEnv' e2
             pure (Pure (A1TyForAll atyvar1 a1tye2), A1LamType atyvar1 a1e2)
           _ : _ ->
-            error "TODO: typecheckExpr0, LamInfTy, non-empty context"
+            error "TODO: typecheckExpr0, LamInfType, non-empty context"
       Persistent _ ->
         typeError trav $ CannotUsePersistent spanInFile
       (TyVar {}; TyArrow {}; TyOmsArrow {}; TyInfArrow {}; TyRefinement {}; TyForAll {}) ->
@@ -2682,7 +2682,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv
         typecheckTypeExpr0 trav tyEnv' tye1
       pure $ A0TyForAll atyvar a0tye1
-    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfTy {}; Persistent {}) ->
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfType {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
 ass0exprAnd :: Ass0Expr
@@ -2832,7 +2832,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv
         typecheckTypeExpr1 trav tyEnv' tye1
       pure $ A1TyForAll atyvar a1tye1
-    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfTy {}; Persistent {}) ->
+    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfType {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
 validatePersistentType :: trav -> Span -> Ass0TypeExpr -> M trav AssPersTypeExpr

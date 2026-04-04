@@ -298,7 +298,7 @@ expr = letin
               MandatoryBinder labelOpt xBinder -> Lam Nothing labelOpt xBinder e
               OmissibleBinder label xBinder -> LamOms label xBinder e
               InferableBinder xBinder -> LamInf xBinder e
-              TypeBinder tyvar -> LamInfTy tyvar e
+              TypeBinder tyvar -> LamInfType tyvar e
 
         makeRecLam locFirst fBinder xBinder e@(Expr locLast _) =
           Expr (mergeSpan locFirst locLast) (Lam (Just fBinder) Nothing xBinder e)

@@ -471,7 +471,7 @@ instance Disp (ExprMainF ann) where
     As e1 tye2 -> dispAs req e1 tye2
     Bracket e1 -> dispBracket e1
     Escape e1 -> dispEscape e1
-    LamInfTy tyvar1 e2 -> dispLamInfType req tyvar1 e2
+    LamInfType tyvar1 e2 -> dispLamInfType req tyvar1 e2
     Persistent e1 -> dispPersistent e1
     TyVar tyvar -> disp tyvar
     TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
