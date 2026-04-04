@@ -232,6 +232,9 @@ spec = do
     it "parses applications of inferable parameters (3)" $
       parseExpr "x {y + 1} {z}"
         `shouldBe` pure (appInfGiven (appInfGiven (var "x") (add (var "y") (litInt 1))) (var "z"))
+    it "parses type applications" $
+      parseExpr "f {type Int}"
+        `shouldBe` pure (appInfType (var "f") tyInt)
     it "parses sequentials (1)" $
       parseExpr "x += 1; f x"
         `shouldBe` pure (expr (Sequential (app (app (var "+=") (var "x")) (litInt 1)) (app (var "f") (var "x"))))
@@ -442,10 +445,13 @@ spec = do
   describe "parseBinds (without code locations)" $ do
     it "parses single, stage-1 normal binding" $
       parseBinds "val n = 42"
-        `shouldBe` pure [Bind () (BindVal Stage1 "n" (BindValNormal (litInt 42)))]
-    it "parses single, stage-0 normal binding" $
+        `shouldBe` pure [Bind () (BindVal Stage1 "n" (BindValNormal [] Nothing (litInt 42)))]
+    it "parses single, stage-0 normal binding (1)" $
       parseBinds "val ~n = 42"
-        `shouldBe` pure [Bind () (BindVal Stage0 "n" (BindValNormal (litInt 42)))]
+        `shouldBe` pure [Bind () (BindVal Stage0 "n" (BindValNormal [] Nothing (litInt 42)))]
+    it "parses single, stage-0 normal binding (2)" $
+      parseBinds "val ~f (x : Int) = x"
+        `shouldBe` pure [Bind () (BindVal Stage0 "f" (BindValNormal [MandatoryBinder Nothing ("x", tyInt)] Nothing (var "x")))]
     it "parses single, stage-0 external binding" $
       parseBinds "val ~foo : Int -> Bool external (builtin = \"bar\", surface = \"qux\")"
         `shouldBe` pure

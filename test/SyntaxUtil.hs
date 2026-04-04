@@ -117,6 +117,9 @@ appOms e1 label e2 = expr (AppOms e1 label e2)
 appInfGiven :: ExprVoid -> ExprVoid -> ExprVoid
 appInfGiven e1 e2 = expr (AppInfGiven e1 e2)
 
+appInfType :: ExprVoid -> TypeExprVoid -> ExprVoid
+appInfType e1 tye2 = expr (AppInfType e1 tye2)
+
 binOp :: Var -> ExprVoid -> ExprVoid -> ExprVoid
 binOp op e1 = app (app (var op) e1)
 

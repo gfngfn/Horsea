@@ -82,6 +82,8 @@ data ExprMainF ann
   | Sequential (ExprF ann) (ExprF ann)
   | Tuple (TwoOrMore (ExprF ann))
   | Product (ExprF ann) (NonEmpty ((ann, Var), ExprF ann))
+  | LamInfType TypeVar (ExprF ann)
+  | AppInfType (ExprF ann) (TypeExprF ann)
   | Persistent (ExprF ann)
   | TyVar TypeVar
   | TyArrow (Maybe Text) (Maybe Var, TypeExprF ann) (TypeExprF ann)
@@ -95,6 +97,7 @@ data LamBinderF ann
   = MandatoryBinder (Maybe Label) (Var, TypeExprF ann)
   | OmissibleBinder Label (Var, TypeExprF ann)
   | InferableBinder (Var, TypeExprF ann)
+  | TypeBinder TypeVar
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 data BranchF ann = Branch (PatternF ann) (ExprF ann)
@@ -147,7 +150,7 @@ type Bind = BindF Span
 
 data BindValF ann
   = BindValExternal (TypeExprF ann) External
-  | BindValNormal (ExprF ann)
+  | BindValNormal [LamBinderF ann] (Maybe (TypeExprF ann)) (ExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 type BindVal = BindValF Span

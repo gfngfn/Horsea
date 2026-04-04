@@ -64,25 +64,31 @@ generateIdentityFunction env a0tyv = do
   x <- symbolToVar <$> generateFreshSymbol
   pure $ A0ValLam Nothing (x, a0tyv) (A0Var x) env
 
-findEntry :: EvalEnv -> AssVar -> M EvalEnvEntry
-findEntry env x =
-  case Map.lookup x env of
+findValEntry :: EvalEnv -> AssVar -> M EvalEnvValEntry
+findValEntry env x =
+  case Map.lookup x env.vals of
     Nothing -> bug $ UnboundVarFound x
     Just envEntry -> pure envEntry
 
 findVal0 :: EvalEnv -> AssVar -> M Ass0Val
 findVal0 env x = do
-  entry <- findEntry env x
+  entry <- findValEntry env x
   case entry of
     Ass0ValEntry a0v -> pure a0v
     SymbolEntry symb -> bug $ FoundSymbol x symb
 
 findSymbol :: EvalEnv -> AssVar -> M Symbol
 findSymbol env x = do
-  entry <- findEntry env x
+  entry <- findValEntry env x
   case entry of
     Ass0ValEntry a0v -> bug $ FoundAss0Val x a0v
     SymbolEntry symb -> pure symb
+
+findTypeVal :: EvalEnv -> AssTypeVar -> M Ass0TypeVal
+findTypeVal env atyvar =
+  case Map.lookup atyvar env.typeVals of
+    Nothing -> bug $ UnboundTypeVarFound atyvar
+    Just a0tyv -> pure a0tyv
 
 validateIntLiteral :: Ass0Val -> M Int
 validateIntLiteral = \case
@@ -291,26 +297,27 @@ reduceBeta a0vFun a0vArg =
   case a0vFun of
     A0ValLam Nothing (x, _a0tyv) a0eBody env ->
       evalExpr0
-        (Map.insert x (Ass0ValEntry a0vArg) env)
+        (env & updateVals (Map.insert x (Ass0ValEntry a0vArg)))
         a0eBody
     A0ValLam (Just (f, _a0tyvRec)) (x, _a0tyv) a0eBody env ->
       evalExpr0
-        (Map.insert x (Ass0ValEntry a0vArg) (Map.insert f (Ass0ValEntry a0vFun) env))
+        (env & updateVals (Map.insert x (Ass0ValEntry a0vArg) . Map.insert f (Ass0ValEntry a0vFun)))
         a0eBody
     A0ValPartialBuiltInApp pba ->
       reduceDelta pba a0vArg
     _ ->
       bug $ NotAClosure a0vFun
 
--- TODO (enhance): fix this to handle polymorphism properly
 reduceTypeBeta0 :: Ass0Val -> Ass0TypeVal -> M Ass0Val
-reduceTypeBeta0 a0vTypeFun _a0tyvArg =
-  pure a0vTypeFun
-
--- TODO (enhance): fix this to handle polymorphism properly
-reduceTypeBeta1 :: Ass1Val -> Ass1TypeVal -> M Ass1Val
-reduceTypeBeta1 a1vTypeFun _a1tyvArg =
-  pure a1vTypeFun
+reduceTypeBeta0 a0vTypeFun a0tyvArg =
+  case a0vTypeFun of
+    A0ValLamType atyvar a0e env ->
+      evalExpr0 (env & updateTypeVals (Map.insert atyvar a0tyvArg)) a0e
+    A0ValPartialBuiltInApp _ ->
+      -- Built-in functions simply ignore type applications. TODO: make this less ad-hoc
+      pure a0vTypeFun
+    _ ->
+      bug $ NotATypeClosure a0vTypeFun
 
 evalCase :: EvalEnv -> Ass0Val -> [Ass0Branch] -> M Ass0Val
 evalCase env a0v = goBranch
@@ -321,7 +328,7 @@ evalCase env a0v = goBranch
       A0Branch a0pat a0e : branchesRest ->
         case matchWithPattern a0v a0pat of
           Nothing -> goBranch branchesRest
-          Just binding -> evalExpr0 (Map.union env (Map.map Ass0ValEntry binding)) a0e
+          Just binding -> evalExpr0 (env & updateVals (`Map.union` Map.map Ass0ValEntry binding)) a0e
 
 matchWithPattern :: Ass0Val -> Ass0Pattern -> Maybe (Map AssVar Ass0Val)
 matchWithPattern a0v a0pat =
@@ -379,12 +386,12 @@ evalExpr0 env = \case
       A0ValTuple a0vs ->
         case zipExactMay (TwoOrMore.toList xs) (TwoOrMore.toList a0vs) of
           Just zipped -> do
-            let env2 =
+            let vals2 =
                   foldl'
-                    (\env' (x, a0v) -> Map.insert x (Ass0ValEntry a0v) env')
-                    env
+                    (\vals' (x, a0v) -> Map.insert x (Ass0ValEntry a0v) vals')
+                    env.vals
                     zipped
-            evalExpr0 env2 a0e2
+            evalExpr0 (env {vals = vals2}) a0e2
           Nothing ->
             bug $ TupleLengthMismatch xs a0vs
       _ ->
@@ -433,6 +440,8 @@ evalExpr0 env = \case
         EvalState {sourceSpec} <- get
         let spanInFile = getSpanInFile sourceSpec loc
         evalError $ RefinementAssertionFailure spanInFile a0vPred a0vTarget
+  A0LamType atyvar1 a0e2 -> do
+    pure $ A0ValLamType atyvar1 a0e2 env
   A0AppType a0e1 sa0tye2 -> do
     a0v1 <- evalExpr0 env a0e1
     a0tyv2 <- evalTypeExpr0 env sa0tye2
@@ -450,14 +459,14 @@ evalExpr1 env = \case
   A1Lam Nothing (x, a1tye1) a1e2 -> do
     a1tyv1 <- evalTypeExpr1 env a1tye1
     symbX <- generateFreshSymbol
-    a1v2 <- evalExpr1 (Map.insert x (SymbolEntry symbX) env) a1e2
+    a1v2 <- evalExpr1 (env & updateVals (Map.insert x (SymbolEntry symbX))) a1e2
     pure $ A1ValLam Nothing (symbX, a1tyv1) a1v2
   A1Lam (Just (f, a1tyeRec)) (x, a1tye1) a1e2 -> do
     a1tyvRec <- evalTypeExpr1 env a1tyeRec
     a1tyv1 <- evalTypeExpr1 env a1tye1
     symbF <- generateFreshSymbol
     symbX <- generateFreshSymbol
-    a1v1 <- evalExpr1 (Map.insert x (SymbolEntry symbX) (Map.insert f (SymbolEntry symbF) env)) a1e2
+    a1v1 <- evalExpr1 (env & updateVals (Map.insert x (SymbolEntry symbX) . Map.insert f (SymbolEntry symbF))) a1e2
     pure $ A1ValLam (Just (symbF, a1tyvRec)) (symbX, a1tyv1) a1v1
   A1App a1e1 a1e2 -> do
     a1v1 <- evalExpr1 env a1e1
@@ -467,17 +476,17 @@ evalExpr1 env = \case
     a1tyv0 <- evalTypeExpr1 env a1tye0
     a1v1 <- evalExpr1 env a1e1
     symbX <- generateFreshSymbol
-    a1v2 <- evalExpr1 (env & Map.insert x (SymbolEntry symbX)) a1e2
+    a1v2 <- evalExpr1 (env & updateVals (Map.insert x (SymbolEntry symbX))) a1e2
     pure $ A1ValLetIn (symbX, a1tyv0) a1v1 a1v2
   A1LetTupleIn xs a1e1 a1e2 -> do
     a1v1 <- evalExpr1 env a1e1
     varAndSymbPairs <- mapM (\x -> (x,) <$> generateFreshSymbol) xs
-    let env2 =
+    let vals2 =
           foldl'
-            (\env' (x, symb) -> Map.insert x (SymbolEntry symb) env')
-            env
+            (\vals' (x, symb) -> Map.insert x (SymbolEntry symb) vals')
+            env.vals
             varAndSymbPairs
-    a1v2 <- evalExpr1 env2 a1e2
+    a1v2 <- evalExpr1 (env {vals = vals2}) a1e2
     pure $ A1ValLetTupleIn (fmap snd varAndSymbPairs) a1v1 a1v2
   A1Sequential a1e1 a1e2 -> do
     a1v1 <- evalExpr1 env a1e1
@@ -503,10 +512,13 @@ evalExpr1 env = \case
     case a0v1 of
       A0ValBracket a1v1 -> pure a1v1
       _ -> bug $ NotACodeValue a0v1
+  A1LamType atyvar a1e2 -> do
+    a1v2 <- evalExpr1 env a1e2
+    pure $ A1ValLamType atyvar a1v2
   A1AppType a1e1 a1tye2 -> do
     a1v1 <- evalExpr1 env a1e1
     a1tyv2 <- evalTypeExpr1 env a1tye2
-    reduceTypeBeta1 a1v1 a1tyv2
+    pure $ A1ValAppType a1v1 a1tyv2
 
 evalBranch1 :: EvalEnv -> Ass1Branch -> M Ass1BranchVal
 evalBranch1 env (A1Branch a1pat a1e) = do
@@ -519,7 +531,7 @@ evalTypeExpr0 env = \case
     maybeVPred <- mapM (evalExpr0 env) maybePred
     pure $ A0TyValPrim a0tyPrim maybeVPred
   SA0TyVar atyvar ->
-    pure $ A0TyValVar atyvar
+    findTypeVal env atyvar
   SA0TyList sa0tye1 maybePred -> do
     a0tyv1 <- evalTypeExpr0 env sa0tye1
     maybeVPred <- mapM (evalExpr0 env) maybePred
@@ -536,8 +548,8 @@ evalTypeExpr0 env = \case
   SA0TyCode a1tye1 -> do
     a1tyv1 <- evalTypeExpr1 env a1tye1
     pure $ A0TyValCode a1tyv1
-  SA0TyExplicitForAll atyvar sa0tye1 -> do
-    pure $ A0TyValExplicitForAll atyvar sa0tye1
+  SA0TyForAll atyvar sa0tye1 -> do
+    pure $ A0TyValForAll atyvar sa0tye1
 
 evalTypeExpr1 :: EvalEnv -> Ass1TypeExpr -> M Ass1TypeVal
 evalTypeExpr1 env = \case
@@ -586,9 +598,9 @@ evalTypeExpr1 env = \case
     a1tyv1 <- evalTypeExpr1 env a1tye1
     a1tyv2 <- evalTypeExpr1 env a1tye2
     pure $ A1TyValOmsArrow label a1tyv1 a1tyv2
-  A1TyImplicitForAll atyvar a1tye2 -> do
+  A1TyForAll atyvar a1tye2 -> do
     a1tyv2 <- evalTypeExpr1 env a1tye2
-    pure $ A1TyValImplicitForAll atyvar a1tyv2
+    pure $ A1TyValForAll atyvar a1tyv2
 
 run :: M a -> EvalState -> Either EvalError a
 run = evalStateT
@@ -621,6 +633,10 @@ unliftVal = \case
     A0IfThenElse (unliftVal a1v0) (unliftVal a1v1) (unliftVal a1v2)
   A1ValCase a1v0 a1branchVs ->
     A0Case (unliftVal a1v0) (fmap unliftBranchVal a1branchVs)
+  A1ValLamType atyvar1 a1v2 ->
+    A0LamType atyvar1 (unliftVal a1v2)
+  A1ValAppType a1v1 a1tyv2 ->
+    A0AppType (unliftVal a1v1) (unliftTypeVal a1tyv2)
 
 unliftBranchVal :: Ass1BranchVal -> Ass0Branch
 unliftBranchVal (A1ValBranch a1pat a1e) =
@@ -655,5 +671,5 @@ unliftTypeVal = \case
     SA0TyArrow (Nothing, unliftTypeVal a1tyv1) (unliftTypeVal a1tyv2)
   A1TyValOmsArrow _label a1tyv1 a1tyv2 ->
     SA0TyArrow (Nothing, SA0TyMaybe (unliftTypeVal a1tyv1)) (unliftTypeVal a1tyv2)
-  A1TyValImplicitForAll atyvar a1tyv2 ->
-    SA0TyExplicitForAll atyvar (unliftTypeVal a1tyv2)
+  A1TyValForAll atyvar a1tyv2 ->
+    SA0TyForAll atyvar (unliftTypeVal a1tyv2)

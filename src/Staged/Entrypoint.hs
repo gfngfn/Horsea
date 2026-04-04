@@ -218,7 +218,7 @@ typecheckAndEvalInput tcStateAfterStub sourceSpecOfInput tyEnvStub abinds e = do
                 else failure ExitByRuntimeEvalError
   where
     initialEnv :: EvalEnv
-    initialEnv = Map.empty
+    initialEnv = EvalEnv {vals = Map.empty, typeVals = Map.empty}
 
 typecheckAndEval :: SourceSpec -> [Bind] -> SourceSpec -> Expr -> M (Maybe FailureReason)
 typecheckAndEval sourceSpecOfStub bindsInStub sourceSpecOfInput e = do

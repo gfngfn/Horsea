@@ -159,6 +159,16 @@ dispLamInf req x tye1 e2 =
   deepenParenWhen (req <= FunDomain) $
     group ("λ{" <> disp x <+> ":" <+> disp tye1 <> "}." <> nest 2 (line <> disp e2))
 
+dispLamInfType :: (Disp tyvar, Disp ty) => Associativity -> tyvar -> ty -> Doc Ann
+dispLamInfType req tyvar1 tye2 =
+  deepenParenWhen (req <= FunDomain) $
+    group ("Λ{" <> disp tyvar1 <> "}." <> nest 2 (line <> disp tye2))
+
+dispLamType :: (Disp tyvar, Disp ty) => Associativity -> tyvar -> ty -> Doc Ann
+dispLamType req tyvar1 tye2 =
+  deepenParenWhen (req <= FunDomain) $
+    group ("Λ" <> disp tyvar1 <> "." <> nest 2 (line <> disp tye2))
+
 dispApp :: (Disp expr) => Associativity -> expr -> Maybe Label -> expr -> Doc Ann
 dispApp req e1 labelOpt e2 =
   deepenParenWhen (req <= Atomic) $
@@ -184,6 +194,11 @@ dispAppInfOmitted :: (Disp expr) => Associativity -> expr -> Doc Ann
 dispAppInfOmitted req e1 =
   deepenParenWhen (req <= Atomic) $
     group (dispGen FunDomain e1 <> nest 2 (line <> "_"))
+
+dispAppInfType :: (Disp expr, Disp ty) => Associativity -> expr -> ty -> Doc Ann
+dispAppInfType req e1 tye2 =
+  deepenParenWhen (req <= Atomic) $
+    group (dispGen FunDomain e1 <> nest 2 (line <> "{type" <+> disp tye2 <> "}"))
 
 dispAppType :: (Disp expr, Disp ty) => Associativity -> expr -> ty -> Doc Ann
 dispAppType req e1 tye2 =
@@ -461,14 +476,16 @@ instance Disp (ExprMainF ann) where
     As e1 tye2 -> dispAs req e1 tye2
     Bracket e1 -> dispBracket e1
     Escape e1 -> dispEscape e1
+    LamInfType tyvar1 e2 -> dispLamInfType req tyvar1 e2
+    AppInfType e1 tye2 -> dispAppInfType req e1 tye2
     Persistent e1 -> dispPersistent e1
-    TyVar (TypeVar tyvar) -> "'" <> disp tyvar
+    TyVar tyvar -> disp tyvar
     TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     TyOmsArrow label (xOpt, tye1) tye2 -> dispOmsArrowType req label xOpt tye1 tye2
     TyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2
     TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
     Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
-    TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
+    TyForAll tyvar tye -> "forall" <+> disp tyvar <+> "->" <+> disp tye
 
 instance Disp (LamBinderF ann) where
   dispGen _ = \case
@@ -476,6 +493,7 @@ instance Disp (LamBinderF ann) where
     MandatoryBinder (Just label) (x, tye) -> "#" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
     OmissibleBinder label (x, tye) -> "?" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
     InferableBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
+    TypeBinder tyvar -> "{type" <+> disp tyvar <+> "}"
 
 instance Disp (BranchF ann) where
   dispGen _ (Branch pat e) = dispBranch pat e
@@ -490,10 +508,10 @@ instance Disp (PatternMainF ann) where
     PatVar x -> disp x
     PatBool b -> dispBool b
 
-$(deriveDisp definitions)
-
 instance Disp TypeVar where
   dispGen _ (TypeVar a) = "'" <> disp a
+
+$(deriveDisp definitions)
 
 instance Disp BuiltIn where
   dispGen req = \case
@@ -588,6 +606,8 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
     A0RefinementAssert _loc a0ePred a0eTarget ->
       deepenParenWhen (req <= Atomic) $
         "ASSERT" <+> disp a0ePred <+> "FOR" <+> disp a0eTarget
+    A0LamType atyvar1 a0e2 ->
+      dispLamType req atyvar1 a0e2
     A0AppType a0e1 sa0tye2 ->
       dispAppType req a0e1 sa0tye2
 
@@ -616,6 +636,7 @@ instance (Disp sv) => Disp (Ass1ExprF sv) where
     A1IfThenElse a1e0 a1e1 a1e2 -> dispIfThenElse req a1e0 a1e1 a1e2
     A1Case a1e0 a1branches -> dispCase req a1e0 a1branches
     A1Escape a0e1 -> dispEscape a0e1
+    A1LamType atyvar1 a1e2 -> dispLamType req atyvar1 a1e2
     A1AppType a1e1 a1tye2 -> dispAppType req a1e1 a1tye2
 
 instance (Disp sv) => Disp (Ass1BranchF sv) where
@@ -666,7 +687,7 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyCode a1tye1 -> dispBracket a1tye1
     A0TyInfArrow (x, a0tye1) a0tye2 -> dispInfArrowType req x a0tye1 a0tye2
     A0TyOmsArrow label (xOpt, a0tye1) a0tye2 -> dispOmsArrowType req label xOpt a0tye1 a0tye2
-    A0TyImplicitForAll atyvar a0tye -> dispForAllType req atyvar a0tye
+    A0TyForAll atyvar a0tye -> dispForAllType req atyvar a0tye
 
 instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
   dispGen req = \case
@@ -679,7 +700,7 @@ instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
     SA0TyProduct sa0tyes -> dispProductType req sa0tyes
     SA0TyArrow (xOpt, sa0tye1) sa0tye2 -> dispArrowType req Nothing xOpt sa0tye1 sa0tye2
     SA0TyCode a1tye1 -> dispBracket a1tye1
-    SA0TyExplicitForAll atyvar sa0tye -> dispForAllType req atyvar sa0tye
+    SA0TyForAll atyvar sa0tye -> dispForAllType req atyvar sa0tye
 
 instance (Disp sv) => Disp (Ass1PrimTypeF sv) where
   dispGen req = \case
@@ -706,7 +727,7 @@ instance (Disp sv) => Disp (Ass1TypeExprF sv) where
     A1TyProduct a1tyes -> dispProductType req a1tyes
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2
     A1TyOmsArrow label a1tye1 a1tye2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tye1 a1tye2
-    A1TyImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
+    A1TyForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
 
 instance Disp FrontError where
   dispGen _ = \case
@@ -748,8 +769,8 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Invalid syntax as type expression" <+> disp spanInFile
     UnboundVar spanInFile ms x ->
       "Unbound variable" <+> dispLongName ms x <+> disp spanInFile
-    UnboundTypeVar spanInFile (TypeVar a) ->
-      "Unbound type variable" <+> disp a <+> disp spanInFile
+    UnboundTypeVar spanInFile tyvar ->
+      "Unbound type variable" <+> disp tyvar <+> disp spanInFile
     UnboundModule spanInFile m ->
       "Unbound module" <+> disp m <+> disp spanInFile
     NotAStage0Var spanInFile x ->
@@ -1011,7 +1032,7 @@ instance (Disp sv) => Disp (UnsupportedF sv) where
       "Higher-rank polymorphism; we must judge that"
         <+> stage0Style (disp a0tye1)
         <+> "be more general than"
-        <+> stage0Style (disp (A0TyImplicitForAll atyvar a0tye2))
+        <+> stage0Style (disp (A0TyForAll atyvar a0tye2))
         <> ", but this has not been supported so far"
     AsWithArguments appCtx ->
       "Function with an as-coercion applied to argument(s); consider let-binding it to a variable"
@@ -1046,6 +1067,8 @@ instance (Disp sv) => Disp (AppContextEntryF sv) where
     AppArgOmsGiven1 label a1tye -> "?" <> disp label <+> stage1Style (disp a1tye)
     AppArgInfGiven0 a0e a0tye -> "{" <> stage0Style (disp a0e) <+> ":" <+> stage0Style (disp a0tye) <> "}"
     AppArgInfOmitted0 -> "_"
+    AppArgInfTypeGiven0 a0tye -> "{type" <+> stage0Style (disp a0tye) <> "}"
+    AppArgInfTypeGiven1 a1tye -> "{type" <+> stage1Style (disp a1tye) <> "}"
 
 instance (Disp sv, Disp (af sv)) => Disp (ResultF af sv) where
   dispGen _ = \case
@@ -1059,8 +1082,10 @@ instance (Disp sv, Disp (af sv)) => Disp (ResultF af sv) where
     CastInfGiven0 _ a0tye r -> "cast-inf-given0 :" <+> stage0Style (disp a0tye) <> ";" <+> disp r
     FillInferred0 a0e r -> "fill-inferred0" <+> disp a0e <> ";" <+> disp r
     InsertInferred0 a0e r -> "insert-inferred0" <+> disp a0e <> ";" <+> disp r
+    Instantiated0 r -> "instantiated0;" <+> disp r
     InsertInferredType0 sa0tye r -> "insert-inferred-type0" <+> disp sa0tye <> ";" <+> disp r
-    InsertType1 a1tye r -> "insert-type1" <+> disp a1tye <> ";" <+> disp r
+    Instantiated1 r -> "instantiated1;" <+> disp r
+    InsertInferredType1 a1tye r -> "insert-inferred-type1" <+> disp a1tye <> ";" <+> disp r
 
 instance (Disp sv) => Disp (Ass0ValF sv) where
   dispGen req = \case
@@ -1071,6 +1096,7 @@ instance (Disp sv) => Disp (Ass0ValF sv) where
     A0ValLam (Just (f, a0tyvRec)) (x, a0tyv1) a0v2 _env -> dispRecLam req f a0tyvRec Nothing x a0tyv1 a0v2
     A0ValBracket a1v1 -> dispBracket a1v1
     A0ValPartialBuiltInApp pba -> dispGen req pba
+    A0ValLamType atyvar1 a0e2 _env -> dispLamType req atyvar1 a0e2
 
 instance (Disp v) => Disp (Ass0PartialBuiltInApp v) where
   dispGen req = \case
@@ -1153,6 +1179,10 @@ instance (Disp sv) => Disp (Ass1ValF sv) where
       dispIfThenElse req a1v0 a1v1 a1v2
     A1ValCase a1v0 a1branchVs ->
       dispCase req a1v0 a1branchVs
+    A1ValLamType atyvar1 a1v2 ->
+      dispLamType req atyvar1 a1v2
+    A1ValAppType a1v1 a1tyv2 ->
+      dispAppType req a1v1 a1tyv2
 
 instance (Disp sv) => Disp (Ass1BranchValF sv) where
   dispGen _ (A1ValBranch a1pat a1e) = dispBranch a1pat a1e
@@ -1161,7 +1191,6 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
   dispGen req = \case
     A0TyValPrim a0tyvPrim Nothing -> dispGen req a0tyvPrim
     A0TyValPrim a0tyvPrim (Just a0vPred) -> dispInternalRefinementType req a0tyvPrim a0vPred
-    A0TyValVar atyvar -> disp atyvar
     A0TyValList a0tyv1 Nothing -> dispListType req a0tyv1
     A0TyValList a0tyv1 (Just a0vPred) -> dispInternalRefinementListType req a0tyv1 a0vPred
     A0TyValMaybe a0tyv1 -> dispMaybeType req a0tyv1
@@ -1170,7 +1199,7 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
        in dispProduct req a0tyv1 (fmap ("*",) a0tyvsRest)
     A0TyValArrow (xOpt, a0tyv1) a0tye2 -> dispArrowType req Nothing xOpt a0tyv1 a0tye2
     A0TyValCode a1tyv1 -> dispBracket a1tyv1
-    A0TyValExplicitForAll atyvar sa0tye1 -> dispForAllType req atyvar sa0tye1
+    A0TyValForAll atyvar sa0tye1 -> dispForAllType req atyvar sa0tye1
 
 instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case
@@ -1183,7 +1212,7 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
        in dispProduct req a1tyv1 (fmap ("*",) a1tyvsRest)
     A1TyValArrow labelOpt a1tyv1 a1tyv2 -> dispNondepArrowType req labelOpt a1tyv1 a1tyv2
     A1TyValOmsArrow label a1tyv1 a1tyv2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tyv1 a1tyv2
-    A1TyValImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
+    A1TyValForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
 
 instance Disp Ass1PrimTypeVal where
   dispGen req = \case
@@ -1231,8 +1260,12 @@ instance (Disp sv) => Disp (BugF sv) where
   dispGen _ = \case
     UnboundVarFound x ->
       "Unbound variable" <+> disp x
+    UnboundTypeVarFound atyvar ->
+      "Unbound type variable" <+> disp atyvar
     NotAClosure a0v ->
       "Not a closure:" <+> disp a0v
+    NotATypeClosure a0v ->
+      "Not a type closure:" <+> disp a0v
     NotACodeValue a0v ->
       "Not a code value:" <+> disp a0v
     NotAnInteger a0v ->

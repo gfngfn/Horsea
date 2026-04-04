@@ -115,7 +115,7 @@ makeBinOpApp e1@(Expr loc1 _) (Located locBinOp binOp) e2@(Expr loc2 _) =
 data FunArg
   = FunArgMandatory (Maybe (Located Text)) Expr
   | FunArgOms (Located Text) Expr
-  | FunArgInfGiven (Located Expr)
+  | FunArgInfGiven (Located (Maybe Span, Expr))
   | FunArgInfOmitted Span
 
 data DomainSpec
@@ -173,7 +173,7 @@ expr = letin
         arg :: P FunArg
         arg =
           (FunArgInfOmitted <$> token TokUnderscore)
-            <|> (FunArgInfGiven <$> try (brace expr))
+            <|> (FunArgInfGiven <$> try (brace ((,) <$> optional (token TokType) <*> expr)))
             <|> (FunArgOms <$> labelOmissible <*> staged)
             <|> (FunArgMandatory <$> optional labelNormal <*> staged)
 
@@ -189,7 +189,8 @@ expr = letin
           FunArgMandatory Nothing e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 Nothing e2)
           FunArgMandatory (Just (Located _ l)) e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 (Just l) e2)
           FunArgOms (Located _ l) e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (AppOms e1 l e2)
-          FunArgInfGiven (Located loc2 e2) -> Expr (mergeSpan loc1 loc2) (AppInfGiven e1 e2)
+          FunArgInfGiven (Located loc2 (Nothing, e2)) -> Expr (mergeSpan loc1 loc2) (AppInfGiven e1 e2)
+          FunArgInfGiven (Located loc2 (Just _, tye2)) -> Expr (mergeSpan loc1 loc2) (AppInfType e1 tye2)
           FunArgInfOmitted loc2 -> Expr (mergeSpan loc1 loc2) (AppInfOmitted e1)
 
     as :: P Expr
@@ -298,6 +299,7 @@ expr = letin
               MandatoryBinder labelOpt xBinder -> Lam Nothing labelOpt xBinder e
               OmissibleBinder label xBinder -> LamOms label xBinder e
               InferableBinder xBinder -> LamInf xBinder e
+              TypeBinder tyvar -> LamInfType tyvar e
 
         makeRecLam locFirst fBinder xBinder e@(Expr locLast _) =
           Expr (mergeSpan locFirst locLast) (Lam (Just fBinder) Nothing xBinder e)
@@ -307,16 +309,6 @@ expr = letin
 
         makeCase locFirst e0 branches locLast =
           Expr (mergeSpan locFirst locLast) (Case e0 branches)
-
-    lamBinder :: P LamBinder
-    lamBinder =
-      (OmissibleBinder <$> noLoc labelOmissible <*> mandatoryBinder)
-        <|> (MandatoryBinder <$> optional (noLoc labelNormal) <*> mandatoryBinder)
-        <|> (InferableBinder <$> implicitBinder)
-
-    mandatoryBinder, implicitBinder :: P (Var, TypeExpr)
-    mandatoryBinder = noLoc (paren ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
-    implicitBinder = noLoc (brace ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
 
     branch :: P Branch
     branch =
@@ -348,6 +340,22 @@ expr = letin
 
 typeExpr :: P TypeExpr
 typeExpr = expr
+
+lamBinder :: P LamBinder
+lamBinder =
+  (OmissibleBinder <$> noLoc labelOmissible <*> mandatoryBinder)
+    <|> (MandatoryBinder <$> optional (noLoc labelNormal) <*> mandatoryBinder)
+    <|> (makeInferableBinder <$> noLoc (brace (implicitBinderContent <|> typeBinderContent)))
+  where
+    implicitBinderContent = Left <$> ((,) <$> noLoc lower <*> (token TokColon *> typeExpr))
+    typeBinderContent = Right <$> (token TokType *> noLoc typeVar)
+
+    makeInferableBinder = \case
+      Left (x, tye) -> InferableBinder (x, tye)
+      Right tyvar -> TypeBinder tyvar
+
+mandatoryBinder :: P (Var, TypeExpr)
+mandatoryBinder = noLoc (paren ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
 
 pat :: P Pattern
 pat = app
@@ -395,11 +403,11 @@ valBinder =
 
 bindVal :: P (BindVal, Span)
 bindVal =
-  (makeBindValExternal <$> (token TokColon *> typeExpr) <*> (token TokExternal *> external))
-    <|> (makeBindValNormal <$> (token TokEqual *> expr))
+  try (makeBindValExternal <$> (token TokColon *> typeExpr) <*> (token TokExternal *> external))
+    <|> (makeBindValNormal <$> many lamBinder <*> optional (token TokColon *> typeExpr) <*> (token TokEqual *> expr))
   where
     makeBindValExternal ty (Located locLast ext) = (BindValExternal ty ext, locLast)
-    makeBindValNormal e@(Expr locLast _) = (BindValNormal e, locLast)
+    makeBindValNormal binders tyeBodyOpt e@(Expr locLast _) = (BindValNormal binders tyeBodyOpt e, locLast)
 
 external :: P (Located External)
 external =
