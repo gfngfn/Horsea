@@ -109,6 +109,7 @@ data PatternF ann = Pattern ann (PatternMainF ann)
 data PatternMainF ann
   = PatVar Var
   | PatBool Bool
+  | PatListNil
   | PatConstructor ([ModuleName], ConstructorName)
   | PatApp (PatternF ann) (PatternF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)

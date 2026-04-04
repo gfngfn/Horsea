@@ -1864,7 +1864,7 @@ collectPatternArgs trav loc = \case
   PatApp (Pattern loc1 patMain1) pat2 -> do
     (qualCtor, patArgs1) <- collectPatternArgs trav loc1 patMain1
     pure (qualCtor, patArgs1 ++ [pat2])
-  (PatBool _; PatVar _) -> do
+  (PatBool _; PatVar _; PatListNil) -> do
     spanInFile <- askSpanInFile loc
     typeError trav $ InvalidSyntaxAsPattern spanInFile
 
@@ -1890,18 +1890,36 @@ forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) = do
               pure (A0PatConstructor "Just" [a0pat1], binders)
             _ ->
               typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
+        ([], "::", [pat1, pat2]) ->
+          case a0tyePatReq of
+            A0TyList a0tyePatElemReq _maybePred -> do
+              (a0pat1, binders1) <- forcePattern0 trav tyEnv a0tyePatElemReq pat1
+              (a0pat2, binders2) <- forcePattern0 trav tyEnv a0tyePatReq pat2
+              binders <- disjointUnion trav binders1 binders2
+              pure (A0PatListCons a0pat1 a0pat2, binders)
+            _ ->
+              typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
         (_, _, _) ->
           typeError trav $ UnboundConstructorOrInvalidArity spanInFile mods ctor (length patArgs)
     PatVar x -> do
       svX <- generateFreshVar (Just x)
       let ax = AssVarStatic svX
       pure (A0PatVar ax, Map.singleton x (Ass0Entry a0tyePatReq (Right svX)))
+    PatListNil ->
+      case a0tyePatReq of
+        A0TyList _ _maybePred -> pure (A0PatListNil, Map.empty)
+        _ -> typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
     PatBool b ->
       case a0tyePatReq of
         A0TyPrim (A0TyPrimBase ATyPrimBool) _maybePred ->
           pure (A0PatBool b, Map.empty)
         _ ->
           typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
+
+-- TODO: judge that two maps are disjoint
+disjointUnion :: trav -> Map Var ValEntry -> Map Var ValEntry -> M trav (Map Var ValEntry)
+disjointUnion _trav binders1 binders2 =
+  pure $ Map.union binders1 binders2
 
 forcePattern1 :: trav -> TypeEnv -> Ass1TypeExpr -> Pattern -> M trav (Ass1Pattern, Map Var ValEntry)
 forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) = do
@@ -1925,12 +1943,25 @@ forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) = do
               pure (A1PatConstructor "Just" [a1pat1], binders)
             _ ->
               typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
+        ([], "::", [pat1, pat2]) ->
+          case a1tyePatReq of
+            A1TyList a1tyePatElemReq -> do
+              (a1pat1, binders1) <- forcePattern1 trav tyEnv a1tyePatElemReq pat1
+              (a1pat2, binders2) <- forcePattern1 trav tyEnv a1tyePatReq pat2
+              binders <- disjointUnion trav binders1 binders2
+              pure (A1PatListCons a1pat1 a1pat2, binders)
+            _ ->
+              typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
         (_, _, _) ->
           typeError trav $ UnboundConstructorOrInvalidArity spanInFile mods ctor (length patArgs)
     PatVar x -> do
       svX <- generateFreshVar (Just x)
       let ax = AssVarStatic svX
       pure (A1PatVar ax, Map.singleton x (Ass1Entry a1tyePatReq (Right svX)))
+    PatListNil ->
+      case a1tyePatReq of
+        A1TyList _ -> pure (A1PatListNil, Map.empty)
+        _ -> typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
     PatBool b ->
       case a1tyePatReq of
         A1TyPrim (A1TyPrimBase ATyPrimBool) ->
