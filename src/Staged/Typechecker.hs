@@ -1933,8 +1933,11 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
               let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
               let f1 = f0 . A0TyInfArrow (ax, a0tye)
               pure (tyEnv1, f1)
-            TypeBinder {} ->
-              error "TODO: constructFunTypeExpr0, TypeBinder"
+            TypeBinder tyvar -> do
+              atyvar <- generateFreshTypeVar tyvar
+              let tyEnv1 = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv0
+              let f1 = f0 . A0TyImplicitForAll atyvar
+              pure (tyEnv1, f1)
       )
       (tyEnv, id)
       params
@@ -1961,8 +1964,9 @@ constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
                 typeError trav $ NonMaybeAnnotForLamOms1 spanInFile' a1tye
           InferableBinder (_x, _tye) ->
             typeError trav $ CannotUseLamInfAtStage1 spanInFile
-          TypeBinder {} ->
-            error "TODO: constructFunTypeExpr1, TypeBinder"
+          TypeBinder tyvar -> do
+            atyvar <- generateFreshTypeVar tyvar
+            pure $ A1TyImplicitForAll atyvar a1tyeAcc
     )
     a1tyeBody
     params
