@@ -152,6 +152,11 @@ instance HasTypeVar Ass0ExprF where
     A0Bracket a1e -> A0Bracket (go a1e)
     A0TyEqAssert loc ty1eq -> A0TyEqAssert loc (go ty1eq)
     A0RefinementAssert loc a0e1 a0e2 -> A0RefinementAssert loc (go a0e1) (go a0e2)
+    A0LamType atyvar1 a0e2 ->
+      A0LamType atyvar1 $
+        case s of
+          TypeSubst0 atyvar' _ -> if atyvar1 == atyvar' then a0e2 else go a0e2
+          TypeSubst1 _ _ -> go a0e2
     A0AppType a0e1 sa0tye2 -> A0AppType (go a0e1) (go sa0tye2)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
@@ -243,6 +248,11 @@ instance HasTypeVar Ass1ExprF where
     A1IfThenElse a1e0 a1e1 a1e2 -> A1IfThenElse (go a1e0) (go a1e1) (go a1e2)
     A1Case a1e0 a1branches -> A1Case (go a1e0) (fmap go a1branches)
     A1Escape a0e -> A1Escape (go a0e)
+    A1LamType atyvar1 a1e2 ->
+      A1LamType atyvar1 $
+        case s of
+          TypeSubst0 _ _ -> go a1e2
+          TypeSubst1 atyvar' _ -> if atyvar1 == atyvar' then a1e2 else go a1e2
     A1AppType a1e1 a1tye2 -> A1AppType (go a1e1) (go a1tye2)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv

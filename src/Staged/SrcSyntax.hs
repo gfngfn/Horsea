@@ -82,6 +82,7 @@ data ExprMainF ann
   | Sequential (ExprF ann) (ExprF ann)
   | Tuple (TwoOrMore (ExprF ann))
   | Product (ExprF ann) (NonEmpty ((ann, Var), ExprF ann))
+  | LamInfTy TypeVar (ExprF ann)
   | Persistent (ExprF ann)
   | TyVar TypeVar
   | TyArrow (Maybe Text) (Maybe Var, TypeExprF ann) (TypeExprF ann)

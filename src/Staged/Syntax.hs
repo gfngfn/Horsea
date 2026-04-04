@@ -34,8 +34,10 @@ module Staged.Syntax
     Ass0TypeValF (..),
     Ass1TypeValF (..),
     Ass1PrimTypeVal (..),
-    EvalEnv,
-    EvalEnvEntry (..),
+    EvalEnv (..),
+    EvalEnvValEntry (..),
+    updateVals,
+    updateTypeVals,
     a0TyVec,
     a0TyMat,
     a1TyVec,
@@ -75,13 +77,16 @@ module Staged.Syntax
 where
 
 import Common.TokenUtil (Span)
+import Control.Lens (over)
 import Data.Functor.Identity
-import Data.List.NonEmpty (NonEmpty)
+import Data.Generics.Labels ()
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
 import Data.Tensor.Matrix (Matrix)
 import Data.Tensor.Vector (Vector)
 import Data.Text (Text)
+import GHC.Base hiding (Symbol, mapM)
+import Generic.Data (Generic)
 import Staged.BuiltIn.Core
 import Staged.Core
 import Prelude
@@ -137,6 +142,7 @@ data Ass0ExprF sv
   | -- | Assertions for refinement predicates, where the first expression is a predicate,
     -- and the second is a target expression of the assertion.
     A0RefinementAssert Span (Ass0ExprF sv) (Ass0ExprF sv)
+  | A0LamType AssTypeVar (Ass0ExprF sv)
   | A0AppType (Ass0ExprF sv) (StrictAss0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
@@ -164,6 +170,7 @@ data Ass1ExprF sv
   | A1IfThenElse (Ass1ExprF sv) (Ass1ExprF sv) (Ass1ExprF sv)
   | A1Case (Ass1ExprF sv) (NonEmpty (Ass1BranchF sv))
   | A1Escape (Ass0ExprF sv)
+  | A1LamType AssTypeVar (Ass1ExprF sv)
   | A1AppType (Ass1ExprF sv) (Ass1TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
@@ -359,6 +366,8 @@ data Ass0ValF sv
     A0ValBracket (Ass1ValF sv)
   | -- | Possibly partially applied built-in functions.
     A0ValPartialBuiltInApp (Ass0PartialBuiltInApp (Ass0ValF sv))
+  | -- | Type abstraction closures.
+    A0ValLamType AssTypeVar (Ass0ExprF sv) EvalEnv
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-1 term values.
@@ -375,6 +384,8 @@ data Ass1ValF sv
   | A1ValConstructor ConstructorName [Ass1ValF sv]
   | A1ValIfThenElse (Ass1ValF sv) (Ass1ValF sv) (Ass1ValF sv)
   | A1ValCase (Ass1ValF sv) (NonEmpty (Ass1BranchValF sv))
+  | A1ValLamType AssTypeVar (Ass1ValF sv)
+  | A1ValAppType (Ass1ValF sv) (Ass1TypeValF sv)
   deriving stock (Eq, Show, Functor)
 
 data Ass1BranchValF sv = A1ValBranch (Ass1PatternF sv) (Ass1ValF sv)
@@ -450,12 +461,22 @@ data DatasetParamEquationF sv = DatasetParamEquation
   }
   deriving stock (Eq, Show, Functor)
 
-type EvalEnv = Map AssVar EvalEnvEntry
+data EvalEnv = EvalEnv
+  { vals :: Map AssVar EvalEnvValEntry,
+    typeVals :: Map AssTypeVar Ass0TypeVal
+  }
+  deriving stock (Eq, Show, Generic)
 
-data EvalEnvEntry
+data EvalEnvValEntry
   = Ass0ValEntry Ass0Val
   | SymbolEntry Symbol
   deriving stock (Eq, Show)
+
+updateVals :: (Map AssVar EvalEnvValEntry -> Map AssVar EvalEnvValEntry) -> EvalEnv -> EvalEnv
+updateVals = over #vals
+
+updateTypeVals :: (Map AssTypeVar Ass0TypeVal -> Map AssTypeVar Ass0TypeVal) -> EvalEnv -> EvalEnv
+updateTypeVals = over #typeVals
 
 mapAssLiteral :: (e1 sv -> e2 sv) -> AssLiteralF e1 sv -> AssLiteralF e2 sv
 mapAssLiteral f = \case

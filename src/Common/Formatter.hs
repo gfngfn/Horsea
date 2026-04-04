@@ -159,6 +159,16 @@ dispLamInf req x tye1 e2 =
   deepenParenWhen (req <= FunDomain) $
     group ("λ{" <> disp x <+> ":" <+> disp tye1 <> "}." <> nest 2 (line <> disp e2))
 
+dispLamInfType :: (Disp tyvar, Disp ty) => Associativity -> tyvar -> ty -> Doc Ann
+dispLamInfType req tyvar1 tye2 =
+  deepenParenWhen (req <= FunDomain) $
+    group ("Λ{" <> disp tyvar1 <> "}." <> nest 2 (line <> disp tye2))
+
+dispLamType :: (Disp tyvar, Disp ty) => Associativity -> tyvar -> ty -> Doc Ann
+dispLamType req tyvar1 tye2 =
+  deepenParenWhen (req <= FunDomain) $
+    group ("Λ" <> disp tyvar1 <> "." <> nest 2 (line <> disp tye2))
+
 dispApp :: (Disp expr) => Associativity -> expr -> Maybe Label -> expr -> Doc Ann
 dispApp req e1 labelOpt e2 =
   deepenParenWhen (req <= Atomic) $
@@ -461,6 +471,7 @@ instance Disp (ExprMainF ann) where
     As e1 tye2 -> dispAs req e1 tye2
     Bracket e1 -> dispBracket e1
     Escape e1 -> dispEscape e1
+    LamInfTy (TypeVar tyvar1) e2 -> dispLamInfType req tyvar1 e2
     Persistent e1 -> dispPersistent e1
     TyVar (TypeVar tyvar) -> "'" <> disp tyvar
     TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
@@ -588,6 +599,8 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
     A0RefinementAssert _loc a0ePred a0eTarget ->
       deepenParenWhen (req <= Atomic) $
         "ASSERT" <+> disp a0ePred <+> "FOR" <+> disp a0eTarget
+    A0LamType atyvar1 a0e2 ->
+      dispLamType req atyvar1 a0e2
     A0AppType a0e1 sa0tye2 ->
       dispAppType req a0e1 sa0tye2
 
@@ -616,6 +629,7 @@ instance (Disp sv) => Disp (Ass1ExprF sv) where
     A1IfThenElse a1e0 a1e1 a1e2 -> dispIfThenElse req a1e0 a1e1 a1e2
     A1Case a1e0 a1branches -> dispCase req a1e0 a1branches
     A1Escape a0e1 -> dispEscape a0e1
+    A1LamType atyvar1 a1e2 -> dispLamType req atyvar1 a1e2
     A1AppType a1e1 a1tye2 -> dispAppType req a1e1 a1tye2
 
 instance (Disp sv) => Disp (Ass1BranchF sv) where
@@ -1071,6 +1085,7 @@ instance (Disp sv) => Disp (Ass0ValF sv) where
     A0ValLam (Just (f, a0tyvRec)) (x, a0tyv1) a0v2 _env -> dispRecLam req f a0tyvRec Nothing x a0tyv1 a0v2
     A0ValBracket a1v1 -> dispBracket a1v1
     A0ValPartialBuiltInApp pba -> dispGen req pba
+    A0ValLamType atyvar1 a0e2 _env -> dispLamType req atyvar1 a0e2
 
 instance (Disp v) => Disp (Ass0PartialBuiltInApp v) where
   dispGen req = \case
@@ -1153,6 +1168,10 @@ instance (Disp sv) => Disp (Ass1ValF sv) where
       dispIfThenElse req a1v0 a1v1 a1v2
     A1ValCase a1v0 a1branchVs ->
       dispCase req a1v0 a1branchVs
+    A1ValLamType atyvar1 a1v2 ->
+      dispLamType req atyvar1 a1v2
+    A1ValAppType a1v1 a1tyv2 ->
+      dispAppType req a1v1 a1tyv2
 
 instance (Disp sv) => Disp (Ass1BranchValF sv) where
   dispGen _ (A1ValBranch a1pat a1e) = dispBranch a1pat a1e
@@ -1233,6 +1252,8 @@ instance (Disp sv) => Disp (BugF sv) where
       "Unbound variable" <+> disp x
     NotAClosure a0v ->
       "Not a closure:" <+> disp a0v
+    NotATypeClosure a0v ->
+      "Not a type closure:" <+> disp a0v
     NotACodeValue a0v ->
       "Not a code value:" <+> disp a0v
     NotAnInteger a0v ->

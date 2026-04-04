@@ -130,6 +130,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       frees ty0eq
     A0RefinementAssert _ a0ePred a0eTarget ->
       unionPairs [frees a0ePred, frees a0eTarget]
+    A0LamType _atyvar1 a0e2 ->
+      frees a0e2
     A0AppType a0e1 a0tye2 ->
       unionPairs [frees a0e1, frees a0tye2]
 
@@ -180,6 +182,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       A0TyEqAssert loc (go ty0eq)
     A0RefinementAssert loc a0ePred a0eTarget ->
       A0RefinementAssert loc (go a0ePred) (go a0eTarget)
+    A0LamType atyvar1 a0e2 ->
+      A0LamType atyvar1 (go a0e2)
     A0AppType a0e1 a0tye2 ->
       A0AppType (go a0e1) (go a0tye2)
     where
@@ -235,6 +239,10 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
         go ty0eq1 ty0eq2
       (A0RefinementAssert _ a0ePred1 a0eTarget1, A0RefinementAssert _ a0ePred2 a0eTarget2) ->
         go a0ePred1 a0ePred2 && go a0eTarget1 a0eTarget2
+      (A0LamType {}, A0LamType {}) ->
+        False -- TODO (enhance): `alphaEquivalent` for `A0LamType`
+      (A0AppType a0e11 a0tye12, A0AppType a0e21 a0tye22) ->
+        go a0e11 a0e21 && go a0tye12 a0tye22
       (_, _) ->
         False
     where
@@ -307,6 +315,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       unionPairs (frees a1e0 : fmap frees (NonEmpty.toList a1branches))
     A1Escape a0e1 ->
       frees a0e1
+    A1LamType _atyvar1 a1e2 ->
+      frees a1e2
     A1AppType a1e1 a1tye2 ->
       unionPairs [frees a1e1, frees a1tye2]
 
@@ -353,6 +363,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       A1Case (go a1e0) (fmap go a1branches)
     A1Escape a0e1 ->
       A1Escape (go a0e1)
+    A1LamType atyvar1 a1e2 ->
+      A1LamType atyvar1 (go a1e2)
     A1AppType a1e1 a1tye2 ->
       A1AppType (go a1e1) (go a1tye2)
     where
