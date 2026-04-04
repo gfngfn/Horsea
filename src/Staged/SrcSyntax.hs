@@ -149,7 +149,7 @@ type Bind = BindF Span
 
 data BindValF ann
   = BindValExternal (TypeExprF ann) External
-  | BindValNormal (ExprF ann)
+  | BindValNormal [LamBinderF ann] (Maybe (TypeExprF ann)) (ExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 type BindVal = BindValF Span

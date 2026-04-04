@@ -99,8 +99,8 @@ end
 module Maybe = struct
   val %map : forall 'a -> forall 'b -> ('a -> 'b) -> Maybe 'a -> Maybe 'b
     external (builtin = "maybe__map", surface = "map")
-  (* TODO: make this polymorphic *)
-  val ~unwrap = fun{type 'a} -> fun(d : 'a) -> fun(x : Maybe 'a) ->
+  (* TODO: make `Maybe.unwrap` persistent *)
+  val ~unwrap {type 'a} (d : 'a) (x : Maybe 'a) =
     case x of
     | Just v -> v
     | Nothing -> d

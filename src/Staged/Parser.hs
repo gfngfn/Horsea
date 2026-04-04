@@ -309,22 +309,6 @@ expr = letin
         makeCase locFirst e0 branches locLast =
           Expr (mergeSpan locFirst locLast) (Case e0 branches)
 
-    lamBinder :: P LamBinder
-    lamBinder =
-      (OmissibleBinder <$> noLoc labelOmissible <*> mandatoryBinder)
-        <|> (MandatoryBinder <$> optional (noLoc labelNormal) <*> mandatoryBinder)
-        <|> (makeInferableBinder <$> noLoc (brace (implicitBinderContent <|> typeBinderContent)))
-
-    mandatoryBinder :: P (Var, TypeExpr)
-    mandatoryBinder = noLoc (paren ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
-
-    implicitBinderContent = Left <$> ((,) <$> noLoc lower <*> (token TokColon *> typeExpr))
-    typeBinderContent = Right <$> (token TokType *> noLoc typeVar)
-
-    makeInferableBinder = \case
-      Left (x, tye) -> InferableBinder (x, tye)
-      Right tyvar -> TypeBinder tyvar
-
     branch :: P Branch
     branch =
       Branch <$> (token TokBar *> pat) <*> (token TokArrow *> expr)
@@ -355,6 +339,22 @@ expr = letin
 
 typeExpr :: P TypeExpr
 typeExpr = expr
+
+lamBinder :: P LamBinder
+lamBinder =
+  (OmissibleBinder <$> noLoc labelOmissible <*> mandatoryBinder)
+    <|> (MandatoryBinder <$> optional (noLoc labelNormal) <*> mandatoryBinder)
+    <|> (makeInferableBinder <$> noLoc (brace (implicitBinderContent <|> typeBinderContent)))
+  where
+    implicitBinderContent = Left <$> ((,) <$> noLoc lower <*> (token TokColon *> typeExpr))
+    typeBinderContent = Right <$> (token TokType *> noLoc typeVar)
+
+    makeInferableBinder = \case
+      Left (x, tye) -> InferableBinder (x, tye)
+      Right tyvar -> TypeBinder tyvar
+
+mandatoryBinder :: P (Var, TypeExpr)
+mandatoryBinder = noLoc (paren ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
 
 pat :: P Pattern
 pat = app
@@ -402,11 +402,11 @@ valBinder =
 
 bindVal :: P (BindVal, Span)
 bindVal =
-  (makeBindValExternal <$> (token TokColon *> typeExpr) <*> (token TokExternal *> external))
-    <|> (makeBindValNormal <$> (token TokEqual *> expr))
+  try (makeBindValExternal <$> (token TokColon *> typeExpr) <*> (token TokExternal *> external))
+    <|> (makeBindValNormal <$> many lamBinder <*> optional (token TokColon *> typeExpr) <*> (token TokEqual *> expr))
   where
     makeBindValExternal ty (Located locLast ext) = (BindValExternal ty ext, locLast)
-    makeBindValNormal e@(Expr locLast _) = (BindValNormal e, locLast)
+    makeBindValNormal binders tyeBodyOpt e@(Expr locLast _) = (BindValNormal binders tyeBodyOpt e, locLast)
 
 external :: P (Located External)
 external =

@@ -2927,16 +2927,16 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
                 typeError trav $ UnknownExternalName spanInFile extName
           let aPmetadata = AssPersMetadata {assPbuiltInName, assPsurfaceName = surfaceName}
           pure (SigRecord.singletonVal x (AssPersEntry aPtye aPmetadata), [])
-    BindVal stage x (BindValNormal e) -> do
+    BindVal stage x (BindValNormal params tyeBodyOpt e) -> do
       svX <- generateFreshVar (Just x)
       let ax = AssVarStatic svX
       case stage of
         Stage0 -> do
-          (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
+          (a0tye, a0e) <- typecheckLetInBody0 trav tyEnv params tyeBodyOpt e
           let sa0tye = strictify a0tye
           pure (SigRecord.singletonVal x (Ass0Entry a0tye (Right svX)), [ABind0 (ax, sa0tye) a0e])
         Stage1 -> do
-          (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
+          (a1tye, a1e) <- typecheckLetInBody1 trav tyEnv params tyeBodyOpt e
           pure (SigRecord.singletonVal x (Ass1Entry a1tye (Right svX)), [ABind1 (ax, a1tye) a1e])
         StagePers -> do
           -- TODO: bind persistent values
