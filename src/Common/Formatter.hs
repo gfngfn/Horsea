@@ -1085,7 +1085,7 @@ instance (Disp sv, Disp (af sv)) => Disp (ResultF af sv) where
     Instantiated0 r -> "instantiated0;" <+> disp r
     InsertInferredType0 sa0tye r -> "insert-inferred-type0" <+> disp sa0tye <> ";" <+> disp r
     Instantiated1 r -> "instantiated1;" <+> disp r
-    InsertType1 a1tye r -> "insert-type1" <+> disp a1tye <> ";" <+> disp r
+    InsertInferredType1 a1tye r -> "insert-inferred-type1" <+> disp a1tye <> ";" <+> disp r
 
 instance (Disp sv) => Disp (Ass0ValF sv) where
   dispGen req = \case

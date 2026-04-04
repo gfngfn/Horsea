@@ -1186,18 +1186,18 @@ mergeResultsByConditional0 trav loc a0e0 = go
               rest
           let pairs = (a0pat1, r1) :| pairsRest
           Instantiated1 <$> go pairs
-        InsertType1 a1tye1 r1 -> do
+        InsertInferredType1 a1tye1 r1 -> do
           triplesRest <-
             mapM
               ( \(a0pat, result) ->
                   case result of
-                    InsertType1 a1tye r -> pure (a0pat, (a1tye, r))
+                    InsertInferredType1 a1tye r -> pure (a0pat, (a1tye, r))
                     _ -> failure
               )
               rest
           let triples = (a0pat1, (a1tye1, r1)) :| triplesRest
           a1tye' <- mergeTypes1 (fmap (second fst) triples)
-          InsertType1 a1tye' <$> go (fmap (second snd) triples)
+          InsertInferredType1 a1tye' <$> go (fmap (second snd) triples)
 
     mergeTypes0 :: NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M trav Ass0TypeExpr
     mergeTypes0 pairs = do
@@ -1381,7 +1381,7 @@ instantiateGuidedByAppContext1 trav loc varsToInfer0 appCtx0 a1tye0 = do
             go varsToInfer (Set.insert atyvar tyvars1ToInfer) appCtx a1tye2
           case Map.lookup atyvar tyvar1Solution' of
             Just a1tyeInferred ->
-              pure (InsertType1 a1tyeInferred result', varSolution', tyvar1Solution')
+              pure (InsertInferredType1 a1tyeInferred result', varSolution', tyvar1Solution')
             Nothing -> do
               spanInFile <- askSpanInFile loc
               typeError trav $ CannotInferTypeVariableInstance1 spanInFile atyvar appCtx a1tye
@@ -2486,7 +2486,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
       case result of
         InsertOmitted1 result' ->
           completeImplicit (result', A1App a1e (A1Constructor "Nothing" []))
-        InsertType1 a1tyeInferred result' ->
+        InsertInferredType1 a1tyeInferred result' ->
           completeImplicit (result', A1AppType a1e a1tyeInferred)
         _ ->
           pair
@@ -2544,7 +2544,7 @@ mapMPure f = go
     go (Instantiated0 r) = Instantiated0 <$> go r
     go (InsertInferredType0 a0tye r) = InsertInferredType0 a0tye <$> go r
     go (Instantiated1 r) = Instantiated1 <$> go r
-    go (InsertType1 a1tye r) = InsertType1 a1tye <$> go r
+    go (InsertInferredType1 a1tye r) = InsertInferredType1 a1tye <$> go r
 
 validateIntLiteral :: trav -> Span -> Ass0Expr -> M trav Int
 validateIntLiteral trav loc a0e =

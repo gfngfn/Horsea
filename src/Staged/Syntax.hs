@@ -653,7 +653,7 @@ data ResultF af sv
   | Instantiated0 (ResultF af sv)
   | InsertInferredType0 (Ass0TypeExprF sv) (ResultF af sv)
   | Instantiated1 (ResultF af sv)
-  | InsertType1 (Ass1TypeExprF sv) (ResultF af sv)
+  | InsertInferredType1 (Ass1TypeExprF sv) (ResultF af sv)
   deriving (Eq, Show, Functor)
 
 type AssVar = AssVarF StaticVar

@@ -890,7 +890,7 @@ instance (HasVar sv af) => HasVar sv (ResultF af) where
     Instantiated0 r -> frees r
     InsertInferredType0 a0tye r -> unionPairs [frees a0tye, frees r]
     Instantiated1 r -> frees r
-    InsertType1 a1tye r -> unionPairs [frees a1tye, frees r]
+    InsertInferredType1 a1tye r -> unionPairs [frees a1tye, frees r]
 
   subst s = \case
     Pure v -> Pure (go v)
@@ -906,7 +906,7 @@ instance (HasVar sv af) => HasVar sv (ResultF af) where
     Instantiated0 r -> Instantiated0 (go r)
     InsertInferredType0 a0tye r -> InsertInferredType0 (go a0tye) (go r)
     Instantiated1 r -> Instantiated1 (go r)
-    InsertType1 a1tye r -> InsertType1 (go a1tye) (go r)
+    InsertInferredType1 a1tye r -> InsertInferredType1 (go a1tye) (go r)
     where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv
       go = subst s
