@@ -1661,6 +1661,8 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
               typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             InferableBinder {} : _ ->
               typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
+            TypeBinder {} : _ ->
+              error "TODO: typecheckExpr0, LetRecIn, TypeBinder"
             [] ->
               typeError trav $ LetRecRequiresNonEmptyParams spanInFile
         svFInner <- generateFreshVar (Just f)
@@ -1931,6 +1933,8 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
               let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
               let f1 = f0 . A0TyInfArrow (ax, a0tye)
               pure (tyEnv1, f1)
+            TypeBinder {} ->
+              error "TODO: constructFunTypeExpr0, TypeBinder"
       )
       (tyEnv, id)
       params
@@ -1957,6 +1961,8 @@ constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
                 typeError trav $ NonMaybeAnnotForLamOms1 spanInFile' a1tye
           InferableBinder (_x, _tye) ->
             typeError trav $ CannotUseLamInfAtStage1 spanInFile
+          TypeBinder {} ->
+            error "TODO: constructFunTypeExpr1, TypeBinder"
     )
     a1tyeBody
     params
@@ -2035,6 +2041,10 @@ typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A0TyInfArrow (ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
+    TypeBinder tyvar : params' -> do
+      atyvar <- generateFreshTypeVar tyvar
+      (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv) params' tyeBodyOpt e1
+      pure (A0TyImplicitForAll atyvar a0tye', A0LamType atyvar a0e')
 
 forceExpr1 :: trav -> TypeEnv -> Ass1TypeExpr -> Expr -> M trav Ass1Expr
 forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
@@ -2279,6 +2289,8 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
               typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             InferableBinder {} : _ ->
               typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
+            TypeBinder {} : _ ->
+              error "TODO: typecheckExpr1, LetRecIn, TypeBinder"
             [] ->
               typeError trav $ LetRecRequiresNonEmptyParams spanInFile
         svFInner <- generateFreshVar (Just f)
@@ -2462,6 +2474,10 @@ typecheckLetInBody1 trav tyEnv params tyeBodyOpt e1 =
       let Expr loc _ = tye -- TODO (enhance): give a better code position
       spanInFile <- askSpanInFile loc
       typeError trav $ CannotUseLamInfAtStage1 spanInFile
+    TypeBinder tyvar : params' -> do
+      atyvar <- generateFreshTypeVar tyvar
+      (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv) params' tyeBodyOpt e1
+      pure (A1TyImplicitForAll atyvar a1tye', A1LamType atyvar a1e')
 
 mapMPure :: (af StaticVar -> M trav (bf StaticVar)) -> ResultF af StaticVar -> M trav (ResultF bf StaticVar)
 mapMPure f = go

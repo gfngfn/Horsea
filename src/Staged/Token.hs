@@ -62,6 +62,7 @@ data Token
   | TokOf
   | TokAs
   | TokVal
+  | TokType
   | TokModule
   | TokStruct
   | TokEnd
@@ -127,6 +128,7 @@ showToken = \case
   TokOf -> "of"
   TokAs -> "as"
   TokVal -> "val"
+  TokType -> "type"
   TokModule -> "module"
   TokStruct -> "struct"
   TokEnd -> "end"
@@ -158,6 +160,7 @@ keywordMap =
       ("of", TokOf),
       ("as", TokAs),
       ("val", TokVal),
+      ("type", TokType),
       ("module", TokModule),
       ("struct", TokStruct),
       ("end", TokEnd),

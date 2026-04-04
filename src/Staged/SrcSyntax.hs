@@ -96,6 +96,7 @@ data LamBinderF ann
   = MandatoryBinder (Maybe Label) (Var, TypeExprF ann)
   | OmissibleBinder Label (Var, TypeExprF ann)
   | InferableBinder (Var, TypeExprF ann)
+  | TypeBinder TypeVar
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 data BranchF ann = Branch (PatternF ann) (ExprF ann)

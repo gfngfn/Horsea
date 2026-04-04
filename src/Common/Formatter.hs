@@ -471,15 +471,15 @@ instance Disp (ExprMainF ann) where
     As e1 tye2 -> dispAs req e1 tye2
     Bracket e1 -> dispBracket e1
     Escape e1 -> dispEscape e1
-    LamInfTy (TypeVar tyvar1) e2 -> dispLamInfType req tyvar1 e2
+    LamInfTy tyvar1 e2 -> dispLamInfType req tyvar1 e2
     Persistent e1 -> dispPersistent e1
-    TyVar (TypeVar tyvar) -> "'" <> disp tyvar
+    TyVar tyvar -> disp tyvar
     TyArrow labelOpt (xOpt, tye1) tye2 -> dispArrowType req labelOpt xOpt tye1 tye2
     TyOmsArrow label (xOpt, tye1) tye2 -> dispOmsArrowType req label xOpt tye1 tye2
     TyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2
     TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
     Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
-    TyForAll (TypeVar tyvar) tye -> "forall '" <> disp tyvar <+> "->" <+> disp tye
+    TyForAll tyvar tye -> "forall" <+> disp tyvar <+> "->" <+> disp tye
 
 instance Disp (LamBinderF ann) where
   dispGen _ = \case
@@ -487,6 +487,7 @@ instance Disp (LamBinderF ann) where
     MandatoryBinder (Just label) (x, tye) -> "#" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
     OmissibleBinder label (x, tye) -> "?" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
     InferableBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
+    TypeBinder tyvar -> "{type" <+> disp tyvar <+> "}"
 
 instance Disp (BranchF ann) where
   dispGen _ (Branch pat e) = dispBranch pat e
@@ -501,10 +502,10 @@ instance Disp (PatternMainF ann) where
     PatVar x -> disp x
     PatBool b -> dispBool b
 
-$(deriveDisp definitions)
-
 instance Disp TypeVar where
   dispGen _ (TypeVar a) = "'" <> disp a
+
+$(deriveDisp definitions)
 
 instance Disp BuiltIn where
   dispGen req = \case
@@ -762,8 +763,8 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Invalid syntax as type expression" <+> disp spanInFile
     UnboundVar spanInFile ms x ->
       "Unbound variable" <+> dispLongName ms x <+> disp spanInFile
-    UnboundTypeVar spanInFile (TypeVar a) ->
-      "Unbound type variable" <+> disp a <+> disp spanInFile
+    UnboundTypeVar spanInFile tyvar ->
+      "Unbound type variable" <+> disp tyvar <+> disp spanInFile
     UnboundModule spanInFile m ->
       "Unbound module" <+> disp m <+> disp spanInFile
     NotAStage0Var spanInFile x ->

@@ -298,6 +298,7 @@ expr = letin
               MandatoryBinder labelOpt xBinder -> Lam Nothing labelOpt xBinder e
               OmissibleBinder label xBinder -> LamOms label xBinder e
               InferableBinder xBinder -> LamInf xBinder e
+              TypeBinder tyvar -> LamInfTy tyvar e
 
         makeRecLam locFirst fBinder xBinder e@(Expr locLast _) =
           Expr (mergeSpan locFirst locLast) (Lam (Just fBinder) Nothing xBinder e)
@@ -312,11 +313,17 @@ expr = letin
     lamBinder =
       (OmissibleBinder <$> noLoc labelOmissible <*> mandatoryBinder)
         <|> (MandatoryBinder <$> optional (noLoc labelNormal) <*> mandatoryBinder)
-        <|> (InferableBinder <$> implicitBinder)
+        <|> (makeInferableBinder <$> noLoc (brace (implicitBinderContent <|> typeBinderContent)))
 
-    mandatoryBinder, implicitBinder :: P (Var, TypeExpr)
+    mandatoryBinder :: P (Var, TypeExpr)
     mandatoryBinder = noLoc (paren ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
-    implicitBinder = noLoc (brace ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
+
+    implicitBinderContent = Left <$> ((,) <$> noLoc lower <*> (token TokColon *> typeExpr))
+    typeBinderContent = Right <$> (token TokType *> noLoc typeVar)
+
+    makeInferableBinder = \case
+      Left (x, tye) -> InferableBinder (x, tye)
+      Right tyvar -> TypeBinder tyvar
 
     branch :: P Branch
     branch =
