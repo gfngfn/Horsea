@@ -112,6 +112,13 @@ makeBinOpApp e1@(Expr loc1 _) (Located locBinOp binOp) e2@(Expr loc2 _) =
     locLeft = mergeSpan loc1 locBinOp
     eOp = Expr locBinOp (Var ([], binOp))
 
+makeBinOpPattern :: Pattern -> Located Var -> Pattern -> Pattern
+makeBinOpPattern pat1@(Pattern loc1 _) (Located locOp binOp) pat2@(Pattern loc2 _) =
+  Pattern (mergeSpan locLeft loc2) (PatApp (Pattern locLeft (PatApp patOp pat1)) pat2)
+  where
+    locLeft = mergeSpan loc1 locOp
+    patOp = Pattern locOp (PatConstructor ([], binOp))
+
 data FunArg
   = FunArgMandatory (Maybe (Located Text)) Expr
   | FunArgOms (Located Text) Expr
@@ -358,13 +365,14 @@ mandatoryBinder :: P (Var, TypeExpr)
 mandatoryBinder = noLoc (paren ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
 
 pat :: P Pattern
-pat = app
+pat = con
   where
     atom :: P Pattern
     atom =
       (makeBool True <$> token TokTrue)
         <|> (makeBool False <$> token TokFalse)
         <|> (makeVar <$> lower)
+        <|> (makeListNil <$> token TokLeftSquare <*> token TokRightSquare)
         <|> (makeConstructor <$> longOrShortUpper)
         <|> (makeEnclosed <$> paren pat)
       where
@@ -372,6 +380,7 @@ pat = app
         makeEnclosed (Located loc (Pattern _ patMain)) = Pattern loc patMain
         makeBool b loc = Pattern loc (PatBool b)
         makeConstructor (Located loc qualCtor) = Pattern loc (PatConstructor qualCtor)
+        makeListNil loc1 loc2 = Pattern (mergeSpan loc1 loc2) PatListNil
 
     app :: P Pattern
     app =
@@ -383,6 +392,9 @@ pat = app
         makeAppSingle :: Pattern -> Pattern -> Pattern
         makeAppSingle pat1@(Pattern loc1 _) pat2@(Pattern loc2 _) =
           Pattern (mergeSpan loc1 loc2) (PatApp pat1 pat2)
+
+    con :: P Pattern
+    con = binSep makeBinOpPattern consOp app
 
 bind :: P Bind
 bind =

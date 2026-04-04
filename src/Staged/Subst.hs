@@ -272,6 +272,8 @@ freesInPattern0 = \case
   A0PatConstructor _ctor a0pats -> Set.unions (map freesInPattern0 a0pats)
   A0PatVar x -> Set.singleton x
   A0PatBool _ -> Set.empty
+  A0PatListNil -> Set.empty
+  A0PatListCons a0pat1 a0pat2 -> Set.union (freesInPattern0 a0pat1) (freesInPattern0 a0pat2)
 
 instance (Ord sv) => HasVar sv Ass1ExprF where
   frees = \case
@@ -434,6 +436,8 @@ freesInPattern1 = \case
   A1PatConstructor _ctor a1pats -> Set.unions (map freesInPattern1 a1pats)
   A1PatVar x -> Set.singleton x
   A1PatBool _ -> Set.empty
+  A1PatListNil -> Set.empty
+  A1PatListCons a1pat1 a1pat2 -> Set.union (freesInPattern1 a1pat1) (freesInPattern1 a1pat2)
 
 instance (Ord sv) => HasVar sv Ass0TypeExprF where
   frees = \case

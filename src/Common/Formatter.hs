@@ -507,6 +507,7 @@ instance Disp (PatternMainF ann) where
     PatApp pat1 pat2 -> dispApp req pat1 Nothing pat2
     PatVar x -> disp x
     PatBool b -> dispBool b
+    PatListNil -> "[]"
 
 instance Disp TypeVar where
   dispGen _ (TypeVar a) = "'" <> disp a
@@ -619,6 +620,8 @@ instance (Disp sv) => Disp (Ass0PatternF sv) where
     A0PatConstructor ctor a0pats -> dispConstructorApp req ctor a0pats
     A0PatVar x -> disp x
     A0PatBool b -> dispBool b
+    A0PatListNil -> "[]"
+    A0PatListCons a0pat1 a0pat2 -> dispConstructorApp req "::" [a0pat1, a0pat2]
 
 instance (Disp sv) => Disp (Ass1ExprF sv) where
   dispGen req = \case
@@ -647,6 +650,8 @@ instance (Disp sv) => Disp (Ass1PatternF sv) where
     A1PatConstructor ctor a0pats -> dispConstructorApp req ctor a0pats
     A1PatVar x -> disp x
     A1PatBool b -> dispBool b
+    A1PatListNil -> "[]"
+    A1PatListCons a1pat1 a1pat2 -> dispConstructorApp req "::" [a1pat1, a1pat2]
 
 instance Disp AssPrimBaseType where
   dispGen _req = \case

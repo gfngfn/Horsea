@@ -347,6 +347,12 @@ matchWithPattern a0v a0pat =
       if b1 == b2
         then pure Map.empty
         else Nothing
+    (A0ValLiteral (ALitList []), A0PatListNil) ->
+      pure Map.empty
+    (A0ValLiteral (ALitList (a0vHead : a0vsTail)), A0PatListCons a0patHead a0patsTail) -> do
+      bindings1 <- matchWithPattern a0vHead a0patHead
+      bindings2 <- matchWithPattern (A0ValLiteral (ALitList a0vsTail)) a0patsTail
+      pure $ Map.union bindings1 bindings2
     _ ->
       Nothing
 
@@ -647,6 +653,8 @@ unliftPattern = \case
   A1PatConstructor ctor a1pats -> A0PatConstructor ctor (map unliftPattern a1pats)
   A1PatVar ax -> A0PatVar ax
   A1PatBool b -> A0PatBool b
+  A1PatListNil -> A0PatListNil
+  A1PatListCons a1pat1 a1pat2 -> A0PatListCons (unliftPattern a1pat1) (unliftPattern a1pat2)
 
 unliftTypeVal :: Ass1TypeVal -> StrictAss0TypeExpr
 unliftTypeVal = \case

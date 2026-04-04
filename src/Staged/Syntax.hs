@@ -153,6 +153,8 @@ data Ass0PatternF sv
   = A0PatConstructor ConstructorName [Ass0PatternF sv]
   | A0PatVar (AssVarF sv)
   | A0PatBool Bool
+  | A0PatListNil
+  | A0PatListCons (Ass0PatternF sv) (Ass0PatternF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-1 expressions obtained by elaboration through typechecking.
@@ -181,6 +183,8 @@ data Ass1PatternF sv
   = A1PatConstructor ConstructorName [Ass1PatternF sv]
   | A1PatVar (AssVarF sv)
   | A1PatBool Bool
+  | A1PatListNil
+  | A1PatListCons (Ass1PatternF sv) (Ass1PatternF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of bindings obtained by elaboration through typechecking.
