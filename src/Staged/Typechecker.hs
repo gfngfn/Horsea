@@ -134,7 +134,7 @@ makeAssertiveCast trav loc =
               -- such that `atyvar` is tracked by the type environment and thereby is not for inference,
               -- then only exact equality is allowed:
               pure (Nothing, Map.empty, Map.empty)
-        (A0TyImplicitForAll tyvar1 a0tye12, _) -> do
+        (A0TyForAll tyvar1 a0tye12, _) -> do
           (cast', varSolution', tyvar0Solution') <-
             go varsToInfer (Set.insert tyvar1 tyvars0ToInfer) a0tye12 a0tye2
           case Map.lookup tyvar1 tyvar0Solution' of
@@ -149,7 +149,7 @@ makeAssertiveCast trav loc =
               pure (cast, varSolution', tyvar0Solution')
             Nothing ->
               typeError trav $ CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile tyvar1 a0tye12 a0tye2
-        (_, A0TyImplicitForAll atyvar2 a0tye2') ->
+        (_, A0TyForAll atyvar2 a0tye2') ->
           typeError trav $ Unsupported spanInFile $ HigherRankPolymorphism a0tye1 atyvar2 a0tye2'
         (A0TyPrim a0tyPrim1 maybePred1, A0TyPrim a0tyPrim2 maybePred2') -> do
           -- Ad-hoc optimization of refinement cast insertion.
@@ -575,7 +575,7 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
               let varSolution = composeVarSolution varSolution1 varSolution2
               let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2
               pure (trivial1 && trivial2, TyEq1OmsArrow label1 ty1eqDom ty1eqCod, varSolution, tyvar1Solution)
-        (_, A1TyImplicitForAll atyvar2 a1tye22) ->
+        (_, A1TyForAll atyvar2 a1tye22) ->
           -- Not confident. TODO (theory): ensure that this works correctly
           go varsToInfer (Set.insert atyvar2 tyvars1ToInfer) a1tye1 a1tye22
         (_, _) ->
@@ -783,17 +783,17 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
             )
             rest
           pure $ A0TyVar atyvar1
-        A0TyImplicitForAll atyvar1 a0tyeSub1 -> do
+        A0TyForAll atyvar1 a0tyeSub1 -> do
           triplesRest <-
             mapM
               ( \(a0pat, a0tye) ->
                   case a0tye of
-                    A0TyImplicitForAll atyvar a0tyeSub -> pure (a0pat, (atyvar, a0tyeSub))
+                    A0TyForAll atyvar a0tyeSub -> pure (a0pat, (atyvar, a0tyeSub))
                     _ -> failure
               )
               rest
           let pairs = (a0pat1, a0tyeSub1) :| map (second (uncurry (tySubst0 (A0TyVar atyvar1)))) triplesRest
-          A0TyImplicitForAll atyvar1 <$> go0 pairs
+          A0TyForAll atyvar1 <$> go0 pairs
 
     mergeRefinementPredicates :: (Maybe Ass0Expr -> StrictAss0TypeExpr) -> NonEmpty (Ass0Pattern, Maybe Ass0Expr) -> M' ConditionalMergeError trav (Maybe Ass0Expr)
     mergeRefinementPredicates sa0tyef patAndMaybePredPairs =
@@ -986,17 +986,17 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
             )
             rest
           pure $ A1TyVar atyvar1
-        A1TyImplicitForAll atyvar1 a1tyeSub1 -> do
+        A1TyForAll atyvar1 a1tyeSub1 -> do
           triplesRest <-
             mapM
               ( \(a0pat, a1tye) ->
                   case a1tye of
-                    A1TyImplicitForAll atyvar a1tyeSub -> pure (a0pat, (atyvar, a1tyeSub))
+                    A1TyForAll atyvar a1tyeSub -> pure (a0pat, (atyvar, a1tyeSub))
                     _ -> failure
               )
               rest
           let pairs = (a0pat1, a1tyeSub1) :| map (second (uncurry (tySubst1 (A1TyVar atyvar1)))) triplesRest
-          A1TyImplicitForAll atyvar1 <$> go1 pairs
+          A1TyForAll atyvar1 <$> go1 pairs
 
 extractListLiteralsIfAll :: NonEmpty (Ass0Pattern, Ass0Expr) -> Maybe (NonEmpty (Ass0Pattern, [Ass0Expr]))
 extractListLiteralsIfAll =
@@ -1324,7 +1324,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
           let tyvar0Solution = Map.empty
           result <- mapMPure (pure . A0TyCode) result'
           pure (result, varSolution, tyvar0Solution)
-        (_ : _, A0TyImplicitForAll atyvar a0tye2) -> do
+        (_ : _, A0TyForAll atyvar a0tye2) -> do
           (result', varSolution', tyvar0Solution') <-
             go varsToInfer (Set.insert atyvar tyvars0ToInfer) appCtx a0tye2
           case Map.lookup atyvar tyvar0Solution' of
@@ -1347,7 +1347,7 @@ instantiateGuidedByAppContext1 trav loc varsToInfer0 appCtx0 a1tye0 = do
       case (appCtx, a1tye) of
         ([], _) ->
           pure (Pure a1tye, Map.empty, Map.empty)
-        (_ : _, A1TyImplicitForAll atyvar a1tye2) -> do
+        (_ : _, A1TyForAll atyvar a1tye2) -> do
           (result', varSolution', tyvar1Solution') <-
             go varsToInfer (Set.insert atyvar tyvars1ToInfer) appCtx a1tye2
           case Map.lookup atyvar tyvar1Solution' of
@@ -1786,7 +1786,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             (a0tye2, a0e2) <- do
               let tyEnv' = TypeEnv.addTypeVar tyvar1 (TypeVarEntry0 atyvar1) tyEnv
               typecheckExpr0Single trav tyEnv' e2
-            pure (Pure (A0TyImplicitForAll atyvar1 a0tye2), A0LamType atyvar1 a0e2)
+            pure (Pure (A0TyForAll atyvar1 a0tye2), A0LamType atyvar1 a0e2)
           _ : _ ->
             error "TODO: typecheckExpr0, LamInfTy, non-empty context"
       Persistent _ ->
@@ -1936,7 +1936,7 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
             TypeBinder tyvar -> do
               atyvar <- generateFreshTypeVar tyvar
               let tyEnv1 = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv0
-              let f1 = f0 . A0TyImplicitForAll atyvar
+              let f1 = f0 . A0TyForAll atyvar
               pure (tyEnv1, f1)
       )
       (tyEnv, id)
@@ -1966,7 +1966,7 @@ constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
             typeError trav $ CannotUseLamInfAtStage1 spanInFile
           TypeBinder tyvar -> do
             atyvar <- generateFreshTypeVar tyvar
-            pure $ A1TyImplicitForAll atyvar a1tyeAcc
+            pure $ A1TyForAll atyvar a1tyeAcc
     )
     a1tyeBody
     params
@@ -2048,7 +2048,7 @@ typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
     TypeBinder tyvar : params' -> do
       atyvar <- generateFreshTypeVar tyvar
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv) params' tyeBodyOpt e1
-      pure (A0TyImplicitForAll atyvar a0tye', A0LamType atyvar a0e')
+      pure (A0TyForAll atyvar a0tye', A0LamType atyvar a0e')
 
 forceExpr1 :: trav -> TypeEnv -> Ass1TypeExpr -> Expr -> M trav Ass1Expr
 forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
@@ -2429,7 +2429,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             (a1tye2, a1e2) <- do
               let tyEnv' = TypeEnv.addTypeVar tyvar1 (TypeVarEntry1 atyvar1) tyEnv
               typecheckExpr1Single trav tyEnv' e2
-            pure (Pure (A1TyImplicitForAll atyvar1 a1tye2), A1LamType atyvar1 a1e2)
+            pure (Pure (A1TyForAll atyvar1 a1tye2), A1LamType atyvar1 a1e2)
           _ : _ ->
             error "TODO: typecheckExpr0, LamInfTy, non-empty context"
       Persistent _ ->
@@ -2481,7 +2481,7 @@ typecheckLetInBody1 trav tyEnv params tyeBodyOpt e1 =
     TypeBinder tyvar : params' -> do
       atyvar <- generateFreshTypeVar tyvar
       (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv) params' tyeBodyOpt e1
-      pure (A1TyImplicitForAll atyvar a1tye', A1LamType atyvar a1e')
+      pure (A1TyForAll atyvar a1tye', A1LamType atyvar a1e')
 
 mapMPure :: (af StaticVar -> M trav (bf StaticVar)) -> ResultF af StaticVar -> M trav (ResultF bf StaticVar)
 mapMPure f = go
@@ -2681,7 +2681,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
       a0tye1 <- do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv
         typecheckTypeExpr0 trav tyEnv' tye1
-      pure $ A0TyImplicitForAll atyvar a0tye1
+      pure $ A0TyForAll atyvar a0tye1
     (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfTy {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
@@ -2831,7 +2831,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
       a1tye1 <- do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv
         typecheckTypeExpr1 trav tyEnv' tye1
-      pure $ A1TyImplicitForAll atyvar a1tye1
+      pure $ A1TyForAll atyvar a1tye1
     (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfTy {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
@@ -2876,9 +2876,9 @@ validatePersistentType trav loc a0tye =
         Left Nothing
       A0TyCode _ ->
         Left Nothing
-      A0TyImplicitForAll atyvar a0tye' -> do
+      A0TyForAll atyvar a0tye' -> do
         aPtye' <- go a0tye'
-        pure $ APersTyImplicitForAll atyvar aPtye'
+        pure $ APersTyForAll atyvar aPtye'
 
 extractFromExternal :: ExternalField -> External -> Maybe Text
 extractFromExternal field0 =

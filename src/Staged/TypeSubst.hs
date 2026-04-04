@@ -51,8 +51,8 @@ instance HasTypeVar Ass0TypeExprF where
       A0TyOmsArrow label (svOpt, go a0tye1) (go a0tye2)
     A0TyCode a1tye1 ->
       A0TyCode (go a1tye1)
-    A0TyImplicitForAll atyvar a0tye1 ->
-      A0TyImplicitForAll atyvar $
+    A0TyForAll atyvar a0tye1 ->
+      A0TyForAll atyvar $
         case s of
           TypeSubst0 atyvar' _ -> if atyvar == atyvar' then a0tye1 else go a0tye1
           TypeSubst1 _ _ -> go a0tye1
@@ -79,8 +79,8 @@ instance HasTypeVar StrictAss0TypeExprF where
       SA0TyArrow (svOpt, go sa0tye1) (go sa0tye2)
     SA0TyCode a1tye1 ->
       SA0TyCode (go a1tye1)
-    SA0TyExplicitForAll atyvar sa0tye1 ->
-      SA0TyExplicitForAll atyvar $
+    SA0TyForAll atyvar sa0tye1 ->
+      SA0TyForAll atyvar $
         case s of
           TypeSubst0 atyvar' _ -> if atyvar == atyvar' then sa0tye1 else go sa0tye1
           TypeSubst1 _ _ -> go sa0tye1
@@ -101,8 +101,8 @@ instance HasTypeVar Ass1TypeExprF where
     A1TyProduct a1tyes -> A1TyProduct (fmap go a1tyes)
     A1TyArrow labelOpt a1tye1 a1tye2 -> A1TyArrow labelOpt (go a1tye1) (go a1tye2)
     A1TyOmsArrow label a1tye1 a1tye2 -> A1TyOmsArrow label (go a1tye1) (go a1tye2)
-    A1TyImplicitForAll atyvar a1tye2 ->
-      A1TyImplicitForAll atyvar $
+    A1TyForAll atyvar a1tye2 ->
+      A1TyForAll atyvar $
         case s of
           TypeSubst0 _ _ -> go a1tye2
           TypeSubst1 atyvar' _ -> if atyvar == atyvar' then a1tye2 else go a1tye2
@@ -201,8 +201,8 @@ instance HasTypeVar Type1EquationF where
           if atyvar == atyvar'
             then makeTrivialEquationFromType1 a1tye'
             else TyEq1TypeVar atyvar
-    TyEq1ImplicitForAll atyvar ty1eq ->
-      TyEq1ImplicitForAll atyvar (go ty1eq)
+    TyEq1ForAll atyvar ty1eq ->
+      TyEq1ForAll atyvar (go ty1eq)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s

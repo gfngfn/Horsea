@@ -221,7 +221,7 @@ data Ass0TypeExprF sv
     A0TyOmsArrow Label (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | A0TyCode (Ass1TypeExprF sv)
   | -- | Polymorphic types.
-    A0TyImplicitForAll AssTypeVar (Ass0TypeExprF sv)
+    A0TyForAll AssTypeVar (Ass0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of type annotations in target terms.
@@ -238,7 +238,7 @@ data StrictAss0TypeExprF sv
     SA0TyArrow (Maybe (AssVarF sv), StrictAss0TypeExprF sv) (StrictAss0TypeExprF sv)
   | SA0TyCode (Ass1TypeExprF sv)
   | -- | Polymorphic types.
-    SA0TyExplicitForAll AssTypeVar (StrictAss0TypeExprF sv)
+    SA0TyForAll AssTypeVar (StrictAss0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data AssPrimBaseType
@@ -291,7 +291,7 @@ data Ass1TypeExprF sv
   | A1TyProduct (TwoOrMore (Ass1TypeExprF sv))
   | A1TyArrow (Maybe Label) (Ass1TypeExprF sv) (Ass1TypeExprF sv)
   | A1TyOmsArrow Label (Ass1TypeExprF sv) (Ass1TypeExprF sv)
-  | A1TyImplicitForAll AssTypeVar (Ass1TypeExprF sv)
+  | A1TyForAll AssTypeVar (Ass1TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data Ass1PrimTypeF sv
@@ -310,7 +310,7 @@ data AssPersTypeExpr
   | APersTyMaybe AssPersTypeExpr
   | APersTyProduct (TwoOrMore AssPersTypeExpr)
   | APersTyArrow (Maybe Label) AssPersTypeExpr AssPersTypeExpr
-  | APersTyImplicitForAll AssTypeVar AssPersTypeExpr
+  | APersTyForAll AssTypeVar AssPersTypeExpr
   deriving stock (Eq, Show)
 
 persistentTypeTo0 :: AssPersTypeExpr -> Ass0TypeExprF sv
@@ -321,7 +321,7 @@ persistentTypeTo0 = \case
   APersTyMaybe aPtye -> A0TyMaybe (persistentTypeTo0 aPtye)
   APersTyProduct aPtyes -> A0TyProduct (fmap persistentTypeTo0 aPtyes)
   APersTyArrow labelOpt aPtye1 aPtye2 -> A0TyArrow labelOpt (Nothing, persistentTypeTo0 aPtye1) (persistentTypeTo0 aPtye2)
-  APersTyImplicitForAll atyvar aPtye -> A0TyImplicitForAll atyvar (persistentTypeTo0 aPtye)
+  APersTyForAll atyvar aPtye -> A0TyForAll atyvar (persistentTypeTo0 aPtye)
 
 persistentTypeTo1 :: AssPersTypeExpr -> Ass1TypeExprF sv
 persistentTypeTo1 = \case
@@ -331,7 +331,7 @@ persistentTypeTo1 = \case
   APersTyMaybe aPtye -> A1TyMaybe (persistentTypeTo1 aPtye)
   APersTyProduct aPtyes -> A1TyProduct (fmap persistentTypeTo1 aPtyes)
   APersTyArrow labelOpt aPtye1 aPtye2 -> A1TyArrow labelOpt (persistentTypeTo1 aPtye1) (persistentTypeTo1 aPtye2)
-  APersTyImplicitForAll atyvar aPtye -> A1TyImplicitForAll atyvar (persistentTypeTo1 aPtye)
+  APersTyForAll atyvar aPtye -> A1TyForAll atyvar (persistentTypeTo1 aPtye)
 
 liftPrimType :: Ass0PrimType -> Ass1PrimTypeF sv
 liftPrimType = \case
@@ -401,7 +401,7 @@ data Ass0TypeValF sv
   | A0TyValProduct (TwoOrMore (Ass0TypeValF sv))
   | A0TyValArrow (Maybe (AssVarF sv), Ass0TypeValF sv) (StrictAss0TypeExprF sv)
   | A0TyValCode (Ass1TypeValF sv)
-  | A0TyValExplicitForAll AssTypeVar (StrictAss0TypeExprF sv)
+  | A0TyValForAll AssTypeVar (StrictAss0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-1 type values.
@@ -413,7 +413,7 @@ data Ass1TypeValF sv
   | A1TyValProduct (TwoOrMore (Ass1TypeValF sv))
   | A1TyValArrow (Maybe Label) (Ass1TypeValF sv) (Ass1TypeValF sv)
   | A1TyValOmsArrow Label (Ass1TypeValF sv) (Ass1TypeValF sv)
-  | A1TyValImplicitForAll AssTypeVar (Ass1TypeValF sv)
+  | A1TyValForAll AssTypeVar (Ass1TypeValF sv)
   deriving stock (Eq, Show, Functor)
 
 data Ass1PrimTypeVal
@@ -435,7 +435,7 @@ data Type1EquationF sv
   | -- | Only for trivial equations.
     TyEq1TypeVar AssTypeVar
   | -- | Only for trivial equations.
-    TyEq1ImplicitForAll AssTypeVar (Type1EquationF sv)
+    TyEq1ForAll AssTypeVar (Type1EquationF sv)
   deriving stock (Eq, Show, Functor)
 
 data Type1PrimEquationF sv
@@ -510,7 +510,7 @@ strictify = \case
   A0TyCode a1tye1 -> SA0TyCode a1tye1
   A0TyInfArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictify a0tye1) (strictify a0tye2)
   A0TyOmsArrow _label (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, SA0TyMaybe (strictify a0tye1)) (strictify a0tye2)
-  A0TyImplicitForAll atyvar a0tye -> SA0TyExplicitForAll atyvar (strictify a0tye)
+  A0TyForAll atyvar a0tye -> SA0TyForAll atyvar (strictify a0tye)
 
 a0TyVec :: Int -> Ass0PrimType
 a0TyVec n = A0TyTensor [n]
@@ -555,8 +555,8 @@ makeTrivialEquationFromType1 = \case
     TyEq1Arrow labelOpt (makeTrivialEquationFromType1 a1tye1) (makeTrivialEquationFromType1 a1tye2)
   A1TyOmsArrow label a1tye1 a1tye2 ->
     TyEq1OmsArrow label (makeTrivialEquationFromType1 a1tye1) (makeTrivialEquationFromType1 a1tye2)
-  A1TyImplicitForAll atyvar a1tye ->
-    TyEq1ImplicitForAll atyvar (makeTrivialEquationFromType1 a1tye)
+  A1TyForAll atyvar a1tye ->
+    TyEq1ForAll atyvar (makeTrivialEquationFromType1 a1tye)
 
 decomposeType1Equation :: Type1EquationF sv -> (Ass1TypeExprF sv, Ass1TypeExprF sv)
 decomposeType1Equation = \case
@@ -610,9 +610,9 @@ decomposeType1Equation = \case
      in (A1TyProduct (fmap fst a1tyePairs), A1TyProduct (fmap snd a1tyePairs))
   TyEq1TypeVar atyvar ->
     (A1TyVar atyvar, A1TyVar atyvar)
-  TyEq1ImplicitForAll atyvar ty1eq ->
+  TyEq1ForAll atyvar ty1eq ->
     let (a1tye1, a1tye2) = decomposeType1Equation ty1eq
-     in (A1TyImplicitForAll atyvar a1tye1, A1TyImplicitForAll atyvar a1tye2)
+     in (A1TyForAll atyvar a1tye1, A1TyForAll atyvar a1tye2)
   where
     prims p = (A1TyPrim p, A1TyPrim p)
 

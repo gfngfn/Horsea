@@ -681,7 +681,7 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyCode a1tye1 -> dispBracket a1tye1
     A0TyInfArrow (x, a0tye1) a0tye2 -> dispInfArrowType req x a0tye1 a0tye2
     A0TyOmsArrow label (xOpt, a0tye1) a0tye2 -> dispOmsArrowType req label xOpt a0tye1 a0tye2
-    A0TyImplicitForAll atyvar a0tye -> dispForAllType req atyvar a0tye
+    A0TyForAll atyvar a0tye -> dispForAllType req atyvar a0tye
 
 instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
   dispGen req = \case
@@ -694,7 +694,7 @@ instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
     SA0TyProduct sa0tyes -> dispProductType req sa0tyes
     SA0TyArrow (xOpt, sa0tye1) sa0tye2 -> dispArrowType req Nothing xOpt sa0tye1 sa0tye2
     SA0TyCode a1tye1 -> dispBracket a1tye1
-    SA0TyExplicitForAll atyvar sa0tye -> dispForAllType req atyvar sa0tye
+    SA0TyForAll atyvar sa0tye -> dispForAllType req atyvar sa0tye
 
 instance (Disp sv) => Disp (Ass1PrimTypeF sv) where
   dispGen req = \case
@@ -721,7 +721,7 @@ instance (Disp sv) => Disp (Ass1TypeExprF sv) where
     A1TyProduct a1tyes -> dispProductType req a1tyes
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2
     A1TyOmsArrow label a1tye1 a1tye2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tye1 a1tye2
-    A1TyImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
+    A1TyForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
 
 instance Disp FrontError where
   dispGen _ = \case
@@ -1026,7 +1026,7 @@ instance (Disp sv) => Disp (UnsupportedF sv) where
       "Higher-rank polymorphism; we must judge that"
         <+> stage0Style (disp a0tye1)
         <+> "be more general than"
-        <+> stage0Style (disp (A0TyImplicitForAll atyvar a0tye2))
+        <+> stage0Style (disp (A0TyForAll atyvar a0tye2))
         <> ", but this has not been supported so far"
     AsWithArguments appCtx ->
       "Function with an as-coercion applied to argument(s); consider let-binding it to a variable"
@@ -1189,7 +1189,7 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
        in dispProduct req a0tyv1 (fmap ("*",) a0tyvsRest)
     A0TyValArrow (xOpt, a0tyv1) a0tye2 -> dispArrowType req Nothing xOpt a0tyv1 a0tye2
     A0TyValCode a1tyv1 -> dispBracket a1tyv1
-    A0TyValExplicitForAll atyvar sa0tye1 -> dispForAllType req atyvar sa0tye1
+    A0TyValForAll atyvar sa0tye1 -> dispForAllType req atyvar sa0tye1
 
 instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case
@@ -1202,7 +1202,7 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
        in dispProduct req a1tyv1 (fmap ("*",) a1tyvsRest)
     A1TyValArrow labelOpt a1tyv1 a1tyv2 -> dispNondepArrowType req labelOpt a1tyv1 a1tyv2
     A1TyValOmsArrow label a1tyv1 a1tyv2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tyv1 a1tyv2
-    A1TyValImplicitForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
+    A1TyValForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
 
 instance Disp Ass1PrimTypeVal where
   dispGen req = \case

@@ -152,7 +152,7 @@ fromStaged0 = goPoly 0 Map.empty
   where
     goPoly :: Int -> Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass0TypeExpr -> Maybe BIPolyTypeVoid
     goPoly i vars = \case
-      Staged.A0TyImplicitForAll atyvar a0tye ->
+      Staged.A0TyForAll atyvar a0tye ->
         goPoly (i + 1) (Map.insert atyvar (BITypeBoundVar i) vars) a0tye
       a0tye ->
         BIPolyType (Set.fromList (Map.elems vars)) <$> go a0tye
@@ -182,7 +182,7 @@ fromStaged0 = goPoly 0 Map.empty
               wrap0 <$> (BITyInfArrow <$> go a0tye1 <*> go a0tye2)
             Staged.A0TyCode a1tye ->
               pure $ vacuous $ fromStaged1 a1tye
-            Staged.A0TyImplicitForAll _atyvar _a0tye ->
+            Staged.A0TyForAll _atyvar _a0tye ->
               Nothing
 
     wrap0 = BIType BT0
@@ -204,7 +204,7 @@ fromStaged1 = \case
     wrap1 $ BITyArrow (fromStaged1 a1tye1) (fromStaged1 a1tye2)
   Staged.A1TyOmsArrow label a1tye1 a1tye2 ->
     wrap1 $ BITyOmsArrow label (fromStaged1 a1tye1) (fromStaged1 a1tye2)
-  Staged.A1TyImplicitForAll _atyvar a1tye2 ->
+  Staged.A1TyForAll _atyvar a1tye2 ->
     -- TODO: support type instantiation
     fromStaged1 a1tye2
   where
@@ -216,7 +216,7 @@ fromStagedPers = goPoly 0 Map.empty
   where
     goPoly :: Int -> Map Staged.AssTypeVar BITypeBoundVar -> Staged.AssPersTypeExpr -> Maybe (BIPolyTypeF ())
     goPoly i vars = \case
-      Staged.APersTyImplicitForAll atyvar aPtye ->
+      Staged.APersTyForAll atyvar aPtye ->
         goPoly (i + 1) (Map.insert atyvar (BITypeBoundVar i) vars) aPtye
       aPtye ->
         BIPolyType (Set.fromList (Map.elems vars)) <$> go aPtye
@@ -240,7 +240,7 @@ fromStagedPers = goPoly 0 Map.empty
               pure $ wrapP (BITyProduct bitys)
             Staged.APersTyArrow _labelOpt aPtye1 aPtye2 ->
               wrapP <$> (BITyArrow <$> go aPtye1 <*> go aPtye2)
-            Staged.APersTyImplicitForAll _atyvar _aPtye2 ->
+            Staged.APersTyForAll _atyvar _aPtye2 ->
               Nothing
 
     wrapP = BIType ()
