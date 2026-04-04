@@ -84,6 +84,12 @@ findSymbol env x = do
     Ass0ValEntry a0v -> bug $ FoundAss0Val x a0v
     SymbolEntry symb -> pure symb
 
+findTypeVal :: EvalEnv -> AssTypeVar -> M Ass0TypeVal
+findTypeVal env atyvar =
+  case Map.lookup atyvar env.typeVals of
+    Nothing -> bug $ UnboundTypeVarFound atyvar
+    Just a0tyv -> pure a0tyv
+
 validateIntLiteral :: Ass0Val -> M Int
 validateIntLiteral = \case
   A0ValLiteral (ALitInt n) -> pure n
@@ -525,7 +531,7 @@ evalTypeExpr0 env = \case
     maybeVPred <- mapM (evalExpr0 env) maybePred
     pure $ A0TyValPrim a0tyPrim maybeVPred
   SA0TyVar atyvar ->
-    pure $ A0TyValVar atyvar
+    findTypeVal env atyvar
   SA0TyList sa0tye1 maybePred -> do
     a0tyv1 <- evalTypeExpr0 env sa0tye1
     maybeVPred <- mapM (evalExpr0 env) maybePred

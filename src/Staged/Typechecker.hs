@@ -170,12 +170,15 @@ makeAssertiveCast trav loc =
           let maybePred2 =
                 if alphaEquivalent (Maybe1 maybePred2') (Maybe1 maybePred1)
                   then Nothing
-                  else maybePred2'
+                  else applySolution0 varSolution tyvar0Solution <$> maybePred2'
           let castForListByElemPred =
                 case castForElem of
                   Nothing -> Nothing
                   Just a0eCastForElem -> Just (A0App ass0exprListMap a0eCastForElem)
-          castForListByWholePred <- castOrIdentityLam maybePred2 a0tye1
+          castForListByWholePred <-
+            castOrIdentityLam
+              maybePred2
+              (applySolution0 varSolution tyvar0Solution a0tye1)
           castForList <-
             case (castForListByElemPred, castForListByWholePred) of
               (Nothing, Nothing) ->

@@ -1180,7 +1180,6 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
   dispGen req = \case
     A0TyValPrim a0tyvPrim Nothing -> dispGen req a0tyvPrim
     A0TyValPrim a0tyvPrim (Just a0vPred) -> dispInternalRefinementType req a0tyvPrim a0vPred
-    A0TyValVar atyvar -> disp atyvar
     A0TyValList a0tyv1 Nothing -> dispListType req a0tyv1
     A0TyValList a0tyv1 (Just a0vPred) -> dispInternalRefinementListType req a0tyv1 a0vPred
     A0TyValMaybe a0tyv1 -> dispMaybeType req a0tyv1
@@ -1250,6 +1249,8 @@ instance (Disp sv) => Disp (BugF sv) where
   dispGen _ = \case
     UnboundVarFound x ->
       "Unbound variable" <+> disp x
+    UnboundTypeVarFound atyvar ->
+      "Unbound type variable" <+> disp atyvar
     NotAClosure a0v ->
       "Not a closure:" <+> disp a0v
     NotATypeClosure a0v ->

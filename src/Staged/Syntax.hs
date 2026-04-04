@@ -398,7 +398,6 @@ data Ass0TypeValF sv
   | -- | List types possibly equipped with a refinement predicate.
     A0TyValList (Ass0TypeValF sv) (Maybe (Ass0ValF sv))
   | A0TyValMaybe (Ass0TypeValF sv)
-  | A0TyValVar AssTypeVar
   | A0TyValProduct (TwoOrMore (Ass0TypeValF sv))
   | A0TyValArrow (Maybe (AssVarF sv), Ass0TypeValF sv) (StrictAss0TypeExprF sv)
   | A0TyValCode (Ass1TypeValF sv)

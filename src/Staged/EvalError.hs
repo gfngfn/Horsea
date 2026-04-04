@@ -15,6 +15,7 @@ import Prelude
 
 data BugF sv
   = UnboundVarFound (AssVarF sv)
+  | UnboundTypeVarFound AssTypeVar
   | NotAClosure (Ass0ValF sv)
   | NotATypeClosure (Ass0ValF sv)
   | NotACodeValue (Ass0ValF sv)
