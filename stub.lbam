@@ -108,6 +108,15 @@ module Maybe = struct
 end
 
 module List = struct
+  (* TODO: make `List.fold` stage-polymorphic *)
+  val ~fold {type 'a} {type 'b} (f : 'a -> 'b -> 'a) =
+    let rec go (acc : 'a) (xs : List 'b) : 'a =
+      case xs of
+      | [] -> acc
+      | x :: xs_tail -> go (f acc x) xs_tail
+      end
+    in
+    go
   val %map : forall 'a -> forall 'b -> ('a -> 'b) -> List 'a -> List 'b
     external (builtin = "list__map", surface = "map")
   val %rev_map : forall 'a -> forall 'b -> ('a -> 'b) -> List 'a -> List 'b
