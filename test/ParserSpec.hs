@@ -232,6 +232,9 @@ spec = do
     it "parses applications of inferable parameters (3)" $
       parseExpr "x {y + 1} {z}"
         `shouldBe` pure (appInfGiven (appInfGiven (var "x") (add (var "y") (litInt 1))) (var "z"))
+    it "parses type applications" $
+      parseExpr "f {type Int}"
+        `shouldBe` pure (appInfType (var "f") tyInt)
     it "parses sequentials (1)" $
       parseExpr "x += 1; f x"
         `shouldBe` pure (expr (Sequential (app (app (var "+=") (var "x")) (litInt 1)) (app (var "f") (var "x"))))

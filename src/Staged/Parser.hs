@@ -115,7 +115,7 @@ makeBinOpApp e1@(Expr loc1 _) (Located locBinOp binOp) e2@(Expr loc2 _) =
 data FunArg
   = FunArgMandatory (Maybe (Located Text)) Expr
   | FunArgOms (Located Text) Expr
-  | FunArgInfGiven (Located Expr)
+  | FunArgInfGiven (Located (Maybe Span, Expr))
   | FunArgInfOmitted Span
 
 data DomainSpec
@@ -173,7 +173,7 @@ expr = letin
         arg :: P FunArg
         arg =
           (FunArgInfOmitted <$> token TokUnderscore)
-            <|> (FunArgInfGiven <$> try (brace expr))
+            <|> (FunArgInfGiven <$> try (brace ((,) <$> optional (token TokType) <*> expr)))
             <|> (FunArgOms <$> labelOmissible <*> staged)
             <|> (FunArgMandatory <$> optional labelNormal <*> staged)
 
@@ -189,7 +189,8 @@ expr = letin
           FunArgMandatory Nothing e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 Nothing e2)
           FunArgMandatory (Just (Located _ l)) e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (App e1 (Just l) e2)
           FunArgOms (Located _ l) e2@(Expr loc2 _) -> Expr (mergeSpan loc1 loc2) (AppOms e1 l e2)
-          FunArgInfGiven (Located loc2 e2) -> Expr (mergeSpan loc1 loc2) (AppInfGiven e1 e2)
+          FunArgInfGiven (Located loc2 (Nothing, e2)) -> Expr (mergeSpan loc1 loc2) (AppInfGiven e1 e2)
+          FunArgInfGiven (Located loc2 (Just _, tye2)) -> Expr (mergeSpan loc1 loc2) (AppInfType e1 tye2)
           FunArgInfOmitted loc2 -> Expr (mergeSpan loc1 loc2) (AppInfOmitted e1)
 
     as :: P Expr
