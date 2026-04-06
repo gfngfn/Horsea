@@ -10,7 +10,7 @@ module Staged.Typechecker
 where
 
 import Common.LocationInFile (SpanInFile, getSpanInFile)
-import Common.TokenUtil (Span)
+import Common.TokenUtil (Span, mergeSpan)
 import Control.Monad
 import Data.Bifunctor (bimap)
 import Data.Either.Extra (mapLeft, maybeToEither)
@@ -85,6 +85,19 @@ findTypeVar trav loc tyvar tyEnv = do
       typeError trav $ UnboundTypeVar spanInFile tyvar
     Just tyVarEntry ->
       pure tyVarEntry
+
+convertProductToApp :: Expr -> NonEmpty ((Span, Var), Expr) -> Expr
+convertProductToApp =
+  foldl'
+    ( \eAcc@(Expr loc1 _) ((locOp, op), eArg@(Expr loc2 _)) ->
+        Expr
+          (mergeSpan loc1 loc2)
+          ( App
+              (Expr (mergeSpan loc1 locOp) (App (Expr locOp (Var ([], op))) Nothing eAcc))
+              Nothing
+              eArg
+          )
+    )
 
 makeIdentityLam :: Ass0TypeExpr -> M trav Ass0Expr
 makeIdentityLam a0tye = do
@@ -1507,30 +1520,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           (_, _) ->
             typeError trav $ UnboundConstructor spanInFile mods ctor
       Product e1 rest ->
-        -- TODO: consider simply falling back to `App`
-        case appCtx of
-          [] -> do
-            (a0tye1, a0e1) <- typecheckExpr0Single trav tyEnv e1
-            (a0tye, a0e) <-
-              foldM
-                ( \(a0tyeLeftAcc, a0eLeftAcc) ((_locOp, op), eRightArg) -> do
-                    (a0tyeOp, a0eOp) <- typecheckValVar0 trav loc tyEnv [] op
-                    (a0tyeRightArg, a0eRightArg) <- typecheckExpr0Single trav tyEnv eRightArg
-                    let appCtxOp = [AppArg0 Nothing a0eLeftAcc a0tyeLeftAcc, AppArg0 Nothing a0eRightArg a0tyeRightArg]
-                    result <- instantiateGuidedByAppContext0 trav loc appCtxOp a0tyeOp
-                    case result of
-                      Cast0 castLeftAcc _ (Cast0 castRightArg _ (Pure a0tyeRes)) -> do
-                        let a0eLeftAcc' = applyCast castLeftAcc a0eLeftAcc
-                        let a0eRightArg' = applyCast castRightArg a0eRightArg
-                        pure (a0tyeRes, A0App (A0App a0eOp a0eLeftAcc') a0eRightArg')
-                      _ ->
-                        bug "stage-1, Product, not a (Cast1 (Cast1 Pure))"
-                )
-                (a0tye1, a0e1)
-                rest
-            pure (Pure a0tye, a0e)
-          _ : _ ->
-            error "TODO: typecheckExpr1, Product, non-empty appCtx"
+        typecheckExpr0 trav tyEnv appCtx (convertProductToApp e1 rest)
       Literal lit ->
         case appCtx of
           [] -> do
@@ -2199,30 +2189,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           (_, _) ->
             typeError trav $ UnboundConstructor spanInFile mods ctor
       Product e1 rest ->
-        -- TODO: consider simply falling back to `App`
-        case appCtx of
-          [] -> do
-            (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
-            (a1tye, a1e) <-
-              foldM
-                ( \(a1tyeLeftAcc, a1eLeftAcc) ((_locOp, op), eRightArg) -> do
-                    (a1tyeOp, a1eOp) <- typecheckValVar1 trav loc tyEnv [] op
-                    (a1tyeRightArg, a1eRightArg) <- typecheckExpr1Single trav tyEnv eRightArg
-                    let appCtxOp = [AppArg1 Nothing a1tyeLeftAcc, AppArg1 Nothing a1tyeRightArg]
-                    (result, _) <- instantiateGuidedByAppContext1 trav loc Set.empty appCtxOp a1tyeOp
-                    case result of
-                      Cast1 castLeftAcc _ (Cast1 castRightArg _ (Pure a1tyeRes)) -> do
-                        let a1eLeftAcc' = applyCast1 castLeftAcc a1eLeftAcc
-                        let a1eRightArg' = applyCast1 castRightArg a1eRightArg
-                        pure (a1tyeRes, A1App (A1App a1eOp a1eLeftAcc') a1eRightArg')
-                      _ ->
-                        bug "stage-1, Product, not a (Cast1 (Cast1 Pure))"
-                )
-                (a1tye1, a1e1)
-                rest
-            pure (Pure a1tye, a1e)
-          _ : _ ->
-            error "TODO: typecheckExpr1, Product, non-empty appCtx"
+        typecheckExpr1 trav tyEnv appCtx (convertProductToApp e1 rest)
       Literal lit ->
         case appCtx of
           [] -> do
