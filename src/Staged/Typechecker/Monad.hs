@@ -17,10 +17,11 @@ module Staged.Typechecker.Monad
     logShapeAnnot,
     generateFreshVar,
     generateFreshTypeVar,
+    askSpanInFile,
   )
 where
 
-import Common.LocationInFile (SourceSpec, SpanInFile)
+import Common.LocationInFile (SourceSpec, SpanInFile, getSpanInFile)
 import Common.TokenUtil (Span)
 import Control.Monad.Elaborator
 import Data.Map (Map)
@@ -96,3 +97,8 @@ generateFreshTypeVar (TypeVar name) = do
         assTypeVarDisplay = Map.insert atyvar name assTypeVarDisplay
       }
   pure atyvar
+
+askSpanInFile :: Span -> M trav SpanInFile
+askSpanInFile loc = do
+  TypecheckConfig {sourceSpec} <- askConfig
+  pure $ getSpanInFile sourceSpec loc
