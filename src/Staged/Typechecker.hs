@@ -790,7 +790,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
                   Set.empty
                   a0tyeInferred
                   (applySolution0 varSolution' tyvar0Solution' a0tye1)
-              let result = FillInferred0 (applyCast cast' a0eInferred) result'
+              let result = FillInferred0 (applyCast0 cast' a0eInferred) result'
               pure (result, varSolution', tyvar0Solution')
             _ -> do
               -- Recurses by using `appCtx`, not `appCtx'`:
@@ -811,7 +811,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
                   Set.empty
                   a0tyeInferred
                   (applySolution0 varSolution' tyvar0Solution' a0tye1)
-              pure (InsertInferred0 (applyCast cast' a0eInferred) result', varSolution', tyvar0Solution')
+              pure (InsertInferred0 (applyCast0 cast' a0eInferred) result', varSolution', tyvar0Solution')
         (_ : _, A0TyCode a1tye) -> do
           (result', varSolution) <- instantiateGuidedByAppContext1 trav loc varsToInfer appCtx a1tye
           let tyvar0Solution = Map.empty
@@ -928,7 +928,7 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
         _ -> do
           (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
           (cast, _varSolution, _tyvar0Solution) <- makeAssertiveCast trav loc Set.empty Set.empty a0tye a0tyeReq
-          pure $ applyCast cast a0e
+          pure $ applyCast0 cast a0e
     IfThenElse e0 e1 e2 -> do
       (a0tye0, a0e0) <- typecheckExpr0Single trav tyEnv e0
       case a0tye0 of
@@ -943,7 +943,7 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
     _ -> do
       (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
       (cast, _varSolution, _tyvar0Solution) <- makeAssertiveCast trav loc Set.empty Set.empty a0tye a0tyeReq
-      pure $ applyCast cast a0e
+      pure $ applyCast0 cast a0e
 
 typecheckExpr0Single :: trav -> TypeEnv -> Expr -> M trav (Ass0TypeExpr, Ass0Expr)
 typecheckExpr0Single trav tyEnv e@(Expr loc _) = do
@@ -1047,7 +1047,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                   makeAssertiveCast trav loc Set.empty Set.empty a0tyeSynth a0tyeRec
                 let sa0tyeRec = strictify a0tyeRec
                 let sa0tye1 = strictify a0tye1
-                pure (Pure a0tyeRec, applyCast cast (A0Lam (Just (af, sa0tyeRec)) (ax1, sa0tye1) a0e2))
+                pure (Pure a0tyeRec, applyCast0 cast (A0Lam (Just (af, sa0tyeRec)) (ax1, sa0tye1) a0e2))
           _ : _ ->
             -- TODO (enhance): consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamWithArguments appCtx
@@ -1056,7 +1056,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArg0 labelOpt a0e2 a0tye2 : appCtx) e1
         case result1 of
           Cast0 cast _a0tye11 result -> do
-            pure (result, A0App a0e1 (applyCast cast a0e2))
+            pure (result, A0App a0e1 (applyCast0 cast a0e2))
           _ -> do
             bug "stage-0, App, fun"
       LamOms label (x1, tye1@(Expr locTye1 _)) e2 -> do
@@ -1083,7 +1083,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgOmsGiven0 label a0e2 a0tye2 : appCtx) e1
         case result1 of
           CastOmsGiven0 cast _a0tyeElem11 result -> do
-            pure (result, A0App a0e1 (A0Constructor "Just" [applyCast cast a0e2]))
+            pure (result, A0App a0e1 (A0Constructor "Just" [applyCast0 cast a0e2]))
           _ ->
             bug "stage-0, AppOms, fun"
       LamInf (x1, tye1) e2 -> do
@@ -1106,7 +1106,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         case result1 of
           CastInfGiven0 cast _a0tye11 result -> do
             logInferableArg $ LogGivenArg spanInFile a0e2
-            pure (result, A0App a0e1 (applyCast cast a0e2))
+            pure (result, A0App a0e1 (applyCast0 cast a0e2))
           _ -> do
             bug "stage-0, AppImpGiven, not a CastGiven0"
       AppInfOmitted e1 -> do
@@ -1156,7 +1156,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         let a0tye1Synth = A0TyArrow labelOpt (Just ax0, a0tyeParam0) a0tyeRestSynth
         (cast, _varSolution, _tyvar0Solution) <-
           makeAssertiveCast trav loc Set.empty Set.empty a0tye1Synth a0tye1Rec
-        let a0e1 = applyCast cast (A0Lam (Just (afInner, strictify a0tye1Rec)) (ax0, strictify a0tyeParam0) a0eRest)
+        let a0e1 = applyCast0 cast (A0Lam (Just (afInner, strictify a0tye1Rec)) (ax0, strictify a0tyeParam0) a0eRest)
         svFOuter <- generateFreshVar (Just f)
         let afOuter = AssVarStatic svFOuter
         (result2, a0e2) <- do

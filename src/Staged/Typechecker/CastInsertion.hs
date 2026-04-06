@@ -1,5 +1,5 @@
 module Staged.Typechecker.CastInsertion
-  ( applyCast,
+  ( applyCast0,
     applyCast1,
     applyEquationCast,
     makeIdentityLam,
@@ -29,14 +29,8 @@ import Staged.Typechecker.Monad
 import Staged.Typechecker.Solution
 import Prelude
 
-ass0exprListMap :: Ass0Expr
-ass0exprListMap = A0BuiltInName (BuiltInArity2 BIListMap)
-
-ass0exprMaybeMap :: Ass0Expr
-ass0exprMaybeMap = A0BuiltInName (BuiltInArity2 BIMaybeMap)
-
-applyCast :: Maybe Ass0Expr -> Ass0Expr -> Ass0Expr
-applyCast = maybe id A0App
+applyCast0 :: Maybe Ass0Expr -> Ass0Expr -> Ass0Expr
+applyCast0 = maybe id A0App
 
 applyCast1 :: Maybe Ass0Expr -> Ass1Expr -> Ass1Expr
 applyCast1 cast a1e =
@@ -54,7 +48,7 @@ makeIdentityLam a0tye = do
   let ax = AssVarStatic sv
   pure $ A0Lam Nothing (ax, strictify a0tye) (A0Var ax)
 
--- The core part of the cast insertion for stage 0.
+-- | The core part of the cast insertion for stage 0.
 -- `makeAssertiveCast trav loc varsToInfer a0tye1 a0tye2` produces a cast
 -- that asserts that `a0tye1` is a subtype of `a0tye2`.
 -- Returning `(Nothing, ...)` means there's no need to insert a cast.
@@ -94,7 +88,7 @@ makeAssertiveCast trav loc =
                 pure $
                   Just $
                     A0Lam Nothing (ax, strictify a0tye1) $
-                      applyCast cast' (A0AppType (A0Var ax) (strictify a0tye11))
+                      applyCast0 cast' (A0AppType (A0Var ax) (strictify a0tye11))
               pure (cast, varSolution', tyvar0Solution')
             Nothing ->
               typeError trav $ CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile tyvar1 a0tye12 a0tye2
@@ -123,7 +117,7 @@ makeAssertiveCast trav loc =
           let castForListByElemPred =
                 case castForElem of
                   Nothing -> Nothing
-                  Just a0eCastForElem -> Just (A0App ass0exprListMap a0eCastForElem)
+                  Just a0eCastForElem -> Just (A0App BuiltIn.ass0exprListMap a0eCastForElem)
           castForListByWholePred <-
             castOrIdentityLam
               maybePred2
@@ -149,7 +143,7 @@ makeAssertiveCast trav loc =
           let castForMaybe =
                 case castForElem of
                   Nothing -> Nothing
-                  Just a0eCastForElem -> Just (A0App ass0exprMaybeMap a0eCastForElem)
+                  Just a0eCastForElem -> Just (A0App BuiltIn.ass0exprMaybeMap a0eCastForElem)
           pure (castForMaybe, varSolution, tyvar0Solution)
         (A0TyProduct a0tyes1, A0TyProduct a0tyes2) -> do
           zipped <-
@@ -294,8 +288,8 @@ makeAssertiveCast trav loc =
         (_, _) -> do
           f <- AssVarStatic <$> generateFreshVar Nothing
           x' <- AssVarStatic <$> generateFreshVar Nothing
-          let fDom = applyCast castDom
-          let fCod = applyCast castCod
+          let fDom = applyCast0 castDom
+          let fCod = applyCast0 castCod
           let sa0tye1 = SA0TyArrow (Just x, strictify a0tye11) (strictify a0tye12)
           pure $
             Just $
@@ -317,7 +311,7 @@ makeAssertiveCast trav loc =
               A0Tuple $
                 TwoOrMore.mapIndexed
                   ( \i (cast, _a0tye) ->
-                      applyCast
+                      applyCast0
                         cast
                         (A0App (A0BuiltInName (BuiltInArity1 (BIProj n i))) (A0Var x))
                   )
@@ -335,7 +329,7 @@ makeAssertiveCast trav loc =
           x <- AssVarStatic <$> generateFreshVar Nothing
           pure $ Just (A0Lam Nothing (x, strictify a0tye1) (A0RefinementAssert loc a0ePred2 (A0Var x)))
 
--- The core part of the cast insertion for stage 1.
+-- | The core part of the cast insertion for stage 1.
 makeEquation1 :: forall trav. trav -> Span -> Set AssVar -> Set AssTypeVar -> Ass1TypeExpr -> Ass1TypeExpr -> M trav (Maybe Type1Equation, VarSolution, TypeVar1Solution)
 makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whole = do
   TypecheckConfig {optimizeTrivialAssertion} <- askConfig
