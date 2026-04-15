@@ -1197,6 +1197,19 @@ validateIntListLiteral trav loc a0e =
       spanInFile <- askSpanInFile loc
       typeError trav $ NotAnIntListLitArgAtStage0 spanInFile a0e
 
+collectTypeArgs :: trav -> Span -> TypeExprMain -> M trav (([ModuleName], TypeName), [Expr])
+collectTypeArgs trav loc = go
+  where
+    go = \case
+      App (Expr _ eFunMain) Nothing eArg -> do
+        (qualTyName, eArgs) <- go eFunMain
+        pure (qualTyName, eArgs ++ [eArg])
+      Constructor (mods, tyName) -> do
+        pure ((mods, tyName), [])
+      _ -> do
+        spanInFile <- askSpanInFile loc
+        typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
+
 typecheckTypeExpr0 :: trav -> TypeEnv -> TypeExpr -> M trav Ass0TypeExpr
 typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
@@ -1213,34 +1226,30 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
                 Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
         _ : _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
-    App _ labelOpt _ -> do
-      () <-
-        case labelOpt of
-          Nothing -> pure ()
-          Just _ -> typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
+    App {} -> do
       ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
-      case (tyName, args) of
-        ("List", [arg1]) -> do
+      case (mods, tyName, args) of
+        ([], "List", [arg1]) -> do
           a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
           pure $ A0TyList a0tye1 Nothing
-        ("Maybe", [arg1]) -> do
+        ([], "Maybe", [arg1]) -> do
           a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
           pure $ A0TyMaybe a0tye1
-        ("Vec", [arg1@(Expr loc1 _)]) -> do
+        ([], "Vec", [arg1@(Expr loc1 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           n1 <- validateIntLiteral trav loc1 a0e1
           pure $ A0TyPrim (a0TyVec n1) Nothing
-        ("Mat", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
+        ([], "Mat", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
           n1 <- validateIntLiteral trav loc1 a0e1
           n2 <- validateIntLiteral trav loc2 a0e2
           pure $ A0TyPrim (a0TyMat n1 n2) Nothing
-        ("Tensor", [arg@(Expr loc' _)]) -> do
+        ([], "Tensor", [arg@(Expr loc' _)]) -> do
           a0e <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
           ns <- validateIntListLiteral trav loc' a0e
           pure $ A0TyPrim (A0TyTensor ns) Nothing
-        ("Dataset", [arg1@(Expr loc1 _), arg2@(Expr loc2 _), arg3@(Expr loc3 _), arg4@(Expr loc4 _)]) -> do
+        ([], "Dataset", [arg1@(Expr loc1 _), arg2@(Expr loc2 _), arg3@(Expr loc3 _), arg4@(Expr loc4 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
           a0e3 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
@@ -1251,13 +1260,13 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           label <- validateIntListLiteral trav loc4 a0e4
           let datasetParam = DatasetParam {numTrain, numTest, image, label}
           pure $ A0TyPrim (A0TyDataset datasetParam) Nothing
-        ("Lstm", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
+        ([], "Lstm", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
           inputSize <- validateIntLiteral trav loc1 a0e1
           hiddenSize <- validateIntLiteral trav loc2 a0e2
           pure $ A0TyPrim (A0TyLstm inputSize hiddenSize) Nothing
-        ("TextHelper", [arg1@(Expr loc1 _)]) -> do
+        ([], "TextHelper", [arg1@(Expr loc1 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           labels <- validateIntLiteral trav loc1 a0e1
           pure $ A0TyPrim (A0TyTextHelper labels) Nothing
@@ -1359,27 +1368,14 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
     (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfType {}; AppInfType {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
-validatePersistentExprArg1 :: trav -> Expr -> M trav Expr
-validatePersistentExprArg1 trav (Expr loc eMain) =
+validatePersistentExprArg :: trav -> TypeEnv -> Ass0TypeExpr -> Expr -> M trav Ass0Expr
+validatePersistentExprArg trav tyEnv tyReq (Expr loc eMain) =
   case eMain of
     Persistent e ->
-      pure e
+      forceExpr0 trav tyEnv tyReq e
     _ -> do
       spanInFile <- askSpanInFile loc
       typeError trav $ CannotUseNormalArgAtStage1 spanInFile
-
-collectTypeArgs :: trav -> Span -> TypeExprMain -> M trav (([ModuleName], TypeName), [Expr])
-collectTypeArgs trav loc = go
-  where
-    go = \case
-      App (Expr _ eFunMain) Nothing eArg -> do
-        (qualTyName, eArgs) <- go eFunMain
-        pure (qualTyName, eArgs ++ [eArg])
-      Constructor (mods, tyName) -> do
-        pure ((mods, tyName), [])
-      _ -> do
-        spanInFile <- askSpanInFile loc
-        typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
 typecheckTypeExpr1 :: trav -> TypeEnv -> TypeExpr -> M trav Ass1TypeExpr
 typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
@@ -1393,44 +1389,32 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
             Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
         _ : _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
-    App _ labelOpt _ -> do
-      () <-
-        case labelOpt of
-          Nothing -> pure ()
-          Just _ -> typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
+    App {} -> do
       ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
-      case (tyName, args) of
-        ("List", [tye]) -> do
+      case (mods, tyName, args) of
+        ([], "List", [tye]) -> do
           a1tye <- typecheckTypeExpr1 trav tyEnv tye
           pure $ A1TyList a1tye
-        ("Maybe", [tye]) -> do
+        ([], "Maybe", [tye]) -> do
           a1tye <- typecheckTypeExpr1 trav tyEnv tye
           pure $ A1TyMaybe a1tye
-        ("Vec", [arg]) -> do
-          e <- validatePersistentExprArg1 trav arg
-          a0e <- forceExpr0 trav tyEnv BuiltIn.tyNat e
+        ([], "Vec", [arg]) -> do
+          a0e <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg
           pure $ A1TyPrim (a1TyVec a0e)
-        ("Mat", [arg1, arg2]) -> do
-          e1 <- validatePersistentExprArg1 trav arg1
-          e2 <- validatePersistentExprArg1 trav arg2
-          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
-          a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat e2
+        ([], "Mat", [arg1, arg2]) -> do
+          a0e1 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
+          a0e2 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
           pure $ A1TyPrim (a1TyMat a0e1 a0e2)
-        ("Tensor", [arg]) -> do
+        ([], "Tensor", [arg]) -> do
           logShapeAnnot (ShapeAnnotLog loc)
-          e <- validatePersistentExprArg1 trav arg
-          a0eList <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) e
+          a0eList <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
           pure $ A1TyPrim (A1TyTensor a0eList)
-        ("Dataset", [arg1, arg2, arg3, arg4]) -> do
+        ([], "Dataset", [arg1, arg2, arg3, arg4]) -> do
           logShapeAnnot (ShapeAnnotLog loc)
-          e1 <- validatePersistentExprArg1 trav arg1
-          e2 <- validatePersistentExprArg1 trav arg2
-          e3 <- validatePersistentExprArg1 trav arg3
-          e4 <- validatePersistentExprArg1 trav arg4
-          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
-          a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat e2
-          a0e3 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) e3
-          a0e4 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) e4
+          a0e1 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
+          a0e2 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
+          a0e3 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
+          a0e4 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg4
           let datasetParam =
                 DatasetParam
                   { numTrain = a0e1,
@@ -1439,17 +1423,14 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
                     label = Identity a0e4
                   }
           pure $ A1TyPrim (A1TyDataset datasetParam)
-        ("Lstm", [arg1, arg2]) -> do
+        ([], "Lstm", [arg1, arg2]) -> do
           logShapeAnnot (ShapeAnnotLog loc)
-          e1 <- validatePersistentExprArg1 trav arg1
-          e2 <- validatePersistentExprArg1 trav arg2
-          a0eInputSize <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
-          a0eHiddenSize <- forceExpr0 trav tyEnv BuiltIn.tyNat e2
+          a0eInputSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
+          a0eHiddenSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
           pure $ A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize)
-        ("TextHelper", [arg1]) -> do
+        ([], "TextHelper", [arg1]) -> do
           logShapeAnnot (ShapeAnnotLog loc)
-          e1 <- validatePersistentExprArg1 trav arg1
-          a0eLabels <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
+          a0eLabels <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
           pure $ A1TyPrim (A1TyTextHelper a0eLabels)
         _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName (length args)
