@@ -9,10 +9,8 @@ module Staged.Typechecker
   )
 where
 
-import Common.LocationInFile (SpanInFile, getSpanInFile)
 import Common.TokenUtil (Span, mergeSpan)
 import Control.Monad
-import Data.Bifunctor (bimap)
 import Data.Either.Extra (mapLeft, maybeToEither)
 import Data.Foldable (foldrM)
 import Data.Function
@@ -20,21 +18,14 @@ import Data.Functor.Identity
 import Data.List (length)
 import Data.List.Extra (firstJust)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List.NonEmpty.Util qualified as NonEmptyUtil
-import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Maybe (isNothing)
-import Data.Maybe1
-import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Data.Tensor.Matrix qualified as Matrix
 import Data.Tensor.Vector qualified as Vector
 import Data.Text (Text)
-import Data.Traversable.Compat (mapAccumM)
 import Data.Tuple.Extra (both, second)
-import Safe.Exact (zipExactMay)
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
 import Staged.Core
@@ -42,22 +33,18 @@ import Staged.SrcSyntax
 import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
-import Staged.TypeSubst
+import Staged.Typechecker.CastInsertion
+import Staged.Typechecker.Instantiation
+import Staged.Typechecker.Merging
 import Staged.Typechecker.Monad
 import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
-import Staged.Typechecker.Solution
 import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
 import Prelude hiding (length)
 
 bug :: String -> a
 bug msg = error $ "bug: " ++ msg
-
-askSpanInFile :: Span -> M trav SpanInFile
-askSpanInFile loc = do
-  TypecheckConfig {sourceSpec} <- askConfig
-  pure $ getSpanInFile sourceSpec loc
 
 findValVar :: trav -> Span -> [Var] -> Var -> TypeEnv -> M trav ValEntry
 findValVar trav loc ms x tyEnv = do
@@ -99,1346 +86,6 @@ convertProductToApp =
           )
     )
 
-makeIdentityLam :: Ass0TypeExpr -> M trav Ass0Expr
-makeIdentityLam a0tye = do
-  sv <- generateFreshVar Nothing
-  let ax = AssVarStatic sv
-  pure $ A0Lam Nothing (ax, strictify a0tye) (A0Var ax)
-
-applyCast :: Maybe Ass0Expr -> Ass0Expr -> Ass0Expr
-applyCast = maybe id A0App
-
-applyCast1 :: Maybe Ass0Expr -> Ass1Expr -> Ass1Expr
-applyCast1 cast a1e =
-  case cast of
-    Nothing -> a1e
-    Just a0eCast -> A1Escape (A0App a0eCast (A0Bracket a1e))
-
-applyEquationCast :: Span -> Maybe Type1Equation -> Ass1Expr -> Ass1Expr
-applyEquationCast loc eq =
-  applyCast1 (A0TyEqAssert loc <$> eq)
-
--- The core part of the cast insertion for stage 0.
--- `makeAssertiveCast trav loc varsToInfer a0tye1 a0tye2` produces a cast
--- that asserts that `a0tye1` is a subtype of `a0tye2`.
--- Returning `(Nothing, ...)` means there's no need to insert a cast.
--- Through cast generation, appropriate expressions for the variables in `varsToInfer`
--- are inferred in a best-effort manner.
-makeAssertiveCast :: forall trav. trav -> Span -> Set AssVar -> Set AssTypeVar -> Ass0TypeExpr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr, VarSolution, TypeVar0Solution)
-makeAssertiveCast trav loc =
-  go
-  where
-    go :: Set AssVar -> Set AssTypeVar -> Ass0TypeExpr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr, VarSolution, TypeVar0Solution)
-    go _varsToInfer _tyvars0ToInfer a0tye1 a0tye2
-      | alphaEquivalent a0tye1 a0tye2 =
-          pure (Nothing, Map.empty, Map.empty)
-    go varsToInfer tyvars0ToInfer a0tye1 a0tye2 = do
-      spanInFile <- askSpanInFile loc
-      case (a0tye1, a0tye2) of
-        (A0TyVar atyvar1, _)
-          | atyvar1 `elem` tyvars0ToInfer ->
-              pure (Nothing, Map.empty, Map.singleton atyvar1 a0tye2)
-        (_, A0TyVar atyvar2)
-          | atyvar2 `elem` tyvars0ToInfer ->
-              pure (Nothing, Map.empty, Map.singleton atyvar2 a0tye1)
-        (A0TyVar atyvar1, A0TyVar atyvar2)
-          | atyvar1 == atyvar2 ->
-              -- If either `a0tye1` or `a0tye2` is of the form `A0TyVar atyvar`
-              -- such that `atyvar` is tracked by the type environment and thereby is not for inference,
-              -- then only exact equality is allowed:
-              pure (Nothing, Map.empty, Map.empty)
-        (A0TyForAll tyvar1 a0tye12, _) -> do
-          (cast', varSolution', tyvar0Solution') <-
-            go varsToInfer (Set.insert tyvar1 tyvars0ToInfer) a0tye12 a0tye2
-          case Map.lookup tyvar1 tyvar0Solution' of
-            Just a0tye11 -> do
-              cast <- do
-                sv <- generateFreshVar Nothing
-                let ax = AssVarStatic sv
-                pure $
-                  Just $
-                    A0Lam Nothing (ax, strictify a0tye1) $
-                      applyCast cast' (A0AppType (A0Var ax) (strictify a0tye11))
-              pure (cast, varSolution', tyvar0Solution')
-            Nothing ->
-              typeError trav $ CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile tyvar1 a0tye12 a0tye2
-        (_, A0TyForAll atyvar2 a0tye2') ->
-          typeError trav $ Unsupported spanInFile $ HigherRankPolymorphism a0tye1 atyvar2 a0tye2'
-        (A0TyPrim a0tyPrim1 maybePred1, A0TyPrim a0tyPrim2 maybePred2') -> do
-          -- Ad-hoc optimization of refinement cast insertion.
-          -- Maybe we can try using an SMT solver for some subset of predicates here
-          -- (if the user allows us to do so) to judge that the LHS predicate implies the RHS one:
-          let maybePred2 =
-                if alphaEquivalent (Maybe1 maybePred2') (Maybe1 maybePred1)
-                  then Nothing
-                  else maybePred2'
-          cast <-
-            if a0tyPrim1 == a0tyPrim2
-              then castOrIdentityLam maybePred2 (A0TyPrim a0tyPrim1 maybePred1)
-              else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-          pure (cast, Map.empty, Map.empty)
-        (A0TyList a0tye1' maybePred1, A0TyList a0tye2' maybePred2') -> do
-          (castForElem, varSolution, tyvar0Solution) <- go varsToInfer tyvars0ToInfer a0tye1' a0tye2'
-          -- Ad hoc optimization of refinement cast insertion:
-          let maybePred2 =
-                if alphaEquivalent (Maybe1 maybePred2') (Maybe1 maybePred1)
-                  then Nothing
-                  else applySolution0 varSolution tyvar0Solution <$> maybePred2'
-          let castForListByElemPred =
-                case castForElem of
-                  Nothing -> Nothing
-                  Just a0eCastForElem -> Just (A0App ass0exprListMap a0eCastForElem)
-          castForListByWholePred <-
-            castOrIdentityLam
-              maybePred2
-              (applySolution0 varSolution tyvar0Solution a0tye1)
-          castForList <-
-            case (castForListByElemPred, castForListByWholePred) of
-              (Nothing, Nothing) ->
-                pure Nothing
-              (Just a0eCast1, Nothing) ->
-                pure $ Just a0eCast1
-              (Nothing, Just a0eCast2) ->
-                pure $ Just a0eCast2
-              (Just a0eCast1, Just a0eCast2) -> do
-                sv <- generateFreshVar Nothing
-                let ax = AssVarStatic sv
-                pure $
-                  Just $
-                    A0Lam Nothing (ax, strictify a0tye1) $
-                      A0App a0eCast2 (A0App a0eCast1 (A0Var ax))
-          pure (castForList, varSolution, tyvar0Solution)
-        (A0TyMaybe a0tye1', A0TyMaybe a0tye2') -> do
-          (castForElem, varSolution, tyvar0Solution) <- go varsToInfer tyvars0ToInfer a0tye1' a0tye2'
-          let castForMaybe =
-                case castForElem of
-                  Nothing -> Nothing
-                  Just a0eCastForElem -> Just (A0App ass0exprMaybeMap a0eCastForElem)
-          pure (castForMaybe, varSolution, tyvar0Solution)
-        (A0TyProduct a0tyes1, A0TyProduct a0tyes2) -> do
-          zipped <-
-            case TwoOrMore.zipExact a0tyes1 a0tyes2 of
-              Just zipped' -> pure zipped'
-              Nothing -> typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-          ((_, _, varSolutionRet, tyvar0SolutionRet), castAndDomTypePairs') <-
-            mapAccumM
-              ( \(varsToInfer', tyvars0ToInfer', varSolution', tyvar0Solution') (a0tye1', a0tye2') -> do
-                  (cast, varSolution, tyvar0Solution) <-
-                    go
-                      varsToInfer'
-                      tyvars0ToInfer'
-                      (applySolution0 varSolution' tyvar0Solution' a0tye1')
-                      (applySolution0 varSolution' tyvar0Solution' a0tye2')
-                  pure
-                    ( ( varsToInfer' \\ Map.keysSet varSolution,
-                        tyvars0ToInfer' \\ Map.keysSet tyvar0Solution,
-                        composeVarSolution varSolution varSolution',
-                        composeTypeVar0Solution tyvar0Solution tyvar0Solution'
-                      ),
-                      (cast, a0tye1')
-                    )
-              )
-              (varsToInfer, tyvars0ToInfer, Map.empty, Map.empty)
-              zipped
-          let castAndDomTypePairs =
-                fmap
-                  ( bimap
-                      (fmap (applySolution0 varSolutionRet tyvar0SolutionRet))
-                      (applySolution0 varSolutionRet tyvar0SolutionRet)
-                  )
-                  castAndDomTypePairs'
-          cast <- makeProductTypeCast trav castAndDomTypePairs
-          pure (cast, varSolutionRet, tyvar0SolutionRet)
-        (A0TyArrow labelOpt1 (x1opt, a0tye11) a0tye12, A0TyArrow labelOpt2 (x2opt, a0tye21) a0tye22withX2opt) -> do
-          if labelOpt1 /= labelOpt2
-            then
-              typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-            else do
-              (castDom, varSolutionDom, tyvar0SolutionDom) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
-              (x, a0tye22) <-
-                case (x1opt, x2opt) of
-                  (Nothing, Nothing) -> do
-                    sv <- generateFreshVar Nothing
-                    let x0 = AssVarStatic sv
-                    pure (x0, a0tye22withX2opt)
-                  (Just x1, Nothing) ->
-                    pure (x1, a0tye22withX2opt)
-                  (Nothing, Just x2) ->
-                    pure (x2, a0tye22withX2opt)
-                  (Just x1, Just x2) ->
-                    pure (x1, subst0 (A0Var x1) x2 a0tye22withX2opt)
-              (castCod, varSolutionCod, tyvar0SolutionCod) <-
-                go
-                  (varsToInfer \\ Map.keysSet varSolutionDom)
-                  (tyvars0ToInfer \\ Map.keysSet tyvar0SolutionDom)
-                  (applySolution0 varSolutionDom tyvar0SolutionDom a0tye12)
-                  (applySolution0 varSolutionDom tyvar0SolutionDom a0tye22)
-              let varSolution = composeVarSolution varSolutionCod varSolutionDom
-              let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionDom tyvar0SolutionCod
-              cast <-
-                makeArrowTypeCast
-                  trav
-                  x
-                  (applySolution0 varSolution tyvar0Solution a0tye11)
-                  (applySolution0 varSolution tyvar0Solution a0tye12)
-                  (applySolution0 varSolution tyvar0Solution a0tye21)
-                  (applySolution0 varSolutionCod tyvar0Solution <$> castDom)
-                  castCod
-              pure (cast, varSolution, tyvar0Solution)
-        (A0TyOmsArrow label1 (x1opt, a0tye11) a0tye12, A0TyOmsArrow label2 (x2opt, a0tye21) a0tye22withX2opt) -> do
-          if label1 /= label2
-            then
-              typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-            else do
-              (castDom, varSolutionDom, tyvar0SolutionDom) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
-              (x, a0tye22) <-
-                case (x1opt, x2opt) of
-                  (Nothing, Nothing) -> do
-                    sv <- generateFreshVar Nothing
-                    let x0 = AssVarStatic sv
-                    pure (x0, a0tye22withX2opt)
-                  (Just x1, Nothing) ->
-                    pure (x1, a0tye22withX2opt)
-                  (Nothing, Just x2) ->
-                    pure (x2, a0tye22withX2opt)
-                  (Just x1, Just x2) ->
-                    pure (x1, subst0 (A0Var x1) x2 a0tye22withX2opt)
-              (castCod, varSolutionCod, tyvar0SolutionCod) <-
-                go
-                  (varsToInfer \\ Map.keysSet varSolutionDom)
-                  (tyvars0ToInfer \\ Map.keysSet tyvar0SolutionDom)
-                  (applySolution0 varSolutionDom tyvar0SolutionDom a0tye12)
-                  (applySolution0 varSolutionDom tyvar0SolutionDom a0tye22)
-              let varSolution = composeVarSolution varSolutionCod varSolutionDom
-              let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionCod tyvar0SolutionDom
-              cast <-
-                makeArrowTypeCast
-                  trav
-                  x
-                  (A0TyMaybe (applySolution0 varSolution tyvar0Solution a0tye11))
-                  (applySolution0 varSolution tyvar0Solution a0tye12)
-                  (A0TyMaybe (applySolution0 varSolution tyvar0Solution a0tye21))
-                  (applySolution0 varSolutionCod tyvar0Solution <$> castDom)
-                  castCod
-              pure (cast, varSolution, tyvar0Solution)
-        (A0TyInfArrow (x1, a0tye11) a0tye12, A0TyInfArrow (x2, a0tye21) a0tye22withX2) -> do
-          (castDom, varSolutionDom, tyvar0SolutionDom) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
-          let (x, a0tye22) = (x1, subst0 (A0Var x1) x2 a0tye22withX2)
-          (castCod, varSolutionCod, tyvar0SolutionCod) <-
-            go
-              (varsToInfer \\ Map.keysSet varSolutionDom)
-              (tyvars0ToInfer \\ Map.keysSet tyvar0SolutionDom)
-              (applySolution0 varSolutionDom tyvar0SolutionDom a0tye12)
-              (applySolution0 varSolutionDom tyvar0SolutionDom a0tye22)
-          let varSolution = composeVarSolution varSolutionCod varSolutionDom
-          let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionCod tyvar0SolutionDom
-          -- We can use the same cast function as `A0TyArrow`:
-          cast <-
-            makeArrowTypeCast
-              trav
-              x
-              (applySolution0 varSolution tyvar0Solution a0tye11)
-              (applySolution0 varSolution tyvar0Solution a0tye12)
-              (applySolution0 varSolution tyvar0Solution a0tye21)
-              (applySolution0 varSolutionCod tyvar0SolutionCod <$> castDom)
-              castCod
-          pure (cast, varSolution, tyvar0Solution)
-        (A0TyCode a1tye1, A0TyCode a1tye2) -> do
-          (eq, varSolution, _tyvar1Solution) <- makeEquation1 trav loc varsToInfer Set.empty a1tye1 a1tye2
-          let tyvar0Solution = Map.empty
-          pure (A0TyEqAssert loc <$> eq, varSolution, tyvar0Solution)
-        (_, _) ->
-          typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-
-    makeArrowTypeCast :: trav -> AssVar -> Ass0TypeExpr -> Ass0TypeExpr -> Ass0TypeExpr -> Maybe Ass0Expr -> Maybe Ass0Expr -> M trav (Maybe Ass0Expr)
-    makeArrowTypeCast _trav x a0tye11 a0tye12 a0tye21 castDom castCod =
-      case (castDom, castCod) of
-        (Nothing, Nothing) ->
-          pure Nothing
-        (_, _) -> do
-          f <- AssVarStatic <$> generateFreshVar Nothing
-          x' <- AssVarStatic <$> generateFreshVar Nothing
-          let fDom = applyCast castDom
-          let fCod = applyCast castCod
-          let sa0tye1 = SA0TyArrow (Just x, strictify a0tye11) (strictify a0tye12)
-          pure $
-            Just $
-              A0Lam Nothing (f, sa0tye1) $
-                A0Lam Nothing (x, strictify a0tye21) $
-                  A0App (A0Lam Nothing (x', strictify a0tye11) (fCod (A0App (A0Var f) (A0Var x')))) (fDom (A0Var x))
-
-    makeProductTypeCast :: trav -> TwoOrMore (Maybe Ass0Expr, Ass0TypeExpr) -> M trav (Maybe Ass0Expr)
-    makeProductTypeCast _trav castAndDomTypePairs =
-      if all ((== Nothing) . fst) castAndDomTypePairs
-        then
-          pure Nothing
-        else do
-          x <- AssVarStatic <$> generateFreshVar Nothing
-          let a0tyeAnnot = A0TyProduct (fmap snd castAndDomTypePairs)
-          let n = length castAndDomTypePairs
-          pure . Just $
-            A0Lam Nothing (x, strictify a0tyeAnnot) $
-              A0Tuple $
-                TwoOrMore.mapIndexed
-                  ( \i (cast, _a0tye) ->
-                      applyCast
-                        cast
-                        (A0App (A0BuiltInName (BuiltInArity1 (BIProj n i))) (A0Var x))
-                  )
-                  castAndDomTypePairs
-
-    castOrIdentityLam :: Maybe Ass0Expr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr)
-    castOrIdentityLam maybePred2 a0tye1 = do
-      TypecheckConfig {optimizeTrivialAssertion} <- askConfig
-      case maybePred2 of
-        Nothing ->
-          if optimizeTrivialAssertion
-            then pure Nothing
-            else Just <$> makeIdentityLam a0tye1
-        Just a0ePred2 -> do
-          x <- AssVarStatic <$> generateFreshVar Nothing
-          pure $ Just (A0Lam Nothing (x, strictify a0tye1) (A0RefinementAssert loc a0ePred2 (A0Var x)))
-
--- The core part of the cast insertion for stage 1.
-makeEquation1 :: forall trav. trav -> Span -> Set AssVar -> Set AssTypeVar -> Ass1TypeExpr -> Ass1TypeExpr -> M trav (Maybe Type1Equation, VarSolution, TypeVar1Solution)
-makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whole = do
-  TypecheckConfig {optimizeTrivialAssertion} <- askConfig
-  spanInFile <- askSpanInFile loc
-  case go varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whole of
-    Right (trivial, ty1eq, varSolution, tyvar1Solution) ->
-      if trivial && optimizeTrivialAssertion
-        then pure (Nothing, varSolution, tyvar1Solution)
-        else pure (Just ty1eq, varSolution, tyvar1Solution)
-    Left () ->
-      typeError trav $ TypeContradictionAtStage1 spanInFile a1tye1Whole a1tye2Whole
-  where
-    checkExprArgs :: Set AssVar -> (Ass0Expr, Ass0TypeExpr) -> Ass0Expr -> (Bool, Ass0Expr, VarSolution)
-    checkExprArgs varsToInfer (a0e1, a0tye1) a0e2 =
-      case a0e2 of
-        A0Var x | x `elem` varsToInfer -> (True, a0e1, Map.singleton x (a0e1, a0tye1))
-        _ -> (alphaEquivalent a0e1 a0e2, a0e2, Map.empty)
-
-    go :: Set AssVar -> Set AssTypeVar -> Ass1TypeExpr -> Ass1TypeExpr -> Either () (Bool, Type1Equation, VarSolution, TypeVar1Solution)
-    go varsToInfer tyvars1ToInfer a1tye1 a1tye2 =
-      case (a1tye1, a1tye2) of
-        (A1TyVar atyvar1, _)
-          | atyvar1 `elem` tyvars1ToInfer ->
-              pure (True, makeTrivialEquationFromType1 a1tye2, Map.empty, Map.singleton atyvar1 a1tye2)
-        (_, A1TyVar atyvar2)
-          | atyvar2 `elem` tyvars1ToInfer ->
-              pure (True, makeTrivialEquationFromType1 a1tye1, Map.empty, Map.singleton atyvar2 a1tye1)
-        (A1TyVar atyvar1, A1TyVar atyvar2)
-          | atyvar1 == atyvar2 ->
-              -- If either `a0tye1` or `a0tye2` is of the form `A0TyVar atyvar`
-              -- such that `atyvar` is tracked by the type environment and thereby is not for inference,
-              -- then only exact equality is allowed:
-              pure (True, makeTrivialEquationFromType1 a1tye1, Map.empty, Map.empty)
-        (A1TyPrim a1tyPrim1, A1TyPrim a1tyPrim2) ->
-          case (a1tyPrim1, a1tyPrim2) of
-            (A1TyPrimBase tyPrimBase1, A1TyPrimBase tyPrimBase2) ->
-              if tyPrimBase1 == tyPrimBase2
-                then pure (True, TyEq1Prim (TyEq1PrimBase tyPrimBase1), Map.empty, Map.empty)
-                else Left ()
-            (A1TyTensor a0eList1, A1TyTensor a0eList2) -> do
-              (trivial, listEq, varSolution) <- goList varsToInfer a0eList1 a0eList2
-              pure (trivial, TyEq1Prim (TyEq1Tensor listEq), varSolution, Map.empty)
-            (A1TyDataset dp1, A1TyDataset dp2) -> do
-              let (trivialOnNumTrain, numTrain2', varSolutionByNumTrain) =
-                    checkExprArgs
-                      varsToInfer
-                      (dp1.numTrain, BuiltIn.tyNat)
-                      dp2.numTrain
-              let solAcc1 = varSolutionByNumTrain
-              let varsToInferAcc1 = varsToInfer \\ Map.keysSet varSolutionByNumTrain
-
-              let (trivialOnNumTest, numTest2', varSolutionByNumTest) =
-                    checkExprArgs
-                      varsToInferAcc1
-                      (applyVarSolution varSolutionByNumTrain dp1.numTest, BuiltIn.tyNat)
-                      dp2.numTest
-              let solAcc2 = composeVarSolution solAcc1 varSolutionByNumTest
-              let varsToInferAcc2 = varsToInferAcc1 \\ Map.keysSet varSolutionByNumTest
-
-              (trivialOnImage, listEqOfImage, varSolutionByImage) <-
-                goList
-                  varsToInferAcc2
-                  (applyVarSolution solAcc2 (runIdentity dp1.image))
-                  (applyVarSolution solAcc2 (runIdentity dp2.image))
-              let solAcc3 = composeVarSolution solAcc2 varSolutionByImage
-              let varsToInferAcc3 = varsToInferAcc2 \\ Map.keysSet varSolutionByImage
-
-              (trivialOnLabel, listEqOfLabel, varSolutionByLabel) <-
-                goList
-                  varsToInferAcc3
-                  (applyVarSolution solAcc3 (runIdentity dp1.label))
-                  (applyVarSolution solAcc3 (runIdentity dp2.label))
-              let solAcc4 = composeVarSolution solAcc3 varSolutionByLabel
-
-              let finalize :: forall af. (HasVar StaticVar af) => af StaticVar -> af StaticVar
-                  finalize = applyVarSolution solAcc4
-
-              let datasetParamEq =
-                    DatasetParamEquation
-                      { numTrainEq = (finalize dp1.numTrain, finalize numTrain2'),
-                        numTestEq = (finalize dp1.numTest, finalize numTest2'),
-                        imageEq = finalize listEqOfImage,
-                        labelEq = listEqOfLabel
-                      }
-              pure
-                ( trivialOnNumTrain && trivialOnNumTest && trivialOnImage && trivialOnLabel,
-                  TyEq1Prim (TyEq1Dataset datasetParamEq),
-                  solAcc4,
-                  Map.empty
-                )
-            (A1TyLstm a0eInputSize1 a0eHiddenSize1, A1TyLstm a0eInputSize2 a0eHiddenSize2) -> do
-              let (trivialOnInputSize, inputSize2', varSolutionByInputSize) =
-                    checkExprArgs
-                      varsToInfer
-                      (a0eInputSize1, BuiltIn.tyNat)
-                      a0eInputSize2
-              let solAcc1 = varSolutionByInputSize
-              let varsToInferAcc1 = varsToInfer \\ Map.keysSet varSolutionByInputSize
-
-              let (trivialOnHiddenSize, hiddenSize2', varSolutionByHiddenSize) =
-                    checkExprArgs
-                      varsToInferAcc1
-                      (applyVarSolution varSolutionByInputSize a0eHiddenSize1, BuiltIn.tyNat)
-                      a0eHiddenSize2
-              let solAcc2 = composeVarSolution solAcc1 varSolutionByHiddenSize
-
-              let finalize :: forall af. (HasVar StaticVar af) => af StaticVar -> af StaticVar
-                  finalize = applyVarSolution solAcc2
-
-              pure
-                ( trivialOnInputSize && trivialOnHiddenSize,
-                  TyEq1Prim
-                    ( TyEq1Lstm
-                        (finalize a0eInputSize1, finalize inputSize2')
-                        (finalize a0eHiddenSize1, finalize hiddenSize2')
-                    ),
-                  solAcc2,
-                  Map.empty
-                )
-            (A1TyTextHelper a0e1, A1TyTextHelper a0e2) -> do
-              let (trivial, a0e2', varSolution) = checkExprArgs varsToInfer (a0e1, BuiltIn.tyNat) a0e2
-              pure (trivial, TyEq1Prim (TyEq1TextHelper (a0e1, a0e2')), varSolution, Map.empty)
-            (_, _) ->
-              Left ()
-        (A1TyList a1tye1elem, A1TyList a1tye2elem) -> do
-          (trivial, ty1eqElem, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1elem a1tye2elem
-          pure (trivial, TyEq1List ty1eqElem, varSolution, tyvar1Solution)
-        (A1TyMaybe a1tye1elem, A1TyMaybe a1tye2elem) -> do
-          (trivial, ty1eqElem, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1elem a1tye2elem
-          pure (trivial, TyEq1Maybe ty1eqElem, varSolution, tyvar1Solution)
-        (A1TyProduct a1tyes1, A1TyProduct a1tyes2) -> do
-          zipped <-
-            case TwoOrMore.zipExact a1tyes1 a1tyes2 of
-              Just zipped' -> pure zipped'
-              Nothing -> Left ()
-          ((_, _, trivialRet, varSolutionRet, tyvar1SolutionRet), ty1eqs) <-
-            mapAccumM
-              ( \(varsToInfer', tyvars1ToInfer', trivial', varSolution', tyvar1Solution') (a1tye1', a1tye2') -> do
-                  (trivial, ty1eq, varSolution, tyvar1Solution) <-
-                    go
-                      varsToInfer'
-                      tyvars1ToInfer'
-                      (applySolution1 varSolution' tyvar1Solution' a1tye1')
-                      (applySolution1 varSolution' tyvar1Solution' a1tye2')
-                  pure
-                    ( ( varsToInfer' \\ Map.keysSet varSolution,
-                        tyvars1ToInfer' \\ Map.keysSet tyvar1Solution,
-                        trivial' && trivial,
-                        composeVarSolution varSolution' varSolution,
-                        composeTypeVar1Solution tyvar1Solution' tyvar1Solution
-                      ),
-                      ty1eq
-                    )
-              )
-              (varsToInfer, tyvars1ToInfer, True, Map.empty, Map.empty)
-              zipped
-          let ty1eqsRet = applySolution1 varSolutionRet tyvar1SolutionRet <$> ty1eqs
-          pure (trivialRet, TyEq1Product ty1eqsRet, varSolutionRet, tyvar1SolutionRet)
-        (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) -> do
-          if labelOpt1 /= labelOpt2
-            then
-              Left ()
-            else do
-              (trivial1, ty1eqDom, varSolution1, tyvar1Solution1) <- go varsToInfer tyvars1ToInfer a1tye11 a1tye21
-              (trivial2, ty1eqCod, varSolution2, tyvar1Solution2) <-
-                go
-                  (varsToInfer \\ Map.keysSet varSolution1)
-                  (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
-                  a1tye12
-                  (applyVarSolution varSolution1 a1tye22)
-              let varSolution = composeVarSolution varSolution1 varSolution2
-              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2
-              pure (trivial1 && trivial2, TyEq1Arrow labelOpt1 ty1eqDom ty1eqCod, varSolution, tyvar1Solution)
-        (A1TyOmsArrow label1 a1tye11 a1tye12, A1TyOmsArrow label2 a1tye21 a1tye22) -> do
-          if label1 /= label2
-            then
-              Left ()
-            else do
-              (trivial1, ty1eqDom, varSolution1, tyvar1Solution1) <- go varsToInfer tyvars1ToInfer a1tye11 a1tye21
-              (trivial2, ty1eqCod, varSolution2, tyvar1Solution2) <-
-                go
-                  (varsToInfer \\ Map.keysSet varSolution1)
-                  (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
-                  a1tye12
-                  (applyVarSolution varSolution1 a1tye22)
-              let varSolution = composeVarSolution varSolution1 varSolution2
-              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2
-              pure (trivial1 && trivial2, TyEq1OmsArrow label1 ty1eqDom ty1eqCod, varSolution, tyvar1Solution)
-        (_, A1TyForAll atyvar2 a1tye22) ->
-          -- Not confident. TODO (theory): ensure that this works correctly
-          go varsToInfer (Set.insert atyvar2 tyvars1ToInfer) a1tye1 a1tye22
-        (_, _) ->
-          Left ()
-
-    goList :: Set AssVar -> Ass0Expr -> Ass0Expr -> Either () (Bool, ListEquation, VarSolution)
-    goList varsToInfer a0eList1 a0eList2 =
-      case (a0eList1, a0eList2) of
-        -- Enhancement for the argument inference 1:
-        (A0Literal (ALitList a0es1), A0Literal (ALitList a0es2)) ->
-          case zipExactMay a0es1 a0es2 of
-            Nothing ->
-              Left ()
-            Just zipped -> do
-              let (trivial, equationAccResult, _varsToInfer, varSolution) =
-                    foldl'
-                      ( \(trivialAcc, equationAcc, varsToInferAcc, varSolutionAcc) (a0e1, a0e2) ->
-                          let a0e1sub = applyVarSolution varSolutionAcc a0e1
-                              a0e2sub = applyVarSolution varSolutionAcc a0e2
-                              (trivial', a0e2', varSolution') =
-                                checkExprArgs varsToInferAcc (a0e1sub, BuiltIn.tyNat) a0e2sub
-                           in ( trivialAcc && trivial',
-                                (a0e1sub, a0e2') : equationAcc,
-                                varsToInferAcc \\ Map.keysSet varSolution',
-                                composeVarSolution varSolution' varSolutionAcc
-                              )
-                      )
-                      (True, [], varsToInfer, Map.empty)
-                      zipped
-              let listEq = ListEqByElements (reverse equationAccResult)
-              pure (trivial, listEq, varSolution)
-        -- Enhancement for the argument inference 2:
-        (_, A0Var x2)
-          | x2 `elem` varsToInfer -> do
-              let listEq = ListEqByWhole a0eList1 a0eList1
-              let varSolution = Map.singleton x2 (a0eList1, A0TyList BuiltIn.tyNat Nothing)
-              pure (True, listEq, varSolution)
-        -- General rule:
-        (_, _) -> do
-          let trivial = alphaEquivalent a0eList1 a0eList2
-          let listEq = ListEqByWhole a0eList1 a0eList2
-          pure (trivial, listEq, Map.empty)
-
-mergeTypesByConditional0 :: forall trav. trav -> Bool -> Ass0Expr -> NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M' ConditionalMergeError trav Ass0TypeExpr
-mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
-  where
-    go0 :: NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M' ConditionalMergeError trav Ass0TypeExpr
-    go0 patAndTypePairs@((a0pat1, a0tye1) :| rest) = do
-      let failure = typeError trav $ CannotMerge0 patAndTypePairs
-      case a0tye1 of
-        A0TyPrim a0tyePrim1 maybePred1 -> do
-          pairsRest <-
-            mapM
-              ( \(a0pat, a0tye) ->
-                  case a0tye of
-                    A0TyPrim a0tyePrim maybePred ->
-                      if a0tyePrim == a0tyePrim1
-                        then pure (a0pat, maybePred)
-                        else failure
-                    _ ->
-                      failure
-              )
-              rest
-          let pairs = (a0pat1, maybePred1) :| pairsRest
-          maybePred' <- mergeRefinementPredicates (SA0TyPrim a0tyePrim1) pairs
-          pure $ A0TyPrim a0tyePrim1 maybePred'
-        A0TyList a0tyeElem1 maybePred1 -> do
-          triplesRest <-
-            mapM
-              ( \(a0pat, a0tye) ->
-                  case a0tye of
-                    A0TyList a0tyeElem maybePred -> pure (a0pat, (a0tyeElem, maybePred))
-                    _ -> failure
-              )
-              rest
-          let triples = (a0pat1, (a0tyeElem1, maybePred1)) :| triplesRest
-          a0tye' <- go0 (fmap (second fst) triples)
-          maybePred' <- mergeRefinementPredicates (SA0TyList (strictify a0tyeElem1)) (fmap (second snd) triples)
-          pure $ A0TyList a0tye' maybePred'
-        A0TyMaybe a0tyeElem1 -> do
-          pairsRest <-
-            mapM
-              ( \(a0pat, a0tye) ->
-                  case a0tye of
-                    A0TyMaybe a0tyeElem -> pure (a0pat, a0tyeElem)
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, a0tyeElem1) :| pairsRest
-          A0TyMaybe <$> go0 pairs
-        A0TyArrow labelOpt1 (xOpt1, a0tyeDom1) a0tyeCod1 -> do
-          quadsRest <-
-            mapM
-              ( \(a0pat, a0tye) ->
-                  case a0tye of
-                    A0TyArrow labelOpt (xOpt, a0tyeDom) a0tyeCod ->
-                      if labelOpt == labelOpt1
-                        then pure (a0pat, (xOpt, a0tyeDom, a0tyeCod))
-                        else failure
-                    _ ->
-                      failure
-              )
-              rest
-          let quads = (a0pat1, (xOpt1, a0tyeDom1, a0tyeCod1)) :| quadsRest
-          a0tyeDom' <- go0 (fmap (second (\(_, a0tyeDom, _) -> a0tyeDom)) quads)
-          (xOpt', pairsForCod) <-
-            if all (\(_, (xOpt, _, _)) -> isNothing xOpt) quads
-              then
-                pure (Nothing, fmap (second (\(_, _, a0tyeCod) -> a0tyeCod)) quads)
-              else do
-                ax' <- AssVarStatic <$> generateFreshVar Nothing
-                let pair =
-                      fmap
-                        ( second
-                            ( \(xOpt, _, a0tyeCod) ->
-                                case xOpt of
-                                  Nothing -> a0tyeCod
-                                  Just x -> subst0 (A0Var ax') x a0tyeCod
-                            )
-                        )
-                        quads
-                pure (Just ax', pair)
-          a0tyeCod' <- go0 pairsForCod
-          pure $ A0TyArrow labelOpt1 (xOpt', a0tyeDom') a0tyeCod'
-        A0TyCode a1tye1 -> do
-          pairsRest <-
-            mapM
-              ( \(a0pat, a0tye) ->
-                  case a0tye of
-                    A0TyCode a1tye -> pure (a0pat, a1tye)
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, a1tye1) :| pairsRest
-          A0TyCode <$> go1 pairs
-        A0TyOmsArrow label1 (x1opt, a0tyeDom1) a0tyeCod1 -> do
-          quadsRest <-
-            mapM
-              ( \(a0pat, a0tye) ->
-                  case a0tye of
-                    A0TyOmsArrow label (xOpt, a0tyeDom) a0tyeCod ->
-                      if label == label1
-                        then pure (a0pat, (xOpt, a0tyeDom, a0tyeCod))
-                        else failure
-                    _ ->
-                      failure
-              )
-              rest
-          let quads = (a0pat1, (x1opt, a0tyeDom1, a0tyeCod1)) :| quadsRest
-          a0tyeDom' <- go0 (fmap (second (\(_, a0tyeDom, _) -> a0tyeDom)) quads)
-          (xOpt', pairsForCod) <-
-            if all (\(_, (xOpt, _, _)) -> isNothing xOpt) quads
-              then
-                pure (Nothing, fmap (second (\(_, _, a0tyeCod) -> a0tyeCod)) quads)
-              else do
-                ax' <- AssVarStatic <$> generateFreshVar Nothing
-                let pair =
-                      fmap
-                        ( second
-                            ( \(xOpt, _, a0tyeCod) ->
-                                case xOpt of
-                                  Nothing -> a0tyeCod
-                                  Just x -> subst0 (A0Var ax') x a0tyeCod
-                            )
-                        )
-                        quads
-                pure (Just ax', pair)
-          a0tyeCod' <- go0 pairsForCod
-          pure $ A0TyOmsArrow label1 (xOpt', a0tyeDom') a0tyeCod'
-        A0TyInfArrow (x1, a0tyeDom1) a0tyeCod1 -> do
-          quadsRest <-
-            mapM
-              ( \(a0pat, a0tye) ->
-                  case a0tye of
-                    A0TyInfArrow (x, a0tyeDom) a0tyeCod -> pure (a0pat, (x, a0tyeDom, a0tyeCod))
-                    _ -> failure
-              )
-              rest
-          let quads = (a0pat1, (x1, a0tyeDom1, a0tyeCod1)) :| quadsRest
-          a0tyeDom' <- go0 (fmap (second (\(_, a0tyeDom, _) -> a0tyeDom)) quads)
-          a0tyeCod' <- go0 ((a0pat1, a0tyeCod1) :| map (second (\(x, _, a0tyeCod) -> subst0 (A0Var x1) x a0tyeCod)) quadsRest)
-          pure $ A0TyInfArrow (x1, a0tyeDom') a0tyeCod'
-        A0TyProduct a0tyes1 -> do
-          pairsRest <-
-            mapM
-              ( \(a0pat, a0tye) ->
-                  case a0tye of
-                    A0TyProduct a0tyes -> pure (a0pat, a0tyes)
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, a0tyes1) :| pairsRest
-          case distributeTwoOrMore pairs of
-            Just zipped -> do
-              a0tyes' <- mapM go0 zipped
-              pure $ A0TyProduct a0tyes'
-            Nothing ->
-              failure
-        A0TyVar atyvar1 -> do
-          mapM_
-            ( \(_a0pat, a0tye) ->
-                case a0tye of
-                  A0TyVar atyvar -> unless (atyvar == atyvar1) failure
-                  _ -> failure
-            )
-            rest
-          pure $ A0TyVar atyvar1
-        A0TyForAll atyvar1 a0tyeSub1 -> do
-          triplesRest <-
-            mapM
-              ( \(a0pat, a0tye) ->
-                  case a0tye of
-                    A0TyForAll atyvar a0tyeSub -> pure (a0pat, (atyvar, a0tyeSub))
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, a0tyeSub1) :| map (second (uncurry (tySubst0 (A0TyVar atyvar1)))) triplesRest
-          A0TyForAll atyvar1 <$> go0 pairs
-
-    mergeRefinementPredicates :: (Maybe Ass0Expr -> StrictAss0TypeExpr) -> NonEmpty (Ass0Pattern, Maybe Ass0Expr) -> M' ConditionalMergeError trav (Maybe Ass0Expr)
-    mergeRefinementPredicates sa0tyef patAndMaybePredPairs =
-      if all (isNothing . snd) patAndMaybePredPairs
-        then
-          pure Nothing
-        else do
-          ax <- AssVarStatic <$> generateFreshVar Nothing
-          let a0branches =
-                fmap
-                  ( \(a0pat, maybePred) ->
-                      A0Branch a0pat $
-                        case maybePred of
-                          Nothing -> A0Literal (ALitBool True)
-                          Just a0ePred -> A0App a0ePred (A0Var ax)
-                  )
-                  patAndMaybePredPairs
-          pure $ Just (A0Lam Nothing (ax, sa0tyef Nothing) (A0Case a0e0 a0branches))
-
-    go1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
-    go1 = mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0
-
-mergeTypesByConditional1 :: forall trav. trav -> Bool -> Ass0Expr -> NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
-mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
-  where
-    go1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
-    go1 patAndTypePairs@((a0pat1, a1tye1) :| rest) = do
-      let failure = typeError trav $ CannotMerge1 patAndTypePairs
-      case a1tye1 of
-        A1TyPrim a1tyePrim1 -> do
-          A1TyPrim
-            <$> case a1tyePrim1 of
-              A1TyPrimBase tyPrimBase1 -> do
-                mapM_
-                  ( \(_a0pat, a1tye) ->
-                      case a1tye of
-                        A1TyPrim (A1TyPrimBase tyPrimBase) -> unless (tyPrimBase == tyPrimBase1) failure
-                        _ -> failure
-                  )
-                  rest
-                pure a1tyePrim1
-              A1TyTensor a0eList1 -> do
-                pairsRest <-
-                  mapM
-                    ( \(a0pat, a1tye) ->
-                        case a1tye of
-                          A1TyPrim (A1TyTensor a0eList) -> pure (a0pat, a0eList)
-                          _ -> failure
-                    )
-                    rest
-                let pairs = (a0pat1, a0eList1) :| pairsRest
-                case extractListLiteralsIfAll pairs of
-                  -- Slight enhancement for the argument inference:
-                  Just patAndElemsPairs | distributeIfUnderTensorShape ->
-                    case distribute patAndElemsPairs of
-                      Just patAndElemPairss -> do
-                        let a0es' = map (A0Case a0e0 . fmap (uncurry A0Branch)) patAndElemPairss
-                        pure $ A1TyTensor (A0Literal (ALitList a0es'))
-                      Nothing ->
-                        failure
-                  -- General rule:
-                  _ ->
-                    pure $ A1TyTensor (A0Case a0e0 (fmap (uncurry A0Branch) pairs))
-              A1TyDataset dp1 -> do
-                pairsRest <-
-                  mapM
-                    ( \(a0pat, a1tye) ->
-                        case a1tye of
-                          A1TyPrim (A1TyDataset dp) -> pure (a0pat, dp)
-                          _ -> failure
-                    )
-                    rest
-                let pairs = (a0pat1, dp1) :| pairsRest
-                let a0branchesNumTrain = fmap (\(a0pat, dp) -> A0Branch a0pat dp.numTrain) pairs
-                let a0branchesNumTest = fmap (\(a0pat, dp) -> A0Branch a0pat dp.numTest) pairs
-                let a0branchesImage = fmap (\(a0pat, dp) -> A0Branch a0pat (runIdentity dp.image)) pairs
-                let a0branchesLabel = fmap (\(a0pat, dp) -> A0Branch a0pat (runIdentity dp.label)) pairs
-                pure . A1TyDataset $
-                  DatasetParam
-                    { numTrain = A0Case a0e0 a0branchesNumTrain,
-                      numTest = A0Case a0e0 a0branchesNumTest,
-                      image = Identity (A0Case a0e0 a0branchesImage),
-                      label = Identity (A0Case a0e0 a0branchesLabel)
-                    }
-              A1TyLstm a0eInputSize1 a0eHiddenSize1 -> do
-                triplesRest <-
-                  mapM
-                    ( \(a0pat, a1tye) ->
-                        case a1tye of
-                          A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize) -> pure (a0pat, (a0eInputSize, a0eHiddenSize))
-                          _ -> failure
-                    )
-                    rest
-                let triples = (a0pat1, (a0eInputSize1, a0eHiddenSize1)) :| triplesRest
-                let a0branchesInputSize = fmap (\(a0pat, pair) -> A0Branch a0pat (fst pair)) triples
-                let a0branchesHiddenSize = fmap (\(a0pat, pair) -> A0Branch a0pat (snd pair)) triples
-                pure $ A1TyLstm (A0Case a0e0 a0branchesInputSize) (A0Case a0e0 a0branchesHiddenSize)
-              A1TyTextHelper a0eLabels1 -> do
-                pairsRest <-
-                  mapM
-                    ( \(a0pat, a1tye) ->
-                        case a1tye of
-                          A1TyPrim (A1TyTextHelper a0eLabels) -> pure (a0pat, a0eLabels)
-                          _ -> failure
-                    )
-                    rest
-                let pairs = (a0pat1, a0eLabels1) :| pairsRest
-                let a0branches = fmap (uncurry A0Branch) pairs
-                pure $ A1TyTextHelper (A0Case a0e0 a0branches)
-        A1TyList a1tyeElem1 -> do
-          pairsRest <-
-            mapM
-              ( \(a0pat, a1tye) ->
-                  case a1tye of
-                    A1TyList a1tyeElem -> pure (a0pat, a1tyeElem)
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, a1tyeElem1) :| pairsRest
-          a1tyeElem' <- go1 pairs
-          pure $ A1TyList a1tyeElem'
-        A1TyMaybe a1tyeElem1 -> do
-          pairsRest <-
-            mapM
-              ( \(a0pat, a1tye) ->
-                  case a1tye of
-                    A1TyMaybe a1tyeElem -> pure (a0pat, a1tyeElem)
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, a1tyeElem1) :| pairsRest
-          a1tyeElem' <- go1 pairs
-          pure $ A1TyMaybe a1tyeElem'
-        A1TyArrow labelOpt1 a1tyeDom1 a1tyeCod1 -> do
-          triplesRest <-
-            mapM
-              ( \(a0pat, a1tye) ->
-                  case a1tye of
-                    A1TyArrow labelOpt a1tyeDom a1tyeCod ->
-                      if labelOpt == labelOpt1
-                        then pure (a0pat, (a1tyeDom, a1tyeCod))
-                        else failure
-                    _ ->
-                      failure
-              )
-              rest
-          let triples = (a0pat1, (a1tyeDom1, a1tyeCod1)) :| triplesRest
-          a1tyeDom' <- go1 (fmap (second fst) triples)
-          a1tyeCod' <- go1 (fmap (second snd) triples)
-          pure $ A1TyArrow labelOpt1 a1tyeDom' a1tyeCod'
-        A1TyOmsArrow label1 a1tyeDom1 a1tyeCod1 -> do
-          triplesRest <-
-            mapM
-              ( \(a0pat, a1tye) ->
-                  case a1tye of
-                    A1TyOmsArrow label a1tyeDom a1tyeCod ->
-                      if label == label1
-                        then pure (a0pat, (a1tyeDom, a1tyeCod))
-                        else failure
-                    _ ->
-                      failure
-              )
-              rest
-          let triples = (a0pat1, (a1tyeDom1, a1tyeCod1)) :| triplesRest
-          a1tyeDom' <- go1 (fmap (second fst) triples)
-          a1tyeCod' <- go1 (fmap (second snd) triples)
-          pure $ A1TyOmsArrow label1 a1tyeDom' a1tyeCod'
-        A1TyProduct a1tyes1 -> do
-          pairsRest <-
-            mapM
-              ( \(a0pat, a1tye) ->
-                  case a1tye of
-                    A1TyProduct a1tyes -> pure (a0pat, a1tyes)
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, a1tyes1) :| pairsRest
-          case distributeTwoOrMore pairs of
-            Just zipped -> do
-              a1tyes' <- mapM go1 zipped
-              pure $ A1TyProduct a1tyes'
-            Nothing ->
-              failure
-        A1TyVar atyvar1 -> do
-          mapM_
-            ( \(_a0pat, a1tye) ->
-                case a1tye of
-                  A1TyVar atyvar -> unless (atyvar == atyvar1) failure
-                  _ -> failure
-            )
-            rest
-          pure $ A1TyVar atyvar1
-        A1TyForAll atyvar1 a1tyeSub1 -> do
-          triplesRest <-
-            mapM
-              ( \(a0pat, a1tye) ->
-                  case a1tye of
-                    A1TyForAll atyvar a1tyeSub -> pure (a0pat, (atyvar, a1tyeSub))
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, a1tyeSub1) :| map (second (uncurry (tySubst1 (A1TyVar atyvar1)))) triplesRest
-          A1TyForAll atyvar1 <$> go1 pairs
-
-extractListLiteralsIfAll :: NonEmpty (Ass0Pattern, Ass0Expr) -> Maybe (NonEmpty (Ass0Pattern, [Ass0Expr]))
-extractListLiteralsIfAll =
-  mapM
-    ( \(a0pat, a0e) ->
-        case a0e of
-          A0Literal (ALitList a0es) -> pure (a0pat, a0es)
-          _ -> Nothing
-    )
-
--- Performs the following conversion (i.e., transposition):
---
--- [ (p1, [e11, ..., e1N]),          [ (p1, e11),  [ (p1, e12),       [ (p1, e1N),
---   ...                      ---->    ...           ...                ...
---   (pM, [eM1, ..., eMN]) ]           (pM, eM1) ],  (pM, eM2) ], ...   (pM, eMN) ]
-distribute :: NonEmpty (Ass0Pattern, [a]) -> Maybe [NonEmpty (Ass0Pattern, a)]
-distribute patAndExprPairs = do
-  let matrix = fmap (\(p, a0es) -> map (p,) a0es) patAndExprPairs
-  NonEmptyUtil.transpose matrix
-
-distributeTwoOrMore :: NonEmpty (Ass0Pattern, TwoOrMore a) -> Maybe (TwoOrMore (NonEmpty (Ass0Pattern, a)))
-distributeTwoOrMore patAndExprPairs = do
-  let matrix = fmap (\(p, a0es) -> fmap (p,) a0es) patAndExprPairs
-  TwoOrMore.transpose matrix
-
-mergeResultsByConditional0 :: forall trav. trav -> Span -> Ass0Expr -> NonEmpty (Ass0Pattern, Result0) -> M trav Result0
-mergeResultsByConditional0 trav loc a0e0 = go
-  where
-    go :: NonEmpty (Ass0Pattern, Result0) -> M trav Result0
-    go patAndResultPairs@((a0pat1, result1) :| rest) = do
-      spanInFile <- askSpanInFile loc
-      let failure = typeError trav $ CannotMergeResultsByConditionals spanInFile patAndResultPairs
-      case result1 of
-        Pure a0tye1 -> do
-          pairsRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    Pure a0tye -> pure (a0pat, a0tye)
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, a0tye1) :| pairsRest
-          Pure <$> mergeTypes0 pairs
-        Cast0 cast1 a0tye1 r1 -> do
-          quadsRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    Cast0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
-                    _ -> failure
-              )
-              rest
-          let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
-          a0tye' <- mergeTypes0 (fmap (second (\(_, a0tye, _) -> a0tye)) quads)
-          cast' <- mergeCasts (fmap (second (\(cast, a0tye, _) -> (cast, a0tye))) quads)
-          Cast0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
-        Cast1 cast1 a1tye1 r1 -> do
-          quadsRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    Cast1 cast a1tye r -> pure (a0pat, (cast, a1tye, r))
-                    _ -> failure
-              )
-              rest
-          let quads = (a0pat1, (cast1, a1tye1, r1)) :| quadsRest
-          a1tye' <- mergeTypes1 (fmap (second (\(_, a1tye, _) -> a1tye)) quads)
-          cast' <- mergeCasts (fmap (second (\(cast, a1tye, _) -> (cast, A0TyCode a1tye))) quads)
-          Cast1 cast' a1tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
-        CastOmsGiven0 cast1 a0tye1 r1 -> do
-          quadsRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    CastOmsGiven0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
-                    _ -> failure
-              )
-              rest
-          let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
-          a0tye' <- mergeTypes0 (fmap (second (\(_, a0tye, _) -> a0tye)) quads)
-          cast' <- mergeCasts (fmap (second (\(cast, a0tye, _) -> (cast, a0tye))) quads)
-          CastOmsGiven0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
-        InsertOmitted0 r1 -> do
-          pairsRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    InsertOmitted0 r -> pure (a0pat, r)
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, r1) :| pairsRest
-          InsertOmitted0 <$> go pairs
-        CastOmsGiven1 cast1 a1tye1 r1 -> do
-          quadsRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    CastOmsGiven1 cast a1tye r -> pure (a0pat, (cast, a1tye, r))
-                    _ -> failure
-              )
-              rest
-          let quads = (a0pat1, (cast1, a1tye1, r1)) :| quadsRest
-          a1tye' <- mergeTypes1 (fmap (second (\(_, a1tye, _) -> a1tye)) quads)
-          cast' <- mergeCasts (fmap (second (\(cast, a1tye, _) -> (cast, A0TyCode a1tye))) quads)
-          CastOmsGiven1 cast' a1tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
-        InsertOmitted1 r1 -> do
-          pairsRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    InsertOmitted1 r -> pure (a0pat, r)
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, r1) :| pairsRest
-          InsertOmitted1 <$> go pairs
-        CastInfGiven0 cast1 a0tye1 r1 -> do
-          quadsRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    CastInfGiven0 cast a0tye r -> pure (a0pat, (cast, a0tye, r))
-                    _ -> failure
-              )
-              rest
-          let quads = (a0pat1, (cast1, a0tye1, r1)) :| quadsRest
-          a0tye' <- mergeTypes0 (fmap (second (\(_, a0tye, _) -> a0tye)) quads)
-          cast' <- mergeCasts (fmap (second (\(cast, a0tye, _) -> (cast, a0tye))) quads)
-          CastInfGiven0 cast' a0tye' <$> go (fmap (second (\(_, _, r) -> r)) quads)
-        FillInferred0 a0e1 r1 -> do
-          triplesRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    FillInferred0 a0e r -> pure (a0pat, (a0e, r))
-                    _ -> failure
-              )
-              rest
-          let triples = (a0pat1, (a0e1, r1)) :| triplesRest
-          let a0branches = fmap (\(a0pat, (a0e, _)) -> A0Branch a0pat a0e) triples
-          FillInferred0 (A0Case a0e0 a0branches) <$> go (fmap (second snd) triples)
-        InsertInferred0 a0e1 r1 -> do
-          triplesRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    InsertInferred0 a0e r -> pure (a0pat, (a0e, r))
-                    _ -> failure
-              )
-              rest
-          let triples = (a0pat1, (a0e1, r1)) :| triplesRest
-          let a0branches = fmap (\(a0pat, (a0e, _)) -> A0Branch a0pat a0e) triples
-          InsertInferred0 (A0Case a0e0 a0branches) <$> go (fmap (second snd) triples)
-        Instantiated0 r1 -> do
-          pairsRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    Instantiated0 r -> pure (a0pat, r)
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, r1) :| pairsRest
-          Instantiated0 <$> go pairs
-        InsertInferredType0 a0tye1 r1 -> do
-          triplesRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    InsertInferredType0 a0tye r -> pure (a0pat, (a0tye, r))
-                    _ -> failure
-              )
-              rest
-          let triples = (a0pat1, (a0tye1, r1)) :| triplesRest
-          a0tye' <- mergeTypes0 (fmap (second fst) triples)
-          InsertInferredType0 a0tye' <$> go (fmap (second snd) triples)
-        Instantiated1 r1 -> do
-          pairsRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    Instantiated1 r -> pure (a0pat, r)
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, r1) :| pairsRest
-          Instantiated1 <$> go pairs
-        InsertInferredType1 a1tye1 r1 -> do
-          triplesRest <-
-            mapM
-              ( \(a0pat, result) ->
-                  case result of
-                    InsertInferredType1 a1tye r -> pure (a0pat, (a1tye, r))
-                    _ -> failure
-              )
-              rest
-          let triples = (a0pat1, (a1tye1, r1)) :| triplesRest
-          a1tye' <- mergeTypes1 (fmap (second fst) triples)
-          InsertInferredType1 a1tye' <$> go (fmap (second snd) triples)
-
-    mergeTypes0 :: NonEmpty (Ass0Pattern, Ass0TypeExpr) -> M trav Ass0TypeExpr
-    mergeTypes0 pairs = do
-      TypecheckConfig {distributeIfUnderTensorShape} <- askConfig
-      spanInFile <- askSpanInFile loc
-      mapTypeError (CannotMergeTypesByConditional0 spanInFile pairs) $
-        mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 pairs
-
-    mergeTypes1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M trav Ass1TypeExpr
-    mergeTypes1 pairs = do
-      TypecheckConfig {distributeIfUnderTensorShape} <- askConfig
-      spanInFile <- askSpanInFile loc
-      mapTypeError (CannotMergeTypesByConditional1 spanInFile pairs) $
-        mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 pairs
-
-    mergeCasts :: NonEmpty (Ass0Pattern, (Maybe Ass0Expr, Ass0TypeExpr)) -> M trav (Maybe Ass0Expr)
-    mergeCasts triples =
-      if all (\(_, (cast, _)) -> isNothing cast) triples
-        then
-          pure Nothing
-        else do
-          a0branches <-
-            mapM
-              ( \(a0pat, (cast, a0tye)) ->
-                  A0Branch a0pat
-                    <$> case cast of
-                      Nothing -> makeIdentityLam a0tye
-                      Just a0e -> pure a0e
-              )
-              triples
-          pure $ Just (A0Case a0e0 a0branches)
-
-instantiateGuidedByAppContext0 :: forall trav. trav -> Span -> AppContext -> Ass0TypeExpr -> M trav Result0
-instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
-  (result, _varSolution, _tyvar0Solution) <- go Set.empty Set.empty appCtx0 a0tye0
-  pure result
-  where
-    go :: Set AssVar -> Set AssTypeVar -> AppContext -> Ass0TypeExpr -> M trav (Result0, VarSolution, TypeVar0Solution)
-    go varsToInfer tyvars0ToInfer appCtx a0tye =
-      case (appCtx, a0tye) of
-        ([], _) ->
-          pure (Pure a0tye, Map.empty, Map.empty)
-        (AppArg0 labelOpt' a0e1' a0tye1' : appCtx', A0TyArrow labelOpt (xOpt, a0tye1) a0tye2) -> do
-          if labelOpt' /= labelOpt
-            then do
-              spanInFile <- askSpanInFile loc
-              typeError trav $ ApplicationLabelMismatch spanInFile appCtx labelOpt' labelOpt
-            else do
-              (cast, varSolution1, tyvar0Solution1) <-
-                makeAssertiveCast trav loc varsToInfer tyvars0ToInfer a0tye1' a0tye1
-              let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
-              let tyvars0ToInfer' = tyvars0ToInfer \\ Map.keysSet tyvar0Solution1
-              let a0tye2s = applySolution0 varSolution1 tyvar0Solution1 a0tye2
-              (result', varSolution', tyvar0Solution') <-
-                case xOpt of
-                  Nothing -> go varsToInfer' tyvars0ToInfer' appCtx' a0tye2s
-                  Just x -> go varsToInfer' tyvars0ToInfer' appCtx' (subst0 a0e1' x a0tye2s)
-              let varSolution = composeVarSolution varSolution' varSolution1
-              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution' tyvar0Solution1
-              let a0tye1s = applySolution0 varSolution tyvar0Solution a0tye1
-              let result = Cast0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
-              pure (result, varSolution, tyvar0Solution)
-        (appCtxEntry : appCtx', A0TyOmsArrow label (xOpt, a0tyeElem1) a0tye2) -> do
-          case appCtxEntry of
-            AppArgOmsGiven0 label' a0e1' a0tyeElem1' | label' == label -> do
-              (cast, varSolution1, tyvar0Solution1) <-
-                makeAssertiveCast trav loc varsToInfer tyvars0ToInfer a0tyeElem1' a0tyeElem1
-              let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
-              let tyvars0ToInfer' = tyvars0ToInfer \\ Map.keysSet tyvar0Solution1
-              let a0tye2s = applySolution0 varSolution1 tyvar0Solution1 a0tye2
-              (result', varSolution', tyvar0Solution') <-
-                go varsToInfer' tyvars0ToInfer' appCtx' $
-                  case xOpt of
-                    Nothing -> a0tye2s
-                    Just x -> subst0 a0e1' x a0tye2s
-              let varSolution = composeVarSolution varSolution' varSolution1
-              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution' tyvar0Solution1
-              let a0tyeElem1s = applySolution0 varSolution tyvar0Solution a0tyeElem1
-              let result = CastOmsGiven0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tyeElem1s result'
-              pure (result, varSolution, tyvar0Solution)
-            _ -> do
-              -- Recurses by using `appCtx`, not `appCtx'`:
-              (result', varSolution', tyvar0Solution') <-
-                go varsToInfer tyvars0ToInfer appCtx $
-                  case xOpt of
-                    Nothing -> a0tye2
-                    Just x -> subst0 (A0Constructor "Nothing" []) x a0tye2
-              pure (InsertOmitted0 result', varSolution', tyvar0Solution')
-        (appCtxEntry : appCtx', A0TyInfArrow (x, a0tye1) a0tye2) ->
-          case appCtxEntry of
-            AppArgInfGiven0 a0e1' a0tye1' -> do
-              (cast, varSolution1, tyvar0Solution1) <-
-                makeAssertiveCast trav loc varsToInfer tyvars0ToInfer a0tye1' a0tye1
-              let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
-              let tyvars0ToInfer' = tyvars0ToInfer \\ Map.keysSet tyvar0Solution1
-              let a0tye2s = applySolution0 varSolution1 tyvar0Solution1 a0tye2
-              (result', varSolution', tyvar0Solution') <-
-                go varsToInfer' tyvars0ToInfer' appCtx' (subst0 a0e1' x a0tye2s)
-              let varSolution = composeVarSolution varSolution' varSolution1
-              let tyvar0Solution = composeTypeVar0Solution tyvar0Solution' tyvar0Solution1
-              let a0tye1s = applySolution0 varSolution tyvar0Solution a0tye1
-              let result = CastInfGiven0 (fmap (applySolution0 varSolution' tyvar0Solution') cast) a0tye1s result'
-              pure (result, varSolution, tyvar0Solution)
-            AppArgInfOmitted0 -> do
-              (result', varSolution', tyvar0Solution') <-
-                go (Set.insert x varsToInfer) tyvars0ToInfer appCtx' a0tye2
-              (a0eInferred, a0tyeInferred) <-
-                case Map.lookup x varSolution' of
-                  Just entry ->
-                    pure entry
-                  Nothing -> do
-                    spanInFile <- askSpanInFile loc
-                    typeError trav $ CannotInferImplicit spanInFile x a0tye appCtx
-              (cast', _varSolution'', _tyvar0Solution'') <-
-                makeAssertiveCast
-                  trav
-                  loc
-                  Set.empty
-                  Set.empty
-                  a0tyeInferred
-                  (applySolution0 varSolution' tyvar0Solution' a0tye1)
-              let result = FillInferred0 (applyCast cast' a0eInferred) result'
-              pure (result, varSolution', tyvar0Solution')
-            _ -> do
-              -- Recurses by using `appCtx`, not `appCtx'`:
-              (result', varSolution', tyvar0Solution') <-
-                go (Set.insert x varsToInfer) tyvars0ToInfer appCtx a0tye2
-              (a0eInferred, a0tyeInferred) <-
-                case Map.lookup x varSolution' of
-                  Just entry ->
-                    pure entry
-                  Nothing -> do
-                    spanInFile <- askSpanInFile loc
-                    typeError trav $ CannotInferImplicit spanInFile x a0tye appCtx
-              (cast', _varSolution'', _tyvar0Solution'') <-
-                makeAssertiveCast
-                  trav
-                  loc
-                  Set.empty
-                  Set.empty
-                  a0tyeInferred
-                  (applySolution0 varSolution' tyvar0Solution' a0tye1)
-              pure (InsertInferred0 (applyCast cast' a0eInferred) result', varSolution', tyvar0Solution')
-        (_ : _, A0TyCode a1tye) -> do
-          (result', varSolution) <- instantiateGuidedByAppContext1 trav loc varsToInfer appCtx a1tye
-          let tyvar0Solution = Map.empty
-          result <- mapMPure (pure . A0TyCode) result'
-          pure (result, varSolution, tyvar0Solution)
-        (appCtxEntry : appCtx', A0TyForAll atyvar a0tye2) -> do
-          case appCtxEntry of
-            AppArgInfTypeGiven0 a0tye1' -> do
-              (result', varSolution', tyvar0Solution') <-
-                go varsToInfer tyvars0ToInfer appCtx' (tySubst0 a0tye1' atyvar a0tye2)
-              pure (Instantiated0 result', varSolution', tyvar0Solution')
-            _ -> do
-              -- Recurses by using `appCtx`, not `appCtx'`:
-              (result', varSolution', tyvar0Solution') <-
-                go varsToInfer (Set.insert atyvar tyvars0ToInfer) appCtx a0tye2
-              case Map.lookup atyvar tyvar0Solution' of
-                Just a0tyeInferred ->
-                  pure (InsertInferredType0 a0tyeInferred result', varSolution', tyvar0Solution')
-                Nothing -> do
-                  spanInFile <- askSpanInFile loc
-                  typeError trav $ CannotInferTypeVariableInstance0 spanInFile atyvar appCtx a0tye
-        _ -> do
-          spanInFile <- askSpanInFile loc
-          typeError trav $ CannotInstantiateGuidedByAppContext0 spanInFile appCtx a0tye
-
-instantiateGuidedByAppContext1 :: forall trav. trav -> Span -> Set AssVar -> AppContext -> Ass1TypeExpr -> M trav (Result1, VarSolution)
-instantiateGuidedByAppContext1 trav loc varsToInfer0 appCtx0 a1tye0 = do
-  (result, varSolution, _tyvar1Solution) <- go varsToInfer0 Set.empty appCtx0 a1tye0
-  pure (result, varSolution)
-  where
-    go :: Set AssVar -> Set AssTypeVar -> AppContext -> Ass1TypeExpr -> M trav (Result1, VarSolution, TypeVar1Solution)
-    go varsToInfer tyvars1ToInfer appCtx a1tye =
-      case (appCtx, a1tye) of
-        ([], _) ->
-          pure (Pure a1tye, Map.empty, Map.empty)
-        (_ : _, A1TyForAll atyvar a1tye2) -> do
-          (result', varSolution', tyvar1Solution') <-
-            go varsToInfer (Set.insert atyvar tyvars1ToInfer) appCtx a1tye2
-          case Map.lookup atyvar tyvar1Solution' of
-            Just a1tyeInferred ->
-              pure (InsertInferredType1 a1tyeInferred result', varSolution', tyvar1Solution')
-            Nothing -> do
-              spanInFile <- askSpanInFile loc
-              typeError trav $ CannotInferTypeVariableInstance1 spanInFile atyvar appCtx a1tye
-        (AppArg1 labelOpt' a1tye1' : appCtx', A1TyArrow labelOpt a1tye1 a1tye2) -> do
-          if labelOpt' /= labelOpt
-            then do
-              spanInFile <- askSpanInFile loc
-              typeError trav $ ApplicationLabelMismatch spanInFile appCtx labelOpt' labelOpt
-            else do
-              (eq, varSolution1, tyvar1Solution1) <-
-                makeEquation1 trav loc varsToInfer tyvars1ToInfer a1tye1' a1tye1
-              (result', varSolution', tyvar1Solution') <-
-                go
-                  (varsToInfer \\ Map.keysSet varSolution1)
-                  (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
-                  appCtx'
-                  (applySolution1 varSolution1 tyvar1Solution1 a1tye2)
-              let varSolution = composeVarSolution varSolution' varSolution1
-              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution' tyvar1Solution1
-              let result = Cast1 (fmap (applySolution1 varSolution' tyvar1Solution' . A0TyEqAssert loc) eq) a1tye1 result'
-              pure (result, varSolution, tyvar1Solution)
-        (appCtxEntry : appCtx', A1TyOmsArrow label a1tye1 a1tye2) ->
-          case appCtxEntry of
-            AppArgOmsGiven1 label' a1tye1' | label' == label -> do
-              (eq, varSolution1, tyvar1Solution1) <-
-                makeEquation1 trav loc varsToInfer tyvars1ToInfer a1tye1' a1tye1
-              (result', varSolution', tyvar1Solution') <-
-                go
-                  (varsToInfer \\ Map.keysSet varSolution1)
-                  (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
-                  appCtx'
-                  (applySolution1 varSolution1 tyvar1Solution1 a1tye2)
-              let varSolution = composeVarSolution varSolution' varSolution1
-              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution' tyvar1Solution1
-              let result = CastOmsGiven1 (fmap (applySolution1 varSolution' tyvar1Solution' . A0TyEqAssert loc) eq) a1tye1 result'
-              pure (result, varSolution, tyvar1Solution)
-            _ -> do
-              -- Recurses by using `appCtx`, not `appCtx'`:
-              (result', varSolution', tyvar0Solution') <- go varsToInfer tyvars1ToInfer appCtx a1tye2
-              pure (InsertOmitted1 result', varSolution', tyvar0Solution')
-        _ -> do
-          spanInFile <- askSpanInFile loc
-          typeError trav $ CannotInstantiateGuidedByAppContext1 spanInFile appCtx a1tye
-
 forceExpr0 :: trav -> TypeEnv -> Ass0TypeExpr -> Expr -> M trav Ass0Expr
 forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
@@ -1470,7 +117,7 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
         _ -> do
           (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
           (cast, _varSolution, _tyvar0Solution) <- makeAssertiveCast trav loc Set.empty Set.empty a0tye a0tyeReq
-          pure $ applyCast cast a0e
+          pure $ applyCast0 cast a0e
     IfThenElse e0 e1 e2 -> do
       (a0tye0, a0e0) <- typecheckExpr0Single trav tyEnv e0
       case a0tye0 of
@@ -1485,7 +132,7 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
     _ -> do
       (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
       (cast, _varSolution, _tyvar0Solution) <- makeAssertiveCast trav loc Set.empty Set.empty a0tye a0tyeReq
-      pure $ applyCast cast a0e
+      pure $ applyCast0 cast a0e
 
 typecheckExpr0Single :: trav -> TypeEnv -> Expr -> M trav (Ass0TypeExpr, Ass0Expr)
 typecheckExpr0Single trav tyEnv e@(Expr loc _) = do
@@ -1589,7 +236,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                   makeAssertiveCast trav loc Set.empty Set.empty a0tyeSynth a0tyeRec
                 let sa0tyeRec = strictify a0tyeRec
                 let sa0tye1 = strictify a0tye1
-                pure (Pure a0tyeRec, applyCast cast (A0Lam (Just (af, sa0tyeRec)) (ax1, sa0tye1) a0e2))
+                pure (Pure a0tyeRec, applyCast0 cast (A0Lam (Just (af, sa0tyeRec)) (ax1, sa0tye1) a0e2))
           _ : _ ->
             -- TODO (enhance): consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamWithArguments appCtx
@@ -1598,7 +245,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArg0 labelOpt a0e2 a0tye2 : appCtx) e1
         case result1 of
           Cast0 cast _a0tye11 result -> do
-            pure (result, A0App a0e1 (applyCast cast a0e2))
+            pure (result, A0App a0e1 (applyCast0 cast a0e2))
           _ -> do
             bug "stage-0, App, fun"
       LamOms label (x1, tye1@(Expr locTye1 _)) e2 -> do
@@ -1625,7 +272,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgOmsGiven0 label a0e2 a0tye2 : appCtx) e1
         case result1 of
           CastOmsGiven0 cast _a0tyeElem11 result -> do
-            pure (result, A0App a0e1 (A0Constructor "Just" [applyCast cast a0e2]))
+            pure (result, A0App a0e1 (A0Constructor "Just" [applyCast0 cast a0e2]))
           _ ->
             bug "stage-0, AppOms, fun"
       LamInf (x1, tye1) e2 -> do
@@ -1648,7 +295,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         case result1 of
           CastInfGiven0 cast _a0tye11 result -> do
             logInferableArg $ LogGivenArg spanInFile a0e2
-            pure (result, A0App a0e1 (applyCast cast a0e2))
+            pure (result, A0App a0e1 (applyCast0 cast a0e2))
           _ -> do
             bug "stage-0, AppImpGiven, not a CastGiven0"
       AppInfOmitted e1 -> do
@@ -1698,7 +345,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         let a0tye1Synth = A0TyArrow labelOpt (Just ax0, a0tyeParam0) a0tyeRestSynth
         (cast, _varSolution, _tyvar0Solution) <-
           makeAssertiveCast trav loc Set.empty Set.empty a0tye1Synth a0tye1Rec
-        let a0e1 = applyCast cast (A0Lam (Just (afInner, strictify a0tye1Rec)) (ax0, strictify a0tyeParam0) a0eRest)
+        let a0e1 = applyCast0 cast (A0Lam (Just (afInner, strictify a0tye1Rec)) (ax0, strictify a0tyeParam0) a0eRest)
         svFOuter <- generateFreshVar (Just f)
         let afOuter = AssVarStatic svFOuter
         (result2, a0e2) <- do
@@ -2526,24 +1173,6 @@ typecheckLetInBody1 trav tyEnv params tyeBodyOpt e1 =
       (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv) params' tyeBodyOpt e1
       pure (A1TyForAll atyvar a1tye', A1LamType atyvar a1e')
 
-mapMPure :: (af StaticVar -> M trav (bf StaticVar)) -> ResultF af StaticVar -> M trav (ResultF bf StaticVar)
-mapMPure f = go
-  where
-    go (Pure v) = Pure <$> f v
-    go (Cast0 cast a0tye r) = Cast0 cast a0tye <$> go r
-    go (Cast1 eq a1tye r) = Cast1 eq a1tye <$> go r
-    go (CastOmsGiven0 cast a0tye r) = CastOmsGiven0 cast a0tye <$> go r
-    go (InsertOmitted0 r) = InsertOmitted0 <$> go r
-    go (CastOmsGiven1 eq a1tye r) = CastOmsGiven1 eq a1tye <$> go r
-    go (InsertOmitted1 r) = InsertOmitted1 <$> go r
-    go (CastInfGiven0 a0e a0tye r) = CastInfGiven0 a0e a0tye <$> go r
-    go (FillInferred0 a0e r) = FillInferred0 a0e <$> go r
-    go (InsertInferred0 a0e r) = InsertInferred0 a0e <$> go r
-    go (Instantiated0 r) = Instantiated0 <$> go r
-    go (InsertInferredType0 a0tye r) = InsertInferredType0 a0tye <$> go r
-    go (Instantiated1 r) = Instantiated1 <$> go r
-    go (InsertInferredType1 a1tye r) = InsertInferredType1 a1tye <$> go r
-
 validateIntLiteral :: trav -> Span -> Ass0Expr -> M trav Int
 validateIntLiteral trav loc a0e =
   case a0e of
@@ -2568,6 +1197,19 @@ validateIntListLiteral trav loc a0e =
       spanInFile <- askSpanInFile loc
       typeError trav $ NotAnIntListLitArgAtStage0 spanInFile a0e
 
+collectTypeArgs :: trav -> Span -> TypeExprMain -> M trav (([ModuleName], TypeName), [Expr])
+collectTypeArgs trav loc = go
+  where
+    go = \case
+      App (Expr _ eFunMain) Nothing eArg -> do
+        (qualTyName, eArgs) <- go eFunMain
+        pure (qualTyName, eArgs ++ [eArg])
+      Constructor (mods, tyName) -> do
+        pure ((mods, tyName), [])
+      _ -> do
+        spanInFile <- askSpanInFile loc
+        typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
+
 typecheckTypeExpr0 :: trav -> TypeEnv -> TypeExpr -> M trav Ass0TypeExpr
 typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
@@ -2584,34 +1226,30 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
                 Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
         _ : _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
-    App _ labelOpt _ -> do
-      () <-
-        case labelOpt of
-          Nothing -> pure ()
-          Just _ -> typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
+    App {} -> do
       ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
-      case (tyName, args) of
-        ("List", [arg1]) -> do
+      case (mods, tyName, args) of
+        ([], "List", [arg1]) -> do
           a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
           pure $ A0TyList a0tye1 Nothing
-        ("Maybe", [arg1]) -> do
+        ([], "Maybe", [arg1]) -> do
           a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
           pure $ A0TyMaybe a0tye1
-        ("Vec", [arg1@(Expr loc1 _)]) -> do
+        ([], "Vec", [arg1@(Expr loc1 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           n1 <- validateIntLiteral trav loc1 a0e1
           pure $ A0TyPrim (a0TyVec n1) Nothing
-        ("Mat", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
+        ([], "Mat", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
           n1 <- validateIntLiteral trav loc1 a0e1
           n2 <- validateIntLiteral trav loc2 a0e2
           pure $ A0TyPrim (a0TyMat n1 n2) Nothing
-        ("Tensor", [arg@(Expr loc' _)]) -> do
+        ([], "Tensor", [arg@(Expr loc' _)]) -> do
           a0e <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
           ns <- validateIntListLiteral trav loc' a0e
           pure $ A0TyPrim (A0TyTensor ns) Nothing
-        ("Dataset", [arg1@(Expr loc1 _), arg2@(Expr loc2 _), arg3@(Expr loc3 _), arg4@(Expr loc4 _)]) -> do
+        ([], "Dataset", [arg1@(Expr loc1 _), arg2@(Expr loc2 _), arg3@(Expr loc3 _), arg4@(Expr loc4 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
           a0e3 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
@@ -2622,13 +1260,13 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           label <- validateIntListLiteral trav loc4 a0e4
           let datasetParam = DatasetParam {numTrain, numTest, image, label}
           pure $ A0TyPrim (A0TyDataset datasetParam) Nothing
-        ("Lstm", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
+        ([], "Lstm", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
           inputSize <- validateIntLiteral trav loc1 a0e1
           hiddenSize <- validateIntLiteral trav loc2 a0e2
           pure $ A0TyPrim (A0TyLstm inputSize hiddenSize) Nothing
-        ("TextHelper", [arg1@(Expr loc1 _)]) -> do
+        ([], "TextHelper", [arg1@(Expr loc1 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           labels <- validateIntLiteral trav loc1 a0e1
           pure $ A0TyPrim (A0TyTextHelper labels) Nothing
@@ -2692,7 +1330,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
               pure $
                 A0TyPrim a0tyPrim . Just $
                   A0Lam Nothing (ax, strictify a0tye1) $
-                    A0App (A0App ass0exprAnd (A0App a0ePredForBase (A0Var ax))) a0e2
+                    A0App (A0App BuiltIn.ass0exprAnd (A0App a0ePredForBase (A0Var ax))) a0e2
             A0TyList a0tyeElem Nothing -> do
               pure $
                 A0TyList a0tyeElem . Just $
@@ -2701,7 +1339,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
               pure $
                 A0TyList a0tyeElem . Just $
                   A0Lam Nothing (ax, strictify a0tye1) $
-                    A0App (A0App ass0exprAnd (A0App a0ePredForBase (A0Var ax))) a0e2
+                    A0App (A0App BuiltIn.ass0exprAnd (A0App a0ePredForBase (A0Var ax))) a0e2
             _ -> do
               let Expr loc1 _ = tye1
               spanInFile1 <- askSpanInFile loc1
@@ -2730,36 +1368,14 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
     (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfType {}; AppInfType {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
-ass0exprAnd :: Ass0Expr
-ass0exprAnd = A0BuiltInName (BuiltInArity2 BIAnd)
-
-ass0exprListMap :: Ass0Expr
-ass0exprListMap = A0BuiltInName (BuiltInArity2 BIListMap)
-
-ass0exprMaybeMap :: Ass0Expr
-ass0exprMaybeMap = A0BuiltInName (BuiltInArity2 BIMaybeMap)
-
-validatePersistentExprArg1 :: trav -> Expr -> M trav Expr
-validatePersistentExprArg1 trav (Expr loc eMain) =
+validatePersistentExprArg :: trav -> TypeEnv -> Ass0TypeExpr -> Expr -> M trav Ass0Expr
+validatePersistentExprArg trav tyEnv tyReq (Expr loc eMain) =
   case eMain of
     Persistent e ->
-      pure e
+      forceExpr0 trav tyEnv tyReq e
     _ -> do
       spanInFile <- askSpanInFile loc
       typeError trav $ CannotUseNormalArgAtStage1 spanInFile
-
-collectTypeArgs :: trav -> Span -> TypeExprMain -> M trav (([ModuleName], TypeName), [Expr])
-collectTypeArgs trav loc = go
-  where
-    go = \case
-      App (Expr _ eFunMain) Nothing eArg -> do
-        (qualTyName, eArgs) <- go eFunMain
-        pure (qualTyName, eArgs ++ [eArg])
-      Constructor (mods, tyName) -> do
-        pure ((mods, tyName), [])
-      _ -> do
-        spanInFile <- askSpanInFile loc
-        typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
 typecheckTypeExpr1 :: trav -> TypeEnv -> TypeExpr -> M trav Ass1TypeExpr
 typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
@@ -2773,44 +1389,32 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
             Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
         _ : _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
-    App _ labelOpt _ -> do
-      () <-
-        case labelOpt of
-          Nothing -> pure ()
-          Just _ -> typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
+    App {} -> do
       ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
-      case (tyName, args) of
-        ("List", [tye]) -> do
+      case (mods, tyName, args) of
+        ([], "List", [tye]) -> do
           a1tye <- typecheckTypeExpr1 trav tyEnv tye
           pure $ A1TyList a1tye
-        ("Maybe", [tye]) -> do
+        ([], "Maybe", [tye]) -> do
           a1tye <- typecheckTypeExpr1 trav tyEnv tye
           pure $ A1TyMaybe a1tye
-        ("Vec", [arg]) -> do
-          e <- validatePersistentExprArg1 trav arg
-          a0e <- forceExpr0 trav tyEnv BuiltIn.tyNat e
+        ([], "Vec", [arg]) -> do
+          a0e <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg
           pure $ A1TyPrim (a1TyVec a0e)
-        ("Mat", [arg1, arg2]) -> do
-          e1 <- validatePersistentExprArg1 trav arg1
-          e2 <- validatePersistentExprArg1 trav arg2
-          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
-          a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat e2
+        ([], "Mat", [arg1, arg2]) -> do
+          a0e1 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
+          a0e2 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
           pure $ A1TyPrim (a1TyMat a0e1 a0e2)
-        ("Tensor", [arg]) -> do
+        ([], "Tensor", [arg]) -> do
           logShapeAnnot (ShapeAnnotLog loc)
-          e <- validatePersistentExprArg1 trav arg
-          a0eList <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) e
+          a0eList <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
           pure $ A1TyPrim (A1TyTensor a0eList)
-        ("Dataset", [arg1, arg2, arg3, arg4]) -> do
+        ([], "Dataset", [arg1, arg2, arg3, arg4]) -> do
           logShapeAnnot (ShapeAnnotLog loc)
-          e1 <- validatePersistentExprArg1 trav arg1
-          e2 <- validatePersistentExprArg1 trav arg2
-          e3 <- validatePersistentExprArg1 trav arg3
-          e4 <- validatePersistentExprArg1 trav arg4
-          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
-          a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat e2
-          a0e3 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) e3
-          a0e4 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) e4
+          a0e1 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
+          a0e2 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
+          a0e3 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
+          a0e4 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg4
           let datasetParam =
                 DatasetParam
                   { numTrain = a0e1,
@@ -2819,17 +1423,14 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
                     label = Identity a0e4
                   }
           pure $ A1TyPrim (A1TyDataset datasetParam)
-        ("Lstm", [arg1, arg2]) -> do
+        ([], "Lstm", [arg1, arg2]) -> do
           logShapeAnnot (ShapeAnnotLog loc)
-          e1 <- validatePersistentExprArg1 trav arg1
-          e2 <- validatePersistentExprArg1 trav arg2
-          a0eInputSize <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
-          a0eHiddenSize <- forceExpr0 trav tyEnv BuiltIn.tyNat e2
+          a0eInputSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
+          a0eHiddenSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
           pure $ A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize)
-        ("TextHelper", [arg1]) -> do
+        ([], "TextHelper", [arg1]) -> do
           logShapeAnnot (ShapeAnnotLog loc)
-          e1 <- validatePersistentExprArg1 trav arg1
-          a0eLabels <- forceExpr0 trav tyEnv BuiltIn.tyNat e1
+          a0eLabels <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
           pure $ A1TyPrim (A1TyTextHelper a0eLabels)
         _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName (length args)

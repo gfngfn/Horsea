@@ -51,6 +51,7 @@ module Staged.Syntax
     AppContextF,
     AppContextEntryF (..),
     ResultF (..),
+    mapMPure,
     AssVar,
     Ass0Expr,
     Ass0Branch,
@@ -659,6 +660,24 @@ data ResultF af sv
   | Instantiated1 (ResultF af sv)
   | InsertInferredType1 (Ass1TypeExprF sv) (ResultF af sv)
   deriving (Eq, Show, Functor)
+
+mapMPure :: (Monad m) => (af StaticVar -> m (bf StaticVar)) -> ResultF af StaticVar -> m (ResultF bf StaticVar)
+mapMPure f = go
+  where
+    go (Pure v) = Pure <$> f v
+    go (Cast0 cast a0tye r) = Cast0 cast a0tye <$> go r
+    go (Cast1 eq a1tye r) = Cast1 eq a1tye <$> go r
+    go (CastOmsGiven0 cast a0tye r) = CastOmsGiven0 cast a0tye <$> go r
+    go (InsertOmitted0 r) = InsertOmitted0 <$> go r
+    go (CastOmsGiven1 eq a1tye r) = CastOmsGiven1 eq a1tye <$> go r
+    go (InsertOmitted1 r) = InsertOmitted1 <$> go r
+    go (CastInfGiven0 a0e a0tye r) = CastInfGiven0 a0e a0tye <$> go r
+    go (FillInferred0 a0e r) = FillInferred0 a0e <$> go r
+    go (InsertInferred0 a0e r) = InsertInferred0 a0e <$> go r
+    go (Instantiated0 r) = Instantiated0 <$> go r
+    go (InsertInferredType0 a0tye r) = InsertInferredType0 a0tye <$> go r
+    go (Instantiated1 r) = Instantiated1 <$> go r
+    go (InsertInferredType1 a1tye r) = InsertInferredType1 a1tye <$> go r
 
 type AssVar = AssVarF StaticVar
 
