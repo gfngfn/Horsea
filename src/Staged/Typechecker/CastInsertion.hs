@@ -2,7 +2,6 @@ module Staged.Typechecker.CastInsertion
   ( applyCast0,
     applyCast1,
     applyEquationCast,
-    makeIdentityLam,
     makeAssertiveCast,
     makeEquation1,
   )
@@ -41,12 +40,6 @@ applyCast1 cast a1e =
 applyEquationCast :: Span -> Maybe Type1Equation -> Ass1Expr -> Ass1Expr
 applyEquationCast loc eq =
   applyCast1 (A0TyEqAssert loc <$> eq)
-
-makeIdentityLam :: Ass0TypeExpr -> M trav Ass0Expr
-makeIdentityLam a0tye = do
-  sv <- generateFreshVar Nothing
-  let ax = AssVarStatic sv
-  pure $ A0Lam Nothing (ax, strictify a0tye) (A0Var ax)
 
 -- | The core part of the cast insertion for stage 0.
 -- `makeAssertiveCast trav loc varsToInfer a0tye1 a0tye2` produces a cast

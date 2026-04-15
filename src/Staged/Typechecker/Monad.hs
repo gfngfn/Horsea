@@ -17,6 +17,7 @@ module Staged.Typechecker.Monad
     logShapeAnnot,
     generateFreshVar,
     generateFreshTypeVar,
+    makeIdentityLam,
     askSpanInFile,
   )
 where
@@ -97,6 +98,12 @@ generateFreshTypeVar (TypeVar name) = do
         assTypeVarDisplay = Map.insert atyvar name assTypeVarDisplay
       }
   pure atyvar
+
+makeIdentityLam :: Ass0TypeExpr -> M trav Ass0Expr
+makeIdentityLam a0tye = do
+  sv <- generateFreshVar Nothing
+  let ax = AssVarStatic sv
+  pure $ A0Lam Nothing (ax, strictify a0tye) (A0Var ax)
 
 askSpanInFile :: Span -> M trav SpanInFile
 askSpanInFile loc = do
