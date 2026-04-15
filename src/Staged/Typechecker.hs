@@ -1321,7 +1321,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
               pure $
                 A0TyPrim a0tyPrim . Just $
                   A0Lam Nothing (ax, strictify a0tye1) $
-                    A0App (A0App ass0exprAnd (A0App a0ePredForBase (A0Var ax))) a0e2
+                    A0App (A0App BuiltIn.ass0exprAnd (A0App a0ePredForBase (A0Var ax))) a0e2
             A0TyList a0tyeElem Nothing -> do
               pure $
                 A0TyList a0tyeElem . Just $
@@ -1330,7 +1330,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
               pure $
                 A0TyList a0tyeElem . Just $
                   A0Lam Nothing (ax, strictify a0tye1) $
-                    A0App (A0App ass0exprAnd (A0App a0ePredForBase (A0Var ax))) a0e2
+                    A0App (A0App BuiltIn.ass0exprAnd (A0App a0ePredForBase (A0Var ax))) a0e2
             _ -> do
               let Expr loc1 _ = tye1
               spanInFile1 <- askSpanInFile loc1
@@ -1358,9 +1358,6 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
       pure $ A0TyForAll atyvar a0tye1
     (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfType {}; AppInfType {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
-
-ass0exprAnd :: Ass0Expr
-ass0exprAnd = A0BuiltInName (BuiltInArity2 BIAnd)
 
 validatePersistentExprArg1 :: trav -> Expr -> M trav Expr
 validatePersistentExprArg1 trav (Expr loc eMain) =
