@@ -111,7 +111,7 @@ in
   let random (u : Unit) =
     let open Tensor in
     ~gen_sub
-      (~gen_mult (f 2.0) ~(gen_rand [batch_size, latent_dim, 1, 1]))
+      (~gen_mult (f 2.0) (~(gen_rand [batch_size, latent_dim, 1, 1]) ()))
       (f 1.0)
   in
   let end_line_by (s : String) = "  [" ++ s ++ "],\n" in

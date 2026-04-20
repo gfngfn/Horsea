@@ -108,7 +108,7 @@ module Maybe = struct
 end
 
 module List = struct
-  (* TODO: make `List.fold` stage-polymorphic *)
+  (* TODO: make `List.fold` persistent *)
   val ~fold {type 'a} {type 'b} (f : 'a -> 'b -> 'a) =
     let rec go (acc : 'a) (xs : List 'b) : 'a =
       case xs of
@@ -211,12 +211,13 @@ module Tensor = struct
     {shape : List Nat} -> &(Tensor %shape -> Tensor %[])
     external (builtin = "tensor__gen_mean", surface = "mean")
   val ~gen_rand :
-    (* #requires_grad Bool -> *) (* default: false *)
-    (* #kind Kind -> *)
-    (* #device Device -> *)
-    (* #scale Float -> *) (* default: 1.0 *)
     (shape : List Nat) ->
-    &(Tensor %shape)
+    &(?requires_grad Bool -> (* default: false *)
+      ?device Device ->
+      ?scale Float -> (* default: 1.0 *)
+      Unit ->
+      Tensor %shape
+    )
     external (builtin = "tensor__gen_rand", surface = "rand")
   val ~gen_float_vec :
     (* #kind Kind -> *)
