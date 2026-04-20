@@ -50,7 +50,7 @@ let test_model = model #is_training false in
       (train_model batch_images)
       #targets batch_labels
   in
-  Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none adam #loss loss;
+  Optimizer.backward_step adam #loss loss;
   if mod batch_idx 50 == 0 then
     let test_accuracy =
       DatasetHelper.batch_accuracy {MnistHelper.label_count}
