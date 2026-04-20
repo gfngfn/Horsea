@@ -220,9 +220,9 @@ module Tensor = struct
     )
     external (builtin = "tensor__gen_rand", surface = "rand")
   val ~gen_float_vec :
-    (* #kind Kind -> *)
-    (* #device Device -> *)
-    (floats : List Float) -> &(Tensor %[List.length floats])
+    (* ?device Device -> *)
+    (floats : List Float) ->
+    &(Tensor %[List.length floats])
     external (builtin = "tensor__gen_float_vec", surface = "float_vec")
   val ~gen_grad : {shape : List Nat} -> &(Tensor %shape -> Tensor %shape)
     external (builtin = "tensor__gen_grad", surface = "grad")
@@ -413,9 +413,9 @@ module Tensor = struct
     external (builtin = "tensor__gen_softmax", surface = "softmax")
   val ~gen_const_batch_norm :
     {shape : List Nat} ->
-    (* #momentum Float -> *)
-    (* #eps float -> *)
-    &(Tensor %shape ->
+    &(?momentum Float ->
+      ?eps Float ->
+      Tensor %shape ->
       Tensor %shape
     )
     external (builtin = "tensor__gen_const_batch_norm", surface = "const_batch_norm")
@@ -444,7 +444,7 @@ module VarStore = struct
   val ~gen_new_var :
     #shape (shape : List Nat) ->
     &(VarStore ->
-      (* #trainable Bool -> *) (* default: true *)
+      ?trainable Bool -> (* default: true *)
       #name String ->
       #init VarStoreInit ->
       Tensor %shape
@@ -546,22 +546,22 @@ module Layer = struct
     )
     external (builtin = "layer__gen_linear", surface = "linear")
   val ~gen_layer_norm :
-    (* #cudnn_enable Bool -> *)
-    (* #eps Float -> *)
     #dim (dim : Nat) ->
     {shape : {s : List Nat | List.length s >= 1 && List.last s == dim}} ->
-    &(VarStore ->
+    &(?cudnn_enable Bool ->
+      ?eps Float ->
+      VarStore ->
       Tensor %shape ->
       Tensor %shape
     )
     external (builtin = "layer__gen_layer_norm", surface = "layer_norm")
   val ~gen_embeddings :
     {shape : List Nat} ->
-    (* #sparse Bool -> *)
-    (* #scale_grad_by_freq Bool -> *)
     #num_embeddings Nat ->
     #embedding_dim (embedding_dim : Nat) ->
-    &(VarStore ->
+    &(?sparse Bool ->
+      ?scale_grad_by_freq Bool ->
+      VarStore ->
       Tensor %shape ->
       Tensor %(List.append shape [embedding_dim])
     )
@@ -649,7 +649,7 @@ module Checkpointing = struct
     #end_index Int ->
     #var_stores List VarStore ->
     #checkpoint_base String ->
-    (* #only_keep Int -> *)
+    ?only_keep Int ->
     #checkpoint_every_iters Int -> (* [ `iters of int | `seconds of float ]. default : `seconds 600 *)
     (#index Int -> Unit) ->
     Unit
