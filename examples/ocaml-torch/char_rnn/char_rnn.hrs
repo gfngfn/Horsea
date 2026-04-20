@@ -106,7 +106,7 @@ Checkpointing.loop
           print_int batches_per_epoch;
           print_float (Tensor.float_value sum_loss / float (1 + batch_idx));
           Tensor.backward loss;
-          Optimizer.step #clip_grad (Optimizer.ClipGrad.norm2 4.0) adam
+          Optimizer.step ?clip_grad (Optimizer.ClipGrad.norm2 4.0) adam
       )
       #device device
       dataset;

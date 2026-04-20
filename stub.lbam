@@ -625,7 +625,7 @@ module Optimizer = struct
       external (builtin = "optimizer__clip_grad__value", surface = "value")
   end
   val step :
-    #clip_grad ClipGrad ->
+    ?clip_grad ClipGrad ->
     Optimizer ->
     Unit
     external (builtin = "optimizer__step", surface = "step")
