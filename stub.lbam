@@ -470,8 +470,6 @@ module Layer = struct
       external (builtin = "layer__activation__leaky_relu", surface = "leaky_relu")
     val sigmoid : Activation
       external (builtin = "layer__activation__sigmoid", surface = "sigmoid")
-    val none : Activation (* TODO: remove this and use `Maybe` *)
-      external (builtin = "layer__activation__none", surface = "none")
   end
   val ~gen_forward :
     {shape1 : List Nat} ->
@@ -501,8 +499,8 @@ module Layer = struct
     #input_dim (input_dim : Nat) ->
     #output_dim (output_dim : Nat) ->
     {shape : {s : List Nat | List.length s == 4 && List.nth 1 s == input_dim}} ->
-    &(VarStore ->
-      Activation ->
+    &(?activation Activation ->
+      VarStore ->
       Tensor %shape ->
       Tensor %[
         List.nth 0 shape,
@@ -521,10 +519,10 @@ module Layer = struct
     #input_dim (input_dim : Nat) ->
     #output_dim (output_dim : Nat) ->
     {shape : {s : List Nat | List.length s == 4 && List.nth 1 s == input_dim}} ->
-    &(VarStore ->
-      ?use_bias Bool -> (* default: true *)
+    &(?use_bias Bool -> (* default: true *)
       ?w_init VarStoreInit ->
-      Activation ->
+      ?activation Activation ->
+      VarStore ->
       Tensor %shape ->
       Tensor %[
         List.nth 0 shape,
@@ -538,10 +536,10 @@ module Layer = struct
     #input_dim (input_dim : Nat) ->
     #output_dim (output_dim : Nat) ->
     {shape : {s : List Nat | List.length s >= 1 && List.last s == input_dim}} ->
-    &(VarStore ->
-      ?use_bias Bool -> (* default: true *)
+    &(?use_bias Bool -> (* default: true *)
       ?w_init VarStoreInit ->
-      Activation ->
+      ?activation Activation ->
+      VarStore ->
       Tensor %shape ->
       Tensor %(List.append (List.init shape) [output_dim])
     )

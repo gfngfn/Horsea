@@ -19,7 +19,6 @@ let gen_causal_self_attention
       let linear (n : String) =
         ~(Layer.gen_linear #input_dim cfg_n_embd #output_dim cfg_n_embd {[b, seq_len, cfg_n_embd]})
           (let open VarStore in vs / n)
-          Layer.Activation.none
       in
       let key = linear "key" in
       let query = linear "query" in
@@ -103,7 +102,6 @@ let gen_block
             {[b, seq_len, cfg_n_embd]}
           )
           (let open VarStore in vs / "lin1")
-          Layer.Activation.none
       in
       let lin2 =
         ~(Layer.gen_linear
@@ -112,7 +110,6 @@ let gen_block
             {[b, seq_len, 4 * cfg_n_embd]}
           )
           (let open VarStore in vs / "lin2")
-          Layer.Activation.none
       in
       ~Layer.gen_of_fn_ (fun #is_training (is_training : Bool) -> fun (xs : Tensor %[b, seq_len, cfg_n_embd]) ->
           let xs =
@@ -160,9 +157,8 @@ let gen_gpt
       in
       let head =
         ~(Layer.gen_linear #input_dim cfg_n_embd #output_dim cfg_vocab_size {[b, seq_len, cfg_n_embd]})
-          (let open VarStore in vs / "head")
           ?use_bias false
-          Layer.Activation.none
+          (let open VarStore in vs / "head")
       in
       let blocks =
         let rec loop (i : Int) :

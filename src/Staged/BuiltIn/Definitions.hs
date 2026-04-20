@@ -572,8 +572,6 @@ definitions =
       [|error "UNIMPLEMENTED: Layer.Activation.leaky_relu"|],
     versatile ["layer", "activation"] "sigmoid" ForStage1 0 $
       [|error "UNIMPLEMENTED: Layer.Activation.sigmoid"|],
-    versatile ["layer", "activation"] "none" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.none"|],
     gen ["layer"] "forward" [ParamIntList, ParamIntList],
     gen ["layer"] "forward_" [ParamIntList, ParamIntList],
     gen ["layer"] "of_fn_" [ParamIntList, ParamIntList],

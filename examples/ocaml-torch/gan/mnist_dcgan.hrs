@@ -23,7 +23,6 @@ let create_generator
           #output_dim 64
           {shape}
           vs
-          Layer.Activation.none
       )
     |> Tensor.const_batch_norm
     |> Tensor.relu
@@ -34,7 +33,6 @@ let create_generator
           #output_dim 32
           {[List.nth 0 shape, 64, List.nth 2 shape + 6, List.nth 3 shape + 6]}
           vs
-          Layer.Activation.none
       )
     |> Tensor.const_batch_norm
     |> Tensor.relu
@@ -44,8 +42,8 @@ let create_generator
           #input_dim 32
           #output_dim 1
           {[List.nth 0 shape, 32, (List.nth 2 shape + 6) * 2, (List.nth 3 shape + 6) * 2]}
+          ?activation Layer.Activation.tanh
           vs
-          Layer.Activation.tanh
       )
 in
 
@@ -57,7 +55,6 @@ let create_discriminator {shape : List Nat} (vs : VarStore) =
       #output_dim 32
       {shape}
       vs
-      Layer.Activation.none
   in
   let conv2 =
     Layer.conv2d_
@@ -66,7 +63,6 @@ let create_discriminator {shape : List Nat} (vs : VarStore) =
       #output_dim 64
       {[List.nth 0 shape, 32, List.nth 2 shape // 2, List.nth 3 shape // 2]}
       vs
-      Layer.Activation.none
   in
   let conv3 =
     Layer.conv2d_
@@ -74,8 +70,8 @@ let create_discriminator {shape : List Nat} (vs : VarStore) =
       #input_dim 64
       #output_dim 1
       {[List.nth 0 shape, 64, List.nth 2 shape // 4, List.nth 3 shape // 4]}
+      ?activation Layer.Activation.sigmoid
       vs
-      Layer.Activation.sigmoid
   in
   fun (xs : Tensor shape) ->
     xs
