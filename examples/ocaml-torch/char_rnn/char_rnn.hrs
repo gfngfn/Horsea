@@ -63,7 +63,6 @@ let lstm = Layer.Lstm.create #input_dim labels #hidden_size hidden_size vs in
 let linear (shape : List Nat) =
   Layer.linear #input_dim hidden_size #output_dim labels {List.append shape [hidden_size]}
     vs
-    Layer.Activation.none
 in
 let adam = Optimizer.adam vs #learning_rate learning_rate in
 let batches_per_epoch =

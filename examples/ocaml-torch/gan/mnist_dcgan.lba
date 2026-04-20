@@ -24,7 +24,6 @@ let gen_create_generator {shape : {s : List Nat | List.length s == 4 && List.nth
                 {shape}
               )
               vs
-              Layer.Activation.none
           )
         |> ~Tensor.gen_const_batch_norm
         |> ~Tensor.gen_relu
@@ -36,7 +35,6 @@ let gen_create_generator {shape : {s : List Nat | List.length s == 4 && List.nth
                 {[List.nth 0 shape, 64, List.nth 2 shape + 6, List.nth 3 shape + 6]}
               )
               vs
-              Layer.Activation.none
           )
         |> ~Tensor.gen_const_batch_norm
         |> ~Tensor.gen_relu
@@ -47,8 +45,8 @@ let gen_create_generator {shape : {s : List Nat | List.length s == 4 && List.nth
                 #output_dim 1
                 {[List.nth 0 shape, 32, (List.nth 2 shape + 6) * 2, (List.nth 3 shape + 6) * 2]}
               )
+              ?activation Layer.Activation.tanh
               vs
-              Layer.Activation.tanh
           )
   )
 in
@@ -63,7 +61,6 @@ let gen_create_discriminator {shape : {s : List Nat | List.length s == 4}} =
             {shape}
           )
           vs
-          Layer.Activation.none
       in
       let conv2 =
         ~(Layer.gen_conv2d_
@@ -73,7 +70,6 @@ let gen_create_discriminator {shape : {s : List Nat | List.length s == 4}} =
             {[List.nth 0 shape, 32, List.nth 2 shape // 2, List.nth 3 shape // 2]}
           )
           vs
-          Layer.Activation.none
       in
       let conv3 =
         ~(Layer.gen_conv2d_
@@ -82,8 +78,8 @@ let gen_create_discriminator {shape : {s : List Nat | List.length s == 4}} =
             #output_dim 1
             {[List.nth 0 shape, 64, List.nth 2 shape // 4, List.nth 3 shape // 4]}
           )
+          ?activation Layer.Activation.sigmoid
           vs
-          Layer.Activation.sigmoid
       in
       fun (xs : Tensor %shape) ->
         xs

@@ -48,7 +48,6 @@ let dataset =
     Layer.forward
       ( Layer.linear #input_dim num_classes #output_dim (List.length classes) {[batch_size, num_classes]}
           train_vs
-          Layer.Activation.none
       )
       xs
   in
