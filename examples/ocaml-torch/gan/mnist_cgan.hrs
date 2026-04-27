@@ -66,7 +66,7 @@ let batches = 100000000 in
 
 let random (u : Unit) =
   let open Tensor in
-  f 2.0 * rand [batch_size, latent_dim] - f 1.0
+  f 2.0 * rand [batch_size, latent_dim] () - f 1.0
 in
 let end_line_by (s : String) = "  [" ++ s ++ "],\n" in
 let write_samples (samples : Tensor [batch_size, image_dim + label_count]) #filename (filename : String) =
@@ -124,11 +124,11 @@ let one = Tensor.ones ([] as List Nat) in
     bce #labels 0.9 (create_discriminator discriminator_vs real_input)
       + bce #labels 0.0 (random () |> generator |> create_discriminator discriminator_vs)
   in
-  Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none opt_d #loss discriminator_loss;
+  Optimizer.backward_step opt_d #loss discriminator_loss;
   let generator_loss =
     bce #labels 1.0 (random () |> generator |> create_discriminator discriminator_vs)
   in
-  Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none opt_g #loss generator_loss;
+  Optimizer.backward_step opt_g #loss generator_loss;
   if mod batch_idx 100 == 0 then
     ( print_string "batch";
       print_int batch_idx;

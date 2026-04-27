@@ -576,7 +576,7 @@ definitions =
     gen ["layer"] "forward_" [ParamIntList, ParamIntList],
     gen ["layer"] "of_fn_" [ParamIntList, ParamIntList],
     gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamIntList],
-    gen ["layer"] "conv_transpose2d_" [ParamInt, ParamInt, ParamInt, ParamIntMaybe, ParamInt, ParamInt, ParamIntList],
+    gen ["layer"] "conv_transpose2d_" [ParamInt, ParamInt, ParamInt, ParamIntMaybe, ParamIntMaybe, ParamInt, ParamInt, ParamIntList],
     gen ["layer"] "linear" [ParamInt, ParamInt, ParamIntList],
     gen ["layer"] "layer_norm" [ParamInt, ParamIntList],
     gen ["layer"] "embeddings" [ParamIntList, ParamInt, ParamInt],
@@ -599,8 +599,6 @@ definitions =
           _momentum <- validateFloatLiteral a0v3
           error "UNIMPLEMENTED: Optimizer.sgd"
         |],
-    versatile ["optimizer", "clip_grad"] "none" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Optimizer.ClipGrad.none"|],
     versatile ["optimizer", "clip_grad"] "norm2" ForStage1 0 $
       [|error "UNIMPLEMENTED: Optimizer.ClipGrad.norm2"|],
     versatile ["optimizer", "clip_grad"] "value" ForStage1 0 $
@@ -642,7 +640,7 @@ definitions =
     gen ["text_helper"] "total_length" [ParamInt],
     gen ["text_helper"] "iter" [ParamInt, ParamInt, ParamInt],
     gen ["torch_vision", "resnet"] "resnet18" [ParamIntList, ParamInt],
-    gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamString, ParamStringList],
+    gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamString, ParamStringList, ParamStringMaybe],
     gen ["torch_vision", "imagenet"] "load_image" [ParamIntList, ParamString],
     -- TODO: support `TorchVision.Imagenet.Classes.names`
     gen ["torch_vision", "imagenet", "classes"] "top" [ParamIntList, ParamInt],

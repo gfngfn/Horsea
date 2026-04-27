@@ -96,7 +96,7 @@ let learning_rate = 0.0001 in
 let batches = 100000000 in
 let random (u : Unit) =
   let open Tensor in
-  f 2.0 * rand [batch_size, latent_dim, 1, 1] - f 1.0
+  f 2.0 * rand [batch_size, latent_dim, 1, 1] () - f 1.0
 in
 let end_line_by (s : String) = "  [" ++ s ++ "],\n" in
 let write_samples (samples : Tensor [batch_size, image_dim]) #filename (filename : String) =
@@ -153,7 +153,7 @@ let fixed_noise = random () in
       (y_pred - mean y_pred_fake - f 1.0 |> square |> mean)
         + (y_pred_fake - mean y_pred + f 1.0 |> square |> mean)
   in
-  Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none opt_d #loss discriminator_loss;
+  Optimizer.backward_step opt_d #loss discriminator_loss;
   let generator_loss =
     if use_standard_gan then
       bce #labels 1.0
@@ -170,7 +170,7 @@ let fixed_noise = random () in
       (y_pred - mean y_pred_fake + f 1.0 |> square |> mean)
         + (y_pred_fake - mean y_pred - f 1.0 |> square |> mean)
   in
-  Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none opt_g #loss generator_loss;
+  Optimizer.backward_step opt_g #loss generator_loss;
   if mod batch_idx 100 == 0 then
     ( print_string "batch";
       print_int batch_idx;

@@ -65,7 +65,7 @@ let batches = 100000000 in
 
 let random (u : Unit) =
   let open Tensor in
-  f 2.0 * rand [batch_size, latent_dim] - f 1.0
+  f 2.0 * rand [batch_size, latent_dim] () - f 1.0
 in
 let end_line_by (s : String) = "  [" ++ s ++ "],\n" in
 let write_samples (samples : Tensor [batch_size, image_dim]) #filename (filename : String) =
@@ -111,13 +111,13 @@ let fixed_noise = random () in
             (random () |> create_generator generator_vs |> create_discriminator discriminator_vs)
         )
   in
-  Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none opt_d #loss discriminator_loss;
+  Optimizer.backward_step opt_d #loss discriminator_loss;
   let generator_loss =
     bce
       #labels 1.0
       (random () |> create_generator generator_vs |> create_discriminator discriminator_vs)
   in
-  Optimizer.backward_step #clip_grad Optimizer.ClipGrad.none opt_g #loss generator_loss;
+  Optimizer.backward_step opt_g #loss generator_loss;
   if mod batch_idx 100 == 0 then
     ( print_string "batch";
       print_int batch_idx;
