@@ -528,6 +528,7 @@ instance Disp BuiltIn where
     BuiltInArity5 bi5 -> dispGen req bi5
     BuiltInArity6 bi6 -> dispGen req bi6
     BuiltInArity7 bi7 -> dispGen req bi7
+    BuiltInArity8 bi8 -> dispGen req bi8
     BuiltInOther s -> "OTHER '" <> disp s <> "'"
 
 instance (Disp e) => Disp (Surface.Literal e) where
@@ -1117,6 +1118,7 @@ instance (Disp v) => Disp (Ass0PartialBuiltInApp v) where
     A0PartialBuiltInAppArity5 pba5 -> dispGen req pba5
     A0PartialBuiltInAppArity6 pba6 -> dispGen req pba6
     A0PartialBuiltInAppArity7 pba7 -> dispGen req pba7
+    A0PartialBuiltInAppArity8 pba8 -> dispGen req pba8
 
 instance (Disp v) => Disp (Ass0PartialBuiltInAppArity1 v) where
   dispGen req = \case
@@ -1161,8 +1163,15 @@ instance (Disp v) => Disp (Ass0PartialBuiltInAppArity6 v) where
       f = deepenParenWhen (req <= Atomic)
 
 instance (Disp v) => Disp (Ass0PartialBuiltInAppArity7 v) where
-  dispGen _req = \case
+  dispGen req = \case
     PartialBuiltInAppArity7Nil bi7 -> disp bi7
+    PartialBuiltInAppArity7Cons pba8 v -> f (disp pba8 <+> dispGen Atomic v)
+    where
+      f = deepenParenWhen (req <= Atomic)
+
+instance (Disp v) => Disp (Ass0PartialBuiltInAppArity8 v) where
+  dispGen _req = \case
+    PartialBuiltInAppArity8Nil bi8 -> disp bi8
 
 instance (Disp sv) => Disp (Ass1ValF sv) where
   dispGen req = \case

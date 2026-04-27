@@ -516,7 +516,7 @@ module Layer = struct
     #stride (stride : Nat) ->
     #padding (padding : Nat) ->
     ?output_padding (output_padding : Maybe Nat) -> (* default: 0 *)
-    (* #groups Nat -> *)
+    ?groups Nat ->
     #input_dim (input_dim : Nat) ->
     #output_dim (output_dim : Nat) ->
     {shape : {s : List Nat | List.length s == 4 && List.nth 1 s == input_dim}} ->

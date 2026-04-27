@@ -9,6 +9,7 @@ module Staged.BuiltIn.Core
     BuiltInArity5 (..),
     BuiltInArity6 (..),
     BuiltInArity7 (..),
+    BuiltInArity8 (..),
     Ass0PartialBuiltInApp (..),
     Ass0PartialBuiltInAppArity1 (..),
     Ass0PartialBuiltInAppArity2 (..),
@@ -17,6 +18,7 @@ module Staged.BuiltIn.Core
     Ass0PartialBuiltInAppArity5 (..),
     Ass0PartialBuiltInAppArity6 (..),
     Ass0PartialBuiltInAppArity7 (..),
+    Ass0PartialBuiltInAppArity8 (..),
     Ass1BuiltIn (..),
     validateExternalName0,
     validateExternalName1,
@@ -39,6 +41,7 @@ data BuiltIn
   | BuiltInArity5 BuiltInArity5
   | BuiltInArity6 BuiltInArity6
   | BuiltInArity7 BuiltInArity7
+  | BuiltInArity8 BuiltInArity8
   | BuiltInOther Text -- TODO: remove this
   deriving stock (Eq, Show)
 
@@ -50,6 +53,7 @@ data Ass0PartialBuiltInApp val
   | A0PartialBuiltInAppArity5 (Ass0PartialBuiltInAppArity5 val)
   | A0PartialBuiltInAppArity6 (Ass0PartialBuiltInAppArity6 val)
   | A0PartialBuiltInAppArity7 (Ass0PartialBuiltInAppArity7 val)
+  | A0PartialBuiltInAppArity8 (Ass0PartialBuiltInAppArity8 val)
   deriving stock (Eq, Show, Functor)
 
 data Ass0PartialBuiltInAppArity1 val
@@ -84,6 +88,11 @@ data Ass0PartialBuiltInAppArity6 val
 
 data Ass0PartialBuiltInAppArity7 val
   = PartialBuiltInAppArity7Nil BuiltInArity7
+  | PartialBuiltInAppArity7Cons (Ass0PartialBuiltInAppArity8 val) val
+  deriving stock (Eq, Show, Functor)
+
+newtype Ass0PartialBuiltInAppArity8 val
+  = PartialBuiltInAppArity8Nil BuiltInArity8
   deriving stock (Eq, Show, Functor)
 
 -- TODO (refactor): generate this function by Template Haskell;
