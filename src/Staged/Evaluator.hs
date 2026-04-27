@@ -141,6 +141,13 @@ validateIntMaybe a0v = do
     Nothing -> pure Nothing
     Just a0vElem -> Just <$> validateIntLiteral a0vElem
 
+validateStringMaybe :: Ass0Val -> M (Maybe Text)
+validateStringMaybe a0v = do
+  a0vOpt <- validateMaybeValue a0v
+  case a0vOpt of
+    Nothing -> pure Nothing
+    Just a0vElem -> Just <$> validateStringLiteral a0vElem
+
 validateListValue :: Ass0Val -> M [Ass0Val]
 validateListValue = \case
   A0ValLiteral (ALitList a0vs) -> pure a0vs

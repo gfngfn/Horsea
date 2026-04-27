@@ -57,6 +57,7 @@ data ParamSpec
   | ParamIntList
   | ParamIntPair
   | ParamString
+  | ParamStringMaybe
   | ParamStringList
   | ParamFloatList
 
@@ -204,6 +205,7 @@ makeParam = \case
   ParamIntList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Int)
   ParamIntPair -> TH.AppT (TH.AppT (TH.TupleT 2) (TH.ConT ''Int)) (TH.ConT ''Int)
   ParamString -> TH.ConT ''Text
+  ParamStringMaybe -> TH.AppT (TH.ConT ''Maybe) (TH.ConT ''Text)
   ParamStringList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Text)
   ParamFloatList -> TH.AppT (TH.ConT ''[]) (TH.ConT ''Double)
 
@@ -294,6 +296,7 @@ deriveDeltaReductionPerArity allBiSpecs arity = do
                     ParamIntList -> "validateIntListLiteral"
                     ParamIntPair -> "validateIntPairLiteral"
                     ParamString -> "validateStringLiteral"
+                    ParamStringMaybe -> "validateStringMaybe"
                     ParamStringList -> "validateStringListLiteral"
                     ParamFloatList -> "validateFloatListLiteral"
 
@@ -355,6 +358,7 @@ makeParamDisp (pName, paramSpec) =
         ParamIntList -> "dispListLiteral"
         ParamIntPair -> "dispPairLiteral"
         ParamString -> "dispStringLiteral"
+        ParamStringMaybe -> "dispStringMaybe"
         ParamStringList -> "dispStringListLiteral"
         ParamFloatList -> "dispListLiteral"
 

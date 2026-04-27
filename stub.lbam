@@ -791,7 +791,7 @@ module TorchVision = struct
       {labels : List Nat} ->
       #dir String ->
       #classes List String ->
-      (* #with_cache String -> *)
+      ?with_cache String ->
       &(Unit -> Dataset %ntrain %ntest %imgdim %labels)
       external (builtin = "torch_vision__imagenet__gen_load_dataset", surface = "load_dataset")
     val ~gen_load_image :

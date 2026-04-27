@@ -127,6 +127,11 @@ dispMaybe = \case
   Nothing -> "Nothing"
   Just v -> "Just" <+> dispGen Atomic v
 
+dispStringMaybe :: Maybe Text -> Doc Ann
+dispStringMaybe = \case
+  Nothing -> "Nothing"
+  Just v -> "Just" <+> dispStringLiteral v
+
 dispNonrecLam :: (Disp var, Disp ty, Disp expr) => Associativity -> Maybe Label -> var -> ty -> expr -> Doc Ann
 dispNonrecLam req labelOpt x tye1 e2 =
   deepenParenWhen (req <= FunDomain) $

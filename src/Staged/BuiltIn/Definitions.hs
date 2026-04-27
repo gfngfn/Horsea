@@ -640,7 +640,7 @@ definitions =
     gen ["text_helper"] "total_length" [ParamInt],
     gen ["text_helper"] "iter" [ParamInt, ParamInt, ParamInt],
     gen ["torch_vision", "resnet"] "resnet18" [ParamIntList, ParamInt],
-    gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamString, ParamStringList],
+    gen ["torch_vision", "imagenet"] "load_dataset" [ParamInt, ParamInt, ParamIntList, ParamIntList, ParamString, ParamStringList, ParamStringMaybe],
     gen ["torch_vision", "imagenet"] "load_image" [ParamIntList, ParamString],
     -- TODO: support `TorchVision.Imagenet.Classes.names`
     gen ["torch_vision", "imagenet", "classes"] "top" [ParamIntList, ParamInt],
