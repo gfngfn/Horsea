@@ -513,7 +513,6 @@ definitions =
     gen ["tensor"] "contiguous" [ParamIntList],
     gen ["tensor"] "eq_scalar" [ParamIntList],
     gen ["tensor"] "get" [ParamIntList],
-    gen ["tensor"] "get_float2_unsafe" [ParamIntList],
     gen ["tensor"] "iter_dim0" [ParamIntList],
     gen ["tensor"] "to_list1" [ParamIntList],
     gen ["tensor"] "fill_float" [ParamIntList],
