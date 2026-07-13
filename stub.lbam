@@ -299,11 +299,14 @@ module Tensor = struct
     {shape : List Nat} ->
     &(Tensor %shape -> Int -> Tensor %(List.tail shape))
     external (builtin = "tensor__gen_get", surface = "get")
-  (* Note: MAY FAIL AT RUNTIME DUE TO INDICES OUT OF BOUNDS!: *)
-  val ~gen_get_float2_unsafe :
-    {shape : {s : List Nat | List.length s == 2}} ->
-    &(Tensor %shape -> Int -> Int -> Float)
-    external (builtin = "tensor__gen_get_float2_unsafe", surface = "get_float2_unsafe")
+  val ~gen_iter_dim0 :
+    {shape : {s : List Nat | List.length s >= 1}} ->
+    &((Tensor %(List.tail shape) -> Unit) -> Tensor %shape -> Unit)
+    external (builtin = "tensor__gen_iter_dim0", surface = "iter_dim0")
+  val ~gen_to_list1 :
+    {shape : {s : List Nat | List.length s == 1}} ->
+    &(Tensor %shape -> List Float)
+    external (builtin = "tensor__gen_to_list1", surface = "to_list1")
   val ~gen_fill_float : {shape : List Nat} -> &(Tensor %shape -> Float -> Unit)
     external (builtin = "tensor__gen_fill_float", surface = "fill_float")
   val ~gen_dropout :
