@@ -118,14 +118,13 @@ in
   let write_samples (samples : Tensor %[batch_size, image_dim]) #filename (filename : String) =
     IO.OutChannel.with_file filename (fun (channel : OutChannel) ->
       IO.OutChannel.output_string channel "data_ = [\n";
-      (range 0 99) |> List.iter (fun(sample_index : Int) ->
-        List.initialize ~(lift_int image_dim) (fun (pixel_index : Int) ->
-          ~Tensor.gen_get_float2_unsafe samples sample_index pixel_index |> show_float
-        )
+      ~Tensor.gen_iter_dim0 (fun (row : Tensor %[image_dim]) ->
+        ~Tensor.gen_to_list1 row
+          |> List.map show_float
           |> String.concat #sep ", "
           |> end_line_by
           |> IO.OutChannel.output_string channel
-      );
+      ) samples;
       IO.OutChannel.output_string channel "]\n"
     )
   in
