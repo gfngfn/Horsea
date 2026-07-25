@@ -40,7 +40,7 @@ addVal :: Var -> ValEntry -> TypeEnv -> TypeEnv
 addVal x valEntry tyEnv =
   tyEnv {envVals = (x, valEntry) : tyEnv.envVals}
 
-addVals :: (Map Var ValEntry) -> TypeEnv -> TypeEnv
+addVals :: Map Var ValEntry -> TypeEnv -> TypeEnv
 addVals binders tyEnv =
   foldl' (\tyEnv' (x, valEntry) -> addVal x valEntry tyEnv') tyEnv (Map.toList binders)
 

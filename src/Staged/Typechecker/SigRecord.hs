@@ -3,12 +3,15 @@ module Staged.Typechecker.SigRecord
     Ass1Metadata (..),
     AssPersMetadata (..),
     ValEntry (..),
+    Ass0TypeParam (..),
+    TypeEntry (..),
     ModuleEntry (..),
     SigRecord,
     empty,
     findVal,
     findModule,
     singletonVal,
+    singletonType,
     singletonModule,
     intersection,
     union,
@@ -19,7 +22,7 @@ where
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Staged.BuiltIn.Core
-import Staged.SrcSyntax (Var)
+import Staged.SrcSyntax (TypeName, Var)
 import Staged.Syntax
 import Surface.Syntax qualified as SurfaceSyntax
 import Prelude
@@ -44,36 +47,54 @@ data ValEntry
   | Ass1Entry Ass1TypeExpr (Either Ass1Metadata StaticVar)
   | AssPersEntry AssPersTypeExpr AssPersMetadata
 
+data Ass0TypeParam
+  = A0TypeParamType AssTypeVar
+  | A0TypeParamVal AssVar
+
+data TypeEntry
+  = Ass0TypeEntry [Ass0TypeParam] Ass0TypeExpr
+
 newtype ModuleEntry
   = ModuleEntry SigRecord
 
 data SigRecord = SigRecord
   { sigVals :: Map Var ValEntry,
+    sigTypes :: Map TypeName TypeEntry,
     sigModules :: Map Var ModuleEntry
   }
 
 empty :: SigRecord
-empty = SigRecord Map.empty Map.empty
+empty = SigRecord {sigVals = Map.empty, sigTypes = Map.empty, sigModules = Map.empty}
 
 findVal :: Var -> SigRecord -> Maybe ValEntry
-findVal x (SigRecord vals _) = Map.lookup x vals
+findVal x sigr = Map.lookup x sigr.sigVals
 
 findModule :: Var -> SigRecord -> Maybe ModuleEntry
-findModule m (SigRecord _ modules) = Map.lookup m modules
+findModule m sigr = Map.lookup m sigr.sigModules
 
 singletonVal :: Var -> ValEntry -> SigRecord
-singletonVal var entry = SigRecord (Map.singleton var entry) Map.empty
+singletonVal var entry = empty {sigVals = Map.singleton var entry}
+
+singletonType :: TypeName -> TypeEntry -> SigRecord
+singletonType tyName tyEntry = empty {sigTypes = Map.singleton tyName tyEntry}
 
 singletonModule :: Var -> ModuleEntry -> SigRecord
-singletonModule m modEntry = SigRecord Map.empty (Map.singleton m modEntry)
+singletonModule m modEntry = empty {sigModules = Map.singleton m modEntry}
 
-intersection :: SigRecord -> SigRecord -> ([Var], [Var])
-intersection (SigRecord vals1 modules1) (SigRecord vals2 modules2) =
-  (map fst $ Map.toList (Map.intersection vals1 vals2), map fst $ Map.toList (Map.intersection modules1 modules2))
+intersection :: SigRecord -> SigRecord -> ([Var], [TypeName], [Var])
+intersection sigr1 sigr2 =
+  ( map fst $ Map.toList (Map.intersection sigr1.sigVals sigr2.sigVals),
+    map fst $ Map.toList (Map.intersection sigr1.sigTypes sigr2.sigTypes),
+    map fst $ Map.toList (Map.intersection sigr1.sigModules sigr2.sigModules)
+  )
 
 union :: SigRecord -> SigRecord -> SigRecord
-union (SigRecord vals1 modules1) (SigRecord vals2 modules2) =
-  SigRecord (Map.union vals1 vals2) (Map.union modules1 modules2)
+union sigr1 sigr2 =
+  SigRecord
+    { sigVals = Map.union sigr1.sigVals sigr2.sigVals,
+      sigTypes = Map.union sigr1.sigTypes sigr2.sigTypes,
+      sigModules = Map.union sigr1.sigModules sigr2.sigModules
+    }
 
 fold :: (Var -> ValEntry -> a -> a) -> (Var -> ModuleEntry -> a -> a) -> a -> SigRecord -> a
 fold fVal fModule acc (SigRecord {sigVals, sigModules}) =

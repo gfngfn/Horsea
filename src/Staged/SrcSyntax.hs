@@ -144,6 +144,7 @@ data BindF ann = Bind ann (BindMainF ann)
 
 data BindMainF ann
   = BindVal Stage Var (BindValF ann)
+  | BindType Stage TypeName [LamBinderF ann] (TypeExprF ann)
   | BindModule Var [BindF ann]
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 

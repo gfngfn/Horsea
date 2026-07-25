@@ -37,7 +37,7 @@ import Staged.Typechecker.CastInsertion
 import Staged.Typechecker.Instantiation
 import Staged.Typechecker.Merging
 import Staged.Typechecker.Monad
-import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
+import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass0TypeParam (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
@@ -1592,6 +1592,34 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
           -- TODO: bind persistent values
           spanInFile <- askSpanInFile loc
           typeError trav $ Unsupported spanInFile (CannotBindPersistentValue x)
+    BindType stage tyName params tye ->
+      case stage of
+        Stage0 -> do
+          (aparamAcc, tyEnv') <-
+            foldM
+              ( \(aparamAcc0, tyEnv0) param ->
+                  case param of
+                    TypeBinder tyvar -> do
+                      atyvar <- generateFreshTypeVar tyvar
+                      let tyEnv1 = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv0
+                      pure (A0TypeParamType atyvar : aparamAcc0, tyEnv1)
+                    MandatoryBinder Nothing (x, tyeParam) -> do
+                      svX <- generateFreshVar (Just x)
+                      let ax = AssVarStatic svX
+                      a0tyeParam <- typecheckTypeExpr0 trav tyEnv0 tyeParam
+                      let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tyeParam (Right svX)) tyEnv0
+                      pure (A0TypeParamVal ax : aparamAcc0, tyEnv1)
+                    _ ->
+                      error "TODO (error): BindType, unsupported parameter for types"
+              )
+              ([], tyEnv)
+              params
+          let aparams = reverse aparamAcc
+          a0tye <- typecheckTypeExpr0 trav tyEnv' tye
+          let abinds = error "TODO: BindType, abinds"
+          pure (SigRecord.singletonType tyName (Ass0TypeEntry aparams a0tye), abinds)
+        _ ->
+          error "TODO: BindType, non-Stage0"
     BindModule m binds -> do
       (_, sigr, abinds) <- typecheckBinds trav tyEnv binds
       pure (SigRecord.singletonModule m (ModuleEntry sigr), abinds)
@@ -1602,12 +1630,15 @@ typecheckBinds trav tyEnv =
     ( \(tyEnv', sigr', abinds') bind@(Bind loc _) -> do
         (sigr, abinds) <- typecheckBind trav tyEnv' bind
         case SigRecord.intersection sigr' sigr of
-          ([], []) ->
+          ([], [], []) ->
             pure (TypeEnv.appendSigRecord tyEnv' sigr, SigRecord.union sigr' sigr, abinds' ++ abinds)
-          (x : _, _) -> do
+          (x : _, _, _) -> do
             spanInFile <- askSpanInFile loc
             typeError trav $ BindingOverwritten spanInFile x
-          (_, m : _) -> do
+          (_, tyName : _, _) -> do
+            spanInFile <- askSpanInFile loc
+            typeError trav $ BindingOverwritten spanInFile tyName
+          (_, _, m : _) -> do
             spanInFile <- askSpanInFile loc
             typeError trav $ BindingOverwritten spanInFile m
     )
