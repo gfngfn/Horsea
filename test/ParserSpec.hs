@@ -470,3 +470,16 @@ spec = do
                   (tyForAll (TypeVar "a") $ tyForAll (TypeVar "b") $ tyNondepFun (tyNondepFun (tyVar "a") (tyVar "b")) (tyNondepFun (tyVar "a") (tyVar "b")))
                   [("builtin", "app"), ("surface", "app")]
           ]
+    it "parses single, stage-1 type binding" $
+      parseBinds "type Foo = Int"
+        `shouldBe` pure [Bind () (BindType Stage1 "Foo" [] tyInt)]
+    it "parses single, stage-1 type binding with value parameters" $
+      parseBinds "type RectMat %(n : Nat) = Tensor %[n, n]"
+        `shouldBe` pure
+          [ Bind () $
+              BindType
+                Stage1
+                "RectMat"
+                [MandatoryBinder Nothing ("n", tyNat)]
+                (tyPersTensor (litList [var "n", var "n"]))
+          ]
