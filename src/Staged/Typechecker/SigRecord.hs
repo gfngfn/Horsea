@@ -50,7 +50,7 @@ data ValEntry
 
 data Ass1TypeParam
   = A1TypeParamType AssTypeVar
-  | A1TypeParamVal0 AssVar
+  | A1TypeParamVal0 AssVar Ass0TypeExpr
 
 data TypeEntry
   = Ass1TypeEntry [Ass1TypeParam] Ass1TypeExpr

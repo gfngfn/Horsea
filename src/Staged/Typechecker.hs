@@ -26,6 +26,7 @@ import Data.Tensor.Matrix qualified as Matrix
 import Data.Tensor.Vector qualified as Vector
 import Data.Text (Text)
 import Data.Tuple.Extra (both, second)
+import Safe.Exact (zipExactMay)
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
 import Staged.Core
@@ -33,6 +34,7 @@ import Staged.SrcSyntax
 import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
+import Staged.TypeSubst
 import Staged.Typechecker.CastInsertion
 import Staged.Typechecker.Instantiation
 import Staged.Typechecker.Merging
@@ -1377,63 +1379,121 @@ validatePersistentExprArg trav tyEnv tyReq (Expr loc eMain) =
       spanInFile <- askSpanInFile loc
       typeError trav $ CannotUseNormalArgAtStage1 spanInFile
 
+findType :: trav -> Span -> [Var] -> TypeName -> TypeEnv -> M trav (Maybe TypeEntry)
+findType trav loc mods tyName tyEnv =
+  case mods of
+    [] ->
+      pure $ TypeEnv.findType tyName tyEnv
+    modName : modsRest ->
+      case TypeEnv.findModule modName tyEnv of
+        Nothing -> do
+          spanInFile <- askSpanInFile loc
+          typeError trav $ UnboundModule spanInFile modName
+        Just (ModuleEntry sigr) -> do
+          sigr' <- go sigr modsRest
+          pure $ SigRecord.findType tyName sigr'
+  where
+    go sigr = \case
+      [] ->
+        pure sigr
+      modName : modsRest ->
+        case SigRecord.findModule modName sigr of
+          Nothing -> do
+            spanInFile <- askSpanInFile loc
+            typeError trav $ UnboundModule spanInFile modName
+          Just (ModuleEntry sigr') ->
+            go sigr' modsRest
+
 typecheckTypeExpr1 :: trav -> TypeEnv -> TypeExpr -> M trav Ass1TypeExpr
 typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    Constructor (mods, tyName) ->
-      case mods of
-        [] ->
-          case validatePrimBaseType tyName of
-            Just tyPrimBase -> pure $ A1TyPrim (A1TyPrimBase tyPrimBase)
-            Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
-        _ : _ ->
-          typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
+    Constructor (mods, tyName) -> do
+      tyEntry_ <- findType trav loc mods tyName tyEnv
+      case tyEntry_ of
+        Just (Ass1TypeEntry a1tyParams a1tye) ->
+          case a1tyParams of
+            [] ->
+              pure a1tye
+            _ : _ ->
+              typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
+        Nothing ->
+          case mods of
+            [] ->
+              case validatePrimBaseType tyName of
+                Just tyPrimBase -> pure $ A1TyPrim (A1TyPrimBase tyPrimBase)
+                Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
+            _ : _ ->
+              typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
     App {} -> do
       ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
-      case (mods, tyName, args) of
-        ([], "List", [tye]) -> do
-          a1tye <- typecheckTypeExpr1 trav tyEnv tye
-          pure $ A1TyList a1tye
-        ([], "Maybe", [tye]) -> do
-          a1tye <- typecheckTypeExpr1 trav tyEnv tye
-          pure $ A1TyMaybe a1tye
-        ([], "Vec", [arg]) -> do
-          a0e <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg
-          pure $ A1TyPrim (a1TyVec a0e)
-        ([], "Mat", [arg1, arg2]) -> do
-          a0e1 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
-          a0e2 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
-          pure $ A1TyPrim (a1TyMat a0e1 a0e2)
-        ([], "Tensor", [arg]) -> do
-          logShapeAnnot (ShapeAnnotLog loc)
-          a0eList <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
-          pure $ A1TyPrim (A1TyTensor a0eList)
-        ([], "Dataset", [arg1, arg2, arg3, arg4]) -> do
-          logShapeAnnot (ShapeAnnotLog loc)
-          a0e1 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
-          a0e2 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
-          a0e3 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
-          a0e4 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg4
-          let datasetParam =
-                DatasetParam
-                  { numTrain = a0e1,
-                    numTest = a0e2,
-                    image = Identity a0e3,
-                    label = Identity a0e4
-                  }
-          pure $ A1TyPrim (A1TyDataset datasetParam)
-        ([], "Lstm", [arg1, arg2]) -> do
-          logShapeAnnot (ShapeAnnotLog loc)
-          a0eInputSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
-          a0eHiddenSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
-          pure $ A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize)
-        ([], "TextHelper", [arg1]) -> do
-          logShapeAnnot (ShapeAnnotLog loc)
-          a0eLabels <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
-          pure $ A1TyPrim (A1TyTextHelper a0eLabels)
-        _ ->
-          typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName (length args)
+      tyEntry_ <- findType trav loc mods tyName tyEnv
+      case tyEntry_ of
+        Just (Ass1TypeEntry a1tyParams a1tye) ->
+          case zipExactMay a1tyParams args of
+            Just zipped ->
+              foldM
+                ( \a1tye' (a1tyParam, arg) ->
+                    case a1tyParam of
+                      A1TypeParamType atyvar -> do
+                        a1tyeArg <- typecheckTypeExpr1 trav tyEnv arg
+                        pure $ tySubst1 a1tyeArg atyvar a1tye'
+                      A1TypeParamVal0 ax a0tye -> do
+                        a0eArg <- forceExpr0 trav tyEnv a0tye arg
+                        pure $ subst0 a0eArg ax a1tye'
+                )
+                a1tye
+                zipped
+            Nothing ->
+              typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
+        Nothing ->
+          case mods of
+            [] ->
+              case (tyName, args) of
+                ("List", [tye]) -> do
+                  a1tye <- typecheckTypeExpr1 trav tyEnv tye
+                  pure $ A1TyList a1tye
+                ("Maybe", [tye]) -> do
+                  a1tye <- typecheckTypeExpr1 trav tyEnv tye
+                  pure $ A1TyMaybe a1tye
+                ("Vec", [arg]) -> do
+                  a0e <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg
+                  pure $ A1TyPrim (a1TyVec a0e)
+                ("Mat", [arg1, arg2]) -> do
+                  a0e1 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
+                  a0e2 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
+                  pure $ A1TyPrim (a1TyMat a0e1 a0e2)
+                ("Tensor", [arg]) -> do
+                  logShapeAnnot (ShapeAnnotLog loc)
+                  a0eList <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
+                  pure $ A1TyPrim (A1TyTensor a0eList)
+                ("Dataset", [arg1, arg2, arg3, arg4]) -> do
+                  logShapeAnnot (ShapeAnnotLog loc)
+                  a0e1 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
+                  a0e2 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
+                  a0e3 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
+                  a0e4 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg4
+                  let datasetParam =
+                        DatasetParam
+                          { numTrain = a0e1,
+                            numTest = a0e2,
+                            image = Identity a0e3,
+                            label = Identity a0e4
+                          }
+                  pure $ A1TyPrim (A1TyDataset datasetParam)
+                ("Lstm", [arg1, arg2]) -> do
+                  logShapeAnnot (ShapeAnnotLog loc)
+                  a0eInputSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
+                  a0eHiddenSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
+                  pure $ A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize)
+                ("TextHelper", [arg1]) -> do
+                  logShapeAnnot (ShapeAnnotLog loc)
+                  a0eLabels <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
+                  pure $ A1TyPrim (A1TyTextHelper a0eLabels)
+                _ ->
+                  typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName (length args)
+            _ : _ ->
+              typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName (length args)
     TyVar tyvar -> do
       tyvarEntry <- findTypeVar trav loc tyvar tyEnv
       case tyvarEntry of
@@ -1608,7 +1668,7 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
                       let ax = AssVarStatic svX
                       a0tyeParam <- typecheckTypeExpr0 trav tyEnv0 tyeParam
                       let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tyeParam (Right svX)) tyEnv0
-                      pure (A1TypeParamVal0 ax : a1tyParamAcc0, tyEnv1)
+                      pure (A1TypeParamVal0 ax a0tyeParam : a1tyParamAcc0, tyEnv1)
                     _ ->
                       error "TODO (error): BindType, unsupported parameter for types"
               )
