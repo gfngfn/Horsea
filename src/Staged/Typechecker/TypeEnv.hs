@@ -7,6 +7,8 @@ module Staged.Typechecker.TypeEnv
     findVal,
     addTypeVar,
     findTypeVar,
+    addType,
+    findType,
     addModule,
     findModule,
     appendSigRecord,
@@ -16,9 +18,9 @@ where
 import Data.List.Extra (firstJust)
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Staged.SrcSyntax (TypeVar, Var)
+import Staged.SrcSyntax (TypeName, TypeVar, Var)
 import Staged.Syntax (AssTypeVar)
-import Staged.Typechecker.SigRecord (ModuleEntry, SigRecord, ValEntry)
+import Staged.Typechecker.SigRecord (ModuleEntry, SigRecord, TypeEntry, ValEntry)
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Prelude
 
@@ -26,6 +28,7 @@ import Prelude
 data TypeEnv = TypeEnv
   { envVals :: [(Var, ValEntry)],
     envTypeVars :: [(TypeVar, TypeVarEntry)],
+    envTypes :: [(TypeName, TypeEntry)],
     envModules :: [(Var, ModuleEntry)]
   }
 
@@ -34,7 +37,13 @@ data TypeVarEntry
   | TypeVarEntry1 AssTypeVar
 
 empty :: TypeEnv
-empty = TypeEnv {envVals = [], envTypeVars = [], envModules = []}
+empty =
+  TypeEnv
+    { envVals = [],
+      envTypeVars = [],
+      envTypes = [],
+      envModules = []
+    }
 
 addVal :: Var -> ValEntry -> TypeEnv -> TypeEnv
 addVal x valEntry tyEnv =
@@ -61,6 +70,16 @@ findTypeVar tyvar0 tyEnv =
     (\(tyvar, tyVarEntry) -> if tyvar == tyvar0 then Just tyVarEntry else Nothing)
     tyEnv.envTypeVars
 
+addType :: TypeName -> TypeEntry -> TypeEnv -> TypeEnv
+addType tyName tyEntry tyEnv =
+  tyEnv {envTypes = (tyName, tyEntry) : tyEnv.envTypes}
+
+findType :: TypeName -> TypeEnv -> Maybe TypeEntry
+findType tyName0 tyEnv =
+  firstJust
+    (\(tyName, tyEntry) -> if tyName == tyName0 then Just tyEntry else Nothing)
+    tyEnv.envTypes
+
 addModule :: Var -> ModuleEntry -> TypeEnv -> TypeEnv
 addModule m modEntry tyEnv =
   tyEnv {envModules = (m, modEntry) : tyEnv.envModules}
@@ -73,4 +92,4 @@ findModule m0 tyEnv =
 
 appendSigRecord :: TypeEnv -> SigRecord -> TypeEnv
 appendSigRecord =
-  SigRecord.fold addVal addModule
+  SigRecord.fold addVal addType addModule

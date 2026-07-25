@@ -9,6 +9,7 @@ module Staged.Typechecker.SigRecord
     SigRecord,
     empty,
     findVal,
+    findType,
     findModule,
     singletonVal,
     singletonType,
@@ -69,6 +70,9 @@ empty = SigRecord {sigVals = Map.empty, sigTypes = Map.empty, sigModules = Map.e
 findVal :: Var -> SigRecord -> Maybe ValEntry
 findVal x sigr = Map.lookup x sigr.sigVals
 
+findType :: TypeName -> SigRecord -> Maybe TypeEntry
+findType tyName sigr = Map.lookup tyName sigr.sigTypes
+
 findModule :: Var -> SigRecord -> Maybe ModuleEntry
 findModule m sigr = Map.lookup m sigr.sigModules
 
@@ -96,6 +100,10 @@ union sigr1 sigr2 =
       sigModules = Map.union sigr1.sigModules sigr2.sigModules
     }
 
-fold :: (Var -> ValEntry -> a -> a) -> (Var -> ModuleEntry -> a -> a) -> a -> SigRecord -> a
-fold fVal fModule acc (SigRecord {sigVals, sigModules}) =
-  Map.foldrWithKey fModule (Map.foldrWithKey fVal acc sigVals) sigModules
+fold :: (Var -> ValEntry -> a -> a) -> (TypeName -> TypeEntry -> a -> a) -> (Var -> ModuleEntry -> a -> a) -> a -> SigRecord -> a
+fold fVal fType fModule acc0 (SigRecord {sigVals, sigTypes, sigModules}) =
+  acc3
+  where
+    acc1 = Map.foldrWithKey fVal acc0 sigVals
+    acc2 = Map.foldrWithKey fType acc1 sigTypes
+    acc3 = Map.foldrWithKey fModule acc2 sigModules
