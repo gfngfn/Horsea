@@ -37,7 +37,7 @@ tyPersVec :: ExprVoid -> TypeExprVoid
 tyPersVec e = typ (App (typ (Constructor ([], "Vec"))) Nothing (typ (Persistent e)))
 
 tyPersTensor :: ExprVoid -> TypeExprVoid
-tyPersTensor e = typ (App (typ (Constructor ([], "Vec"))) Nothing (typ (Persistent e)))
+tyPersTensor e = typ (App (typ (Constructor ([], "Tensor"))) Nothing (typ (Persistent e)))
 
 tyCode :: TypeExprVoid -> TypeExprVoid
 tyCode = typ . Bracket

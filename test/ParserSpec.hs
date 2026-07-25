@@ -480,6 +480,6 @@ spec = do
               BindType
                 Stage1
                 "RectMat"
-                [MandatoryBinder Nothing ("n", tyNat)]
+                [TypeParamVal0Binder ("n", tyNat)]
                 (tyPersTensor (litList [var "n", var "n"]))
           ]

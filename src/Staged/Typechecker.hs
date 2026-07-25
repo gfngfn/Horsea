@@ -1652,28 +1652,26 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
           -- TODO: bind persistent values
           spanInFile <- askSpanInFile loc
           typeError trav $ Unsupported spanInFile (CannotBindPersistentValue x)
-    BindType stage tyName params tye ->
+    BindType stage tyName tyParams tye ->
       case stage of
         Stage1 -> do
           (a1tyParamAcc, tyEnv') <-
             foldM
-              ( \(a1tyParamAcc0, tyEnv0) param ->
-                  case param of
-                    TypeBinder tyvar -> do
+              ( \(a1tyParamAcc0, tyEnv0) tyParam ->
+                  case tyParam of
+                    TypeParamTypeBinder tyvar -> do
                       atyvar <- generateFreshTypeVar tyvar
                       let tyEnv1 = TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv0
                       pure (A1TypeParamType atyvar : a1tyParamAcc0, tyEnv1)
-                    MandatoryBinder Nothing (x, tyeParam) -> do
+                    TypeParamVal0Binder (x, tyeParam) -> do
                       svX <- generateFreshVar (Just x)
                       let ax = AssVarStatic svX
                       a0tyeParam <- typecheckTypeExpr0 trav tyEnv0 tyeParam
                       let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tyeParam (Right svX)) tyEnv0
                       pure (A1TypeParamVal0 ax a0tyeParam : a1tyParamAcc0, tyEnv1)
-                    _ ->
-                      error "TODO (error): BindType, unsupported parameter for types"
               )
               ([], tyEnv)
-              params
+              tyParams
           let a1tyParams = reverse a1tyParamAcc
           a1tye <- typecheckTypeExpr1 trav tyEnv' tye
           pure (SigRecord.singletonType tyName (Ass1TypeEntry a1tyParams a1tye), [])

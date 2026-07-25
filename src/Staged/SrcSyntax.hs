@@ -5,12 +5,14 @@ module Staged.SrcSyntax
     ExprF (..),
     ExprMainF (..),
     LamBinderF (..),
+    TypeParamBinderF (..),
     BranchF (..),
     PatternF (..),
     PatternMainF (..),
     Expr,
     ExprMain,
     LamBinder,
+    TypeParamBinder,
     Branch,
     Pattern,
     PatternMain,
@@ -100,6 +102,11 @@ data LamBinderF ann
   | TypeBinder TypeVar
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
+data TypeParamBinderF ann
+  = TypeParamTypeBinder TypeVar
+  | TypeParamVal0Binder (Var, TypeExprF ann)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
+
 data BranchF ann = Branch (PatternF ann) (ExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
@@ -119,6 +126,8 @@ type Expr = ExprF Span
 type ExprMain = ExprMainF Span
 
 type LamBinder = LamBinderF Span
+
+type TypeParamBinder = TypeParamBinderF Span
 
 type Branch = BranchF Span
 
@@ -144,7 +153,7 @@ data BindF ann = Bind ann (BindMainF ann)
 
 data BindMainF ann
   = BindVal Stage Var (BindValF ann)
-  | BindType Stage TypeName [LamBinderF ann] (TypeExprF ann)
+  | BindType Stage TypeName [TypeParamBinderF ann] (TypeExprF ann)
   | BindModule Var [BindF ann]
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 

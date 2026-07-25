@@ -361,6 +361,11 @@ lamBinder =
       Left (x, tye) -> InferableBinder (x, tye)
       Right tyvar -> TypeBinder tyvar
 
+typeParamBinder :: P TypeParamBinder
+typeParamBinder =
+  (TypeParamTypeBinder <$> noLoc typeVar)
+    <|> (TypeParamVal0Binder <$> (token TokPersistent *> mandatoryBinder))
+
 mandatoryBinder :: P (Var, TypeExpr)
 mandatoryBinder = noLoc (paren ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
 
@@ -399,7 +404,7 @@ pat = con
 bind :: P Bind
 bind =
   (makeBindVal <$> token TokVal <*> stagedBinder (noLoc boundIdent) <*> valBody)
-    <|> (makeBindType <$> token TokType <*> stagedBinder (noLoc upper) <*> many lamBinder <*> (token TokEqual *> typeExpr))
+    <|> (makeBindType <$> token TokType <*> stagedBinder (noLoc upper) <*> many typeParamBinder <*> (token TokEqual *> typeExpr))
     <|> (makeBindModule <$> token TokModule <*> noLoc upper <*> (token TokEqual *> token TokStruct *> many bind) <*> token TokEnd)
   where
     makeBindVal locFirst (stage, x) (bv, locLast) =
