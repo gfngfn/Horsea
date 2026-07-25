@@ -3,7 +3,7 @@ module Staged.Typechecker.SigRecord
     Ass1Metadata (..),
     AssPersMetadata (..),
     ValEntry (..),
-    Ass0TypeParam (..),
+    Ass1TypeParam (..),
     TypeEntry (..),
     ModuleEntry (..),
     SigRecord,
@@ -47,12 +47,12 @@ data ValEntry
   | Ass1Entry Ass1TypeExpr (Either Ass1Metadata StaticVar)
   | AssPersEntry AssPersTypeExpr AssPersMetadata
 
-data Ass0TypeParam
-  = A0TypeParamType AssTypeVar
-  | A0TypeParamVal AssVar
+data Ass1TypeParam
+  = A1TypeParamType AssTypeVar
+  | A1TypeParamVal0 AssVar
 
 data TypeEntry
-  = Ass0TypeEntry [Ass0TypeParam] Ass0TypeExpr
+  = Ass1TypeEntry [Ass1TypeParam] Ass1TypeExpr
 
 newtype ModuleEntry
   = ModuleEntry SigRecord
