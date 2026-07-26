@@ -361,6 +361,11 @@ lamBinder =
       Left (x, tye) -> InferableBinder (x, tye)
       Right tyvar -> TypeBinder tyvar
 
+typeParamBinder :: P TypeParamBinder
+typeParamBinder =
+  (TypeParamTypeBinder <$> noLoc typeVar)
+    <|> (TypeParamVal0Binder <$> (token TokPersistent *> mandatoryBinder))
+
 mandatoryBinder :: P (Var, TypeExpr)
 mandatoryBinder = noLoc (paren ((,) <$> noLoc lower <*> (token TokColon *> typeExpr)))
 
@@ -398,23 +403,27 @@ pat = con
 
 bind :: P Bind
 bind =
-  (makeBindVal <$> token TokVal <*> valBinder <*> bindVal)
+  (makeBindVal <$> token TokVal <*> stagedBinder (noLoc boundIdent) <*> valBody)
+    <|> (makeBindType <$> token TokType <*> stagedBinder (noLoc upper) <*> many typeParamBinder <*> (token TokEqual *> typeExpr))
     <|> (makeBindModule <$> token TokModule <*> noLoc upper <*> (token TokEqual *> token TokStruct *> many bind) <*> token TokEnd)
   where
     makeBindVal locFirst (stage, x) (bv, locLast) =
       Bind (mergeSpan locFirst locLast) (BindVal stage x bv)
 
+    makeBindType locFirst (stage, tyName) params tye@(Expr locLast _) =
+      Bind (mergeSpan locFirst locLast) (BindType stage tyName params tye)
+
     makeBindModule locFirst m binds locLast =
       Bind (mergeSpan locFirst locLast) (BindModule m binds)
 
-valBinder :: P (Stage, Var)
-valBinder =
-  ((Stage0,) <$> (token TokEscape *> noLoc boundIdent))
-    <|> ((StagePers,) <$> (token TokPersistent *> noLoc boundIdent))
-    <|> ((Stage1,) <$> noLoc boundIdent)
+stagedBinder :: P a -> P (Stage, a)
+stagedBinder pIdent =
+  ((Stage0,) <$> (token TokEscape *> pIdent))
+    <|> ((StagePers,) <$> (token TokPersistent *> pIdent))
+    <|> ((Stage1,) <$> pIdent)
 
-bindVal :: P (BindVal, Span)
-bindVal =
+valBody :: P (BindVal, Span)
+valBody =
   try (makeBindValExternal <$> (token TokColon *> typeExpr) <*> (token TokExternal *> external))
     <|> (makeBindValNormal <$> many lamBinder <*> optional (token TokColon *> typeExpr) <*> (token TokEqual *> expr))
   where

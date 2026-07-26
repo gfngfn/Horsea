@@ -1,5 +1,5 @@
 let gen_square {n : Nat} =
-  &(fun(mat : Mat %n %n) ->
+  &(fun(mat : RectMat %n) ->
     ~gen_mmult mat mat
   )
 in

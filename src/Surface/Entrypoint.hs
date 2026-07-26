@@ -86,6 +86,10 @@ makeBindingTimeEnvFromStub =
                       (EntryBuiltInPersistent varVal bipty)
                       bindingTimeEnv
     )
+    ( \_tyName _tyEntry bindingTimeEnv ->
+        -- TODO: take type aliases into consideration for BTA
+        bindingTimeEnv
+    )
     ( \varMod (ModuleEntry sigr) bindingTimeEnv ->
         -- Reuses the module name `varMod` in the core language for the surface language.
         Map.insert

@@ -1,3 +1,6 @@
+type RectMat %(n : Nat) = Mat %n %n  (* Temporary use (TODO: remove this) *)
+type Option 'a = Maybe 'a  (* Temporary use (TODO: remove this) *)
+
 val %( + ) : Int -> Int -> Int
   external (builtin = "int_add", surface = "+")
 val %( - ) : Int -> Int -> Int
