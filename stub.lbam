@@ -1,3 +1,6 @@
+(* Temporary use (TODO: remove this): *)
+type RectMat %(n : Nat) = Mat %n %n
+
 val %( + ) : Int -> Int -> Int
   external (builtin = "int_add", surface = "+")
 val %( - ) : Int -> Int -> Int
