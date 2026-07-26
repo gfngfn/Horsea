@@ -1429,21 +1429,24 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
       ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
       tyEntry_ <- findType trav loc mods tyName tyEnv
       case tyEntry_ of
-        Just (Ass1TypeEntry a1tyParams a1tye) ->
+        Just (Ass1TypeEntry a1tyParams a1tyeBody) ->
           case zipExactMay a1tyParams args of
-            Just zipped ->
-              foldM
-                ( \a1tye' (a1tyParam, arg) ->
-                    case a1tyParam of
-                      A1TypeParamType atyvar -> do
-                        a1tyeArg <- typecheckTypeExpr1 trav tyEnv arg
-                        pure $ tySubst1 a1tyeArg atyvar a1tye'
-                      A1TypeParamVal0 ax a0tye -> do
-                        a0eArg <- forceExpr0 trav tyEnv a0tye arg
-                        pure $ subst0 a0eArg ax a1tye'
-                )
-                a1tye
-                zipped
+            Just zipped -> do
+              (a1tye, hasValArg) <-
+                foldM
+                  ( \(a1tye', hasValArg') (a1tyParam, arg) ->
+                      case a1tyParam of
+                        A1TypeParamType atyvar -> do
+                          a1tyeArg <- typecheckTypeExpr1 trav tyEnv arg
+                          pure (tySubst1 a1tyeArg atyvar a1tye', hasValArg')
+                        A1TypeParamVal0 ax a0tye -> do
+                          a0eArg <- validatePersistentExprArg trav tyEnv a0tye arg
+                          pure (subst0 a0eArg ax a1tye', True)
+                  )
+                  (a1tyeBody, False)
+                  zipped
+              when hasValArg $ logShapeAnnot (ShapeAnnotLog loc)
+              pure a1tye
             Nothing ->
               typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
         Nothing ->
