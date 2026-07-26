@@ -10,6 +10,7 @@ module Surface.Syntax
     TypeName,
     TypeExprF,
     TypeExpr,
+    ModuleName,
   )
 where
 
@@ -79,3 +80,5 @@ type TypeName = Text
 type TypeExprF = ExprF
 
 type TypeExpr = TypeExprF Span
+
+type ModuleName = Text

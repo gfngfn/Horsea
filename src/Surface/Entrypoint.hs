@@ -12,7 +12,6 @@ import Common.LocationInFile qualified as LocationInFile
 import Common.TokenUtil (Span)
 import Control.Monad (unless)
 import Control.Monad.Trans.Reader
-import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text.IO.Util (readFileEither)
 import Staged.Entrypoint qualified
@@ -23,6 +22,8 @@ import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPe
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Surface.BindingTime qualified as BindingTime
 import Surface.BindingTime.Core
+import Surface.BindingTime.Env (BindingTimeEnv, BindingTimeModuleEntry (..), BindingTimeValueEntry (..))
+import Surface.BindingTime.Env qualified as Env
 import Surface.BindingTime.Stager (BCExprF)
 import Surface.Parser qualified as Parser
 import Surface.Syntax
@@ -58,9 +59,9 @@ makeBindingTimeEnvFromStub =
                   Nothing ->
                     bindingTimeEnv
                   Just biptyVoid ->
-                    Map.insert
+                    Env.addVal
                       x
-                      (EntryBuiltInFixed0 varVal biptyVoid)
+                      (BTValBuiltInFixed0 varVal biptyVoid)
                       bindingTimeEnv
           Ass1Entry a1tye a1metadataOpt ->
             let x =
@@ -69,9 +70,9 @@ makeBindingTimeEnvFromStub =
                     Left Ass1Metadata {ass1surfaceName} -> fromMaybe varVal ass1surfaceName
                     Right _ -> varVal
                 bityVoid = fromStaged1 a1tye
-             in Map.insert
+             in Env.addVal
                   x
-                  (EntryBuiltInFixed1 varVal bityVoid)
+                  (BTValBuiltInFixed1 varVal bityVoid)
                   bindingTimeEnv
           AssPersEntry aPtye AssPersMetadata {assPsurfaceName} ->
             let x =
@@ -81,9 +82,9 @@ makeBindingTimeEnvFromStub =
                   Nothing ->
                     bindingTimeEnv
                   Just bipty ->
-                    Map.insert
+                    Env.addVal
                       x
-                      (EntryBuiltInPersistent varVal bipty)
+                      (BTValBuiltInPersistent varVal bipty)
                       bindingTimeEnv
     )
     ( \_tyName _tyEntry bindingTimeEnv ->
@@ -92,12 +93,12 @@ makeBindingTimeEnvFromStub =
     )
     ( \varMod (ModuleEntry sigr) bindingTimeEnv ->
         -- Reuses the module name `varMod` in the core language for the surface language.
-        Map.insert
+        Env.addModule
           varMod
-          (EntryModule (makeBindingTimeEnvFromStub sigr))
+          (BTModule (makeBindingTimeEnvFromStub sigr))
           bindingTimeEnv
     )
-    Map.empty
+    Env.empty
 
 putNormalLine :: String -> IO ()
 putNormalLine = putStrLn

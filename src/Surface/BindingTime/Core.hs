@@ -9,8 +9,6 @@ module Surface.BindingTime.Core
     BIPolyTypeF (..),
     BIType,
     BITypeMain,
-    BindingTimeEnvEntry (..),
-    BindingTimeEnv,
     BExprF (..),
     BExprMainF (..),
     BTypeExprF (..),
@@ -40,7 +38,7 @@ import Data.Void (Void, vacuous)
 import GHC.Generics
 import Staged.Core (Label)
 import Staged.Syntax qualified as Staged
-import Surface.Syntax
+import Surface.Syntax (Literal, TypeName, Var)
 import Prelude
 
 newtype BindingTimeVar = BindingTimeVar Int
@@ -79,16 +77,6 @@ data BITypeMainF bt tv
 type BIType = BITypeF BindingTime BITypeVar
 
 type BITypeMain = BITypeMainF BindingTime BITypeVar
-
-data BindingTimeEnvEntry
-  = EntryBuiltInPersistent Var (BIPolyTypeF ())
-  | EntryBuiltInFixed0 Var BIPolyTypeVoid
-  | EntryBuiltInFixed1 Var BITypeVoid
-  | EntryLocallyBound BindingTime BIType
-  | EntryModule BindingTimeEnv
-  deriving stock (Show)
-
-type BindingTimeEnv = Map Var BindingTimeEnvEntry
 
 data BExprF ann bt = BExpr (bt, ann) (BExprMainF ann bt)
   deriving stock (Functor, Show)
