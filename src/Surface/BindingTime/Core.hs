@@ -7,6 +7,8 @@ module Surface.BindingTime.Core
     BITypeMainF (..),
     BITypeBoundVar (..),
     BIPolyTypeF (..),
+    BITypeParam (..),
+    BIParameterizedTypeF (..),
     BIType,
     BITypeMain,
     BExprF (..),
@@ -22,6 +24,7 @@ module Surface.BindingTime.Core
     BIPolyTypeVoid,
     BITypeVoid,
     fromStaged0,
+    fromStaged0Body,
     fromStaged1,
     fromStagedPers,
   )
@@ -63,6 +66,14 @@ newtype BITypeBoundVar = BITypeBoundVar Int
   deriving stock (Eq, Ord, Show)
 
 data BIPolyTypeF bt = BIPolyType (Set BITypeBoundVar) (BITypeF bt BITypeBoundVar)
+  deriving stock (Show)
+
+data BITypeParam
+  = BITypeParamType
+  | BITypeParamVal0 BITypeVoid
+  deriving stock (Show)
+
+data BIParameterizedTypeF bt = BIParameterizedType [BITypeParam] (BITypeF bt BITypeBoundVar)
   deriving stock (Show)
 
 data BITypeMainF bt tv
@@ -143,59 +154,66 @@ fromStaged0 = goPoly 0 Map.empty
       Staged.A0TyForAll atyvar a0tye ->
         goPoly (i + 1) (Map.insert atyvar (BITypeBoundVar i) vars) a0tye
       a0tye ->
-        BIPolyType (Set.fromList (Map.elems vars)) <$> go a0tye
-        where
-          go :: Staged.Ass0TypeExpr -> Maybe (BITypeF BindingTimeConst BITypeBoundVar)
-          go = \case
-            Staged.A0TyPrim _a0tyPrim _maybePred ->
-              pure . wrap0 $ BITyBase []
-            Staged.A0TyVar atyvar ->
-              case Map.lookup atyvar vars of
-                Nothing -> error "bug: fromStaged0, type variable not found"
-                Just bitv -> pure . wrap0 $ BITyVar bitv
-            Staged.A0TyList a0tye' _maybePred -> do
-              bity <- go a0tye'
-              pure . wrap0 $ BITyBase [bity]
-            Staged.A0TyMaybe a0tye' -> do
-              bity <- go a0tye'
-              pure . wrap0 $ BITyBase [bity]
-            Staged.A0TyProduct a0tyes -> do
-              bitys <- mapM go a0tyes
-              pure $ wrap0 (BITyProduct bitys)
-            Staged.A0TyArrow _labelOpt (_, a0tye1) a0tye2 ->
-              wrap0 <$> (BITyArrow <$> go a0tye1 <*> go a0tye2)
-            Staged.A0TyOmsArrow label (_, a0tye1) a0tye2 ->
-              wrap0 <$> (BITyOmsArrow label <$> go a0tye1 <*> go a0tye2)
-            Staged.A0TyInfArrow (_, a0tye1) a0tye2 ->
-              wrap0 <$> (BITyInfArrow <$> go a0tye1 <*> go a0tye2)
-            Staged.A0TyCode a1tye ->
-              pure $ vacuous $ fromStaged1 a1tye
-            Staged.A0TyForAll _atyvar _a0tye ->
-              Nothing
+        BIPolyType (Set.fromList (Map.elems vars)) <$> fromStaged0Body vars a0tye
+
+fromStaged0Body :: Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass0TypeExpr -> Maybe (BITypeF BindingTimeConst BITypeBoundVar)
+fromStaged0Body vars0 = go
+  where
+    go = \case
+      Staged.A0TyPrim _a0tyPrim _maybePred ->
+        pure . wrap0 $ BITyBase []
+      Staged.A0TyVar atyvar ->
+        case Map.lookup atyvar vars0 of
+          Nothing -> error "bug: fromStaged0, type variable not found"
+          Just bitv -> pure . wrap0 $ BITyVar bitv
+      Staged.A0TyList a0tye' _maybePred -> do
+        bity <- go a0tye'
+        pure . wrap0 $ BITyBase [bity]
+      Staged.A0TyMaybe a0tye' -> do
+        bity <- go a0tye'
+        pure . wrap0 $ BITyBase [bity]
+      Staged.A0TyProduct a0tyes -> do
+        bitys <- mapM go a0tyes
+        pure $ wrap0 (BITyProduct bitys)
+      Staged.A0TyArrow _labelOpt (_, a0tye1) a0tye2 ->
+        wrap0 <$> (BITyArrow <$> go a0tye1 <*> go a0tye2)
+      Staged.A0TyOmsArrow label (_, a0tye1) a0tye2 ->
+        wrap0 <$> (BITyOmsArrow label <$> go a0tye1 <*> go a0tye2)
+      Staged.A0TyInfArrow (_, a0tye1) a0tye2 ->
+        wrap0 <$> (BITyInfArrow <$> go a0tye1 <*> go a0tye2)
+      Staged.A0TyCode a1tye ->
+        pure $ vacuous $ fromStaged1 a1tye
+      Staged.A0TyForAll _atyvar _a0tye ->
+        Nothing
 
     wrap0 = BIType BT0
 
 fromStaged1 :: Staged.Ass1TypeExpr -> BITypeVoid
-fromStaged1 = \case
-  Staged.A1TyPrim _a1tyPrim ->
-    wrap1 $ BITyBase []
-  Staged.A1TyList a1tye' ->
-    wrap1 $ BITyBase [fromStaged1 a1tye']
-  Staged.A1TyMaybe a1tye' ->
-    wrap1 $ BITyBase [fromStaged1 a1tye']
-  Staged.A1TyVar _atyvar ->
-    -- Handles order-0 type variables only:
-    wrap1 $ BITyBase []
-  Staged.A1TyProduct a1tyes ->
-    wrap1 $ BITyProduct (fmap fromStaged1 a1tyes)
-  Staged.A1TyArrow _labelOpt a1tye1 a1tye2 ->
-    wrap1 $ BITyArrow (fromStaged1 a1tye1) (fromStaged1 a1tye2)
-  Staged.A1TyOmsArrow label a1tye1 a1tye2 ->
-    wrap1 $ BITyOmsArrow label (fromStaged1 a1tye1) (fromStaged1 a1tye2)
-  Staged.A1TyForAll _atyvar a1tye2 ->
-    -- TODO: support type instantiation
-    fromStaged1 a1tye2
+fromStaged1 = fromStaged1Body Map.empty
+
+fromStaged1Body :: Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass1TypeExpr -> BITypeVoid
+fromStaged1Body vars1 = go
   where
+    go = \case
+      Staged.A1TyPrim _a1tyPrim ->
+        wrap1 $ BITyBase []
+      Staged.A1TyList a1tye' ->
+        wrap1 $ BITyBase [go a1tye']
+      Staged.A1TyMaybe a1tye' ->
+        wrap1 $ BITyBase [go a1tye']
+      Staged.A1TyVar _atyvar ->
+        -- Handles order-0 type variables only:
+        wrap1 $ BITyBase []
+      Staged.A1TyProduct a1tyes ->
+        wrap1 $ BITyProduct (fmap go a1tyes)
+      Staged.A1TyArrow _labelOpt a1tye1 a1tye2 ->
+        wrap1 $ BITyArrow (go a1tye1) (go a1tye2)
+      Staged.A1TyOmsArrow label a1tye1 a1tye2 ->
+        wrap1 $ BITyOmsArrow label (go a1tye1) (go a1tye2)
+      Staged.A1TyForAll _atyvar a1tye2 ->
+        -- TODO: support type instantiation
+        fromStaged1 a1tye2
+
     wrap1 = BIType BT1
 
 -- Accepts only top-level universal quantifications.
