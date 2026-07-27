@@ -117,6 +117,7 @@ library
     -- Other library packages from which modules are imported.
     build-depends:
         base,
+        bifunctors,
         containers ^>= 0.6.7,
         extra,
         generic-data ^>= 1.1.0.0,
