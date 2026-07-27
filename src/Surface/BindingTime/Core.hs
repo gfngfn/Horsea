@@ -26,6 +26,7 @@ module Surface.BindingTime.Core
     fromStaged0,
     fromStaged0Body,
     fromStaged1,
+    fromStaged1Body,
     fromStagedPers,
   )
 where
@@ -37,7 +38,7 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
-import Data.Void (Void, vacuous)
+import Data.Void (Void)
 import GHC.Generics
 import Staged.Core (Label)
 import Staged.Syntax qualified as Staged
@@ -65,12 +66,13 @@ data BITypeF bt tv = BIType bt (BITypeMainF bt tv)
 newtype BITypeBoundVar = BITypeBoundVar Int
   deriving stock (Eq, Ord, Show)
 
+-- Prenex-polymorphic types
 data BIPolyTypeF bt = BIPolyType (Set BITypeBoundVar) (BITypeF bt BITypeBoundVar)
   deriving stock (Show)
 
 data BITypeParam
   = BITypeParamType
-  | BITypeParamVal0 BITypeVoid
+  | BITypeParamVal0 BIPolyTypeVoid
   deriving stock (Show)
 
 data BIParameterizedTypeF bt = BIParameterizedType [BITypeParam] (BITypeF bt BITypeBoundVar)
@@ -150,11 +152,11 @@ fromStaged0 :: Staged.Ass0TypeExpr -> Maybe BIPolyTypeVoid
 fromStaged0 = goPoly 0 Map.empty
   where
     goPoly :: Int -> Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass0TypeExpr -> Maybe BIPolyTypeVoid
-    goPoly i vars = \case
+    goPoly i vars0 = \case
       Staged.A0TyForAll atyvar a0tye ->
-        goPoly (i + 1) (Map.insert atyvar (BITypeBoundVar i) vars) a0tye
+        goPoly (i + 1) (Map.insert atyvar (BITypeBoundVar i) vars0) a0tye
       a0tye ->
-        BIPolyType (Set.fromList (Map.elems vars)) <$> fromStaged0Body vars a0tye
+        BIPolyType (Set.fromList (Map.elems vars0)) <$> fromStaged0Body vars0 a0tye
 
 fromStaged0Body :: Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass0TypeExpr -> Maybe (BITypeF BindingTimeConst BITypeBoundVar)
 fromStaged0Body vars0 = go
@@ -164,7 +166,7 @@ fromStaged0Body vars0 = go
         pure . wrap0 $ BITyBase []
       Staged.A0TyVar atyvar ->
         case Map.lookup atyvar vars0 of
-          Nothing -> error "bug: fromStaged0, type variable not found"
+          Nothing -> error "bug: fromStaged0Body, type variable not found"
           Just bitv -> pure . wrap0 $ BITyVar bitv
       Staged.A0TyList a0tye' _maybePred -> do
         bity <- go a0tye'
@@ -182,37 +184,53 @@ fromStaged0Body vars0 = go
       Staged.A0TyInfArrow (_, a0tye1) a0tye2 ->
         wrap0 <$> (BITyInfArrow <$> go a0tye1 <*> go a0tye2)
       Staged.A0TyCode a1tye ->
-        pure $ vacuous $ fromStaged1 a1tye
-      Staged.A0TyForAll _atyvar _a0tye ->
+        fromStaged1Body Map.empty a1tye
+      Staged.A0TyForAll _atyvar _a0tye2 ->
         Nothing
 
     wrap0 = BIType BT0
 
-fromStaged1 :: Staged.Ass1TypeExpr -> BITypeVoid
-fromStaged1 = fromStaged1Body Map.empty
+-- Accepts only top-level universal quantifications.
+fromStaged1 :: Staged.Ass1TypeExpr -> Maybe BIPolyTypeVoid
+fromStaged1 = goPoly 0 Map.empty
+  where
+    goPoly :: Int -> Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass1TypeExpr -> Maybe BIPolyTypeVoid
+    goPoly i vars1 = \case
+      Staged.A1TyForAll atyvar a1tye ->
+        goPoly (i + 1) (Map.insert atyvar (BITypeBoundVar i) vars1) a1tye
+      a1tye ->
+        BIPolyType (Set.fromList (Map.elems vars1)) <$> fromStaged1Body vars1 a1tye
 
-fromStaged1Body :: Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass1TypeExpr -> BITypeVoid
+fromStaged1Body :: Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass1TypeExpr -> Maybe (BITypeF BindingTimeConst BITypeBoundVar)
 fromStaged1Body vars1 = go
   where
+    go :: Staged.Ass1TypeExpr -> Maybe (BITypeF BindingTimeConst BITypeBoundVar)
     go = \case
       Staged.A1TyPrim _a1tyPrim ->
-        wrap1 $ BITyBase []
-      Staged.A1TyList a1tye' ->
-        wrap1 $ BITyBase [go a1tye']
-      Staged.A1TyMaybe a1tye' ->
-        wrap1 $ BITyBase [go a1tye']
-      Staged.A1TyVar _atyvar ->
-        -- Handles order-0 type variables only:
-        wrap1 $ BITyBase []
-      Staged.A1TyProduct a1tyes ->
-        wrap1 $ BITyProduct (fmap go a1tyes)
-      Staged.A1TyArrow _labelOpt a1tye1 a1tye2 ->
-        wrap1 $ BITyArrow (go a1tye1) (go a1tye2)
-      Staged.A1TyOmsArrow label a1tye1 a1tye2 ->
-        wrap1 $ BITyOmsArrow label (go a1tye1) (go a1tye2)
-      Staged.A1TyForAll _atyvar a1tye2 ->
-        -- TODO: support type instantiation
-        fromStaged1 a1tye2
+        pure . wrap1 $ BITyBase []
+      Staged.A1TyVar atyvar ->
+        case Map.lookup atyvar vars1 of
+          Nothing -> error "bug: fromStaged1Body, type variable not found"
+          Just bitv -> pure . wrap1 $ BITyVar bitv
+      Staged.A1TyList a1tye' -> do
+        bity1 <- go a1tye'
+        pure . wrap1 $ BITyBase [bity1]
+      Staged.A1TyMaybe a1tye' -> do
+        bity1 <- go a1tye'
+        pure . wrap1 $ BITyBase [bity1]
+      Staged.A1TyProduct a1tyes -> do
+        bitys <- mapM go a1tyes
+        pure . wrap1 $ BITyProduct bitys
+      Staged.A1TyArrow _labelOpt a1tye1 a1tye2 -> do
+        bity1 <- go a1tye1
+        bity2 <- go a1tye2
+        pure . wrap1 $ BITyArrow bity1 bity2
+      Staged.A1TyOmsArrow label a1tye1 a1tye2 -> do
+        bity1 <- go a1tye1
+        bity2 <- go a1tye2
+        pure . wrap1 $ BITyOmsArrow label bity1 bity2
+      Staged.A1TyForAll _atyvar _a1tye2 ->
+        Nothing
 
     wrap1 = BIType BT1
 

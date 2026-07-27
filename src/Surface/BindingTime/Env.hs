@@ -23,11 +23,11 @@ import Prelude
 data BindingTimeValueEntry
   = BTValBuiltInPersistent Var (BIPolyTypeF ())
   | BTValBuiltInFixed0 Var BIPolyTypeVoid
-  | BTValBuiltInFixed1 Var BITypeVoid
+  | BTValBuiltInFixed1 Var BIPolyTypeVoid
   | BTValLocallyBound BindingTime BIType
 
 newtype BindingTimeTypeEntry
-  = BTType1 (BIParameterizedTypeF ())
+  = BTType1 (BIParameterizedTypeF BindingTimeConst)
 
 newtype BindingTimeModuleEntry
   = BTModule BindingTimeEnv

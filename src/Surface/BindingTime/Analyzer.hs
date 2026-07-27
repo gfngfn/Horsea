@@ -257,8 +257,8 @@ extractConstraintsFromVar trav btenv bt ann ms x = do
               )
               bityVoid
       pure (x', bity, [CEqual ann bt (BTConst BT0)])
-    Just (BTValBuiltInFixed1 x' bityVoid) -> do
-      let bity = enhanceBIType BTConst absurd bityVoid
+    Just (BTValBuiltInFixed1 x' bipty) -> do
+      let bity = enhanceBIType BTConst id bipty
       pure (x', bity, [CEqual ann bt (BTConst BT1)])
     Just (BTValLocallyBound bt' bity) ->
       pure (x, bity, [CEqual ann bt bt'])
