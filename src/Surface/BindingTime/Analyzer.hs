@@ -15,7 +15,6 @@ import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
-import Data.Void (absurd)
 import Safe.Exact (zipExactMay)
 import Staged.Core (Label)
 import Staged.Syntax qualified as Staged
@@ -225,7 +224,7 @@ collectTypeArgs trav locApp = go locApp
         spanInFile <- askSpanInFile locApp
         analysisError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
-extractConstraintsFromVar :: trav -> BindingTimeEnv -> BindingTime -> Span -> [Var] -> Var -> M trav (Var, BIType, [Constraint Span])
+extractConstraintsFromVar :: trav -> BindingTimeEnv -> BindingTime -> Span -> [ModuleName] -> Var -> M trav (Var, BIType, [Constraint Span])
 extractConstraintsFromVar trav btenv bt ann ms x = do
   spanInFile <- askSpanInFile ann
   case findVal btenv ms x of
@@ -257,8 +256,18 @@ extractConstraintsFromVar trav btenv bt ann ms x = do
               )
               bityVoid
       pure (x', bity, [CEqual ann bt (BTConst BT0)])
-    Just (BTValBuiltInFixed1 x' bipty) -> do
-      let bity = enhanceBIType BTConst id bipty
+    Just (BTValBuiltInFixed1 x' biptyVoid) -> do
+      let BIPolyType binders bityVoid = biptyVoid
+      instantiationMap <- makeInstantiationMap binders
+      let bity =
+            enhanceBIType
+              BTConst
+              ( \boundVar ->
+                  case Map.lookup boundVar instantiationMap of
+                    Nothing -> error "bug: extractConstraintsFromExpr, not found"
+                    Just bitv -> bitv
+              )
+              bityVoid
       pure (x', bity, [CEqual ann bt (BTConst BT1)])
     Just (BTValLocallyBound bt' bity) ->
       pure (x, bity, [CEqual ann bt bt'])
