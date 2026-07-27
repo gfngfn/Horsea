@@ -74,7 +74,7 @@ data BIPolyTypeF bt = BIPolyType (Set BITypeBoundVar) (BITypeF bt BITypeBoundVar
   deriving stock (Show)
 
 data BITypeParam
-  = BITypeParamType
+  = BITypeParamType BITypeBoundVar
   | BITypeParamVal0 BIPolyTypeVoid
   deriving stock (Show)
 

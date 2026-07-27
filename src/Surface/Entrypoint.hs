@@ -104,7 +104,7 @@ makeBindingTimeEnvFromStub =
                           case a1tyParam of
                             A1TypeParamType atyvar -> do
                               let btvar = BITypeBoundVar i
-                              pure (BITypeParamType : btTy1ParamAcc', Map.insert atyvar btvar vars', i + 1)
+                              pure (BITypeParamType btvar : btTy1ParamAcc', Map.insert atyvar btvar vars', i + 1)
                             A1TypeParamVal0 _ax a0tye -> do
                               btpty <- fromStaged0 a0tye
                               pure (BITypeParamVal0 btpty : btTy1ParamAcc', vars', i + 1)

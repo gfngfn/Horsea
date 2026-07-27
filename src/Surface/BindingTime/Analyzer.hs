@@ -680,8 +680,37 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
           Just _ -> analysisError trav $ InvalidSyntaxAsTypeExpr spanInFile
       ((locQualName, mods, tyName), args) <- collectTypeArgs trav ann typeExprMain
       case findType btenv mods tyName of
-        Just (BTType1 (BIParameterizedType _btTy1Params _btptyBody)) ->
-          error "TODO: extractConstraintsFromExpr, BIParameterizedType"
+        Just (BTType1 (BIParameterizedType btTy1Params _btptyBody)) ->
+          case zipExactMay btTy1Params args of
+            Just zipped -> do
+              (_btvars', _bArgAcc, _cs) <-
+                foldM
+                  ( \(btvars', bArgAcc', cs') (btTy1Param, arg) ->
+                      case btTy1Param of
+                        BITypeParamType btvar -> do
+                          (tyeArg, bity@(BIType btArg _), csArg) <-
+                            extractConstraintsFromTypeExpr trav btenv arg
+                          pure
+                            ( Map.insert btvar bity btvars',
+                              BTypeExprArg tyeArg : bArgAcc',
+                              cs' ++ csArg ++ [CLeq ann bt btArg]
+                            )
+                        BITypeParamVal0 _btptyParam -> do
+                          let bityParam = error "TODO: extractConstraintsFromTypeExpr, make bityParam from btptyParam"
+                          let Expr ann' _ = arg
+                          (e', bityArg, csArg) <- extractConstraintsFromExpr trav btenv arg
+                          csEq <- makeConstraintsFromBITypeEquation trav ann' bityArg bityParam
+                          pure
+                            ( btvars',
+                              BExprArg e' : bArgAcc',
+                              cs' ++ csArg ++ csEq
+                            )
+                  )
+                  (Map.empty, [], [])
+                  zipped
+              error "TODO: extractConstraintsFromTypeExpr, App"
+            Nothing ->
+              analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName (length args)
         Nothing ->
           case mods of
             [] -> do
@@ -719,7 +748,7 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
               let tye' = BTypeExpr (bt, ann) (BTyName (locQualName, tyName) args')
               pure (tye', BIType bt (BITyBase bityBaseArgs), constraints)
             _ : _ ->
-              analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName 0
+              analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName (length args)
     TyArrow labelOpt (x1opt, tye1) tye2 -> do
       (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
       case x1opt of
