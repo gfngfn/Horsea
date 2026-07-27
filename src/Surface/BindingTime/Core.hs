@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Surface.BindingTime.Core
   ( BindingTimeVar (..),
     BindingTimeConst (..),
@@ -34,7 +32,6 @@ module Surface.BindingTime.Core
 where
 
 import Common.TokenUtil
-import Data.Bifunctor.TH
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
@@ -149,12 +146,6 @@ type BIPolyTypeVoid = BIPolyTypeF BindingTimeConst
 
 -- For built-in values.
 type BITypeVoid = BITypeF BindingTimeConst Void
-
-$( do
-     dec1 <- deriveBifunctor ''BITypeF
-     dec2 <- deriveBifunctor ''BITypeMainF
-     pure $ dec1 ++ dec2
- )
 
 -- Accepts only top-level universal quantifications.
 fromStaged0 :: Staged.Ass0TypeExpr -> Maybe BIPolyTypeVoid

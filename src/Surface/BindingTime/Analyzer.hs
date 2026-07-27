@@ -9,7 +9,6 @@ import Common.TokenUtil
 import Control.Monad
 import Control.Monad.Elaborator hiding (run)
 import Control.Monad.Elaborator qualified as Elaborator
-import Data.Bifunctor (bimap)
 import Data.Either.Extra (mapLeft)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
@@ -135,11 +134,11 @@ askSpanInFile loc = do
   AnalysisConfig {sourceSpec} <- askConfig
   pure $ getSpanInFile sourceSpec loc
 
-enhanceBIType :: (bt -> BindingTime) -> (tv -> BITypeVar) -> BITypeF bt tv -> BIType
+enhanceBIType :: (bt -> BindingTime) -> (tv -> BITypeMain) -> BITypeF bt tv -> BIType
 enhanceBIType enhBt enhBitv (BIType bt bityMain) =
   BIType (enhBt bt) $
     case bityMain of
-      BITyVar bitv -> BITyVar (enhBitv bitv)
+      BITyVar bitv -> enhBitv bitv
       BITyBase bityBaseArgs -> BITyBase (map fBIType bityBaseArgs)
       BITyProduct bitys -> BITyProduct (fmap fBIType bitys)
       BITyArrow bity1 bity2 -> BITyArrow (fBIType bity1) (fBIType bity2)
@@ -251,7 +250,7 @@ extractConstraintsFromVar trav btenv bt ann ms x = do
               ( \boundVar ->
                   case Map.lookup boundVar instantiationMap of
                     Nothing -> error "bug: extractConstraintsFromExpr, not found"
-                    Just bitv -> bitv
+                    Just bitv -> BITyVar bitv
               )
               bityVoid
       pure (x', bity, [])
@@ -264,7 +263,7 @@ extractConstraintsFromVar trav btenv bt ann ms x = do
               ( \boundVar ->
                   case Map.lookup boundVar instantiationMap of
                     Nothing -> error "bug: extractConstraintsFromExpr, not found"
-                    Just bitv -> bitv
+                    Just bitv -> BITyVar bitv
               )
               bityVoid
       pure (x', bity, [CEqual ann bt (BTConst BT0)])
@@ -277,7 +276,7 @@ extractConstraintsFromVar trav btenv bt ann ms x = do
               ( \boundVar ->
                   case Map.lookup boundVar instantiationMap of
                     Nothing -> error "bug: extractConstraintsFromExpr, not found"
-                    Just bitv -> bitv
+                    Just bitv -> BITyVar bitv
               )
               bityVoid
       pure (x', bity, [CEqual ann bt (BTConst BT1)])
@@ -710,7 +709,11 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
                   zipped
               let bArgs = reverse bArgAcc
               let tye' = BTypeExpr (bt, ann) (BTyName (ann, (mods, tyName)) bArgs)
-              let bity = bimap BTConst (\_ -> error "TODO: extractConstraintsFromTypeExpr, use btvars") btptyBody
+              let bity =
+                    enhanceBIType
+                      BTConst
+                      (\_ -> error "TODO: extractConstraintsFromTypeExpr, use btvars")
+                      btptyBody
               pure (tye', bity, constraints)
             Nothing ->
               analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName (length args)
