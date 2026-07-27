@@ -45,7 +45,7 @@ import Data.Void (Void)
 import GHC.Generics
 import Staged.Core (Label)
 import Staged.Syntax qualified as Staged
-import Surface.Syntax (Literal, TypeName, Var)
+import Surface.Syntax (Literal, ModuleName, TypeName, Var)
 import Prelude
 
 newtype BindingTimeVar = BindingTimeVar Int
@@ -99,8 +99,8 @@ data BExprF ann bt = BExpr (bt, ann) (BExprMainF ann bt)
 
 data BExprMainF ann bt
   = BLiteral (Literal (BExprF ann bt))
-  | BVar ([Var], Var)
-  | BConstructor ([Var], Var)
+  | BVar ([ModuleName], Var)
+  | BConstructor ([ModuleName], Var)
   | BLam (Maybe (Var, BTypeExprF ann bt)) (Maybe Label) (Var, BTypeExprF ann bt) (BExprF ann bt)
   | BApp (BExprF ann bt) (Maybe Label) (BExprF ann bt)
   | BLetIn Var (BExprF ann bt) (BExprF ann bt)
@@ -121,7 +121,7 @@ data BTypeExprF ann bt = BTypeExpr (bt, ann) (BTypeExprMainF ann bt)
   deriving stock (Functor, Show)
 
 data BTypeExprMainF ann bt
-  = BTyName (ann, TypeName) [BArgForTypeF ann bt]
+  = BTyName (ann, ([ModuleName], TypeName)) [BArgForTypeF ann bt]
   | BTyArrow (Maybe Label) (Maybe Var, BTypeExprF ann bt) (BTypeExprF ann bt)
   | BTyOmsArrow Label (Maybe Var, BTypeExprF ann bt) (BTypeExprF ann bt)
   | BTyInfArrow (Var, BTypeExprF ann bt) (BTypeExprF ann bt)

@@ -117,15 +117,15 @@ stageExpr1Main = \case
 tyCode :: Staged.TypeExprF ann -> Staged.TypeExprMainF ann
 tyCode = Staged.Bracket
 
-tyNameWithArgs :: Span -> TypeName -> [Staged.Expr] -> Staged.TypeExprMain
-tyNameWithArgs loc tyName eArgs = eMain
+tyNameWithArgs :: Span -> [ModuleName] -> TypeName -> [Staged.Expr] -> Staged.TypeExprMain
+tyNameWithArgs loc mods tyName eArgs = eMain
   where
     Staged.Expr _ eMain =
       foldl'
         ( \eFunAcc@(Staged.Expr loc1 _) eArg@(Staged.Expr loc2 _) ->
             Staged.Expr (mergeSpan loc1 loc2) (Staged.App eFunAcc Nothing eArg)
         )
-        (Staged.Expr loc (Staged.Constructor ([], tyName)))
+        (Staged.Expr loc (Staged.Constructor (mods, tyName)))
         eArgs
 
 stageTypeExpr0 :: BCTypeExprF Span -> Staged.TypeExpr
@@ -136,9 +136,9 @@ stageTypeExpr0 (BTypeExpr (btc, ann) typeExprMain) =
 
 stageTypeExpr0Main :: BCTypeExprMainF Span -> Staged.TypeExprMain
 stageTypeExpr0Main = \case
-  BTyName (loc, tyName) args ->
+  BTyName (loc, (mods, tyName)) args ->
     -- TODO: check that `ExprArg` only contains literals
-    tyNameWithArgs loc tyName (map stageArgForType0 args)
+    tyNameWithArgs loc mods tyName (map stageArgForType0 args)
   BTyArrow labelOpt (xOpt, tye1) tye2 ->
     Staged.TyArrow labelOpt (xOpt, stageTypeExpr0 tye1) (stageTypeExpr0 tye2)
   BTyOmsArrow label (xOpt, tye1) tye2 ->
@@ -165,8 +165,8 @@ stageTypeExpr1 (BTypeExpr (btc, ann) typeExprMain) =
 
 stageTypeExpr1Main :: BCTypeExprMainF Span -> Staged.TypeExprMain
 stageTypeExpr1Main = \case
-  BTyName (loc, tyName) args ->
-    tyNameWithArgs loc tyName (map stageArgForType1 args)
+  BTyName (loc, (mods, tyName)) args ->
+    tyNameWithArgs loc mods tyName (map stageArgForType1 args)
   BTyArrow labelOpt (_xOpt, tye1) tye2 ->
     Staged.TyArrow labelOpt (Nothing, stageTypeExpr1 tye1) (stageTypeExpr1 tye2)
   BTyOmsArrow label (_xOpt, tye1) tye2 ->
