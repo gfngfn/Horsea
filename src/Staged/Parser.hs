@@ -355,7 +355,7 @@ typeExpr = expr
 
 recordField :: P (Text, RecordField)
 recordField =
-  (,) <$> noLoc labelNormal <*> (equalField <|> colonField)
+  (,) <$> noLoc lower <*> (equalField <|> colonField)
   where
     equalField = RecordFieldEqual <$> (token TokEqual *> expr)
     colonField = RecordFieldColon <$> (token TokColon *> typeExpr)
