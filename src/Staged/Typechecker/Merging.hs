@@ -13,6 +13,7 @@ import Data.List.NonEmpty.Util qualified as NonEmptyUtil
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
+import Data.Map qualified as Map
 import Data.Maybe (isNothing)
 import Data.Tuple.Extra (second)
 import Staged.Core
@@ -47,9 +48,26 @@ distributeTwoOrMore patAndExprPairs = do
   let matrix = fmap (\(p, a0es) -> fmap (p,) a0es) patAndExprPairs
   TwoOrMore.transpose matrix
 
-distributeMaps :: NonEmpty (pat, Map label a) -> Maybe (Map label (NonEmpty (pat, a)))
-distributeMaps =
-  error "TODO: Merging, A0TyRecord, distributeMaps"
+distributeMaps :: (Ord label) => NonEmpty (pat, Map label a) -> Maybe (Map label (NonEmpty (pat, a)))
+distributeMaps pairs@((_, aXrty1) :| pairsRest) =
+  if all (\(_, aXrty) -> Map.keysSet aXrty == labels) pairsRest
+    then
+      Just $
+        foldl'
+          ( \acc label ->
+              Map.insert label (fmap (extract label) pairs) acc
+          )
+          Map.empty
+          labels
+    else
+      Nothing
+  where
+    labels = Map.keysSet aXrty1
+
+    extract label (a0pat, aXrty) =
+      case Map.lookup label aXrty of
+        Just aXtye -> (a0pat, aXtye)
+        Nothing -> error "Bug: distributeMaps"
 
 mergeResultsByConditional0 :: forall trav. trav -> Span -> Ass0Expr -> NonEmpty (Ass0Pattern, Result0) -> M trav Result0
 mergeResultsByConditional0 trav loc a0e0 = go
