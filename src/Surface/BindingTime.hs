@@ -15,6 +15,7 @@ import Surface.BindingTime.AnalysisError
 import Surface.BindingTime.Analyzer qualified as Analyzer
 import Surface.BindingTime.Constraint
 import Surface.BindingTime.Core
+import Surface.BindingTime.Env (BindingTimeEnv)
 import Surface.BindingTime.Stager
 import Surface.Syntax
 import Prelude

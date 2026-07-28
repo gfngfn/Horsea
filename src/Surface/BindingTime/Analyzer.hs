@@ -15,14 +15,15 @@ import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
-import Data.Void (absurd)
+import Data.Set qualified as Set
 import Safe.Exact (zipExactMay)
 import Staged.Core (Label)
-import Staged.SrcSyntax (ModuleName)
 import Staged.Syntax qualified as Staged
 import Surface.BindingTime.AnalysisError
 import Surface.BindingTime.Constraint
 import Surface.BindingTime.Core
+import Surface.BindingTime.Env (BindingTimeEnv, BindingTimeModuleEntry (..), BindingTimeTypeEntry (..), BindingTimeValueEntry (..))
+import Surface.BindingTime.Env qualified as Env
 import Surface.Syntax
 import Prelude hiding (succ)
 
@@ -134,11 +135,11 @@ askSpanInFile loc = do
   AnalysisConfig {sourceSpec} <- askConfig
   pure $ getSpanInFile sourceSpec loc
 
-enhanceBIType :: (bt -> BindingTime) -> (tv -> BITypeVar) -> BITypeF bt tv -> BIType
+enhanceBIType :: (bt -> BindingTime) -> (tv -> BITypeMain) -> BITypeF bt tv -> BIType
 enhanceBIType enhBt enhBitv (BIType bt bityMain) =
   BIType (enhBt bt) $
     case bityMain of
-      BITyVar bitv -> BITyVar (enhBitv bitv)
+      BITyVar bitv -> enhBitv bitv
       BITyBase bityBaseArgs -> BITyBase (map fBIType bityBaseArgs)
       BITyProduct bitys -> BITyProduct (fmap fBIType bitys)
       BITyArrow bity1 bity2 -> BITyArrow (fBIType bity1) (fBIType bity2)
@@ -185,25 +186,33 @@ extractConstraintsFromLiteral trav btenv (btLit, annLit) = \case
   LitMat nss ->
     pure (LitMat nss, [], [])
 
-findVal :: BindingTimeEnv -> [Var] -> Var -> Maybe BindingTimeEnvEntry
+findVal :: BindingTimeEnv -> [ModuleName] -> Var -> Maybe BindingTimeValueEntry
 findVal = go
   where
     go btenv ms x =
       case ms of
         [] ->
-          Map.lookup x btenv
-        m : ms' ->
-          case Map.lookup m btenv of
-            Just (EntryModule btenv') -> go btenv' ms' x
-            _ -> Nothing
+          Env.findVal x btenv
+        m : ms' -> do
+          BTModule btenv' <- Env.findModule m btenv
+          go btenv' ms' x
 
-openModule :: trav -> SpanInFile -> Var -> BindingTimeEnv -> M trav BindingTimeEnv
+findType :: BindingTimeEnv -> [ModuleName] -> Var -> Maybe BindingTimeTypeEntry
+findType = go
+  where
+    go btenv ms tyName =
+      case ms of
+        [] ->
+          Env.findType tyName btenv
+        m : ms' -> do
+          BTModule btenv' <- Env.findModule m btenv
+          go btenv' ms' tyName
+
+openModule :: trav -> SpanInFile -> ModuleName -> BindingTimeEnv -> M trav BindingTimeEnv
 openModule trav spanInFile m btenv =
-  case Map.lookup m btenv of
-    Just (EntryModule btenv') ->
-      pure $ Map.union btenv' btenv
-    _ ->
-      analysisError trav $ NotAModule spanInFile m
+  case Env.findModule m btenv of
+    Just (BTModule btenv') -> pure $ Env.union btenv' btenv
+    Nothing -> analysisError trav $ UnboundModule spanInFile m
 
 makeInstantiationMap :: Set BITypeBoundVar -> M trav (Map BITypeBoundVar BITypeVar)
 makeInstantiationMap =
@@ -227,13 +236,13 @@ collectTypeArgs trav locApp = go locApp
         spanInFile <- askSpanInFile locApp
         analysisError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
-extractConstraintsFromVar :: trav -> BindingTimeEnv -> BindingTime -> Span -> [Var] -> Var -> M trav (Var, BIType, [Constraint Span])
+extractConstraintsFromVar :: trav -> BindingTimeEnv -> BindingTime -> Span -> [ModuleName] -> Var -> M trav (Var, BIType, [Constraint Span])
 extractConstraintsFromVar trav btenv bt ann ms x = do
   spanInFile <- askSpanInFile ann
   case findVal btenv ms x of
     Nothing ->
       analysisError trav $ UnboundVar spanInFile ms x
-    Just (EntryBuiltInPersistent x' biptyVoid) -> do
+    Just (BTValBuiltInPersistent x' biptyVoid) -> do
       let BIPolyType binders bityVoid = biptyVoid
       instantiationMap <- makeInstantiationMap binders
       let bity =
@@ -242,11 +251,11 @@ extractConstraintsFromVar trav btenv bt ann ms x = do
               ( \boundVar ->
                   case Map.lookup boundVar instantiationMap of
                     Nothing -> error "bug: extractConstraintsFromExpr, not found"
-                    Just bitv -> bitv
+                    Just bitv -> BITyVar bitv
               )
               bityVoid
       pure (x', bity, [])
-    Just (EntryBuiltInFixed0 x' biptyVoid) -> do
+    Just (BTValBuiltInFixed0 x' biptyVoid) -> do
       let BIPolyType binders bityVoid = biptyVoid
       instantiationMap <- makeInstantiationMap binders
       let bity =
@@ -255,17 +264,25 @@ extractConstraintsFromVar trav btenv bt ann ms x = do
               ( \boundVar ->
                   case Map.lookup boundVar instantiationMap of
                     Nothing -> error "bug: extractConstraintsFromExpr, not found"
-                    Just bitv -> bitv
+                    Just bitv -> BITyVar bitv
               )
               bityVoid
       pure (x', bity, [CEqual ann bt (BTConst BT0)])
-    Just (EntryBuiltInFixed1 x' bityVoid) -> do
-      let bity = enhanceBIType BTConst absurd bityVoid
+    Just (BTValBuiltInFixed1 x' biptyVoid) -> do
+      let BIPolyType binders bityVoid = biptyVoid
+      instantiationMap <- makeInstantiationMap binders
+      let bity =
+            enhanceBIType
+              BTConst
+              ( \boundVar ->
+                  case Map.lookup boundVar instantiationMap of
+                    Nothing -> error "bug: extractConstraintsFromExpr, not found"
+                    Just bitv -> BITyVar bitv
+              )
+              bityVoid
       pure (x', bity, [CEqual ann bt (BTConst BT1)])
-    Just (EntryLocallyBound bt' bity) ->
+    Just (BTValLocallyBound bt' bity) ->
       pure (x, bity, [CEqual ann bt bt'])
-    Just (EntryModule _) ->
-      analysisError trav $ NotAVal spanInFile ms x
 
 extractConstraintsFromExpr :: trav -> BindingTimeEnv -> Expr -> M trav (BExpr, BIType, [Constraint Span])
 extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
@@ -284,7 +301,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
     Lam Nothing labelOpt (x1, btye1) e2 -> do
       (btye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv btye1
       (e2', bity2@(BIType bt2 _), constraints2) <-
-        extractConstraintsFromExpr trav (Map.insert x1 (EntryLocallyBound bt bity1) btenv) e2
+        extractConstraintsFromExpr trav (Env.addVal x1 (BTValLocallyBound bt bity1) btenv) e2
       let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
       let e' = BExpr (bt, ann) (BLam Nothing labelOpt (x1, btye1') e2')
       pure (e', BIType bt (BITyArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
@@ -295,7 +312,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       (e2', bity2@(BIType bt2 _), constraints2) <-
         extractConstraintsFromExpr
           trav
-          (Map.insert x1 (EntryLocallyBound bt bity1) (Map.insert f (EntryLocallyBound bt bityRec) btenv))
+          (Env.addVal x1 (BTValLocallyBound bt bity1) (Env.addVal f (BTValLocallyBound bt bityRec) btenv))
           e2
       let bitySynth = BIType bt (BITyArrow bity1 bity2)
       constraintsEq <- makeConstraintsFromBITypeEquation trav ann bitySynth bityRec
@@ -334,7 +351,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       -- Not confident. TODO (theory): check the validity of the following
       (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr trav btenv e1
       (e2', bity2@(BIType bt2 _), constraints2) <-
-        extractConstraintsFromExpr trav (Map.insert x (EntryLocallyBound bt bity1) btenv) e2
+        extractConstraintsFromExpr trav (Env.addVal x (BTValLocallyBound bt bity1) btenv) e2
       constraints0 <-
         case tyeBodyOpt of
           Just tye0 -> do
@@ -350,7 +367,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
       -- Not confident. TODO (theory): check the validity of the following
       (e1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromExpr trav btenv e1
       (e2', bity2@(BIType bt2 _), constraints2) <-
-        extractConstraintsFromExpr trav (Map.insert x (EntryLocallyBound bt bity1) btenv) e2
+        extractConstraintsFromExpr trav (Env.addVal x (BTValLocallyBound bt bity1) btenv) e2
       let e' = BExpr (bt, ann) (BLetIn x e1' e2')
       pure (e', bity2, constraints1 ++ constraints2 ++ [CLeq ann bt bt1, CLeq ann bt bt2])
     LetTupleIn xs e1 e2 -> do
@@ -364,7 +381,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
                 let btenv2 =
                       foldl
                         ( \btenv' (x, bityElem@(BIType btElem _)) ->
-                            Map.insert x (EntryLocallyBound btElem bityElem) btenv'
+                            Env.addVal x (BTValLocallyBound btElem bityElem) btenv'
                         )
                         btenv
                         zipped
@@ -426,7 +443,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
     LamOms label (x1, btye1) e2 -> do
       (btye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv btye1
       (e2', bity2@(BIType bt2 _), constraints2) <-
-        extractConstraintsFromExpr trav (Map.insert x1 (EntryLocallyBound bt bity1) btenv) e2
+        extractConstraintsFromExpr trav (Env.addVal x1 (BTValLocallyBound bt bity1) btenv) e2
       let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
       let e' = BExpr (bt, ann) (BLamOms label (x1, btye1') e2')
       pure (e', BIType bt (BITyOmsArrow label bity1 bity2), constraints1 ++ constraints2 ++ constraints)
@@ -441,7 +458,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
     LamInf (x1, btye1) e2 -> do
       (btye1', bity1, constraints1) <- extractConstraintsFromTypeExpr trav btenv btye1
       (e2', bity2, constraints2) <-
-        extractConstraintsFromExpr trav (Map.insert x1 (EntryLocallyBound bt bity1) btenv) e2
+        extractConstraintsFromExpr trav (Env.addVal x1 (BTValLocallyBound bt bity1) btenv) e2
       let constraints = [CEqual ann bt (BTConst BT0)]
       let e' = BExpr (bt, ann) (BLamInf (x1, btye1') e2')
       pure (e', BIType bt (BITyInfArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
@@ -634,16 +651,26 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
     Constructor (mods, tyName) ->
       case mods of
         [] -> do
-          constraints <-
-            case tyName of
-              "Nat" ->
-                pure [CEqual ann bt (BTConst BT0)]
-              _ ->
-                case Staged.validatePrimBaseType tyName of
-                  Just _tyPrimBase -> pure []
-                  Nothing -> analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName 0
-          let tye' = BTypeExpr (bt, ann) (BTyName (ann, tyName) [])
-          pure (tye', BIType bt (BITyBase []), constraints)
+          (bity, constraints) <-
+            case findType btenv mods tyName of
+              Just (BTType1 (BIParameterizedType btTy1Params btptyBody)) ->
+                case btTy1Params of
+                  [] -> do
+                    let bity = enhanceBIType BTConst (\_ -> error "Bug: bound variable exists") btptyBody
+                    pure (bity, [])
+                  _ : _ ->
+                    analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName 0
+              Nothing -> do
+                let bity' = BIType bt (BITyBase [])
+                case tyName of
+                  "Nat" ->
+                    pure (bity', [CEqual ann bt (BTConst BT0)])
+                  _ ->
+                    case Staged.validatePrimBaseType tyName of
+                      Just _tyPrimBase -> pure (bity', [])
+                      Nothing -> analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName 0
+          let tye' = BTypeExpr (bt, ann) (BTyName (ann, (mods, tyName)) [])
+          pure (tye', bity, constraints)
         _ : _ ->
           analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName 0
     App _ labelOpt _ -> do
@@ -652,39 +679,96 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
           Nothing -> pure ()
           Just _ -> analysisError trav $ InvalidSyntaxAsTypeExpr spanInFile
       ((locQualName, mods, tyName), args) <- collectTypeArgs trav ann typeExprMain
-      (args', bityBaseArgs, constraints) <-
-        case (mods, tyName, args) of
-          ([], "List", [tye]) -> do
-            (tyeElem, bity@(BIType btElem _), cs) <- extractConstraintsFromTypeExpr trav btenv tye
-            pure ([BTypeExprArg tyeElem], [bity], cs ++ [CLeq ann bt btElem])
-          ([], "Vec", [e]) -> do
-            (exprArgs, cs) <- extractConstraintsFromExprArgsForType trav btenv bt ann [(e, bityNat)]
-            pure (map BExprArg exprArgs, [], cs)
-          ([], "Mat", [e1, e2]) -> do
-            (exprArgs, cs) <- extractConstraintsFromExprArgsForType trav btenv bt ann [(e1, bityNat), (e2, bityNat)]
-            pure (map BExprArg exprArgs, [], cs)
-          ([], "Tensor", [eList]) -> do
-            (exprArgs, cs) <- extractConstraintsFromExprArgsForType trav btenv bt ann [(eList, bityNatList)]
-            pure (map BExprArg exprArgs, [], cs)
-          ([], "Dataset", [e1, e2, e3, e4]) -> do
-            (exprArgs, cs) <-
-              extractConstraintsFromExprArgsForType trav btenv bt ann $
-                [(e1, bityNat), (e2, bityNat), (e3, bityNatList), (e4, bityNatList)]
-            pure (map BExprArg exprArgs, [], cs)
-          ([], "Lstm", [eInputSize, eHiddenSize]) -> do
-            (exprArgs, cs) <-
-              extractConstraintsFromExprArgsForType trav btenv bt ann $
-                [(eInputSize, bityNat), (eHiddenSize, bityNat)]
-            pure (map BExprArg exprArgs, [], cs)
-          ([], "TextHelper", [eLabels]) -> do
-            (exprArgs, cs) <-
-              extractConstraintsFromExprArgsForType trav btenv bt ann $
-                [(eLabels, bityNat)]
-            pure (map BExprArg exprArgs, [], cs)
-          (_, _, _) ->
-            analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName (length args)
-      let tye' = BTypeExpr (bt, ann) (BTyName (locQualName, tyName) args')
-      pure (tye', BIType bt (BITyBase bityBaseArgs), constraints)
+      case findType btenv mods tyName of
+        Just (BTType1 (BIParameterizedType btTy1Params btptyBody)) ->
+          case zipExactMay btTy1Params args of
+            Just zipped -> do
+              (btvars, bArgAcc, constraints) <-
+                foldM
+                  ( \(btvars', bArgAcc', cs') (btTy1Param, arg) ->
+                      case btTy1Param of
+                        BITypeParamType btvar -> do
+                          (tyeArg, bity@(BIType btArg _), csArg) <-
+                            extractConstraintsFromTypeExpr trav btenv arg
+                          pure
+                            ( Map.insert btvar bity btvars',
+                              BTypeExprArg tyeArg : bArgAcc',
+                              cs' ++ csArg ++ [CLeq ann bt btArg]
+                            )
+                        BITypeParamVal0 (BIPolyType boundVars biptyBody) -> do
+                          let bityParam =
+                                if Set.null boundVars
+                                  then
+                                    enhanceBIType BTConst (\_ -> error "Bug: bound var exists") biptyBody
+                                  else
+                                    error "TODO (error): extractConstraintsFromTypeExpr, polymorphic type parameter"
+                          let Expr ann' _ = arg
+                          (e', bityArg, csArg) <- extractConstraintsFromExpr trav btenv arg
+                          csEq <- makeConstraintsFromBITypeEquation trav ann' bityArg bityParam
+                          pure
+                            ( btvars',
+                              BExprArg e' : bArgAcc',
+                              cs' ++ csArg ++ csEq
+                            )
+                  )
+                  (Map.empty, [], [])
+                  zipped
+              let bArgs = reverse bArgAcc
+              let tye' = BTypeExpr (bt, ann) (BTyName (ann, (mods, tyName)) bArgs)
+              let bity =
+                    enhanceBIType
+                      BTConst
+                      ( \boundVar ->
+                          case Map.lookup boundVar btvars of
+                            Just (BIType btTo bityMainTo) ->
+                              case btTo of
+                                BTConst BT1 -> bityMainTo
+                                _ -> error $ "Bug: extractConstraintsFromTypeExpr, BT0"
+                            Nothing ->
+                              error "Bug: extractConstraintsFromTypeExpr, bound var not found"
+                      )
+                      btptyBody
+              pure (tye', bity, constraints)
+            Nothing ->
+              analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName (length args)
+        Nothing ->
+          case mods of
+            [] -> do
+              (args', bityBaseArgs, constraints) <-
+                case (tyName, args) of
+                  ("List", [tye]) -> do
+                    (tyeElem, bity@(BIType btElem _), cs) <- extractConstraintsFromTypeExpr trav btenv tye
+                    pure ([BTypeExprArg tyeElem], [bity], cs ++ [CLeq ann bt btElem])
+                  ("Vec", [e]) -> do
+                    (exprArgs, cs) <- extractConstraintsFromExprArgsForType trav btenv bt ann [(e, bityNat)]
+                    pure (map BExprArg exprArgs, [], cs)
+                  ("Mat", [e1, e2]) -> do
+                    (exprArgs, cs) <- extractConstraintsFromExprArgsForType trav btenv bt ann [(e1, bityNat), (e2, bityNat)]
+                    pure (map BExprArg exprArgs, [], cs)
+                  ("Tensor", [eList]) -> do
+                    (exprArgs, cs) <- extractConstraintsFromExprArgsForType trav btenv bt ann [(eList, bityNatList)]
+                    pure (map BExprArg exprArgs, [], cs)
+                  ("Dataset", [e1, e2, e3, e4]) -> do
+                    (exprArgs, cs) <-
+                      extractConstraintsFromExprArgsForType trav btenv bt ann $
+                        [(e1, bityNat), (e2, bityNat), (e3, bityNatList), (e4, bityNatList)]
+                    pure (map BExprArg exprArgs, [], cs)
+                  ("Lstm", [eInputSize, eHiddenSize]) -> do
+                    (exprArgs, cs) <-
+                      extractConstraintsFromExprArgsForType trav btenv bt ann $
+                        [(eInputSize, bityNat), (eHiddenSize, bityNat)]
+                    pure (map BExprArg exprArgs, [], cs)
+                  ("TextHelper", [eLabels]) -> do
+                    (exprArgs, cs) <-
+                      extractConstraintsFromExprArgsForType trav btenv bt ann $
+                        [(eLabels, bityNat)]
+                    pure (map BExprArg exprArgs, [], cs)
+                  (_, _) ->
+                    analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName (length args)
+              let tye' = BTypeExpr (bt, ann) (BTyName (locQualName, (mods, tyName)) args')
+              pure (tye', BIType bt (BITyBase bityBaseArgs), constraints)
+            _ : _ ->
+              analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName (length args)
     TyArrow labelOpt (x1opt, tye1) tye2 -> do
       (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
       case x1opt of
@@ -695,7 +779,7 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
           pure (tye', BIType bt (BITyArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
         Just x1 -> do
           (tye2', bity2@(BIType bt2 _), constraints2) <-
-            extractConstraintsFromTypeExpr trav (Map.insert x1 (EntryLocallyBound bt bity1) btenv) tye2
+            extractConstraintsFromTypeExpr trav (Env.addVal x1 (BTValLocallyBound bt bity1) btenv) tye2
           let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
           let tye' = BTypeExpr (bt, ann) (BTyArrow labelOpt (Just x1, tye1') tye2')
           pure (tye', BIType bt (BITyArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
@@ -709,21 +793,21 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
           pure (tye', BIType bt (BITyArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
         Just x1 -> do
           (tye2', bity2@(BIType bt2 _), constraints2) <-
-            extractConstraintsFromTypeExpr trav (Map.insert x1 (EntryLocallyBound bt bity1) btenv) tye2
+            extractConstraintsFromTypeExpr trav (Env.addVal x1 (BTValLocallyBound bt bity1) btenv) tye2
           let constraints = [CLeq ann bt bt1, CLeq ann bt bt2]
           let tye' = BTypeExpr (bt, ann) (BTyOmsArrow label (Just x1, tye1') tye2')
           pure (tye', BIType bt (BITyOmsArrow label bity1 bity2), constraints1 ++ constraints2 ++ constraints)
     TyInfArrow (x1, tye1) tye2 -> do
       (tye1', bity1, constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
       (tye2', bity2, constraints2) <-
-        extractConstraintsFromTypeExpr trav (Map.insert x1 (EntryLocallyBound bt bity1) btenv) tye2
+        extractConstraintsFromTypeExpr trav (Env.addVal x1 (BTValLocallyBound bt bity1) btenv) tye2
       let constraints = [CEqual ann bt (BTConst BT0)]
       let tye' = BTypeExpr (bt, ann) (BTyInfArrow (x1, tye1') tye2')
       pure (tye', BIType bt (BITyInfArrow bity1 bity2), constraints1 ++ constraints2 ++ constraints)
     TyRefinement x tye1 e2 -> do
       (tye1', bity1@(BIType bt1 _), constraints1) <- extractConstraintsFromTypeExpr trav btenv tye1
       (e2', BIType bt2 _, constraints2) <-
-        extractConstraintsFromExpr trav (Map.insert x (EntryLocallyBound bt bity1) btenv) e2
+        extractConstraintsFromExpr trav (Env.addVal x (BTValLocallyBound bt bity1) btenv) e2
       let constraints = [CEqual ann bt (BTConst BT0), CEqual ann bt1 (BTConst BT0), CEqual ann bt2 (BTConst BT0)]
       let tye' = BTypeExpr (bt, ann) (BTyRefinement x tye1' e2')
       pure (tye', bity1, constraints1 ++ constraints2 ++ constraints)

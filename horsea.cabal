@@ -101,6 +101,7 @@ library
       Surface.BindingTime.Analyzer,
       Surface.BindingTime.Constraint,
       Surface.BindingTime.Core,
+      Surface.BindingTime.Env,
       Surface.BindingTime.Stager,
       Surface.Entrypoint,
       Surface.Parser,

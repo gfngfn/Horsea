@@ -109,7 +109,7 @@ for FILE in "${TESTS_STAGED_FAILURE[@]}"; do
     fi
 done
 
-for FILE in "${TEST_SURFACE_RUN[@]}"; do
+for FILE in "${TESTS_SURFACE_RUN[@]}"; do
     echo "======== $FILE (should pass) ========"
     cabal run horsea -- surface "$FILE"
     if [ $? -ne 0 ]; then

@@ -1,4 +1,4 @@
-let square {n : Nat} (mat : Mat n n) =
+let square {n : Nat} (mat : RectMat n) =
   mmult mat mat
 in
 square

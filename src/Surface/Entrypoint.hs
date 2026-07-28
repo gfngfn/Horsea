@@ -10,7 +10,7 @@ import Common.Formatter qualified as Formatter
 import Common.LocationInFile (SourceSpec (SourceSpec))
 import Common.LocationInFile qualified as LocationInFile
 import Common.TokenUtil (Span)
-import Control.Monad (unless)
+import Control.Monad (foldM, unless)
 import Control.Monad.Trans.Reader
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
@@ -19,10 +19,12 @@ import Staged.Entrypoint qualified
 import Staged.Parser qualified as StagedParser
 import Staged.SrcSyntax qualified as StagedSyntax
 import Staged.Typechecker.Monad (TypecheckState (..))
-import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, ValEntry (..))
+import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Surface.BindingTime qualified as BindingTime
 import Surface.BindingTime.Core
+import Surface.BindingTime.Env (BindingTimeEnv, BindingTimeModuleEntry (..), BindingTimeTypeEntry (..), BindingTimeValueEntry (..))
+import Surface.BindingTime.Env qualified as Env
 import Surface.BindingTime.Stager (BCExprF)
 import Surface.Parser qualified as Parser
 import Surface.Syntax
@@ -50,54 +52,86 @@ makeBindingTimeEnvFromStub =
         case entry of
           Ass0Entry a0tye a0metadataOpt ->
             let x =
-                  -- Uses the same name if not specified
+                  -- Uses the same name if not specified:
                   case a0metadataOpt of
                     Left Ass0Metadata {ass0surfaceName} -> fromMaybe varVal ass0surfaceName
                     Right _ -> varVal
              in case fromStaged0 a0tye of
                   Nothing ->
+                    -- TODO (error): emit a warning
                     bindingTimeEnv
                   Just biptyVoid ->
-                    Map.insert
+                    Env.addVal
                       x
-                      (EntryBuiltInFixed0 varVal biptyVoid)
+                      (BTValBuiltInFixed0 varVal biptyVoid)
                       bindingTimeEnv
           Ass1Entry a1tye a1metadataOpt ->
             let x =
-                  -- Uses the same name if not specified
+                  -- Uses the same name if not specified:
                   case a1metadataOpt of
                     Left Ass1Metadata {ass1surfaceName} -> fromMaybe varVal ass1surfaceName
                     Right _ -> varVal
-                bityVoid = fromStaged1 a1tye
-             in Map.insert
-                  x
-                  (EntryBuiltInFixed1 varVal bityVoid)
-                  bindingTimeEnv
+             in case fromStaged1 a1tye of
+                  Nothing ->
+                    -- TODO (error): emit a warning
+                    bindingTimeEnv
+                  Just bityVoid ->
+                    Env.addVal
+                      x
+                      (BTValBuiltInFixed1 varVal bityVoid)
+                      bindingTimeEnv
           AssPersEntry aPtye AssPersMetadata {assPsurfaceName} ->
             let x =
-                  -- Uses the same name if not specified
+                  -- Uses the same name if not specified:
                   fromMaybe varVal assPsurfaceName
              in case fromStagedPers aPtye of
                   Nothing ->
+                    -- TODO (error): emit a warning
                     bindingTimeEnv
                   Just bipty ->
-                    Map.insert
+                    Env.addVal
                       x
-                      (EntryBuiltInPersistent varVal bipty)
+                      (BTValBuiltInPersistent varVal bipty)
                       bindingTimeEnv
     )
-    ( \_tyName _tyEntry bindingTimeEnv ->
-        -- TODO: take type aliases into consideration for BTA
-        bindingTimeEnv
+    ( \tyName tyEntry bindingTimeEnv ->
+        case tyEntry of
+          Ass1TypeEntry a1tyParams a1tyeBody ->
+            let r = do
+                  (btTy1ParamAcc, vars, _) <-
+                    foldM
+                      ( \(btTy1ParamAcc', vars', i) a1tyParam ->
+                          case a1tyParam of
+                            A1TypeParamType atyvar -> do
+                              let btvar = BITypeBoundVar i
+                              pure (BITypeParamType btvar : btTy1ParamAcc', Map.insert atyvar btvar vars', i + 1)
+                            A1TypeParamVal0 _ax a0tye -> do
+                              btpty <- fromStaged0 a0tye
+                              pure (BITypeParamVal0 btpty : btTy1ParamAcc', vars', i + 1)
+                      )
+                      ([], Map.empty, 0)
+                      a1tyParams
+                  let btTy1Params = reverse btTy1ParamAcc
+                  biptyBody <- fromStaged1Body vars a1tyeBody
+                  pure (btTy1Params, biptyBody)
+             in case r of
+                  Nothing ->
+                    -- TODO (error): emit a warning
+                    bindingTimeEnv
+                  Just (btTy1Params, biptyBody) ->
+                    Env.addType
+                      tyName
+                      (BTType1 (BIParameterizedType btTy1Params biptyBody))
+                      bindingTimeEnv
     )
     ( \varMod (ModuleEntry sigr) bindingTimeEnv ->
-        -- Reuses the module name `varMod` in the core language for the surface language.
-        Map.insert
+        -- Reuses the module name `varMod` in the core language for the surface language:
+        Env.addModule
           varMod
-          (EntryModule (makeBindingTimeEnvFromStub sigr))
+          (BTModule (makeBindingTimeEnvFromStub sigr))
           bindingTimeEnv
     )
-    Map.empty
+    Env.empty
 
 putNormalLine :: String -> IO ()
 putNormalLine = putStrLn
