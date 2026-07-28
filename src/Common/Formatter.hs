@@ -261,7 +261,7 @@ dispTuple es =
 
 dispRecord :: (Disp expr) => Doc Ann -> Map Label expr -> Doc Ann
 dispRecord equalOrColon re =
-  "{" <> nest 2 (commaSep (map (\(label, e) -> disp label <+> equalOrColon <+> disp e) (Map.toList re))) <> "}"
+  "(|" <+> nest 2 (commaSep (map (\(label, e) -> disp label <+> equalOrColon <+> disp e) (Map.toList re))) <+> "|)"
 
 dispConstructorApp :: (Disp expr) => Associativity -> ConstructorName -> [expr] -> Doc Ann
 dispConstructorApp req ctor args =
@@ -1458,16 +1458,18 @@ instance (Disp bt, Disp tv) => Disp (Bta.BITypeMainF bt tv) where
       disp bitv
     Bta.BITyBase [] ->
       "●"
-    Bta.BITyBase (bt0 : bts) ->
-      deepenParenWhen (req <= Atomic) ("●" <+> foldl' (\doc bt -> doc <+> disp bt) (disp bt0) bts)
-    Bta.BITyProduct bts ->
-      deepenParenWhen (req <= Atomic) (foldl1 appendWithAsterisk (fmap (dispGen Atomic) bts))
-    Bta.BITyArrow bt1 bt2 ->
-      deepenParenWhen (req <= Atomic) (dispGen Atomic bt1 <+> "->" <+> dispGen Atomic bt2)
-    Bta.BITyOmsArrow label bt1 bt2 ->
-      deepenParenWhen (req <= Atomic) ("?" <> disp label <+> dispGen Atomic bt1 <+> "->" <+> dispGen Atomic bt2)
-    Bta.BITyInfArrow bt1 bt2 ->
-      deepenParenWhen (req <= Atomic) ("{" <> dispGen Atomic bt1 <> "} ->" <+> dispGen Atomic bt2)
+    Bta.BITyBase (bity0 : bitys) ->
+      deepenParenWhen (req <= Atomic) ("●" <+> foldl' (\doc bt -> doc <+> disp bt) (disp bity0) bitys)
+    Bta.BITyProduct bitys ->
+      deepenParenWhen (req <= Atomic) (foldl1 appendWithAsterisk (fmap (dispGen Atomic) bitys))
+    Bta.BITyRecord rbity ->
+      dispRecord ":" rbity
+    Bta.BITyArrow bity1 bity2 ->
+      deepenParenWhen (req <= Atomic) (dispGen Atomic bity1 <+> "->" <+> dispGen Atomic bity2)
+    Bta.BITyOmsArrow label bity1 bity2 ->
+      deepenParenWhen (req <= Atomic) ("?" <> disp label <+> dispGen Atomic bity1 <+> "->" <+> dispGen Atomic bity2)
+    Bta.BITyInfArrow bity1 bity2 ->
+      deepenParenWhen (req <= Atomic) ("{" <> dispGen Atomic bity1 <> "} ->" <+> dispGen Atomic bity2)
 
 dispWithBindingTime :: (Disp exprMain) => Bta.BindingTimeConst -> exprMain -> Doc Ann
 dispWithBindingTime btc eMain =

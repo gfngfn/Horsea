@@ -142,6 +142,7 @@ enhanceBIType enhBt enhBitv (BIType bt bityMain) =
       BITyVar bitv -> enhBitv bitv
       BITyBase bityBaseArgs -> BITyBase (map fBIType bityBaseArgs)
       BITyProduct bitys -> BITyProduct (fmap fBIType bitys)
+      BITyRecord rbity -> BITyRecord (fmap fBIType rbity)
       BITyArrow bity1 bity2 -> BITyArrow (fBIType bity1) (fBIType bity2)
       BITyOmsArrow label bity1 bity2 -> BITyOmsArrow label (fBIType bity1) (fBIType bity2)
       BITyInfArrow bity1 bity2 -> BITyInfArrow (fBIType bity1) (fBIType bity2)
@@ -544,6 +545,7 @@ occurs bitv = goMain
       BITyVar bitv' -> bitv' == bitv
       BITyBase bitys -> any go bitys
       BITyProduct bitys -> any go bitys
+      BITyRecord rbity -> any go rbity
       BITyArrow bity1 bity2 -> go bity1 || go bity2
       BITyOmsArrow _label bity1 bity2 -> go bity1 || go bity2
       BITyInfArrow bity1 bity2 -> go bity1 || go bity2
@@ -603,6 +605,13 @@ makeConstraintsFromBITypeEquation trav ann bity1' bity2' = go bity1' bity2'
                 Just zipped ->
                   concat <$> mapM (uncurry go) zipped
                 Nothing -> do
+                  spanInFile <- askSpanInFile ann
+                  analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
+            (BITyRecord rbity1, BITyRecord rbity2) -> do
+              if Map.null (rbity1 Map.\\ rbity2) && Map.null (rbity2 Map.\\ rbity1)
+                then
+                  concat <$> mapM (uncurry go . snd) (Map.toList (Map.intersectionWith (,) rbity1 rbity2))
+                else do
                   spanInFile <- askSpanInFile ann
                   analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
             (BITyArrow bity11 bity12, BITyArrow bity21 bity22) -> do
