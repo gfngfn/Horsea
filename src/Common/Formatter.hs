@@ -17,6 +17,8 @@ import Data.Functor.Identity
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.Map (Map)
+import Data.Map qualified as Map
 import Data.Tensor.Matrix qualified as Matrix
 import Data.Tensor.Vector qualified as Vector
 import Data.Text (Text)
@@ -257,6 +259,10 @@ dispTuple :: (Disp expr) => TwoOrMore expr -> Doc Ann
 dispTuple es =
   "(" <> nest 2 (foldl1 appendWithComma (fmap disp es)) <> ")"
 
+dispRecord :: (Disp expr) => Doc Ann -> Map Label expr -> Doc Ann
+dispRecord equalOrColon re =
+  "{" <> nest 2 (commaSep (map (\(label, e) -> disp label <+> equalOrColon <+> disp e) (Map.toList re))) <> "}"
+
 dispConstructorApp :: (Disp expr) => Associativity -> ConstructorName -> [expr] -> Doc Ann
 dispConstructorApp req ctor args =
   case args of
@@ -476,6 +482,7 @@ instance Disp (ExprMainF ann) where
     LetOpenIn m e -> dispLetOpenIn req m e
     Sequential e1 e2 -> dispSequential req e1 e2
     Tuple es -> dispTuple es
+    Record fields -> "{" <> commaSep (map (\(label, field) -> disp label <+> disp field) fields) <> "}"
     IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Case e0 branches -> dispCase req e0 branches
     As e1 tye2 -> dispAs req e1 tye2
@@ -491,6 +498,11 @@ instance Disp (ExprMainF ann) where
     TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
     Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
     TyForAll tyvar tye -> "forall" <+> disp tyvar <+> "->" <+> disp tye
+
+instance Disp (RecordFieldF ann) where
+  dispGen _ = \case
+    RecordFieldEqual e -> "=" <+> disp e
+    RecordFieldColon tye -> ":" <+> disp tye
 
 instance Disp (LamBinderF ann) where
   dispGen _ = \case
@@ -603,6 +615,7 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
     A0LetTupleIn xs a0e1 a0e2 -> dispLetTupleIn req xs a0e1 a0e2
     A0Sequential a0e1 a0e2 -> dispSequential req a0e1 a0e2
     A0Tuple a0es -> dispTuple a0es
+    A0Record a0re -> dispRecord "=" a0re
     A0Constructor ctor a0es -> dispConstructorApp req ctor a0es
     A0Bracket a1e1 -> dispBracket a1e1
     A0IfThenElse a0e0 a0e1 a0e2 -> dispIfThenElse req a0e0 a0e1 a0e2
@@ -641,6 +654,7 @@ instance (Disp sv) => Disp (Ass1ExprF sv) where
     A1LetTupleIn xs a1e1 a1e2 -> dispLetTupleIn req xs a1e1 a1e2
     A1Sequential a1e1 a1e2 -> dispSequential req a1e1 a1e2
     A1Tuple a1es -> dispTuple a1es
+    A1Record a1re -> dispRecord "=" a1re
     A1Constructor ctor a1es -> dispConstructorApp req ctor a1es
     A1IfThenElse a1e0 a1e1 a1e2 -> dispIfThenElse req a1e0 a1e1 a1e2
     A1Case a1e0 a1branches -> dispCase req a1e0 a1branches
@@ -694,6 +708,7 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyList a0tye (Just a0ePred) -> dispInternalRefinementListType req a0tye a0ePred
     A0TyMaybe a0tye -> dispMaybeType req a0tye
     A0TyProduct a0tyes -> dispProductType req a0tyes
+    A0TyRecord a0rty -> dispRecord ":" a0rty
     A0TyArrow labelOpt (xOpt, a0tye1) a0tye2 -> dispArrowType req labelOpt xOpt a0tye1 a0tye2
     A0TyCode a1tye1 -> dispBracket a1tye1
     A0TyInfArrow (x, a0tye1) a0tye2 -> dispInfArrowType req x a0tye1 a0tye2
@@ -709,6 +724,7 @@ instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
     SA0TyList sa0tye (Just a0ePred) -> dispInternalRefinementListType req sa0tye a0ePred
     SA0TyMaybe sa0tye -> dispMaybeType req sa0tye
     SA0TyProduct sa0tyes -> dispProductType req sa0tyes
+    SA0TyRecord sa0rty -> dispRecord ":" sa0rty
     SA0TyArrow (xOpt, sa0tye1) sa0tye2 -> dispArrowType req Nothing xOpt sa0tye1 sa0tye2
     SA0TyCode a1tye1 -> dispBracket a1tye1
     SA0TyForAll atyvar sa0tye -> dispForAllType req atyvar sa0tye
@@ -736,6 +752,7 @@ instance (Disp sv) => Disp (Ass1TypeExprF sv) where
     A1TyMaybe a1tye -> dispMaybeType req a1tye
     A1TyVar atyvar -> disp atyvar
     A1TyProduct a1tyes -> dispProductType req a1tyes
+    A1TyRecord a1rty -> dispRecord ":" a1rty
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2
     A1TyOmsArrow label a1tye1 a1tye2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tye1 a1tye2
     A1TyForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
@@ -966,6 +983,10 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <+> disp spanInFile
         <> hardline
         <+> stage1Style (disp a1tye)
+    CannotApplyRecord spanInFile ->
+      "Cannot apply a record" <> disp spanInFile
+    DuplicateRecordField spanInFile label ->
+      "Duplicate record field" <+> disp label <> disp spanInFile
     LetRecParamsCannotStartWithImplicit spanInFile ->
       "Recursive function definitions cannot have an implicit parameter as the first one" <+> disp spanInFile
     LetRecRequiresNonEmptyParams spanInFile ->

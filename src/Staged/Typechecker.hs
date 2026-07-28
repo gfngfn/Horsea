@@ -413,6 +413,27 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             pure (Pure (A0TyProduct (fmap fst pairs)), A0Tuple (fmap snd pairs))
           _ : _ -> do
             typeError trav $ CannotApplyTuple spanInFile
+      Record fields -> do
+        case appCtx of
+          [] -> do
+            (a0rty, a0re) <-
+              foldM
+                ( \(a0rty', a0re') (label, field) ->
+                    if Map.member label a0rty'
+                      then
+                        typeError trav $ DuplicateRecordField spanInFile label
+                      else case field of
+                        RecordFieldEqual e -> do
+                          (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
+                          pure (Map.insert label a0tye a0rty', Map.insert label a0e a0re')
+                        RecordFieldColon _ ->
+                          typeError trav $ InvalidSyntaxAsExpr spanInFile
+                )
+                (Map.empty, Map.empty)
+                fields
+            pure (Pure (A0TyRecord a0rty), A0Record a0re)
+          _ : _ -> do
+            typeError trav $ CannotApplyRecord spanInFile
       IfThenElse e0 e1 e2 -> do
         (a0tye0, a0e0) <- typecheckExpr0Single trav tyEnv e0
         case a0tye0 of
@@ -1058,6 +1079,27 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             pure (Pure (A1TyProduct (fmap fst pairs)), A1Tuple (fmap snd pairs))
           _ : _ ->
             typeError trav $ CannotApplyTuple spanInFile
+      Record fields -> do
+        case appCtx of
+          [] -> do
+            (a1rty, a1re) <-
+              foldM
+                ( \(a1rty', a1re') (label, field) ->
+                    if Map.member label a1rty'
+                      then
+                        typeError trav $ DuplicateRecordField spanInFile label
+                      else case field of
+                        RecordFieldEqual e -> do
+                          (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
+                          pure (Map.insert label a1tye a1rty', Map.insert label a1e a1re')
+                        RecordFieldColon _ ->
+                          typeError trav $ InvalidSyntaxAsExpr spanInFile
+                )
+                (Map.empty, Map.empty)
+                fields
+            pure (Pure (A1TyRecord a1rty), A1Record a1re)
+          _ : _ -> do
+            typeError trav $ CannotApplyRecord spanInFile
       IfThenElse e0 e1 e2 -> do
         (a1tye0, a1e0) <- typecheckExpr1Single trav tyEnv e0
         case a1tye0 of
@@ -1361,6 +1403,23 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           )
           rest
       pure $ A0TyProduct (TwoOrMore.make1 a0tye1 a0tyesRest)
+    Record fields -> do
+      a0rty <-
+        foldM
+          ( \a0rty' (label, field) ->
+              if Map.member label a0rty'
+                then
+                  typeError trav $ DuplicateRecordField spanInFile label
+                else case field of
+                  RecordFieldEqual _ ->
+                    typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
+                  RecordFieldColon tye -> do
+                    a0tye <- typecheckTypeExpr0 trav tyEnv tye
+                    pure $ Map.insert label a0tye a0rty'
+          )
+          Map.empty
+          fields
+      pure $ A0TyRecord a0rty
     TyForAll tyvar tye1 -> do
       atyvar <- generateFreshTypeVar tyvar
       a0tye1 <- do
@@ -1535,6 +1594,23 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
           )
           rest
       pure $ A1TyProduct (TwoOrMore.make1 a1tye1 a1tyesRest)
+    Record fields -> do
+      a1rty <-
+        foldM
+          ( \a1rty' (label, field) ->
+              if Map.member label a1rty'
+                then
+                  typeError trav $ DuplicateRecordField spanInFile label
+                else case field of
+                  RecordFieldEqual _ ->
+                    typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
+                  RecordFieldColon tye -> do
+                    a1tye <- typecheckTypeExpr1 trav tyEnv tye
+                    pure $ Map.insert label a1tye a1rty'
+          )
+          Map.empty
+          fields
+      pure $ A1TyRecord a1rty
     TyForAll tyvar tye1 -> do
       atyvar <- generateFreshTypeVar tyvar
       a1tye1 <- do
@@ -1571,6 +1647,8 @@ validatePersistentType trav loc a0tye =
         APersTyMaybe <$> go a0tye'
       A0TyProduct a0tyes ->
         APersTyProduct <$> mapM go a0tyes
+      A0TyRecord a0rty ->
+        APersTyRecord <$> mapM go a0rty
       A0TyArrow labelOpt (Nothing, a0tye1) a0tye2 -> do
         aPtye1 <- go a0tye1
         aPtye2 <- go a0tye2

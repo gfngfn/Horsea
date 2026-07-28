@@ -12,6 +12,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty.Util qualified as NonEmptyUtil
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.Map (Map)
 import Data.Maybe (isNothing)
 import Data.Tuple.Extra (second)
 import Staged.Core
@@ -45,6 +46,10 @@ distributeTwoOrMore :: NonEmpty (Ass0Pattern, TwoOrMore a) -> Maybe (TwoOrMore (
 distributeTwoOrMore patAndExprPairs = do
   let matrix = fmap (\(p, a0es) -> fmap (p,) a0es) patAndExprPairs
   TwoOrMore.transpose matrix
+
+distributeMaps :: NonEmpty (pat, Map label a) -> Maybe (Map label (NonEmpty (pat, a)))
+distributeMaps =
+  error "TODO: Merging, A0TyRecord, distributeMaps"
 
 mergeResultsByConditional0 :: forall trav. trav -> Span -> Ass0Expr -> NonEmpty (Ass0Pattern, Result0) -> M trav Result0
 mergeResultsByConditional0 trav loc a0e0 = go
@@ -409,6 +414,22 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
               pure $ A0TyProduct a0tyes'
             Nothing ->
               failure
+        A0TyRecord a0rty1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a0tye) ->
+                  case a0tye of
+                    A0TyRecord a0rty -> pure (a0pat, a0rty)
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, a0rty1) :| pairsRest
+          case distributeMaps pairs of
+            Just zipped -> do
+              a0rty' <- mapM go0 zipped
+              pure $ A0TyRecord a0rty'
+            Nothing ->
+              failure
         A0TyVar atyvar1 -> do
           mapM_
             ( \(_a0pat, a0tye) ->
@@ -610,6 +631,22 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
             Just zipped -> do
               a1tyes' <- mapM go1 zipped
               pure $ A1TyProduct a1tyes'
+            Nothing ->
+              failure
+        A1TyRecord a1rty1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyRecord a1rty -> pure (a0pat, a1rty)
+                    _ -> failure
+              )
+              rest
+          let pairs = (a0pat1, a1rty1) :| pairsRest
+          case distributeMaps pairs of
+            Just zipped -> do
+              a1rty' <- mapM go1 zipped
+              pure $ A1TyRecord a1rty'
             Nothing ->
               failure
         A1TyVar atyvar1 -> do

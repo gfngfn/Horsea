@@ -74,6 +74,8 @@ data TypeErrorF sv
   | CannotApplyTuple SpanInFile
   | NotATupleAtStage0 SpanInFile (Ass0TypeExprF sv)
   | NotATupleAtStage1 SpanInFile (Ass1TypeExprF sv)
+  | CannotApplyRecord SpanInFile
+  | DuplicateRecordField SpanInFile Label
   | LetRecParamsCannotStartWithImplicit SpanInFile
   | LetRecRequiresNonEmptyParams SpanInFile
   | CannotSynthesizeTypeFromExpr SpanInFile
