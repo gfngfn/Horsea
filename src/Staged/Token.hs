@@ -24,6 +24,8 @@ data Token
   | TokRightBrace
   | TokLeftSquare
   | TokRightSquare
+  | TokLeftRecordParen
+  | TokRightRecordParen
   | TokArrow
   | TokEqual
   | TokColon
@@ -90,6 +92,8 @@ showToken = \case
   TokRightBrace -> "}"
   TokLeftSquare -> "["
   TokRightSquare -> "]"
+  TokLeftRecordParen -> "(|"
+  TokRightRecordParen -> "|)"
   TokArrow -> "->"
   TokEqual -> "="
   TokColon -> ":"
@@ -182,7 +186,9 @@ token :: Tokenizer Token
 token =
   choice
     [ -- `(`, `)`, `{`, and `}`:
+      TokLeftRecordParen <$ Mp.chunk "(|",
       TokLeftParen <$ Mp.single '(',
+      TokRightRecordParen <$ Mp.chunk "|)",
       TokRightParen <$ Mp.single ')',
       TokLeftBrace <$ Mp.single '{',
       TokRightBrace <$ Mp.single '}',

@@ -36,6 +36,9 @@ paren = parenGen TokLeftParen TokRightParen
 brace :: P a -> P (Located a)
 brace = parenGen TokLeftBrace TokRightBrace
 
+recordParen :: P a -> P (Located a)
+recordParen = parenGen TokLeftRecordParen TokRightRecordParen
+
 lower :: P (Located Text)
 lower = expectToken (^? #_TokLower)
 
@@ -150,6 +153,7 @@ expr = letin
         <|> try (makeLitUnit <$> token TokLeftParen <*> token TokRightParen)
         <|> (makeEnclosed <$> paren ((,) <$> expr <*> many (token TokComma *> expr)))
         <|> (makeRefinement <$> try (brace ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (typeExpr <* token TokBar) <*> expr)))
+        <|> (makeRecord <$> recordParen ((:) <$> recordField <*> many (token TokComma *> recordField)))
       where
         located constructor (Located loc e) = Expr loc (constructor e)
         makeLitUnit loc1 loc2 = Expr (mergeSpan loc1 loc2) (Literal LitUnit)
@@ -162,6 +166,7 @@ expr = letin
         makeConstructor (Located loc qualCtor) = Expr loc (Constructor qualCtor)
         makeTypeVar (Located loc a) = Expr loc (TyVar a)
         makeRefinement (Located loc (x, tye, e)) = Expr loc (TyRefinement x tye e)
+        makeRecord (Located loc fields) = Expr loc (Record fields)
 
     staged :: P Expr
     staged =
@@ -347,6 +352,13 @@ expr = letin
 
 typeExpr :: P TypeExpr
 typeExpr = expr
+
+recordField :: P (Text, RecordField)
+recordField =
+  (,) <$> noLoc labelNormal <*> (equalField <|> colonField)
+  where
+    equalField = RecordFieldEqual <$> (token TokEqual *> expr)
+    colonField = RecordFieldColon <$> (token TokColon *> typeExpr)
 
 lamBinder :: P LamBinder
 lamBinder =
