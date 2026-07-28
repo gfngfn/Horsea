@@ -481,6 +481,9 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
               zipped
           let ty1eqsRet = applySolution1 varSolutionRet tyvar1SolutionRet <$> ty1eqs
           pure (trivialRet, TyEq1Product ty1eqsRet, varSolutionRet, tyvar1SolutionRet)
+        (A1TyRecord _ra1ty1, A1TyRecord _ra1ty2) -> do
+          let (trivialRet, rty1eq, varSolutionRet, tyvar1SolutionRet) = error "TODO: makeEquation1, A1TyRecord"
+          pure (trivialRet, TyEq1Record rty1eq, varSolutionRet, tyvar1SolutionRet)
         (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) -> do
           if labelOpt1 /= labelOpt2
             then

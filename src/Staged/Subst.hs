@@ -786,6 +786,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       unionPairs [frees ty1eqDom, frees ty1eqCod]
     TyEq1Product ty1eqs ->
       unionPairs (map frees (TwoOrMore.toList ty1eqs))
+    TyEq1Record rty1eq ->
+      unionPairs (map (frees . snd) (Map.toList rty1eq))
     TyEq1TypeVar _atyvar ->
       (Set.empty, Set.empty)
     TyEq1ForAll _atyvar ty1eq ->
@@ -810,6 +812,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       TyEq1OmsArrow label (go ty1eqDom) (go ty1eqCod)
     TyEq1Product ty1eqs ->
       TyEq1Product (fmap go ty1eqs)
+    TyEq1Record rty1eq ->
+      TyEq1Record (fmap go rty1eq)
     TyEq1TypeVar atyvar ->
       TyEq1TypeVar atyvar
     TyEq1ForAll atyvar ty1eq ->

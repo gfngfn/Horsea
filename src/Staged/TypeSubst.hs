@@ -199,6 +199,8 @@ instance HasTypeVar Type1EquationF where
       TyEq1OmsArrow label (go ty1eqDom) (go ty1eqCod)
     TyEq1Product ty1eqs ->
       TyEq1Product (fmap go ty1eqs)
+    TyEq1Record rty1eq ->
+      TyEq1Record (fmap go rty1eq)
     TyEq1TypeVar atyvar ->
       case s of
         TypeSubst0 _ _ ->

@@ -83,6 +83,7 @@ import Data.Functor.Identity
 import Data.Generics.Labels ()
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
+import Data.Map qualified as Map
 import Data.Tensor.Matrix (Matrix)
 import Data.Tensor.Vector (Vector)
 import Data.Text (Text)
@@ -449,6 +450,7 @@ data Type1EquationF sv
   | TyEq1Arrow (Maybe Label) (Type1EquationF sv) (Type1EquationF sv)
   | TyEq1OmsArrow Label (Type1EquationF sv) (Type1EquationF sv)
   | TyEq1Product (TwoOrMore (Type1EquationF sv))
+  | TyEq1Record (Map Label (Type1EquationF sv))
   | -- | Only for trivial equations.
     TyEq1TypeVar AssTypeVar
   | -- | Only for trivial equations.
@@ -628,6 +630,9 @@ decomposeType1Equation = \case
   TyEq1Product ty1eqs ->
     let a1tyePairs = fmap decomposeType1Equation ty1eqs
      in (A1TyProduct (fmap fst a1tyePairs), A1TyProduct (fmap snd a1tyePairs))
+  TyEq1Record rty1eq ->
+    let rpair = fmap decomposeType1Equation rty1eq
+     in (A1TyRecord (Map.map fst rpair), A1TyRecord (Map.map snd rpair))
   TyEq1TypeVar atyvar ->
     (A1TyVar atyvar, A1TyVar atyvar)
   TyEq1ForAll atyvar ty1eq ->
