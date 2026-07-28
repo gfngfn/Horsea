@@ -15,6 +15,7 @@ import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
+import Data.Set qualified as Set
 import Safe.Exact (zipExactMay)
 import Staged.Core (Label)
 import Staged.Syntax qualified as Staged
@@ -682,7 +683,7 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
         Just (BTType1 (BIParameterizedType btTy1Params btptyBody)) ->
           case zipExactMay btTy1Params args of
             Just zipped -> do
-              (_btvars, bArgAcc, constraints) <-
+              (btvars, bArgAcc, constraints) <-
                 foldM
                   ( \(btvars', bArgAcc', cs') (btTy1Param, arg) ->
                       case btTy1Param of
@@ -694,8 +695,13 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
                               BTypeExprArg tyeArg : bArgAcc',
                               cs' ++ csArg ++ [CLeq ann bt btArg]
                             )
-                        BITypeParamVal0 _btptyParam -> do
-                          let bityParam = error "TODO: extractConstraintsFromTypeExpr, make bityParam from btptyParam"
+                        BITypeParamVal0 (BIPolyType boundVars biptyBody) -> do
+                          let bityParam =
+                                if Set.null boundVars
+                                  then
+                                    enhanceBIType BTConst (\_ -> error "Bug: bound var exists") biptyBody
+                                  else
+                                    error "TODO (error): extractConstraintsFromTypeExpr, polymorphic type parameter"
                           let Expr ann' _ = arg
                           (e', bityArg, csArg) <- extractConstraintsFromExpr trav btenv arg
                           csEq <- makeConstraintsFromBITypeEquation trav ann' bityArg bityParam
@@ -712,7 +718,15 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
               let bity =
                     enhanceBIType
                       BTConst
-                      (\_ -> error "TODO: extractConstraintsFromTypeExpr, use btvars")
+                      ( \boundVar ->
+                          case Map.lookup boundVar btvars of
+                            Just (BIType btTo bityMainTo) ->
+                              case btTo of
+                                BTConst BT1 -> bityMainTo
+                                _ -> error $ "Bug: extractConstraintsFromTypeExpr, BT0"
+                            Nothing ->
+                              error "Bug: extractConstraintsFromTypeExpr, bound var not found"
+                      )
                       btptyBody
               pure (tye', bity, constraints)
             Nothing ->
