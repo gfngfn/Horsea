@@ -571,8 +571,8 @@ makeTrivialEquationFromType1 = \case
     TyEq1TypeVar atyvar
   A1TyProduct a1tyes ->
     TyEq1Product (fmap makeTrivialEquationFromType1 a1tyes)
-  A1TyRecord _a1rty ->
-    error "TODO: makeTrivialEquationFromType1, A1TyRecord"
+  A1TyRecord a1rty ->
+    TyEq1Record (fmap makeTrivialEquationFromType1 a1rty)
   A1TyArrow labelOpt a1tye1 a1tye2 ->
     TyEq1Arrow labelOpt (makeTrivialEquationFromType1 a1tye1) (makeTrivialEquationFromType1 a1tye2)
   A1TyOmsArrow label a1tye1 a1tye2 ->
