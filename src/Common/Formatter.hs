@@ -1123,6 +1123,7 @@ instance (Disp sv) => Disp (Ass0ValF sv) where
   dispGen req = \case
     A0ValLiteral lit -> disp lit
     A0ValTuple a0vs -> dispTuple a0vs
+    A0ValRecord a0rv -> dispRecord "=" a0rv
     A0ValConstructor ctor a0vs -> dispConstructorApp req ctor a0vs
     A0ValLam Nothing (x, a0tyv1) a0v2 _env -> dispNonrecLam req Nothing x a0tyv1 a0v2
     A0ValLam (Just (f, a0tyvRec)) (x, a0tyv1) a0v2 _env -> dispRecLam req f a0tyvRec Nothing x a0tyv1 a0v2
@@ -1213,6 +1214,8 @@ instance (Disp sv) => Disp (Ass1ValF sv) where
       dispSequential req a1v1 a1v2
     A1ValTuple a1vs ->
       dispTuple a1vs
+    A1ValRecord a1rv ->
+      dispRecord "=" a1rv
     A1ValConstructor ctor a1vs ->
       dispConstructorApp req ctor a1vs
     A1ValIfThenElse a1v0 a1v1 a1v2 ->
@@ -1237,6 +1240,7 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
     A0TyValProduct a0tyvs ->
       let (a0tyv1, a0tyvsRest) = TwoOrMore.decompose1 a0tyvs
        in dispProduct req a0tyv1 (fmap ("*",) a0tyvsRest)
+    A0TyValRecord a0rtyv -> dispRecord ":" a0rtyv
     A0TyValArrow (xOpt, a0tyv1) a0tye2 -> dispArrowType req Nothing xOpt a0tyv1 a0tye2
     A0TyValCode a1tyv1 -> dispBracket a1tyv1
     A0TyValForAll atyvar sa0tye1 -> dispForAllType req atyvar sa0tye1
@@ -1250,6 +1254,7 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
     A1TyValProduct a1tyvs ->
       let (a1tyv1, a1tyvsRest) = TwoOrMore.decompose1 a1tyvs
        in dispProduct req a1tyv1 (fmap ("*",) a1tyvsRest)
+    A1TyValRecord a1rtyv -> dispRecord ":" a1rtyv
     A1TyValArrow labelOpt a1tyv1 a1tyv2 -> dispNondepArrowType req labelOpt a1tyv1 a1tyv2
     A1TyValOmsArrow label a1tyv1 a1tyv2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tyv1 a1tyv2
     A1TyValForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2

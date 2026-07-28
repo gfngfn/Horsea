@@ -372,6 +372,7 @@ liftPrimType = \case
 data Ass0ValF sv
   = A0ValLiteral (AssLiteralF Ass0ValF sv)
   | A0ValTuple (TwoOrMore (Ass0ValF sv))
+  | A0ValRecord (Map Label (Ass0ValF sv))
   | A0ValConstructor ConstructorName [Ass0ValF sv]
   | -- | Function closures.
     A0ValLam (Maybe (AssVarF sv, Ass0TypeValF sv)) (AssVarF sv, Ass0TypeValF sv) (Ass0ExprF sv) EvalEnv
@@ -394,6 +395,7 @@ data Ass1ValF sv
   | A1ValLetTupleIn (TwoOrMore Symbol) (Ass1ValF sv) (Ass1ValF sv)
   | A1ValSequential (Ass1ValF sv) (Ass1ValF sv)
   | A1ValTuple (TwoOrMore (Ass1ValF sv))
+  | A1ValRecord (Map Label (Ass1ValF sv))
   | A1ValConstructor ConstructorName [Ass1ValF sv]
   | A1ValIfThenElse (Ass1ValF sv) (Ass1ValF sv) (Ass1ValF sv)
   | A1ValCase (Ass1ValF sv) (NonEmpty (Ass1BranchValF sv))
@@ -412,6 +414,7 @@ data Ass0TypeValF sv
     A0TyValList (Ass0TypeValF sv) (Maybe (Ass0ValF sv))
   | A0TyValMaybe (Ass0TypeValF sv)
   | A0TyValProduct (TwoOrMore (Ass0TypeValF sv))
+  | A0TyValRecord (Map Label (Ass0TypeValF sv))
   | A0TyValArrow (Maybe (AssVarF sv), Ass0TypeValF sv) (StrictAss0TypeExprF sv)
   | A0TyValCode (Ass1TypeValF sv)
   | A0TyValForAll AssTypeVar (StrictAss0TypeExprF sv)
@@ -424,6 +427,7 @@ data Ass1TypeValF sv
   | A1TyValMaybe (Ass1TypeValF sv)
   | A1TyValVar AssTypeVar
   | A1TyValProduct (TwoOrMore (Ass1TypeValF sv))
+  | A1TyValRecord (Map Label (Ass1TypeValF sv))
   | A1TyValArrow (Maybe Label) (Ass1TypeValF sv) (Ass1TypeValF sv)
   | A1TyValOmsArrow Label (Ass1TypeValF sv) (Ass1TypeValF sv)
   | A1TyValForAll AssTypeVar (Ass1TypeValF sv)

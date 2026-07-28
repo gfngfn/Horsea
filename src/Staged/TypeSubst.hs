@@ -43,6 +43,8 @@ instance HasTypeVar Ass0TypeExprF where
       A0TyMaybe (go a0tye1)
     A0TyProduct a0tyes ->
       A0TyProduct (fmap go a0tyes)
+    A0TyRecord a0rty ->
+      A0TyRecord (fmap go a0rty)
     A0TyArrow labelOpt (svOpt, a0tye1) a0tye2 ->
       A0TyArrow labelOpt (svOpt, go a0tye1) (go a0tye2)
     A0TyInfArrow (ax, a0tye1) a0tye2 ->
@@ -75,6 +77,8 @@ instance HasTypeVar StrictAss0TypeExprF where
       SA0TyMaybe (go a0tye1)
     SA0TyProduct sa0tyes ->
       SA0TyProduct (fmap go sa0tyes)
+    SA0TyRecord sa0rty ->
+      SA0TyRecord (fmap go sa0rty)
     SA0TyArrow (svOpt, sa0tye1) sa0tye2 ->
       SA0TyArrow (svOpt, go sa0tye1) (go sa0tye2)
     SA0TyCode a1tye1 ->
@@ -99,6 +103,7 @@ instance HasTypeVar Ass1TypeExprF where
         TypeSubst0 _ _ -> A1TyVar atyvar
         TypeSubst1 atyvar' a1tye' -> if atyvar == atyvar' then a1tye' else A1TyVar atyvar
     A1TyProduct a1tyes -> A1TyProduct (fmap go a1tyes)
+    A1TyRecord a1rty -> A1TyRecord (fmap go a1rty)
     A1TyArrow labelOpt a1tye1 a1tye2 -> A1TyArrow labelOpt (go a1tye1) (go a1tye2)
     A1TyOmsArrow label a1tye1 a1tye2 -> A1TyOmsArrow label (go a1tye1) (go a1tye2)
     A1TyForAll atyvar a1tye2 ->
@@ -146,6 +151,7 @@ instance HasTypeVar Ass0ExprF where
     A0LetTupleIn xs a0e1 a0e2 -> A0LetTupleIn xs (go a0e1) (go a0e2)
     A0Sequential a0e1 a0e2 -> A0Sequential (go a0e1) (go a0e2)
     A0Tuple a0es -> A0Tuple (fmap go a0es)
+    A0Record a0re -> A0Record (fmap go a0re)
     A0Constructor ctor a0es -> A0Constructor ctor (map go a0es)
     A0IfThenElse a0e0 a0e1 a0e2 -> A0IfThenElse (go a0e0) (go a0e1) (go a0e2)
     A0Case a0e0 a0branches -> A0Case (go a0e0) (fmap go a0branches)
@@ -244,6 +250,7 @@ instance HasTypeVar Ass1ExprF where
     A1LetTupleIn xs a1e1 a1e2 -> A1LetTupleIn xs (go a1e1) (go a1e2)
     A1Sequential a1e1 a1e2 -> A1Sequential (go a1e1) (go a1e2)
     A1Tuple a1es -> A1Tuple (fmap go a1es)
+    A1Record a1re -> A1Record (fmap go a1re)
     A1Constructor ctor a1es -> A1Constructor ctor (map go a1es)
     A1IfThenElse a1e0 a1e1 a1e2 -> A1IfThenElse (go a1e0) (go a1e1) (go a1e2)
     A1Case a1e0 a1branches -> A1Case (go a1e0) (fmap go a1branches)
