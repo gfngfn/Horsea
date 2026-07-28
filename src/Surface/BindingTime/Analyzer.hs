@@ -608,7 +608,7 @@ makeConstraintsFromBITypeEquation trav ann bity1' bity2' = go bity1' bity2'
                   spanInFile <- askSpanInFile ann
                   analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
             (BITyRecord rbity1, BITyRecord rbity2) -> do
-              if Map.null (rbity1 Map.\\ rbity2) && Map.null (rbity2 Map.\\ rbity1)
+              if Map.keysSet rbity1 == Map.keysSet rbity2
                 then
                   concat <$> mapM (uncurry go . snd) (Map.toList (Map.intersectionWith (,) rbity1 rbity2))
                 else do

@@ -227,8 +227,7 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
           Just zipped -> all (uncurry go) zipped
           Nothing -> False
       (A0Record a0re1, A0Record a0re2) ->
-        Map.null (a0re1 Map.\\ a0re2)
-          && Map.null (a0re2 Map.\\ a0re1)
+        Map.keysSet a0re1 == Map.keysSet a0re2
           && all (uncurry go . snd) (Map.toList (Map.intersectionWith (,) a0re1 a0re2))
       (A0Constructor ctor1 a0es1, A0Constructor ctor2 a0es2) ->
         ctor1 == ctor2
@@ -551,8 +550,7 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
           Just zipped -> all (uncurry go) zipped
           Nothing -> False
       (A0TyRecord a0rty1, A0TyRecord a0rty2) ->
-        Map.null (a0rty1 Map.\\ a0rty2)
-          && Map.null (a0rty2 Map.\\ a0rty1)
+        Map.keysSet a0rty1 == Map.keysSet a0rty2
           && all (uncurry go . snd) (Map.toList (Map.intersectionWith (,) a0rty1 a0rty2))
       (A0TyArrow labelOpt1 (y1opt, a0tye11) a0tye12, A0TyArrow labelOpt2 (y2opt, a0tye21) a0tye22) ->
         labelOpt1 == labelOpt2
@@ -672,8 +670,7 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
           Just zipped -> all (uncurry go) zipped
           Nothing -> False
       (A1TyRecord a1rty1, A1TyRecord a1rty2) ->
-        Map.null (a1rty1 Map.\\ a1rty2)
-          && Map.null (a1rty2 Map.\\ a1rty1)
+        Map.keysSet a1rty1 == Map.keysSet a1rty2
           && all (uncurry go . snd) (Map.toList (Map.intersectionWith (,) a1rty1 a1rty2))
       (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) ->
         labelOpt1 == labelOpt2 && go a1tye11 a1tye21 && go a1tye12 a1tye22
