@@ -12,6 +12,7 @@ where
 import Data.Functor.Identity
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.Map qualified as Map
 import Data.Maybe1
 import Data.Set (Set, (\\))
 import Data.Set qualified as Set
@@ -118,6 +119,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       unionPairs [frees a0e1, frees a0e2]
     A0Tuple a0es ->
       unionPairs (map frees (TwoOrMore.toList a0es))
+    A0Record a0re ->
+      unionPairs (map (frees . snd) (Map.toList a0re))
     A0Constructor _ctor a0es ->
       unionPairs (map frees a0es)
     A0IfThenElse a0e0 a0e1 a0e2 ->
@@ -170,6 +173,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       A0Sequential (go a0e1) (go a0e2)
     A0Tuple a0es ->
       A0Tuple (fmap go a0es)
+    A0Record a0re ->
+      A0Record (fmap go a0re)
     A0Constructor ctor a0es ->
       A0Constructor ctor (map go a0es)
     A0IfThenElse a0e0 a0e1 a0e2 ->
@@ -221,6 +226,10 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
         case zipExactMay (TwoOrMore.toList a0es1) (TwoOrMore.toList a0es2) of
           Just zipped -> all (uncurry go) zipped
           Nothing -> False
+      (A0Record a0re1, A0Record a0re2) ->
+        Map.null (a0re1 Map.\\ a0re2)
+          && Map.null (a0re2 Map.\\ a0re1)
+          && all (uncurry go . snd) (Map.toList (Map.intersectionWith (,) a0re1 a0re2))
       (A0Constructor ctor1 a0es1, A0Constructor ctor2 a0es2) ->
         ctor1 == ctor2
           && case zipExactMay a0es1 a0es2 of
@@ -309,6 +318,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       unionPairs [frees a1e1, frees a1e2]
     A1Tuple a1es ->
       unionPairs (map frees (TwoOrMore.toList a1es))
+    A1Record a1rty ->
+      unionPairs (map (frees . snd) (Map.toList a1rty))
     A1Constructor _ctor a1es ->
       unionPairs (map frees a1es)
     A1IfThenElse a1e0 a1e1 a1e2 ->
@@ -357,6 +368,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       A1Sequential (go a1e1) (go a1e2)
     A1Tuple a1es ->
       A1Tuple (fmap go a1es)
+    A1Record a1rty ->
+      A1Record (fmap go a1rty)
     A1Constructor ctor a1es ->
       A1Constructor ctor (map go a1es)
     A1IfThenElse a1e0 a1e1 a1e2 ->
@@ -451,6 +464,8 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
       frees a0tye
     A0TyProduct a0tyes ->
       unionPairs (map frees (TwoOrMore.toList a0tyes))
+    A0TyRecord a0rty ->
+      unionPairs (map (frees . snd) (Map.toList a0rty))
     A0TyArrow _labelOpt (yOpt, a0tye1) a0tye2 ->
       let (var0set1, var1set1) = frees a0tye1
           (var0set2, var1set2) = frees a0tye2
@@ -493,6 +508,8 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
       A0TyMaybe (go a0tye)
     A0TyProduct a0tyes ->
       A0TyProduct (fmap go a0tyes)
+    A0TyRecord a0rty ->
+      A0TyRecord (fmap go a0rty)
     A0TyArrow labelOpt (yOpt, a0tye1) a0tye2 ->
       A0TyArrow labelOpt (yOpt, go a0tye1) $
         case (yOpt, s) of
@@ -521,12 +538,22 @@ instance (Ord sv) => HasVar sv Ass0TypeExprF where
   alphaEquivalent a0tye1 a0tye2 =
     case (a0tye1, a0tye2) of
       (A0TyPrim a0tyPrim1 maybePred1, A0TyPrim a0tyPrim2 maybePred2) ->
-        -- Exact match
+        -- Exact match:
         a0tyPrim1 == a0tyPrim2 && go (Maybe1 maybePred1) (Maybe1 maybePred2)
       (A0TyVar atyvar1, A0TyVar atyvar2) ->
         atyvar1 == atyvar2
       (A0TyList a0tye1' maybePred1, A0TyList a0tye2' maybePred2) ->
         go a0tye1' a0tye2' && go (Maybe1 maybePred1) (Maybe1 maybePred2)
+      (A0TyMaybe a0tye1', A0TyMaybe a0tye2') ->
+        go a0tye1' a0tye2'
+      (A0TyProduct a0tyes1, A0TyProduct a0tyes2) ->
+        case zipExactMay (TwoOrMore.toList a0tyes1) (TwoOrMore.toList a0tyes2) of
+          Just zipped -> all (uncurry go) zipped
+          Nothing -> False
+      (A0TyRecord a0rty1, A0TyRecord a0rty2) ->
+        Map.null (a0rty1 Map.\\ a0rty2)
+          && Map.null (a0rty2 Map.\\ a0rty1)
+          && all (uncurry go . snd) (Map.toList (Map.intersectionWith (,) a0rty1 a0rty2))
       (A0TyArrow labelOpt1 (y1opt, a0tye11) a0tye12, A0TyArrow labelOpt2 (y2opt, a0tye21) a0tye22) ->
         labelOpt1 == labelOpt2
           && go a0tye11 a0tye21
@@ -587,6 +614,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       (Set.empty, Set.empty)
     A1TyProduct a1tyes ->
       unionPairs (map frees (TwoOrMore.toList a1tyes))
+    A1TyRecord a1rty ->
+      unionPairs (map (frees . snd) (Map.toList a1rty))
     A1TyArrow _labelOpt a1tye1 a1tye2 ->
       unionPairs [frees a1tye1, frees a1tye2]
     A1TyOmsArrow _label a1tye1 a1tye2 ->
@@ -610,6 +639,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       A1TyVar atyvar
     A1TyProduct a1tyes ->
       A1TyProduct (fmap go a1tyes)
+    A1TyRecord a1tyes ->
+      A1TyRecord (fmap go a1tyes)
     A1TyArrow labelOpt a1tye1 a1tye2 ->
       A1TyArrow labelOpt (go a1tye1) (go a1tye2)
     A1TyOmsArrow label a1tye1 a1tye2 ->
@@ -632,6 +663,18 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
             False
       (A1TyList a1tye1', A1TyList a1tye2') ->
         go a1tye1' a1tye2'
+      (A1TyMaybe a1tye1', A1TyMaybe a1tye2') ->
+        go a1tye1' a1tye2'
+      (A1TyVar atyvar1, A1TyVar atyvar2) ->
+        atyvar1 == atyvar2
+      (A1TyProduct a1tyes1, A1TyProduct a1tyes2) ->
+        case zipExactMay (TwoOrMore.toList a1tyes1) (TwoOrMore.toList a1tyes2) of
+          Just zipped -> all (uncurry go) zipped
+          Nothing -> False
+      (A1TyRecord a1rty1, A1TyRecord a1rty2) ->
+        Map.null (a1rty1 Map.\\ a1rty2)
+          && Map.null (a1rty2 Map.\\ a1rty1)
+          && all (uncurry go . snd) (Map.toList (Map.intersectionWith (,) a1rty1 a1rty2))
       (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) ->
         labelOpt1 == labelOpt2 && go a1tye11 a1tye21 && go a1tye12 a1tye22
       (A1TyOmsArrow label1 a1tye11 a1tye12, A1TyOmsArrow label2 a1tye21 a1tye22) ->
@@ -654,6 +697,8 @@ instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
       frees a0tye
     SA0TyProduct a0tyes ->
       unionPairs (map frees (TwoOrMore.toList a0tyes))
+    SA0TyRecord a0rty ->
+      unionPairs (map (frees . snd) (Map.toList a0rty))
     SA0TyArrow (yOpt, a0tye1) a0tye2 ->
       let (var0set1, var1set1) = frees a0tye1
           (var0set2, var1set2) = frees a0tye2
@@ -680,6 +725,8 @@ instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
       SA0TyMaybe (go a0tye)
     SA0TyProduct a0tyes ->
       SA0TyProduct (fmap go a0tyes)
+    SA0TyRecord a0rty ->
+      SA0TyRecord (fmap go a0rty)
     SA0TyArrow (yOpt, sa0tye1) sa0tye2 ->
       SA0TyArrow (yOpt, go sa0tye1) $
         case (yOpt, s) of
