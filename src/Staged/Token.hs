@@ -45,7 +45,7 @@ data Token
   | TokMatRight
   | TokLower Text
   | TokUpper Text
-  | TokLongLower ([Text], Text)
+  | TokLongLowerWithProjs ([Located Text], Located Text, [Located Text])
   | TokLongUpper ([Text], Text)
   | TokLabelNormal Text
   | TokLabelOmissible Text
@@ -113,8 +113,10 @@ showToken = \case
   TokMatRight -> "#]"
   TokLower lower -> Text.unpack lower
   TokUpper upper -> Text.unpack upper
-  TokLongLower (mods, lower) -> Text.unpack (Text.intercalate "." mods <> lower)
-  TokLongUpper (mods, upper) -> Text.unpack (Text.intercalate "." mods <> upper)
+  TokLongLowerWithProjs (mods, lower, projs) ->
+    Text.unpack $ Text.intercalate "." $ map ignoreSpan $ mods ++ (lower : projs)
+  TokLongUpper (mods, upper) ->
+    Text.unpack $ Text.intercalate "." $ mods ++ [upper]
   TokLabelNormal label -> "#" ++ Text.unpack label
   TokLabelOmissible label -> "?" ++ Text.unpack label
   TokTypeVar a -> '\'' : Text.unpack a
@@ -237,7 +239,7 @@ token =
       TokTypeVar <$> (Mp.single '\'' *> lowerIdent),
       -- identifiers:
       lowerIdentOrKeyword,
-      Mp.try (TokLongLower <$> longLowerIdent),
+      Mp.try (TokLongLowerWithProjs <$> longLowerIdentWithProjs),
       Mp.try (TokLongUpper <$> longUpperIdent),
       TokUpper <$> upperIdent,
       -- numeric literals (possibly starting with `-`):

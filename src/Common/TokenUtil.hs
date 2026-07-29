@@ -3,10 +3,11 @@ module Common.TokenUtil
     mergeSpan,
     Located (..),
     Tokenizer,
+    ignoreSpan,
     space,
     lowerIdent,
     upperIdent,
-    longLowerIdent,
+    longLowerIdentWithProjs,
     longUpperIdent,
     operator,
     operatorLong,
@@ -46,6 +47,9 @@ data Located a = Located Span a
 
 type Tokenizer = Mp.Parsec Void Text
 
+ignoreSpan :: Located a -> a
+ignoreSpan (Located _ x) = x
+
 space :: Tokenizer ()
 space = MpLexer.space MpChar.space1 empty empty
 
@@ -67,21 +71,47 @@ upperIdent = Text.pack <$> ((:) <$> p1 <*> p2)
     p1 = Mp.satisfy Char.isUpper
     p2 = Mp.many (Mp.satisfy isRestChar) <* Mp.notFollowedBy (Mp.satisfy isRestCharOrDot)
 
-long :: Tokenizer Text -> Tokenizer ([Text], Text)
-long pMain =
-  (,) <$> Mp.many (buildModuleName <$> p1 <*> (p2 <* Mp.single '.')) <*> pMain
+withSpan :: Tokenizer a -> Tokenizer (Located a)
+withSpan p = do
+  start <- Mp.getOffset
+  content <- p
+  end <- Mp.getOffset
+  pure $ Located (Span start end) content
+
+lowerPrefix :: Tokenizer Text
+lowerPrefix =
+  buildName <$> p1 <*> (p2 <* Mp.single '.')
+  where
+    p1 = Mp.satisfy Char.isLower
+    p2 = Mp.many (Mp.satisfy isRestChar)
+    buildName c cs = Text.pack (c : cs)
+
+upperPrefix :: Tokenizer Text
+upperPrefix = do
+  buildName <$> p1 <*> (p2 <* Mp.single '.')
   where
     p1 = Mp.satisfy Char.isUpper
     p2 = Mp.many (Mp.satisfy isRestChar)
-    buildModuleName c cs = Text.pack (c : cs)
+    buildName c cs = Text.pack (c : cs)
 
--- Parses a lowercased identifier preceded by a sequence of module names.
-longLowerIdent :: Tokenizer ([Text], Text)
-longLowerIdent = long lowerIdent
+-- Parses a lowercased identifier possibly preceded by a sequence of module names
+-- and possibly followed by field projections.
+longLowerIdentWithProjs :: Tokenizer ([Located Text], Located Text, [Located Text])
+longLowerIdentWithProjs =
+  reorganize
+    <$> Mp.many (withSpan upperPrefix)
+    <*> Mp.many (withSpan lowerPrefix)
+    <*> withSpan lowerIdent
+  where
+    reorganize uppers lowers lowerLast =
+      case lowers of
+        [] -> (uppers, lowerLast, [])
+        x : projs -> (uppers, x, projs ++ [lowerLast])
 
--- Parses a lowercased identifier preceded by a sequence of module names.
+-- Parses a lowercased identifier possibly preceded by a sequence of module names.
 longUpperIdent :: Tokenizer ([Text], Text)
-longUpperIdent = long upperIdent
+longUpperIdent =
+  (,) <$> Mp.many upperPrefix <*> upperIdent
 
 opRestCharSet :: Set Char
 opRestCharSet =
@@ -150,11 +180,9 @@ tokenSep getComment = do
 
 tokenWithOffsets :: Tokenizer token -> Tokenizer comment -> Tokenizer (Located token)
 tokenWithOffsets getToken getComment = do
-  start <- Mp.getOffset
-  t <- getToken
-  end <- Mp.getOffset
+  t <- withSpan getToken
   () <- tokenSep getComment
-  pure $ Located (Span start end) t
+  pure t
 
 genLex :: Tokenizer token -> Tokenizer comment -> Text -> Either String [Located token]
 genLex getToken getComment source =

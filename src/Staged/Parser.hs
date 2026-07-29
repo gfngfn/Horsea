@@ -8,7 +8,7 @@ where
 import Common.FrontError (FrontError (..))
 import Common.LocationInFile (SourceSpec)
 import Common.ParserUtil
-import Common.TokenUtil (Located (..), Span, mergeSpan)
+import Common.TokenUtil (Located (..), Span, ignoreSpan, mergeSpan)
 import Control.Lens ((^?))
 import Data.Either.Extra
 import Data.Functor
@@ -51,8 +51,9 @@ labelNormal = expectToken (^? #_TokLabelNormal)
 labelOmissible :: P (Located Text)
 labelOmissible = expectToken (^? #_TokLabelOmissible)
 
-longOrShortLower :: P (Located ([Text], Text))
-longOrShortLower = expectToken (^? #_TokLongLower) <|> (fmap ([],) <$> lower)
+longOrShortLowerWithProjs :: P ([Located Text], Located Text, [Located Text])
+longOrShortLowerWithProjs =
+  noLoc (expectToken (^? #_TokLongLowerWithProjs)) <|> (([],,[]) <$> lower)
 
 longOrShortUpper :: P (Located ([Text], Text))
 longOrShortUpper = expectToken (^? #_TokLongUpper) <|> (fmap ([],) <$> upper)
@@ -146,7 +147,7 @@ expr = letin
         <|> (located (Literal . LitMat) <$> mat)
         <|> (makeBool True <$> token TokTrue)
         <|> (makeBool False <$> token TokFalse)
-        <|> (located Var <$> longOrShortLower)
+        <|> (makeVarWithProjs <$> longOrShortLowerWithProjs)
         <|> (makeConstructor <$> longOrShortUpper)
         <|> (makeTypeVar <$> typeVar)
         <|> try (located (\x -> Var ([], x)) <$> standaloneOp)
@@ -163,6 +164,21 @@ expr = letin
               Nothing -> eMain
               Just esRest -> Tuple (TwoOrMore.make1 e1 esRest)
         makeBool b loc = Expr loc (Literal (LitBool b))
+        makeVarWithProjs (mods, Located locX x, projs) =
+          foldl'
+            ( \e@(Expr locAcc _) (Located locProj proj) ->
+                Expr (mergeSpan locAcc locProj) (FieldProj e proj)
+            )
+            longLower
+            projs
+          where
+            longLower =
+              case mods of
+                [] ->
+                  Expr locX (Var ([], x))
+                Located locFirst _ : _ ->
+                  Expr (mergeSpan locFirst locX) (Var (map ignoreSpan mods, x))
+
         makeConstructor (Located loc qualCtor) = Expr loc (Constructor qualCtor)
         makeTypeVar (Located loc a) = Expr loc (TyVar a)
         makeRefinement (Located loc (x, tye, e)) = Expr loc (TyRefinement x tye e)
