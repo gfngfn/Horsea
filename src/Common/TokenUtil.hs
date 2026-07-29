@@ -99,8 +99,8 @@ upperPrefix = do
 longLowerIdentWithProjs :: Tokenizer ([Located Text], Located Text, [Located Text])
 longLowerIdentWithProjs =
   reorganize
-    <$> Mp.many (withSpan upperPrefix)
-    <*> Mp.many (withSpan lowerPrefix)
+    <$> Mp.many (withSpan (Mp.try upperPrefix))
+    <*> Mp.many (withSpan (Mp.try lowerPrefix))
     <*> withSpan lowerIdent
   where
     reorganize uppers lowers lowerLast =

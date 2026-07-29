@@ -393,6 +393,9 @@ spec = do
     it "parses variables with module prefixes" $
       parseExprWithLoc "Foo.Bar.x"
         `shouldBe` pure (exprLoc 0 9 $ long ["Foo", "Bar"] "x")
+    it "parses variables with module prefixes and projections" $
+      parseExprWithLoc "Foo.Bar.x.qux.fred"
+        `shouldBe` pure (exprLoc 0 18 $ FieldProj (exprLoc 0 13 $ FieldProj (exprLoc 0 9 $ long ["Foo", "Bar"] "x") "qux") "fred")
     it "parses applications (1)" $
       parseExprWithLoc "x y"
         `shouldBe` pure (exprLoc 0 3 (App (exprLoc 0 1 (short "x")) Nothing (exprLoc 2 3 (short "y"))))
