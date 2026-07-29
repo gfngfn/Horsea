@@ -78,29 +78,29 @@ withSpan p = do
   end <- Mp.getOffset
   pure $ Located (Span start end) content
 
-lowerPrefix :: Tokenizer Text
+lowerPrefix :: Tokenizer (Located Text)
 lowerPrefix =
-  buildName <$> p1 <*> (p2 <* Mp.single '.')
+  buildName <$> Mp.getOffset <*> p1 <*> (((,) <$> p2 <*> Mp.getOffset) <* Mp.single '.')
   where
     p1 = Mp.satisfy Char.isLower
     p2 = Mp.many (Mp.satisfy isRestChar)
-    buildName c cs = Text.pack (c : cs)
+    buildName start c (cs, end) = Located (Span start end) (Text.pack (c : cs))
 
-upperPrefix :: Tokenizer Text
+upperPrefix :: Tokenizer (Located Text)
 upperPrefix = do
-  buildName <$> p1 <*> (p2 <* Mp.single '.')
+  buildName <$> Mp.getOffset <*> p1 <*> (((,) <$> p2 <*> Mp.getOffset) <* Mp.single '.')
   where
     p1 = Mp.satisfy Char.isUpper
     p2 = Mp.many (Mp.satisfy isRestChar)
-    buildName c cs = Text.pack (c : cs)
+    buildName start c (cs, end) = Located (Span start end) (Text.pack (c : cs))
 
 -- Parses a lowercased identifier possibly preceded by a sequence of module names
 -- and possibly followed by field projections.
 longLowerIdentWithProjs :: Tokenizer ([Located Text], Located Text, [Located Text])
 longLowerIdentWithProjs =
   reorganize
-    <$> Mp.many (withSpan (Mp.try upperPrefix))
-    <*> Mp.many (withSpan (Mp.try lowerPrefix))
+    <$> Mp.many (Mp.try upperPrefix)
+    <*> Mp.many (Mp.try lowerPrefix)
     <*> withSpan lowerIdent
   where
     reorganize uppers lowers lowerLast =
@@ -111,7 +111,7 @@ longLowerIdentWithProjs =
 -- Parses a lowercased identifier possibly preceded by a sequence of module names.
 longUpperIdent :: Tokenizer ([Text], Text)
 longUpperIdent =
-  (,) <$> Mp.many upperPrefix <*> upperIdent
+  (,) <$> Mp.many (ignoreSpan <$> upperPrefix) <*> upperIdent
 
 opRestCharSet :: Set Char
 opRestCharSet =
