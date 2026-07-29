@@ -178,7 +178,6 @@ expr = letin
                   Expr locX (Var ([], x))
                 Located locFirst _ : _ ->
                   Expr (mergeSpan locFirst locX) (Var (map ignoreSpan mods, x))
-
         makeConstructor (Located loc qualCtor) = Expr loc (Constructor qualCtor)
         makeTypeVar (Located loc a) = Expr loc (TyVar a)
         makeRefinement (Located loc (x, tye, e)) = Expr loc (TyRefinement x tye e)
