@@ -121,6 +121,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       unionPairs (map frees (TwoOrMore.toList a0es))
     A0Record a0re ->
       unionPairs (map (frees . snd) (Map.toList a0re))
+    A0FieldProj a0e _label ->
+      frees a0e
     A0Constructor _ctor a0es ->
       unionPairs (map frees a0es)
     A0IfThenElse a0e0 a0e1 a0e2 ->
@@ -175,6 +177,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       A0Tuple (fmap go a0es)
     A0Record a0re ->
       A0Record (fmap go a0re)
+    A0FieldProj a0e label ->
+      A0FieldProj (go a0e) label
     A0Constructor ctor a0es ->
       A0Constructor ctor (map go a0es)
     A0IfThenElse a0e0 a0e1 a0e2 ->
@@ -319,6 +323,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       unionPairs (map frees (TwoOrMore.toList a1es))
     A1Record a1rty ->
       unionPairs (map (frees . snd) (Map.toList a1rty))
+    A1FieldProj a1e _label ->
+      frees a1e
     A1Constructor _ctor a1es ->
       unionPairs (map frees a1es)
     A1IfThenElse a1e0 a1e1 a1e2 ->
@@ -369,6 +375,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       A1Tuple (fmap go a1es)
     A1Record a1rty ->
       A1Record (fmap go a1rty)
+    A1FieldProj a1e label ->
+      A1FieldProj (go a1e) label
     A1Constructor ctor a1es ->
       A1Constructor ctor (map go a1es)
     A1IfThenElse a1e0 a1e1 a1e2 ->

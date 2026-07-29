@@ -152,6 +152,7 @@ instance HasTypeVar Ass0ExprF where
     A0Sequential a0e1 a0e2 -> A0Sequential (go a0e1) (go a0e2)
     A0Tuple a0es -> A0Tuple (fmap go a0es)
     A0Record a0re -> A0Record (fmap go a0re)
+    A0FieldProj a0e1 label -> A0FieldProj (go a0e1) label
     A0Constructor ctor a0es -> A0Constructor ctor (map go a0es)
     A0IfThenElse a0e0 a0e1 a0e2 -> A0IfThenElse (go a0e0) (go a0e1) (go a0e2)
     A0Case a0e0 a0branches -> A0Case (go a0e0) (fmap go a0branches)
@@ -253,6 +254,7 @@ instance HasTypeVar Ass1ExprF where
     A1Sequential a1e1 a1e2 -> A1Sequential (go a1e1) (go a1e2)
     A1Tuple a1es -> A1Tuple (fmap go a1es)
     A1Record a1re -> A1Record (fmap go a1re)
+    A1FieldProj a1e1 label -> A1FieldProj (go a1e1) label
     A1Constructor ctor a1es -> A1Constructor ctor (map go a1es)
     A1IfThenElse a1e0 a1e1 a1e2 -> A1IfThenElse (go a1e0) (go a1e1) (go a1e2)
     A1Case a1e0 a1branches -> A1Case (go a1e0) (fmap go a1branches)

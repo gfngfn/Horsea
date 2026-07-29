@@ -137,6 +137,7 @@ data Ass0ExprF sv
   | A0Sequential (Ass0ExprF sv) (Ass0ExprF sv)
   | A0Tuple (TwoOrMore (Ass0ExprF sv))
   | A0Record (Map Label (Ass0ExprF sv))
+  | A0FieldProj (Ass0ExprF sv) Label
   | A0Constructor ConstructorName [Ass0ExprF sv]
   | A0IfThenElse (Ass0ExprF sv) (Ass0ExprF sv) (Ass0ExprF sv)
   | A0Case (Ass0ExprF sv) (NonEmpty (Ass0BranchF sv))
@@ -172,6 +173,7 @@ data Ass1ExprF sv
   | A1Sequential (Ass1ExprF sv) (Ass1ExprF sv)
   | A1Tuple (TwoOrMore (Ass1ExprF sv))
   | A1Record (Map Label (Ass1ExprF sv))
+  | A1FieldProj (Ass1ExprF sv) Label
   | A1Constructor ConstructorName [Ass1ExprF sv]
   | A1IfThenElse (Ass1ExprF sv) (Ass1ExprF sv) (Ass1ExprF sv)
   | A1Case (Ass1ExprF sv) (NonEmpty (Ass1BranchF sv))
@@ -397,6 +399,7 @@ data Ass1ValF sv
   | A1ValSequential (Ass1ValF sv) (Ass1ValF sv)
   | A1ValTuple (TwoOrMore (Ass1ValF sv))
   | A1ValRecord (Map Label (Ass1ValF sv))
+  | A1ValFieldProj (Ass1ValF sv) Label
   | A1ValConstructor ConstructorName [Ass1ValF sv]
   | A1ValIfThenElse (Ass1ValF sv) (Ass1ValF sv) (Ass1ValF sv)
   | A1ValCase (Ass1ValF sv) (NonEmpty (Ass1BranchValF sv))

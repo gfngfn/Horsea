@@ -263,6 +263,10 @@ dispRecord :: (Disp expr) => Doc Ann -> Map Label expr -> Doc Ann
 dispRecord equalOrColon re =
   "(|" <+> nest 2 (commaSep (map (\(label, e) -> disp label <+> equalOrColon <+> disp e) (Map.toList re))) <+> "|)"
 
+dispFieldProj :: (Disp expr) => Associativity -> expr -> Label -> Doc Ann
+dispFieldProj _req e label =
+  dispGen Atomic e <> "." <> disp label
+
 dispConstructorApp :: (Disp expr) => Associativity -> ConstructorName -> [expr] -> Doc Ann
 dispConstructorApp req ctor args =
   case args of
@@ -616,6 +620,7 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
     A0Sequential a0e1 a0e2 -> dispSequential req a0e1 a0e2
     A0Tuple a0es -> dispTuple a0es
     A0Record a0re -> dispRecord "=" a0re
+    A0FieldProj a0e1 label -> dispFieldProj req a0e1 label
     A0Constructor ctor a0es -> dispConstructorApp req ctor a0es
     A0Bracket a1e1 -> dispBracket a1e1
     A0IfThenElse a0e0 a0e1 a0e2 -> dispIfThenElse req a0e0 a0e1 a0e2
@@ -655,6 +660,7 @@ instance (Disp sv) => Disp (Ass1ExprF sv) where
     A1Sequential a1e1 a1e2 -> dispSequential req a1e1 a1e2
     A1Tuple a1es -> dispTuple a1es
     A1Record a1re -> dispRecord "=" a1re
+    A1FieldProj a1e1 label -> dispFieldProj req a1e1 label
     A1Constructor ctor a1es -> dispConstructorApp req ctor a1es
     A1IfThenElse a1e0 a1e1 a1e2 -> dispIfThenElse req a1e0 a1e1 a1e2
     A1Case a1e0 a1branches -> dispCase req a1e0 a1branches
@@ -1216,6 +1222,8 @@ instance (Disp sv) => Disp (Ass1ValF sv) where
       dispTuple a1vs
     A1ValRecord a1rv ->
       dispRecord "=" a1rv
+    A1ValFieldProj a1e1 label ->
+      dispFieldProj req a1e1 label
     A1ValConstructor ctor a1vs ->
       dispConstructorApp req ctor a1vs
     A1ValIfThenElse a1v0 a1v1 a1v2 ->
@@ -1333,6 +1341,13 @@ instance (Disp sv) => Disp (BugF sv) where
       "Not a tuple:" <+> disp a0v
     NotAPair a0v ->
       "Not a pair:" <+> disp a0v
+    NotARecord a0v ->
+      "Not a record:" <+> disp a0v
+    NoRecordField a0rv label ->
+      "No record field:"
+        <+> disp label
+        <> ";"
+        <+> commaSep (map (\(l, a0v) -> disp l <+> "=" <+> disp a0v) (Map.toList a0rv))
     NotAMaybe a0v ->
       "Not a Maybe:" <+> disp a0v
     TupleLengthMismatch xs a0vs ->

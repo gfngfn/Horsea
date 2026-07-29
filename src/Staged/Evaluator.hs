@@ -426,6 +426,15 @@ evalExpr0 env = \case
   A0Record a0re -> do
     a0rv <- mapM (evalExpr0 env) a0re
     pure $ A0ValRecord a0rv
+  A0FieldProj a0e label -> do
+    a0v <- evalExpr0 env a0e
+    case a0v of
+      A0ValRecord a0rv ->
+        case Map.lookup label a0rv of
+          Just a0v' -> pure a0v'
+          Nothing -> bug $ NoRecordField a0rv label
+      _ ->
+        bug $ NotARecord a0v
   A0Constructor ctor a0es -> do
     a0vs <- mapM (evalExpr0 env) a0es
     pure $ A0ValConstructor ctor a0vs
@@ -521,6 +530,9 @@ evalExpr1 env = \case
   A1Record a1re -> do
     a1rv <- mapM (evalExpr1 env) a1re
     pure $ A1ValRecord a1rv
+  A1FieldProj a1e1 label -> do
+    a1v1 <- evalExpr1 env a1e1
+    pure $ A1ValFieldProj a1v1 label
   A1Constructor ctor a1es -> do
     a1vs <- mapM (evalExpr1 env) a1es
     pure $ A1ValConstructor ctor a1vs
@@ -661,6 +673,8 @@ unliftVal = \case
     A0Tuple (fmap unliftVal a1vs)
   A1ValRecord a1rv ->
     A0Record (fmap unliftVal a1rv)
+  A1ValFieldProj a1v1 label ->
+    A0FieldProj (unliftVal a1v1) label
   A1ValConstructor ctor a1vs ->
     A0Constructor ctor (map unliftVal a1vs)
   A1ValIfThenElse a1v0 a1v1 a1v2 ->
