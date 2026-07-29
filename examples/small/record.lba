@@ -1,0 +1,2 @@
+let r = (| foo = true, bar = &57 |) in
+if r.foo then &(42 + ~r.bar) else &0

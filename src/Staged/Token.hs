@@ -177,12 +177,18 @@ keywordMap =
       ("forall", TokForall)
     ]
 
-lowerIdentOrKeyword :: Tokenizer Token
-lowerIdentOrKeyword = do
-  t <- lowerIdent
-  pure $ case Map.lookup t keywordMap of
-    Just tok -> tok
-    Nothing -> TokLower t
+longLowerIdentWithProjsOrKeyword :: Tokenizer Token
+longLowerIdentWithProjsOrKeyword = do
+  t@(mods, Located _ x, projs) <- longLowerIdentWithProjs
+  case (mods, projs) of
+    ([], []) ->
+      pure $
+        case Map.lookup x keywordMap of
+          Just tok -> tok
+          Nothing -> TokLower x
+    (_, _) ->
+      -- TODO (enhance): check that `projs` do not contain keywords
+      pure $ TokLongLowerWithProjs t
 
 token :: Tokenizer Token
 token =
@@ -238,8 +244,7 @@ token =
       -- `'`:
       TokTypeVar <$> (Mp.single '\'' *> lowerIdent),
       -- identifiers:
-      lowerIdentOrKeyword,
-      Mp.try (TokLongLowerWithProjs <$> longLowerIdentWithProjs),
+      Mp.try longLowerIdentWithProjsOrKeyword,
       Mp.try (TokLongUpper <$> longUpperIdent),
       TokUpper <$> upperIdent,
       -- numeric literals (possibly starting with `-`):

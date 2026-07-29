@@ -11,6 +11,7 @@ TESTS_STAGED_RUN=(
     examples/small/mat_concat_vert_explicit.lba
     examples/small/polymorphic.lba
     examples/small/polymorphic_higher_order.lba
+    examples/small/record.lba
     examples/small/repeat_and_add.lba
     examples/small/repeat_and_add_explicit.lba
     examples/small/simple_rec.lba
