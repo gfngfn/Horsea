@@ -30,8 +30,8 @@ data TypeErrorF sv
   | NotAStage1Var SpanInFile Var
   | UnboundConstructor SpanInFile [ModuleName] ConstructorName
   | UnboundConstructorOrInvalidArity SpanInFile [ModuleName] ConstructorName Int
-  | UnknownTypeOrInvalidArityAtStage0 SpanInFile [Var] TypeName Int
-  | UnknownTypeOrInvalidArityAtStage1 SpanInFile [Var] TypeName Int
+  | UnknownTypeOrInvalidArityAtStage0 SpanInFile [ModuleName] TypeName Int
+  | UnknownTypeOrInvalidArityAtStage1 SpanInFile [ModuleName] TypeName Int
   | NotAnIntLitArgAtStage0 SpanInFile (Ass0ExprF sv)
   | NotAnIntListLitArgAtStage0 SpanInFile (Ass0ExprF sv)
   | TypeContradictionAtStage0 SpanInFile (Ass0TypeExprF sv) (Ass0TypeExprF sv)
