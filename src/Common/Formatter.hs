@@ -576,6 +576,8 @@ instance Disp Surface.ExprMain where
     Surface.LetOpenIn m e -> dispLetOpenIn req m e
     Surface.Sequential e1 e2 -> dispSequential req e1 e2
     Surface.Tuple es -> dispTuple es
+    Surface.Record fields -> "(|" <> commaSep (map (\(label, field) -> disp label <+> disp field) fields) <> "|)"
+    Surface.FieldProj e label -> dispFieldProj req e label
     Surface.IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Surface.As e1 tye2 -> dispAs req e1 tye2
     Surface.LamOms label (x, tye1) e2 -> dispLamOms req label x tye1 e2
@@ -588,6 +590,11 @@ instance Disp Surface.ExprMain where
     Surface.TyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2
     Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Surface.Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
+
+instance Disp Surface.RecordField where
+  dispGen _ = \case
+    Surface.RecordFieldEqual e -> "=" <+> disp e
+    Surface.RecordFieldColon tye -> ":" <+> disp tye
 
 instance Disp Surface.LamBinder where
   dispGen _ = \case
@@ -897,7 +904,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <+> disp spanInFile
         <> foldl1 (<>) (fmap (\(_a0pat, result) -> nest 2 (hardline <> disp result)) pairs)
     CannotApplyLiteral spanInFile ->
-      "Cannot apply a literal" <> disp spanInFile
+      "Cannot apply a literal" <+> disp spanInFile
     CannotInstantiateGuidedByAppContext0 spanInFile appCtx a0tye ->
       "Cannot instantiate a stage-0 type guided by the application context"
         <+> disp spanInFile
@@ -979,7 +986,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
     NoBuiltInNameInExternal spanInFile ->
       "No built-in name specified for an external value" <+> disp spanInFile
     CannotApplyTuple spanInFile ->
-      "Cannot apply a tuple" <> disp spanInFile
+      "Cannot apply a tuple" <+> disp spanInFile
     NotATupleAtStage0 spanInFile a0tye ->
       "Not a tuple at stage 0"
         <+> disp spanInFile
@@ -991,9 +998,31 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> hardline
         <+> stage1Style (disp a1tye)
     CannotApplyRecord spanInFile ->
-      "Cannot apply a record" <> disp spanInFile
+      "Cannot apply a record" <+> disp spanInFile
     DuplicateRecordField spanInFile label ->
-      "Duplicate record field" <+> disp label <> disp spanInFile
+      "Duplicate record field" <+> disp label <+> disp spanInFile
+    NotARecordAtStage0 spanInFile a0tye ->
+      "Not a record at stage 0"
+        <+> disp spanInFile
+        <> hardline
+        <+> stage0Style (disp a0tye)
+    NotARecordAtStage1 spanInFile a1tye ->
+      "Not a record at stage 1"
+        <+> disp spanInFile
+        <> hardline
+        <+> stage1Style (disp a1tye)
+    NoRecordFieldAtStage0 spanInFile label a0rty ->
+      "No record field"
+        <+> disp label
+        <+> disp spanInFile
+        <> hardline
+        <+> commaSep (map (\(l, a0tye) -> disp l <+> ":" <+> stage0Style (disp a0tye)) (Map.toList a0rty))
+    NoRecordFieldAtStage1 spanInFile label a1rty ->
+      "No record field"
+        <+> disp label
+        <+> disp spanInFile
+        <> hardline
+        <+> commaSep (map (\(l, a0tye) -> disp l <+> ":" <+> stage1Style (disp a0tye)) (Map.toList a1rty))
     LetRecParamsCannotStartWithImplicit spanInFile ->
       "Recursive function definitions cannot have an implicit parameter as the first one" <+> disp spanInFile
     LetRecRequiresNonEmptyParams spanInFile ->
