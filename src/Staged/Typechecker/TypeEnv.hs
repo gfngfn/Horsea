@@ -18,7 +18,7 @@ where
 import Data.List.Extra (firstJust)
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Staged.SrcSyntax (TypeName, TypeVar, Var)
+import Staged.SrcSyntax (ModuleName, TypeName, TypeVar, Var)
 import Staged.Syntax (AssTypeVar)
 import Staged.Typechecker.SigRecord (ModuleEntry, SigRecord, TypeEntry, ValEntry)
 import Staged.Typechecker.SigRecord qualified as SigRecord
@@ -29,7 +29,7 @@ data TypeEnv = TypeEnv
   { envVals :: [(Var, ValEntry)],
     envTypeVars :: [(TypeVar, TypeVarEntry)],
     envTypes :: [(TypeName, TypeEntry)],
-    envModules :: [(Var, ModuleEntry)]
+    envModules :: [(ModuleName, ModuleEntry)]
   }
 
 data TypeVarEntry
@@ -80,11 +80,11 @@ findType tyName0 tyEnv =
     (\(tyName, tyEntry) -> if tyName == tyName0 then Just tyEntry else Nothing)
     tyEnv.envTypes
 
-addModule :: Var -> ModuleEntry -> TypeEnv -> TypeEnv
+addModule :: ModuleName -> ModuleEntry -> TypeEnv -> TypeEnv
 addModule m modEntry tyEnv =
   tyEnv {envModules = (m, modEntry) : tyEnv.envModules}
 
-findModule :: Var -> TypeEnv -> Maybe ModuleEntry
+findModule :: ModuleName -> TypeEnv -> Maybe ModuleEntry
 findModule m0 tyEnv =
   firstJust
     (\(m, modEntry) -> if m == m0 then Just modEntry else Nothing)

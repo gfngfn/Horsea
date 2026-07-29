@@ -48,7 +48,7 @@ import Prelude hiding (length)
 bug :: String -> a
 bug msg = error $ "bug: " ++ msg
 
-findValVar :: trav -> Span -> [Var] -> Var -> TypeEnv -> M trav ValEntry
+findValVar :: trav -> Span -> [ModuleName] -> Var -> TypeEnv -> M trav ValEntry
 findValVar trav loc ms x tyEnv = do
   spanInFile <- askSpanInFile loc
   liftEither $ maybeToEither (UnboundVar spanInFile ms x, trav) $ do
@@ -59,7 +59,7 @@ findValVar trav loc ms x tyEnv = do
         ModuleEntry sigr <- TypeEnv.findModule m tyEnv
         go sigr ms'
   where
-    go :: SigRecord -> [Var] -> Maybe ValEntry
+    go :: SigRecord -> [ModuleName] -> Maybe ValEntry
     go sigr [] =
       SigRecord.findVal x sigr
     go sigr (m : ms') = do
@@ -1462,7 +1462,7 @@ validatePersistentExprArg trav tyEnv tyReq (Expr loc eMain) =
       spanInFile <- askSpanInFile loc
       typeError trav $ CannotUseNormalArgAtStage1 spanInFile
 
-findType :: trav -> Span -> [Var] -> TypeName -> TypeEnv -> M trav (Maybe TypeEntry)
+findType :: trav -> Span -> [ModuleName] -> TypeName -> TypeEnv -> M trav (Maybe TypeEntry)
 findType trav loc mods tyName tyEnv =
   case mods of
     [] ->

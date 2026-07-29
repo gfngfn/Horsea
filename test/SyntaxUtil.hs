@@ -87,13 +87,13 @@ litVec = expr . Literal . LitVec
 short :: Var -> ExprMainF ann
 short x = Var ([], x)
 
-long :: [Var] -> Var -> ExprMainF ann
+long :: [ModuleName] -> Var -> ExprMainF ann
 long ms x = Var (ms, x)
 
 var :: Var -> ExprVoid
 var = expr . short
 
-longVar :: [Var] -> Var -> ExprVoid
+longVar :: [ModuleName] -> Var -> ExprVoid
 longVar ms x = expr (long ms x)
 
 nonrecLam :: (Var, TypeExprVoid) -> ExprVoid -> ExprVoid

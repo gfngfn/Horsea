@@ -41,8 +41,8 @@ data ExprF ann = Expr ann (ExprMainF ann)
 
 data ExprMainF ann
   = Literal (Literal (ExprF ann))
-  | Var ([Var], Var)
-  | Constructor ([Var], Var)
+  | Var ([ModuleName], Var)
+  | Constructor ([ModuleName], Var)
   | Lam (Maybe (Var, TypeExprF ann)) (Maybe Label) (Var, TypeExprF ann) (ExprF ann)
   | App (ExprF ann) (Maybe Label) (ExprF ann)
   | LetIn Var [LamBinderF ann] (Maybe (TypeExprF ann)) (ExprF ann) (ExprF ann)

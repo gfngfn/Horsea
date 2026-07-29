@@ -23,7 +23,7 @@ where
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Staged.BuiltIn.Core
-import Staged.SrcSyntax (TypeName, Var)
+import Staged.SrcSyntax (ModuleName, TypeName, Var)
 import Staged.Syntax
 import Surface.Syntax qualified as SurfaceSyntax
 import Prelude
@@ -61,7 +61,7 @@ newtype ModuleEntry
 data SigRecord = SigRecord
   { sigVals :: Map Var ValEntry,
     sigTypes :: Map TypeName TypeEntry,
-    sigModules :: Map Var ModuleEntry
+    sigModules :: Map ModuleName ModuleEntry
   }
 
 empty :: SigRecord
@@ -73,7 +73,7 @@ findVal x sigr = Map.lookup x sigr.sigVals
 findType :: TypeName -> SigRecord -> Maybe TypeEntry
 findType tyName sigr = Map.lookup tyName sigr.sigTypes
 
-findModule :: Var -> SigRecord -> Maybe ModuleEntry
+findModule :: ModuleName -> SigRecord -> Maybe ModuleEntry
 findModule m sigr = Map.lookup m sigr.sigModules
 
 singletonVal :: Var -> ValEntry -> SigRecord
@@ -82,10 +82,10 @@ singletonVal var entry = empty {sigVals = Map.singleton var entry}
 singletonType :: TypeName -> TypeEntry -> SigRecord
 singletonType tyName tyEntry = empty {sigTypes = Map.singleton tyName tyEntry}
 
-singletonModule :: Var -> ModuleEntry -> SigRecord
+singletonModule :: ModuleName -> ModuleEntry -> SigRecord
 singletonModule m modEntry = empty {sigModules = Map.singleton m modEntry}
 
-intersection :: SigRecord -> SigRecord -> ([Var], [TypeName], [Var])
+intersection :: SigRecord -> SigRecord -> ([Var], [TypeName], [ModuleName])
 intersection sigr1 sigr2 =
   ( map fst $ Map.toList (Map.intersection sigr1.sigVals sigr2.sigVals),
     map fst $ Map.toList (Map.intersection sigr1.sigTypes sigr2.sigTypes),
@@ -100,7 +100,7 @@ union sigr1 sigr2 =
       sigModules = Map.union sigr1.sigModules sigr2.sigModules
     }
 
-fold :: (Var -> ValEntry -> a -> a) -> (TypeName -> TypeEntry -> a -> a) -> (Var -> ModuleEntry -> a -> a) -> a -> SigRecord -> a
+fold :: (Var -> ValEntry -> a -> a) -> (TypeName -> TypeEntry -> a -> a) -> (ModuleName -> ModuleEntry -> a -> a) -> a -> SigRecord -> a
 fold fVal fType fModule acc0 (SigRecord {sigVals, sigTypes, sigModules}) =
   acc3
   where
