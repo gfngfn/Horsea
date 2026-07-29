@@ -660,6 +660,13 @@ module Checkpointing = struct
     external (builtin = "checkpointing__loop", surface = "loop")
 end
 
+type Dataset %(ntrain : Nat) %(ntest : Nat) %(image : List Nat) %(label : List Nat) = (|
+  train_images : Tensor %(ntrain :: image),
+  train_labels : Tensor %(ntrain :: label),
+  test_images  : Tensor %(ntest :: image),
+  test_labels  : Tensor %(ntest :: label)
+|)
+
 module DatasetHelper = struct
   val ~gen_train_batch :
     {ntrain : Nat} ->
