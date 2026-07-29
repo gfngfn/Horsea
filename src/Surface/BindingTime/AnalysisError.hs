@@ -5,6 +5,7 @@ where
 
 import Common.LocationInFile (SpanInFile)
 import Data.List.TwoOrMore (TwoOrMore)
+import Data.Map (Map)
 import Staged.Core (Label)
 import Surface.BindingTime.Core
 import Surface.Syntax (ModuleName, TypeName, Var)
@@ -25,6 +26,8 @@ data AnalysisError
   | UnknownTypeOrInvalidArity SpanInFile [ModuleName] TypeName Int
   | NotATuple SpanInFile BIType
   | TupleLengthMismatch SpanInFile (TwoOrMore Var) (TwoOrMore BIType)
+  | NotARecord SpanInFile BIType
+  | NoRecordField SpanInFile Label (Map Label BIType)
   | LetRecParamsCannotStartWithImplicit SpanInFile
   | LetRecRequiresNonEmptyParams SpanInFile
   | NoOmissibleParameter SpanInFile Label

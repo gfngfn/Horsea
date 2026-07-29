@@ -1443,6 +1443,17 @@ instance Disp Bta.AnalysisError where
       "Not a tuple;" <+> disp bity <+> disp spanInFile
     Bta.TupleLengthMismatch spanInFile xs bitys ->
       "Tuple length mismatch;" <+> dispTuple xs <+> "and" <+> dispProductType Outermost bitys <+> disp spanInFile
+    Bta.NotARecord spanInFile bity ->
+      "Not a record"
+        <+> disp spanInFile
+        <> hardline
+        <+> disp bity
+    Bta.NoRecordField spanInFile label rbity ->
+      "No record field"
+        <+> disp label
+        <+> disp spanInFile
+        <> hardline
+        <+> commaSep (map (\(l, bity) -> disp l <+> ":" <+> disp bity) (Map.toList rbity))
     Bta.BindingTimeContradiction spanInFile ->
       "Binding-time contradiction" <+> disp spanInFile
     Bta.BITypeContradiction spanInFile bity1 bity2 bity1Local bity2Local ->
@@ -1542,6 +1553,8 @@ instance Disp (Bta.BCExprMainF ann) where
     Bta.BLetOpenIn m e -> dispLetOpenIn req m e
     Bta.BSequential e1 e2 -> dispSequential req e1 e2
     Bta.BTuple es -> dispTuple es
+    Bta.BRecord re -> dispRecord "=" re
+    Bta.BFieldProj e1 label -> dispFieldProj req e1 label
     Bta.BIfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Bta.BAs e1 tye2 -> dispAs req e1 tye2
     Bta.BLamOms label (x, tye1) e2 -> dispLamOms req label x tye1 e2

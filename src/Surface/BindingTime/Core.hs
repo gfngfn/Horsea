@@ -106,6 +106,8 @@ data BExprMainF ann bt
   | BLetOpenIn Var (BExprF ann bt)
   | BSequential (BExprF ann bt) (BExprF ann bt)
   | BTuple (TwoOrMore (BExprF ann bt))
+  | BRecord (Map Label (BExprF ann bt))
+  | BFieldProj (BExprF ann bt) Label
   | BIfThenElse (BExprF ann bt) (BExprF ann bt) (BExprF ann bt)
   | BAs (BExprF ann bt) (BTypeExprF ann bt)
   | BLamOms Label (Var, BTypeExprF ann bt) (BExprF ann bt)
@@ -125,6 +127,7 @@ data BTypeExprMainF ann bt
   | BTyInfArrow (Var, BTypeExprF ann bt) (BTypeExprF ann bt)
   | BTyRefinement Var (BTypeExprF ann bt) (BExprF ann bt)
   | BTyProduct (BTypeExprF ann bt) (NonEmpty (ann, BTypeExprF ann bt))
+  | BTyRecord (Map Label (BTypeExprF ann bt))
   deriving stock (Functor, Show)
 
 data BArgForTypeF ann bt
