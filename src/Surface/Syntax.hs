@@ -3,9 +3,11 @@ module Surface.Syntax
     Literal (..),
     ExprF (..),
     ExprMainF (..),
+    RecordFieldF (..),
     LamBinderF (..),
     Expr,
     ExprMain,
+    RecordField,
     LamBinder,
     TypeName,
     TypeExprF,
@@ -49,6 +51,8 @@ data ExprMainF ann
   | LetOpenIn Var (ExprF ann)
   | Sequential (ExprF ann) (ExprF ann)
   | Tuple (TwoOrMore (ExprF ann))
+  | Record [(Label, RecordFieldF ann)]
+  | FieldProj (ExprF ann) Label
   | IfThenElse (ExprF ann) (ExprF ann) (ExprF ann)
   | As (ExprF ann) (TypeExprF ann)
   | LamOms Label (Var, TypeExprF ann) (ExprF ann)
@@ -63,6 +67,11 @@ data ExprMainF ann
   | Product (TypeExprF ann) (NonEmpty ((ann, Var), TypeExprF ann))
   deriving stock (Show, Functor)
 
+data RecordFieldF ann
+  = RecordFieldEqual (ExprF ann)
+  | RecordFieldColon (TypeExprF ann)
+  deriving stock (Show, Functor)
+
 data LamBinderF ann
   = MandatoryBinder (Maybe Label) (Var, TypeExprF ann)
   | OmissibleBinder Label (Var, TypeExprF ann)
@@ -72,6 +81,8 @@ data LamBinderF ann
 type Expr = ExprF Span
 
 type ExprMain = ExprMainF Span
+
+type RecordField = RecordFieldF Span
 
 type LamBinder = LamBinderF Span
 

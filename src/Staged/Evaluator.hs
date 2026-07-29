@@ -423,6 +423,18 @@ evalExpr0 env = \case
   A0Tuple a0es -> do
     a0vs <- mapM (evalExpr0 env) a0es
     pure $ A0ValTuple a0vs
+  A0Record a0re -> do
+    a0rv <- mapM (evalExpr0 env) a0re
+    pure $ A0ValRecord a0rv
+  A0FieldProj a0e label -> do
+    a0v <- evalExpr0 env a0e
+    case a0v of
+      A0ValRecord a0rv ->
+        case Map.lookup label a0rv of
+          Just a0v' -> pure a0v'
+          Nothing -> bug $ NoRecordField a0rv label
+      _ ->
+        bug $ NotARecord a0v
   A0Constructor ctor a0es -> do
     a0vs <- mapM (evalExpr0 env) a0es
     pure $ A0ValConstructor ctor a0vs
@@ -515,6 +527,12 @@ evalExpr1 env = \case
   A1Tuple a1es -> do
     a1vs <- mapM (evalExpr1 env) a1es
     pure $ A1ValTuple a1vs
+  A1Record a1re -> do
+    a1rv <- mapM (evalExpr1 env) a1re
+    pure $ A1ValRecord a1rv
+  A1FieldProj a1e1 label -> do
+    a1v1 <- evalExpr1 env a1e1
+    pure $ A1ValFieldProj a1v1 label
   A1Constructor ctor a1es -> do
     a1vs <- mapM (evalExpr1 env) a1es
     pure $ A1ValConstructor ctor a1vs
@@ -562,6 +580,9 @@ evalTypeExpr0 env = \case
   SA0TyProduct sa0tyes -> do
     a0tyvs <- mapM (evalTypeExpr0 env) sa0tyes
     pure $ A0TyValProduct a0tyvs
+  SA0TyRecord sa0rty -> do
+    a0rtyv <- mapM (evalTypeExpr0 env) sa0rty
+    pure $ A0TyValRecord a0rtyv
   SA0TyArrow (xOpt, sa0tye1) sa0tye2 -> do
     a0tyv1 <- evalTypeExpr0 env sa0tye1
     pure $ A0TyValArrow (xOpt, a0tyv1) sa0tye2
@@ -610,6 +631,9 @@ evalTypeExpr1 env = \case
   A1TyProduct a1tyes -> do
     a1tyvs <- mapM (evalTypeExpr1 env) a1tyes
     pure $ A1TyValProduct a1tyvs
+  A1TyRecord a1rty -> do
+    a1rtyv <- mapM (evalTypeExpr1 env) a1rty
+    pure $ A1TyValRecord a1rtyv
   A1TyArrow labelOpt a1tye1 a1tye2 -> do
     a1tyv1 <- evalTypeExpr1 env a1tye1
     a1tyv2 <- evalTypeExpr1 env a1tye2
@@ -647,6 +671,10 @@ unliftVal = \case
     A0Sequential (unliftVal a1v1) (unliftVal a1v2)
   A1ValTuple a1vs ->
     A0Tuple (fmap unliftVal a1vs)
+  A1ValRecord a1rv ->
+    A0Record (fmap unliftVal a1rv)
+  A1ValFieldProj a1v1 label ->
+    A0FieldProj (unliftVal a1v1) label
   A1ValConstructor ctor a1vs ->
     A0Constructor ctor (map unliftVal a1vs)
   A1ValIfThenElse a1v0 a1v1 a1v2 ->
@@ -689,6 +717,8 @@ unliftTypeVal = \case
     SA0TyVar atyvar
   A1TyValProduct a1tyvs ->
     SA0TyProduct (fmap unliftTypeVal a1tyvs)
+  A1TyValRecord a1rtyv ->
+    SA0TyRecord (fmap unliftTypeVal a1rtyv)
   A1TyValArrow _labelOpt a1tyv1 a1tyv2 ->
     SA0TyArrow (Nothing, unliftTypeVal a1tyv1) (unliftTypeVal a1tyv2)
   A1TyValOmsArrow _label a1tyv1 a1tyv2 ->

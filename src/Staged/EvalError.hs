@@ -8,8 +8,10 @@ where
 
 import Common.LocationInFile (SpanInFile)
 import Data.List.TwoOrMore (TwoOrMore)
+import Data.Map (Map)
 import Data.Text (Text)
 import Staged.BuiltIn.Core
+import Staged.Core (Label)
 import Staged.Syntax
 import Prelude
 
@@ -29,6 +31,8 @@ data BugF sv
   | NotAString (Ass0ValF sv)
   | NotATuple (Ass0ValF sv)
   | NotAPair (Ass0ValF sv)
+  | NotARecord (Ass0ValF sv)
+  | NoRecordField (Map Label (Ass0ValF sv)) Label
   | NotAMaybe (Ass0ValF sv)
   | TupleLengthMismatch (TwoOrMore (AssVarF sv)) (TwoOrMore (Ass0ValF sv))
   | FoundSymbol (AssVarF sv) Symbol

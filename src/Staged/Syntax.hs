@@ -83,6 +83,7 @@ import Data.Functor.Identity
 import Data.Generics.Labels ()
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
+import Data.Map qualified as Map
 import Data.Tensor.Matrix (Matrix)
 import Data.Tensor.Vector (Vector)
 import Data.Text (Text)
@@ -135,6 +136,8 @@ data Ass0ExprF sv
   | A0LetTupleIn (TwoOrMore (AssVarF sv)) (Ass0ExprF sv) (Ass0ExprF sv)
   | A0Sequential (Ass0ExprF sv) (Ass0ExprF sv)
   | A0Tuple (TwoOrMore (Ass0ExprF sv))
+  | A0Record (Map Label (Ass0ExprF sv))
+  | A0FieldProj (Ass0ExprF sv) Label
   | A0Constructor ConstructorName [Ass0ExprF sv]
   | A0IfThenElse (Ass0ExprF sv) (Ass0ExprF sv) (Ass0ExprF sv)
   | A0Case (Ass0ExprF sv) (NonEmpty (Ass0BranchF sv))
@@ -169,6 +172,8 @@ data Ass1ExprF sv
   | A1LetTupleIn (TwoOrMore (AssVarF sv)) (Ass1ExprF sv) (Ass1ExprF sv)
   | A1Sequential (Ass1ExprF sv) (Ass1ExprF sv)
   | A1Tuple (TwoOrMore (Ass1ExprF sv))
+  | A1Record (Map Label (Ass1ExprF sv))
+  | A1FieldProj (Ass1ExprF sv) Label
   | A1Constructor ConstructorName [Ass1ExprF sv]
   | A1IfThenElse (Ass1ExprF sv) (Ass1ExprF sv) (Ass1ExprF sv)
   | A1Case (Ass1ExprF sv) (NonEmpty (Ass1BranchF sv))
@@ -218,6 +223,7 @@ data Ass0TypeExprF sv
   | A0TyMaybe (Ass0TypeExprF sv)
   | A0TyVar AssTypeVar
   | A0TyProduct (TwoOrMore (Ass0TypeExprF sv))
+  | A0TyRecord (Map Label (Ass0TypeExprF sv))
   | -- | (Possibly dependent) function types.
     A0TyArrow (Maybe Label) (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | -- | Function types with an inferable parameter.
@@ -239,6 +245,7 @@ data StrictAss0TypeExprF sv
   | SA0TyMaybe (StrictAss0TypeExprF sv)
   | SA0TyVar AssTypeVar
   | SA0TyProduct (TwoOrMore (StrictAss0TypeExprF sv))
+  | SA0TyRecord (Map Label (StrictAss0TypeExprF sv))
   | -- | (Possibly dependent) function types.
     SA0TyArrow (Maybe (AssVarF sv), StrictAss0TypeExprF sv) (StrictAss0TypeExprF sv)
   | SA0TyCode (Ass1TypeExprF sv)
@@ -294,6 +301,7 @@ data Ass1TypeExprF sv
   | A1TyMaybe (Ass1TypeExprF sv)
   | A1TyVar AssTypeVar
   | A1TyProduct (TwoOrMore (Ass1TypeExprF sv))
+  | A1TyRecord (Map Label (Ass1TypeExprF sv))
   | A1TyArrow (Maybe Label) (Ass1TypeExprF sv) (Ass1TypeExprF sv)
   | A1TyOmsArrow Label (Ass1TypeExprF sv) (Ass1TypeExprF sv)
   | A1TyForAll AssTypeVar (Ass1TypeExprF sv)
@@ -314,6 +322,7 @@ data AssPersTypeExpr
   | APersTyList AssPersTypeExpr
   | APersTyMaybe AssPersTypeExpr
   | APersTyProduct (TwoOrMore AssPersTypeExpr)
+  | APersTyRecord (Map Label AssPersTypeExpr)
   | APersTyArrow (Maybe Label) AssPersTypeExpr AssPersTypeExpr
   | APersTyForAll AssTypeVar AssPersTypeExpr
   deriving stock (Eq, Show)
@@ -325,6 +334,7 @@ persistentTypeTo0 = \case
   APersTyList aPtye -> A0TyList (persistentTypeTo0 aPtye) Nothing
   APersTyMaybe aPtye -> A0TyMaybe (persistentTypeTo0 aPtye)
   APersTyProduct aPtyes -> A0TyProduct (fmap persistentTypeTo0 aPtyes)
+  APersTyRecord aPrty -> A0TyRecord (fmap persistentTypeTo0 aPrty)
   APersTyArrow labelOpt aPtye1 aPtye2 -> A0TyArrow labelOpt (Nothing, persistentTypeTo0 aPtye1) (persistentTypeTo0 aPtye2)
   APersTyForAll atyvar aPtye -> A0TyForAll atyvar (persistentTypeTo0 aPtye)
 
@@ -335,6 +345,7 @@ persistentTypeTo1 = \case
   APersTyList aPtye -> A1TyList (persistentTypeTo1 aPtye)
   APersTyMaybe aPtye -> A1TyMaybe (persistentTypeTo1 aPtye)
   APersTyProduct aPtyes -> A1TyProduct (fmap persistentTypeTo1 aPtyes)
+  APersTyRecord aPrty -> A1TyRecord (fmap persistentTypeTo1 aPrty)
   APersTyArrow labelOpt aPtye1 aPtye2 -> A1TyArrow labelOpt (persistentTypeTo1 aPtye1) (persistentTypeTo1 aPtye2)
   APersTyForAll atyvar aPtye -> A1TyForAll atyvar (persistentTypeTo1 aPtye)
 
@@ -364,6 +375,7 @@ liftPrimType = \case
 data Ass0ValF sv
   = A0ValLiteral (AssLiteralF Ass0ValF sv)
   | A0ValTuple (TwoOrMore (Ass0ValF sv))
+  | A0ValRecord (Map Label (Ass0ValF sv))
   | A0ValConstructor ConstructorName [Ass0ValF sv]
   | -- | Function closures.
     A0ValLam (Maybe (AssVarF sv, Ass0TypeValF sv)) (AssVarF sv, Ass0TypeValF sv) (Ass0ExprF sv) EvalEnv
@@ -386,6 +398,8 @@ data Ass1ValF sv
   | A1ValLetTupleIn (TwoOrMore Symbol) (Ass1ValF sv) (Ass1ValF sv)
   | A1ValSequential (Ass1ValF sv) (Ass1ValF sv)
   | A1ValTuple (TwoOrMore (Ass1ValF sv))
+  | A1ValRecord (Map Label (Ass1ValF sv))
+  | A1ValFieldProj (Ass1ValF sv) Label
   | A1ValConstructor ConstructorName [Ass1ValF sv]
   | A1ValIfThenElse (Ass1ValF sv) (Ass1ValF sv) (Ass1ValF sv)
   | A1ValCase (Ass1ValF sv) (NonEmpty (Ass1BranchValF sv))
@@ -404,6 +418,7 @@ data Ass0TypeValF sv
     A0TyValList (Ass0TypeValF sv) (Maybe (Ass0ValF sv))
   | A0TyValMaybe (Ass0TypeValF sv)
   | A0TyValProduct (TwoOrMore (Ass0TypeValF sv))
+  | A0TyValRecord (Map Label (Ass0TypeValF sv))
   | A0TyValArrow (Maybe (AssVarF sv), Ass0TypeValF sv) (StrictAss0TypeExprF sv)
   | A0TyValCode (Ass1TypeValF sv)
   | A0TyValForAll AssTypeVar (StrictAss0TypeExprF sv)
@@ -416,6 +431,7 @@ data Ass1TypeValF sv
   | A1TyValMaybe (Ass1TypeValF sv)
   | A1TyValVar AssTypeVar
   | A1TyValProduct (TwoOrMore (Ass1TypeValF sv))
+  | A1TyValRecord (Map Label (Ass1TypeValF sv))
   | A1TyValArrow (Maybe Label) (Ass1TypeValF sv) (Ass1TypeValF sv)
   | A1TyValOmsArrow Label (Ass1TypeValF sv) (Ass1TypeValF sv)
   | A1TyValForAll AssTypeVar (Ass1TypeValF sv)
@@ -437,6 +453,7 @@ data Type1EquationF sv
   | TyEq1Arrow (Maybe Label) (Type1EquationF sv) (Type1EquationF sv)
   | TyEq1OmsArrow Label (Type1EquationF sv) (Type1EquationF sv)
   | TyEq1Product (TwoOrMore (Type1EquationF sv))
+  | TyEq1Record (Map Label (Type1EquationF sv))
   | -- | Only for trivial equations.
     TyEq1TypeVar AssTypeVar
   | -- | Only for trivial equations.
@@ -511,6 +528,7 @@ strictify = \case
   A0TyList a0tye maybePred -> SA0TyList (strictify a0tye) maybePred
   A0TyMaybe a0tye -> SA0TyMaybe (strictify a0tye)
   A0TyProduct a0tyes -> SA0TyProduct (fmap strictify a0tyes)
+  A0TyRecord rty -> SA0TyRecord (fmap strictify rty)
   A0TyArrow _labelOpt (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, strictify a0tye1) (strictify a0tye2)
   A0TyCode a1tye1 -> SA0TyCode a1tye1
   A0TyInfArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictify a0tye1) (strictify a0tye2)
@@ -556,6 +574,8 @@ makeTrivialEquationFromType1 = \case
     TyEq1TypeVar atyvar
   A1TyProduct a1tyes ->
     TyEq1Product (fmap makeTrivialEquationFromType1 a1tyes)
+  A1TyRecord a1rty ->
+    TyEq1Record (fmap makeTrivialEquationFromType1 a1rty)
   A1TyArrow labelOpt a1tye1 a1tye2 ->
     TyEq1Arrow labelOpt (makeTrivialEquationFromType1 a1tye1) (makeTrivialEquationFromType1 a1tye2)
   A1TyOmsArrow label a1tye1 a1tye2 ->
@@ -613,6 +633,9 @@ decomposeType1Equation = \case
   TyEq1Product ty1eqs ->
     let a1tyePairs = fmap decomposeType1Equation ty1eqs
      in (A1TyProduct (fmap fst a1tyePairs), A1TyProduct (fmap snd a1tyePairs))
+  TyEq1Record rty1eq ->
+    let rpair = fmap decomposeType1Equation rty1eq
+     in (A1TyRecord (Map.map fst rpair), A1TyRecord (Map.map snd rpair))
   TyEq1TypeVar atyvar ->
     (A1TyVar atyvar, A1TyVar atyvar)
   TyEq1ForAll atyvar ty1eq ->

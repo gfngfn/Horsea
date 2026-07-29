@@ -66,6 +66,12 @@ spec = do
     it "parses list literals (2)" $
       parseExpr "[n + 1, x y]"
         `shouldBe` pure (litList [add (var "n") (litInt 1), app (var "x") (var "y")])
+    it "parses record expressions (1)" $
+      parseExpr "(| foo = n |)"
+        `shouldBe` pure (expr (Record [("foo", RecordFieldEqual (var "n"))]))
+    it "parses record expressions (2)" $
+      parseExpr "(| foo = n, bar = m + 1 |)"
+        `shouldBe` pure (expr (Record [("foo", RecordFieldEqual (var "n")), ("bar", RecordFieldEqual (add (var "m") (litInt 1)))]))
     it "parses vector literals (1)" $
       parseExpr "[| |]"
         `shouldBe` pure (litVec [])
@@ -387,6 +393,9 @@ spec = do
     it "parses variables with module prefixes" $
       parseExprWithLoc "Foo.Bar.x"
         `shouldBe` pure (exprLoc 0 9 $ long ["Foo", "Bar"] "x")
+    it "parses variables with module prefixes and projections" $
+      parseExprWithLoc "Foo.Bar.x.qux.fred"
+        `shouldBe` pure (exprLoc 0 18 $ FieldProj (exprLoc 0 13 $ FieldProj (exprLoc 0 9 $ long ["Foo", "Bar"] "x") "qux") "fred")
     it "parses applications (1)" $
       parseExprWithLoc "x y"
         `shouldBe` pure (exprLoc 0 3 (App (exprLoc 0 1 (short "x")) Nothing (exprLoc 2 3 (short "y"))))
@@ -473,6 +482,16 @@ spec = do
     it "parses single, stage-1 type binding" $
       parseBinds "type Foo = Int"
         `shouldBe` pure [Bind () (BindType Stage1 "Foo" [] tyInt)]
+    it "parses single, stage-1 type binding, record types" $
+      parseBinds "type Qux = (| foo : Int, bar : Bool |)"
+        `shouldBe` pure
+          [ Bind () $
+              BindType
+                Stage1
+                "Qux"
+                []
+                (typ (Record [("foo", RecordFieldColon tyInt), ("bar", RecordFieldColon tyBool)]))
+          ]
     it "parses single, stage-1 type binding with value parameters" $
       parseBinds "type RectMat %(n : Nat) = Tensor %[n, n]"
         `shouldBe` pure

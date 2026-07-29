@@ -4,6 +4,7 @@ module Staged.SrcSyntax
     Literal (..),
     ExprF (..),
     ExprMainF (..),
+    RecordFieldF (..),
     LamBinderF (..),
     TypeParamBinderF (..),
     BranchF (..),
@@ -11,6 +12,7 @@ module Staged.SrcSyntax
     PatternMainF (..),
     Expr,
     ExprMain,
+    RecordField,
     LamBinder,
     TypeParamBinder,
     Branch,
@@ -84,6 +86,8 @@ data ExprMainF ann
   | Sequential (ExprF ann) (ExprF ann)
   | Tuple (TwoOrMore (ExprF ann))
   | Product (ExprF ann) (NonEmpty ((ann, Var), ExprF ann))
+  | Record [(Label, RecordFieldF ann)]
+  | FieldProj (ExprF ann) Label
   | LamInfType TypeVar (ExprF ann)
   | AppInfType (ExprF ann) (TypeExprF ann)
   | Persistent (ExprF ann)
@@ -93,6 +97,11 @@ data ExprMainF ann
   | TyInfArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)
   | TyForAll TypeVar (TypeExprF ann)
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
+
+data RecordFieldF ann
+  = RecordFieldEqual (ExprF ann)
+  | RecordFieldColon (TypeExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 data LamBinderF ann
@@ -124,6 +133,8 @@ data PatternMainF ann
 type Expr = ExprF Span
 
 type ExprMain = ExprMainF Span
+
+type RecordField = RecordFieldF Span
 
 type LamBinder = LamBinderF Span
 

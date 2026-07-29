@@ -10,6 +10,7 @@ where
 import Common.LocationInFile (SpanInFile)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
+import Data.Map (Map)
 import Data.Tensor.Matrix qualified as Matrix
 import Data.Text (Text)
 import Staged.Core
@@ -74,6 +75,12 @@ data TypeErrorF sv
   | CannotApplyTuple SpanInFile
   | NotATupleAtStage0 SpanInFile (Ass0TypeExprF sv)
   | NotATupleAtStage1 SpanInFile (Ass1TypeExprF sv)
+  | CannotApplyRecord SpanInFile
+  | NotARecordAtStage0 SpanInFile (Ass0TypeExprF sv)
+  | NotARecordAtStage1 SpanInFile (Ass1TypeExprF sv)
+  | NoRecordFieldAtStage0 SpanInFile Label (Map Label (Ass0TypeExprF sv))
+  | NoRecordFieldAtStage1 SpanInFile Label (Map Label (Ass1TypeExprF sv))
+  | DuplicateRecordField SpanInFile Label
   | LetRecParamsCannotStartWithImplicit SpanInFile
   | LetRecRequiresNonEmptyParams SpanInFile
   | CannotSynthesizeTypeFromExpr SpanInFile

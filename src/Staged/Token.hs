@@ -24,6 +24,8 @@ data Token
   | TokRightBrace
   | TokLeftSquare
   | TokRightSquare
+  | TokLeftRecordParen
+  | TokRightRecordParen
   | TokArrow
   | TokEqual
   | TokColon
@@ -43,7 +45,7 @@ data Token
   | TokMatRight
   | TokLower Text
   | TokUpper Text
-  | TokLongLower ([Text], Text)
+  | TokLongLowerWithProjs ([Located Text], Located Text, [Located Text])
   | TokLongUpper ([Text], Text)
   | TokLabelNormal Text
   | TokLabelOmissible Text
@@ -90,6 +92,8 @@ showToken = \case
   TokRightBrace -> "}"
   TokLeftSquare -> "["
   TokRightSquare -> "]"
+  TokLeftRecordParen -> "(|"
+  TokRightRecordParen -> "|)"
   TokArrow -> "->"
   TokEqual -> "="
   TokColon -> ":"
@@ -109,8 +113,10 @@ showToken = \case
   TokMatRight -> "#]"
   TokLower lower -> Text.unpack lower
   TokUpper upper -> Text.unpack upper
-  TokLongLower (mods, lower) -> Text.unpack (Text.intercalate "." mods <> lower)
-  TokLongUpper (mods, upper) -> Text.unpack (Text.intercalate "." mods <> upper)
+  TokLongLowerWithProjs (mods, lower, projs) ->
+    Text.unpack $ Text.intercalate "." $ map ignoreSpan $ mods ++ (lower : projs)
+  TokLongUpper (mods, upper) ->
+    Text.unpack $ Text.intercalate "." $ mods ++ [upper]
   TokLabelNormal label -> "#" ++ Text.unpack label
   TokLabelOmissible label -> "?" ++ Text.unpack label
   TokTypeVar a -> '\'' : Text.unpack a
@@ -171,18 +177,26 @@ keywordMap =
       ("forall", TokForall)
     ]
 
-lowerIdentOrKeyword :: Tokenizer Token
-lowerIdentOrKeyword = do
-  t <- lowerIdent
-  pure $ case Map.lookup t keywordMap of
-    Just tok -> tok
-    Nothing -> TokLower t
+longLowerIdentWithProjsOrKeyword :: Tokenizer Token
+longLowerIdentWithProjsOrKeyword = do
+  t@(mods, Located _ x, projs) <- longLowerIdentWithProjs
+  case (mods, projs) of
+    ([], []) ->
+      pure $
+        case Map.lookup x keywordMap of
+          Just tok -> tok
+          Nothing -> TokLower x
+    (_, _) ->
+      -- TODO (enhance): check that `projs` do not contain keywords
+      pure $ TokLongLowerWithProjs t
 
 token :: Tokenizer Token
 token =
   choice
     [ -- `(`, `)`, `{`, and `}`:
+      TokLeftRecordParen <$ Mp.chunk "(|",
       TokLeftParen <$ Mp.single '(',
+      TokRightRecordParen <$ Mp.chunk "|)",
       TokRightParen <$ Mp.single ')',
       TokLeftBrace <$ Mp.single '{',
       TokRightBrace <$ Mp.single '}',
@@ -230,8 +244,7 @@ token =
       -- `'`:
       TokTypeVar <$> (Mp.single '\'' *> lowerIdent),
       -- identifiers:
-      lowerIdentOrKeyword,
-      Mp.try (TokLongLower <$> longLowerIdent),
+      Mp.try longLowerIdentWithProjsOrKeyword,
       Mp.try (TokLongUpper <$> longUpperIdent),
       TokUpper <$> upperIdent,
       -- numeric literals (possibly starting with `-`):

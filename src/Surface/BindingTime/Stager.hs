@@ -9,6 +9,8 @@ module Surface.BindingTime.Stager
 where
 
 import Common.TokenUtil (Span, mergeSpan)
+import Data.Map qualified as Map
+import Data.Tuple.Extra (second)
 import Staged.SrcSyntax qualified as Staged
 import Surface.BindingTime.Core
 import Surface.Syntax
@@ -54,6 +56,10 @@ stageExpr0Main = \case
     Staged.Sequential (stageExpr0 e1) (stageExpr0 e2)
   BTuple es ->
     Staged.Tuple (fmap stageExpr0 es)
+  BRecord re ->
+    Staged.Record (fmap (second (Staged.RecordFieldEqual . stageExpr0)) (Map.toList re))
+  BFieldProj e1 label ->
+    Staged.FieldProj (stageExpr0 e1) label
   BIfThenElse e0 e1 e2 ->
     Staged.IfThenElse (stageExpr0 e0) (stageExpr0 e1) (stageExpr0 e2)
   BAs e1 tye2 ->
@@ -99,6 +105,10 @@ stageExpr1Main = \case
     Staged.Sequential (stageExpr1 e1) (stageExpr1 e2)
   BTuple es ->
     Staged.Tuple (fmap stageExpr1 es)
+  BRecord re ->
+    Staged.Record (map (second (Staged.RecordFieldEqual . stageExpr1)) (Map.toList re))
+  BFieldProj e1 label ->
+    Staged.FieldProj (stageExpr1 e1) label
   BIfThenElse e0 e1 e2 ->
     Staged.IfThenElse (stageExpr1 e0) (stageExpr1 e1) (stageExpr1 e2)
   BAs e1 tye2 ->
@@ -151,6 +161,8 @@ stageTypeExpr0Main = \case
     Staged.Product
       (stageTypeExpr0 tye1)
       (fmap (\(locAster, tye) -> ((locAster, "*"), stageTypeExpr0 tye)) rest)
+  BTyRecord rty ->
+    Staged.Record (map (second (Staged.RecordFieldColon . stageTypeExpr0)) (Map.toList rty))
 
 stageArgForType0 :: BCArgForTypeF Span -> Staged.Expr
 stageArgForType0 = \case
@@ -179,6 +191,8 @@ stageTypeExpr1Main = \case
     Staged.Product
       (stageTypeExpr1 tye1)
       (fmap (\(locAster, tye) -> ((locAster, "*"), stageTypeExpr1 tye)) rest)
+  BTyRecord rty ->
+    Staged.Record (map (second (Staged.RecordFieldColon . stageTypeExpr1)) (Map.toList rty))
 
 stageArgForType1 :: BCArgForTypeF Span -> Staged.Expr
 stageArgForType1 = \case

@@ -8,7 +8,7 @@ where
 import Common.FrontError (FrontError (..))
 import Common.LocationInFile (SourceSpec)
 import Common.ParserUtil
-import Common.TokenUtil (Located (..), Span, mergeSpan)
+import Common.TokenUtil (Located (..), Span, ignoreSpan, mergeSpan)
 import Control.Lens ((^?))
 import Data.Either.Extra
 import Data.Functor
@@ -36,6 +36,9 @@ paren = parenGen TokLeftParen TokRightParen
 brace :: P a -> P (Located a)
 brace = parenGen TokLeftBrace TokRightBrace
 
+recordParen :: P a -> P (Located a)
+recordParen = parenGen TokLeftRecordParen TokRightRecordParen
+
 lower :: P (Located Text)
 lower = expectToken (^? #_TokLower)
 
@@ -48,8 +51,9 @@ labelNormal = expectToken (^? #_TokLabelNormal)
 labelOmissible :: P (Located Text)
 labelOmissible = expectToken (^? #_TokLabelOmissible)
 
-longOrShortLower :: P (Located ([Text], Text))
-longOrShortLower = expectToken (^? #_TokLongLower) <|> (fmap ([],) <$> lower)
+longOrShortLowerWithProjs :: P ([Located Text], Located Text, [Located Text])
+longOrShortLowerWithProjs =
+  noLoc (expectToken (^? #_TokLongLowerWithProjs)) <|> (([],,[]) <$> lower)
 
 longOrShortUpper :: P (Located ([Text], Text))
 longOrShortUpper = expectToken (^? #_TokLongUpper) <|> (fmap ([],) <$> upper)
@@ -143,13 +147,14 @@ expr = letin
         <|> (located (Literal . LitMat) <$> mat)
         <|> (makeBool True <$> token TokTrue)
         <|> (makeBool False <$> token TokFalse)
-        <|> (located Var <$> longOrShortLower)
+        <|> (makeVarWithProjs <$> longOrShortLowerWithProjs)
         <|> (makeConstructor <$> longOrShortUpper)
         <|> (makeTypeVar <$> typeVar)
         <|> try (located (\x -> Var ([], x)) <$> standaloneOp)
         <|> try (makeLitUnit <$> token TokLeftParen <*> token TokRightParen)
         <|> (makeEnclosed <$> paren ((,) <$> expr <*> many (token TokComma *> expr)))
         <|> (makeRefinement <$> try (brace ((,,) <$> (noLoc boundIdent <* token TokColon) <*> (typeExpr <* token TokBar) <*> expr)))
+        <|> (makeRecord <$> recordParen ((:) <$> recordField <*> many (token TokComma *> recordField)))
       where
         located constructor (Located loc e) = Expr loc (constructor e)
         makeLitUnit loc1 loc2 = Expr (mergeSpan loc1 loc2) (Literal LitUnit)
@@ -159,9 +164,24 @@ expr = letin
               Nothing -> eMain
               Just esRest -> Tuple (TwoOrMore.make1 e1 esRest)
         makeBool b loc = Expr loc (Literal (LitBool b))
+        makeVarWithProjs (mods, Located locX x, projs) =
+          foldl'
+            ( \e@(Expr locAcc _) (Located locProj proj) ->
+                Expr (mergeSpan locAcc locProj) (FieldProj e proj)
+            )
+            longLower
+            projs
+          where
+            longLower =
+              case mods of
+                [] ->
+                  Expr locX (Var ([], x))
+                Located locFirst _ : _ ->
+                  Expr (mergeSpan locFirst locX) (Var (map ignoreSpan mods, x))
         makeConstructor (Located loc qualCtor) = Expr loc (Constructor qualCtor)
         makeTypeVar (Located loc a) = Expr loc (TyVar a)
         makeRefinement (Located loc (x, tye, e)) = Expr loc (TyRefinement x tye e)
+        makeRecord (Located loc fields) = Expr loc (Record fields)
 
     staged :: P Expr
     staged =
@@ -347,6 +367,13 @@ expr = letin
 
 typeExpr :: P TypeExpr
 typeExpr = expr
+
+recordField :: P (Text, RecordField)
+recordField =
+  (,) <$> noLoc lower <*> (equalField <|> colonField)
+  where
+    equalField = RecordFieldEqual <$> (token TokEqual *> expr)
+    colonField = RecordFieldColon <$> (token TokColon *> typeExpr)
 
 lamBinder :: P LamBinder
 lamBinder =

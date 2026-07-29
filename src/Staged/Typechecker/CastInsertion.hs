@@ -481,6 +481,34 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
               zipped
           let ty1eqsRet = applySolution1 varSolutionRet tyvar1SolutionRet <$> ty1eqs
           pure (trivialRet, TyEq1Product ty1eqsRet, varSolutionRet, tyvar1SolutionRet)
+        (A1TyRecord ra1ty1, A1TyRecord ra1ty2) -> do
+          rpair <-
+            if Map.keysSet ra1ty1 == Map.keysSet ra1ty2
+              then pure $ Map.intersectionWith (,) ra1ty1 ra1ty2
+              else Left ()
+          ((_, _, trivialRet, varSolutionRet, tyvar1SolutionRet), rty1eq) <-
+            mapAccumM
+              ( \(varsToInfer', tyvars1ToInfer', trivial', varSolution', tyvar1Solution') (a1tye1', a1tye2') -> do
+                  (trivial, ty1eq, varSolution, tyvar1Solution) <-
+                    go
+                      varsToInfer'
+                      tyvars1ToInfer'
+                      (applySolution1 varSolution' tyvar1Solution' a1tye1')
+                      (applySolution1 varSolution' tyvar1Solution' a1tye2')
+                  pure
+                    ( ( varsToInfer' \\ Map.keysSet varSolution,
+                        tyvars1ToInfer' \\ Map.keysSet tyvar1Solution,
+                        trivial' && trivial,
+                        composeVarSolution varSolution' varSolution,
+                        composeTypeVar1Solution tyvar1Solution' tyvar1Solution
+                      ),
+                      ty1eq
+                    )
+              )
+              (varsToInfer, tyvars1ToInfer, True, Map.empty, Map.empty)
+              rpair
+          let rty1eqRet = applySolution1 varSolutionRet tyvar1SolutionRet <$> rty1eq
+          pure (trivialRet, TyEq1Record rty1eqRet, varSolutionRet, tyvar1SolutionRet)
         (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) -> do
           if labelOpt1 /= labelOpt2
             then

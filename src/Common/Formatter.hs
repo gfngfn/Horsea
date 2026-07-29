@@ -17,6 +17,8 @@ import Data.Functor.Identity
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
+import Data.Map (Map)
+import Data.Map qualified as Map
 import Data.Tensor.Matrix qualified as Matrix
 import Data.Tensor.Vector qualified as Vector
 import Data.Text (Text)
@@ -257,6 +259,14 @@ dispTuple :: (Disp expr) => TwoOrMore expr -> Doc Ann
 dispTuple es =
   "(" <> nest 2 (foldl1 appendWithComma (fmap disp es)) <> ")"
 
+dispRecord :: (Disp expr) => Doc Ann -> Map Label expr -> Doc Ann
+dispRecord equalOrColon re =
+  "(|" <+> nest 2 (commaSep (map (\(label, e) -> disp label <+> equalOrColon <+> disp e) (Map.toList re))) <+> "|)"
+
+dispFieldProj :: (Disp expr) => Associativity -> expr -> Label -> Doc Ann
+dispFieldProj _req e label =
+  dispGen Atomic e <> "." <> disp label
+
 dispConstructorApp :: (Disp expr) => Associativity -> ConstructorName -> [expr] -> Doc Ann
 dispConstructorApp req ctor args =
   case args of
@@ -476,6 +486,8 @@ instance Disp (ExprMainF ann) where
     LetOpenIn m e -> dispLetOpenIn req m e
     Sequential e1 e2 -> dispSequential req e1 e2
     Tuple es -> dispTuple es
+    Record fields -> "(|" <> commaSep (map (\(label, field) -> disp label <+> disp field) fields) <> "|)"
+    FieldProj e label -> dispFieldProj req e label
     IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Case e0 branches -> dispCase req e0 branches
     As e1 tye2 -> dispAs req e1 tye2
@@ -491,6 +503,11 @@ instance Disp (ExprMainF ann) where
     TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
     Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
     TyForAll tyvar tye -> "forall" <+> disp tyvar <+> "->" <+> disp tye
+
+instance Disp (RecordFieldF ann) where
+  dispGen _ = \case
+    RecordFieldEqual e -> "=" <+> disp e
+    RecordFieldColon tye -> ":" <+> disp tye
 
 instance Disp (LamBinderF ann) where
   dispGen _ = \case
@@ -559,6 +576,8 @@ instance Disp Surface.ExprMain where
     Surface.LetOpenIn m e -> dispLetOpenIn req m e
     Surface.Sequential e1 e2 -> dispSequential req e1 e2
     Surface.Tuple es -> dispTuple es
+    Surface.Record fields -> "(|" <> commaSep (map (\(label, field) -> disp label <+> disp field) fields) <> "|)"
+    Surface.FieldProj e label -> dispFieldProj req e label
     Surface.IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Surface.As e1 tye2 -> dispAs req e1 tye2
     Surface.LamOms label (x, tye1) e2 -> dispLamOms req label x tye1 e2
@@ -571,6 +590,11 @@ instance Disp Surface.ExprMain where
     Surface.TyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2
     Surface.TyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Surface.Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
+
+instance Disp Surface.RecordField where
+  dispGen _ = \case
+    Surface.RecordFieldEqual e -> "=" <+> disp e
+    Surface.RecordFieldColon tye -> ":" <+> disp tye
 
 instance Disp Surface.LamBinder where
   dispGen _ = \case
@@ -603,6 +627,8 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
     A0LetTupleIn xs a0e1 a0e2 -> dispLetTupleIn req xs a0e1 a0e2
     A0Sequential a0e1 a0e2 -> dispSequential req a0e1 a0e2
     A0Tuple a0es -> dispTuple a0es
+    A0Record a0re -> dispRecord "=" a0re
+    A0FieldProj a0e1 label -> dispFieldProj req a0e1 label
     A0Constructor ctor a0es -> dispConstructorApp req ctor a0es
     A0Bracket a1e1 -> dispBracket a1e1
     A0IfThenElse a0e0 a0e1 a0e2 -> dispIfThenElse req a0e0 a0e1 a0e2
@@ -641,6 +667,8 @@ instance (Disp sv) => Disp (Ass1ExprF sv) where
     A1LetTupleIn xs a1e1 a1e2 -> dispLetTupleIn req xs a1e1 a1e2
     A1Sequential a1e1 a1e2 -> dispSequential req a1e1 a1e2
     A1Tuple a1es -> dispTuple a1es
+    A1Record a1re -> dispRecord "=" a1re
+    A1FieldProj a1e1 label -> dispFieldProj req a1e1 label
     A1Constructor ctor a1es -> dispConstructorApp req ctor a1es
     A1IfThenElse a1e0 a1e1 a1e2 -> dispIfThenElse req a1e0 a1e1 a1e2
     A1Case a1e0 a1branches -> dispCase req a1e0 a1branches
@@ -694,6 +722,7 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyList a0tye (Just a0ePred) -> dispInternalRefinementListType req a0tye a0ePred
     A0TyMaybe a0tye -> dispMaybeType req a0tye
     A0TyProduct a0tyes -> dispProductType req a0tyes
+    A0TyRecord a0rty -> dispRecord ":" a0rty
     A0TyArrow labelOpt (xOpt, a0tye1) a0tye2 -> dispArrowType req labelOpt xOpt a0tye1 a0tye2
     A0TyCode a1tye1 -> dispBracket a1tye1
     A0TyInfArrow (x, a0tye1) a0tye2 -> dispInfArrowType req x a0tye1 a0tye2
@@ -709,6 +738,7 @@ instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
     SA0TyList sa0tye (Just a0ePred) -> dispInternalRefinementListType req sa0tye a0ePred
     SA0TyMaybe sa0tye -> dispMaybeType req sa0tye
     SA0TyProduct sa0tyes -> dispProductType req sa0tyes
+    SA0TyRecord sa0rty -> dispRecord ":" sa0rty
     SA0TyArrow (xOpt, sa0tye1) sa0tye2 -> dispArrowType req Nothing xOpt sa0tye1 sa0tye2
     SA0TyCode a1tye1 -> dispBracket a1tye1
     SA0TyForAll atyvar sa0tye -> dispForAllType req atyvar sa0tye
@@ -736,6 +766,7 @@ instance (Disp sv) => Disp (Ass1TypeExprF sv) where
     A1TyMaybe a1tye -> dispMaybeType req a1tye
     A1TyVar atyvar -> disp atyvar
     A1TyProduct a1tyes -> dispProductType req a1tyes
+    A1TyRecord a1rty -> dispRecord ":" a1rty
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2
     A1TyOmsArrow label a1tye1 a1tye2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tye1 a1tye2
     A1TyForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
@@ -873,7 +904,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <+> disp spanInFile
         <> foldl1 (<>) (fmap (\(_a0pat, result) -> nest 2 (hardline <> disp result)) pairs)
     CannotApplyLiteral spanInFile ->
-      "Cannot apply a literal" <> disp spanInFile
+      "Cannot apply a literal" <+> disp spanInFile
     CannotInstantiateGuidedByAppContext0 spanInFile appCtx a0tye ->
       "Cannot instantiate a stage-0 type guided by the application context"
         <+> disp spanInFile
@@ -955,7 +986,7 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
     NoBuiltInNameInExternal spanInFile ->
       "No built-in name specified for an external value" <+> disp spanInFile
     CannotApplyTuple spanInFile ->
-      "Cannot apply a tuple" <> disp spanInFile
+      "Cannot apply a tuple" <+> disp spanInFile
     NotATupleAtStage0 spanInFile a0tye ->
       "Not a tuple at stage 0"
         <+> disp spanInFile
@@ -966,6 +997,32 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <+> disp spanInFile
         <> hardline
         <+> stage1Style (disp a1tye)
+    CannotApplyRecord spanInFile ->
+      "Cannot apply a record" <+> disp spanInFile
+    DuplicateRecordField spanInFile label ->
+      "Duplicate record field" <+> disp label <+> disp spanInFile
+    NotARecordAtStage0 spanInFile a0tye ->
+      "Not a record at stage 0"
+        <+> disp spanInFile
+        <> hardline
+        <+> stage0Style (disp a0tye)
+    NotARecordAtStage1 spanInFile a1tye ->
+      "Not a record at stage 1"
+        <+> disp spanInFile
+        <> hardline
+        <+> stage1Style (disp a1tye)
+    NoRecordFieldAtStage0 spanInFile label a0rty ->
+      "No record field"
+        <+> disp label
+        <+> disp spanInFile
+        <> hardline
+        <+> commaSep (map (\(l, a0tye) -> disp l <+> ":" <+> stage0Style (disp a0tye)) (Map.toList a0rty))
+    NoRecordFieldAtStage1 spanInFile label a1rty ->
+      "No record field"
+        <+> disp label
+        <+> disp spanInFile
+        <> hardline
+        <+> commaSep (map (\(l, a0tye) -> disp l <+> ":" <+> stage1Style (disp a0tye)) (Map.toList a1rty))
     LetRecParamsCannotStartWithImplicit spanInFile ->
       "Recursive function definitions cannot have an implicit parameter as the first one" <+> disp spanInFile
     LetRecRequiresNonEmptyParams spanInFile ->
@@ -1102,6 +1159,7 @@ instance (Disp sv) => Disp (Ass0ValF sv) where
   dispGen req = \case
     A0ValLiteral lit -> disp lit
     A0ValTuple a0vs -> dispTuple a0vs
+    A0ValRecord a0rv -> dispRecord "=" a0rv
     A0ValConstructor ctor a0vs -> dispConstructorApp req ctor a0vs
     A0ValLam Nothing (x, a0tyv1) a0v2 _env -> dispNonrecLam req Nothing x a0tyv1 a0v2
     A0ValLam (Just (f, a0tyvRec)) (x, a0tyv1) a0v2 _env -> dispRecLam req f a0tyvRec Nothing x a0tyv1 a0v2
@@ -1192,6 +1250,10 @@ instance (Disp sv) => Disp (Ass1ValF sv) where
       dispSequential req a1v1 a1v2
     A1ValTuple a1vs ->
       dispTuple a1vs
+    A1ValRecord a1rv ->
+      dispRecord "=" a1rv
+    A1ValFieldProj a1e1 label ->
+      dispFieldProj req a1e1 label
     A1ValConstructor ctor a1vs ->
       dispConstructorApp req ctor a1vs
     A1ValIfThenElse a1v0 a1v1 a1v2 ->
@@ -1216,6 +1278,7 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
     A0TyValProduct a0tyvs ->
       let (a0tyv1, a0tyvsRest) = TwoOrMore.decompose1 a0tyvs
        in dispProduct req a0tyv1 (fmap ("*",) a0tyvsRest)
+    A0TyValRecord a0rtyv -> dispRecord ":" a0rtyv
     A0TyValArrow (xOpt, a0tyv1) a0tye2 -> dispArrowType req Nothing xOpt a0tyv1 a0tye2
     A0TyValCode a1tyv1 -> dispBracket a1tyv1
     A0TyValForAll atyvar sa0tye1 -> dispForAllType req atyvar sa0tye1
@@ -1229,6 +1292,7 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
     A1TyValProduct a1tyvs ->
       let (a1tyv1, a1tyvsRest) = TwoOrMore.decompose1 a1tyvs
        in dispProduct req a1tyv1 (fmap ("*",) a1tyvsRest)
+    A1TyValRecord a1rtyv -> dispRecord ":" a1rtyv
     A1TyValArrow labelOpt a1tyv1 a1tyv2 -> dispNondepArrowType req labelOpt a1tyv1 a1tyv2
     A1TyValOmsArrow label a1tyv1 a1tyv2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tyv1 a1tyv2
     A1TyValForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
@@ -1307,6 +1371,13 @@ instance (Disp sv) => Disp (BugF sv) where
       "Not a tuple:" <+> disp a0v
     NotAPair a0v ->
       "Not a pair:" <+> disp a0v
+    NotARecord a0v ->
+      "Not a record:" <+> disp a0v
+    NoRecordField a0rv label ->
+      "No record field:"
+        <+> disp label
+        <> ";"
+        <+> commaSep (map (\(l, a0v) -> disp l <+> "=" <+> disp a0v) (Map.toList a0rv))
     NotAMaybe a0v ->
       "Not a Maybe:" <+> disp a0v
     TupleLengthMismatch xs a0vs ->
@@ -1372,6 +1443,17 @@ instance Disp Bta.AnalysisError where
       "Not a tuple;" <+> disp bity <+> disp spanInFile
     Bta.TupleLengthMismatch spanInFile xs bitys ->
       "Tuple length mismatch;" <+> dispTuple xs <+> "and" <+> dispProductType Outermost bitys <+> disp spanInFile
+    Bta.NotARecord spanInFile bity ->
+      "Not a record"
+        <+> disp spanInFile
+        <> hardline
+        <+> disp bity
+    Bta.NoRecordField spanInFile label rbity ->
+      "No record field"
+        <+> disp label
+        <+> disp spanInFile
+        <> hardline
+        <+> commaSep (map (\(l, bity) -> disp l <+> ":" <+> disp bity) (Map.toList rbity))
     Bta.BindingTimeContradiction spanInFile ->
       "Binding-time contradiction" <+> disp spanInFile
     Bta.BITypeContradiction spanInFile bity1 bity2 bity1Local bity2Local ->
@@ -1432,16 +1514,18 @@ instance (Disp bt, Disp tv) => Disp (Bta.BITypeMainF bt tv) where
       disp bitv
     Bta.BITyBase [] ->
       "●"
-    Bta.BITyBase (bt0 : bts) ->
-      deepenParenWhen (req <= Atomic) ("●" <+> foldl' (\doc bt -> doc <+> disp bt) (disp bt0) bts)
-    Bta.BITyProduct bts ->
-      deepenParenWhen (req <= Atomic) (foldl1 appendWithAsterisk (fmap (dispGen Atomic) bts))
-    Bta.BITyArrow bt1 bt2 ->
-      deepenParenWhen (req <= Atomic) (dispGen Atomic bt1 <+> "->" <+> dispGen Atomic bt2)
-    Bta.BITyOmsArrow label bt1 bt2 ->
-      deepenParenWhen (req <= Atomic) ("?" <> disp label <+> dispGen Atomic bt1 <+> "->" <+> dispGen Atomic bt2)
-    Bta.BITyInfArrow bt1 bt2 ->
-      deepenParenWhen (req <= Atomic) ("{" <> dispGen Atomic bt1 <> "} ->" <+> dispGen Atomic bt2)
+    Bta.BITyBase (bity0 : bitys) ->
+      deepenParenWhen (req <= Atomic) ("●" <+> foldl' (\doc bt -> doc <+> disp bt) (disp bity0) bitys)
+    Bta.BITyProduct bitys ->
+      deepenParenWhen (req <= Atomic) (foldl1 appendWithAsterisk (fmap (dispGen Atomic) bitys))
+    Bta.BITyRecord rbity ->
+      dispRecord ":" rbity
+    Bta.BITyArrow bity1 bity2 ->
+      deepenParenWhen (req <= Atomic) (dispGen Atomic bity1 <+> "->" <+> dispGen Atomic bity2)
+    Bta.BITyOmsArrow label bity1 bity2 ->
+      deepenParenWhen (req <= Atomic) ("?" <> disp label <+> dispGen Atomic bity1 <+> "->" <+> dispGen Atomic bity2)
+    Bta.BITyInfArrow bity1 bity2 ->
+      deepenParenWhen (req <= Atomic) ("{" <> dispGen Atomic bity1 <> "} ->" <+> dispGen Atomic bity2)
 
 dispWithBindingTime :: (Disp exprMain) => Bta.BindingTimeConst -> exprMain -> Doc Ann
 dispWithBindingTime btc eMain =
@@ -1469,6 +1553,8 @@ instance Disp (Bta.BCExprMainF ann) where
     Bta.BLetOpenIn m e -> dispLetOpenIn req m e
     Bta.BSequential e1 e2 -> dispSequential req e1 e2
     Bta.BTuple es -> dispTuple es
+    Bta.BRecord re -> dispRecord "=" re
+    Bta.BFieldProj e1 label -> dispFieldProj req e1 label
     Bta.BIfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Bta.BAs e1 tye2 -> dispAs req e1 tye2
     Bta.BLamOms label (x, tye1) e2 -> dispLamOms req label x tye1 e2

@@ -82,6 +82,7 @@ data BITypeMainF bt tv
   = BITyVar tv
   | BITyBase [BITypeF bt tv]
   | BITyProduct (TwoOrMore (BITypeF bt tv))
+  | BITyRecord (Map Label (BITypeF bt tv))
   | BITyArrow (BITypeF bt tv) (BITypeF bt tv)
   | BITyOmsArrow Label (BITypeF bt tv) (BITypeF bt tv)
   | BITyInfArrow (BITypeF bt tv) (BITypeF bt tv)
@@ -105,6 +106,8 @@ data BExprMainF ann bt
   | BLetOpenIn Var (BExprF ann bt)
   | BSequential (BExprF ann bt) (BExprF ann bt)
   | BTuple (TwoOrMore (BExprF ann bt))
+  | BRecord (Map Label (BExprF ann bt))
+  | BFieldProj (BExprF ann bt) Label
   | BIfThenElse (BExprF ann bt) (BExprF ann bt) (BExprF ann bt)
   | BAs (BExprF ann bt) (BTypeExprF ann bt)
   | BLamOms Label (Var, BTypeExprF ann bt) (BExprF ann bt)
@@ -124,6 +127,7 @@ data BTypeExprMainF ann bt
   | BTyInfArrow (Var, BTypeExprF ann bt) (BTypeExprF ann bt)
   | BTyRefinement Var (BTypeExprF ann bt) (BExprF ann bt)
   | BTyProduct (BTypeExprF ann bt) (NonEmpty (ann, BTypeExprF ann bt))
+  | BTyRecord (Map Label (BTypeExprF ann bt))
   deriving stock (Functor, Show)
 
 data BArgForTypeF ann bt
@@ -177,6 +181,9 @@ fromStaged0Body vars0 = go
       Staged.A0TyProduct a0tyes -> do
         bitys <- mapM go a0tyes
         pure $ wrap0 (BITyProduct bitys)
+      Staged.A0TyRecord a0rty -> do
+        rbity <- mapM go a0rty
+        pure $ wrap0 (BITyRecord rbity)
       Staged.A0TyArrow _labelOpt (_, a0tye1) a0tye2 ->
         wrap0 <$> (BITyArrow <$> go a0tye1 <*> go a0tye2)
       Staged.A0TyOmsArrow label (_, a0tye1) a0tye2 ->
@@ -221,6 +228,9 @@ fromStaged1Body vars1 = go
       Staged.A1TyProduct a1tyes -> do
         bitys <- mapM go a1tyes
         pure . wrap1 $ BITyProduct bitys
+      Staged.A1TyRecord a1rty -> do
+        rbity <- mapM go a1rty
+        pure . wrap1 $ BITyRecord rbity
       Staged.A1TyArrow _labelOpt a1tye1 a1tye2 -> do
         bity1 <- go a1tye1
         bity2 <- go a1tye2
@@ -262,6 +272,9 @@ fromStagedPers = goPoly 0 Map.empty
             Staged.APersTyProduct aPtyes -> do
               bitys <- mapM go aPtyes
               pure $ wrapP (BITyProduct bitys)
+            Staged.APersTyRecord aPrty -> do
+              rbity <- mapM go aPrty
+              pure $ wrapP (BITyRecord rbity)
             Staged.APersTyArrow _labelOpt aPtye1 aPtye2 ->
               wrapP <$> (BITyArrow <$> go aPtye1 <*> go aPtye2)
             Staged.APersTyForAll _atyvar _aPtye2 ->

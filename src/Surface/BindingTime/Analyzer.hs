@@ -142,6 +142,7 @@ enhanceBIType enhBt enhBitv (BIType bt bityMain) =
       BITyVar bitv -> enhBitv bitv
       BITyBase bityBaseArgs -> BITyBase (map fBIType bityBaseArgs)
       BITyProduct bitys -> BITyProduct (fmap fBIType bitys)
+      BITyRecord rbity -> BITyRecord (fmap fBIType rbity)
       BITyArrow bity1 bity2 -> BITyArrow (fBIType bity1) (fBIType bity2)
       BITyOmsArrow label bity1 bity2 -> BITyOmsArrow label (fBIType bity1) (fBIType bity2)
       BITyInfArrow bity1 bity2 -> BITyInfArrow (fBIType bity1) (fBIType bity2)
@@ -421,6 +422,36 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
               (\(_, BIType btElem _, constraintsElem) -> CLeq ann bt btElem : constraintsElem)
               triples
       pure (e', bity, constraints)
+    Record fields -> do
+      (re, rbity, constraints) <-
+        foldM
+          ( \(re', rbity', constraints') (label, field) ->
+              case field of
+                RecordFieldEqual eField -> do
+                  (eField', bityField@(BIType btField _), constraints) <-
+                    extractConstraintsFromExpr trav btenv eField
+                  pure
+                    ( Map.insert label eField' re',
+                      Map.insert label bityField rbity',
+                      constraints' ++ constraints ++ [CLeq ann bt btField]
+                    )
+                RecordFieldColon _ ->
+                  analysisError trav $ InvalidSyntaxAsExpr spanInFile
+          )
+          (Map.empty, Map.empty, [])
+          fields
+      pure (BExpr (bt, ann) (BRecord re), BIType bt (BITyRecord rbity), constraints)
+    FieldProj e1 label -> do
+      (e1', bity1@(BIType bt1 bityMain1), constraints1) <- extractConstraintsFromExpr trav btenv e1
+      case bityMain1 of
+        BITyRecord rbity1 ->
+          case Map.lookup label rbity1 of
+            Just bityField ->
+              pure (BExpr (bt, ann) (BFieldProj e1' label), bityField, constraints1 ++ [CLeq ann bt bt1])
+            Nothing ->
+              analysisError trav $ NoRecordField spanInFile label rbity1
+        _ ->
+          analysisError trav $ NotARecord spanInFile bity1
     IfThenElse e0 e1 e2 -> do
       (e0', bity0@(BIType bt0 bityMain0), constraints0) <- extractConstraintsFromExpr trav btenv e0
       case bityMain0 of
@@ -544,6 +575,7 @@ occurs bitv = goMain
       BITyVar bitv' -> bitv' == bitv
       BITyBase bitys -> any go bitys
       BITyProduct bitys -> any go bitys
+      BITyRecord rbity -> any go rbity
       BITyArrow bity1 bity2 -> go bity1 || go bity2
       BITyOmsArrow _label bity1 bity2 -> go bity1 || go bity2
       BITyInfArrow bity1 bity2 -> go bity1 || go bity2
@@ -603,6 +635,13 @@ makeConstraintsFromBITypeEquation trav ann bity1' bity2' = go bity1' bity2'
                 Just zipped ->
                   concat <$> mapM (uncurry go) zipped
                 Nothing -> do
+                  spanInFile <- askSpanInFile ann
+                  analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
+            (BITyRecord rbity1, BITyRecord rbity2) -> do
+              if Map.keysSet rbity1 == Map.keysSet rbity2
+                then
+                  concat <$> mapM (uncurry go . snd) (Map.toList (Map.intersectionWith (,) rbity1 rbity2))
+                else do
                   spanInFile <- askSpanInFile ann
                   analysisError trav $ BITypeContradiction spanInFile bity1' bity2' bity1 bity2
             (BITyArrow bity11 bity12, BITyArrow bity21 bity22) -> do
@@ -832,7 +871,26 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
       let tye' = BTypeExpr (bt, ann) (BTyProduct tye1' rest')
       let bitysRest = fmap (\(_, (_, bity, _)) -> bity) quadsRest
       pure (tye', BIType bt (BITyProduct (TwoOrMore.make1 bity1 bitysRest)), constraints)
-    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; LetOpenIn {}; Sequential {}; Tuple {}; IfThenElse {}; As {}; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}) ->
+    Record fields -> do
+      (rty, rbity, constraints) <-
+        foldM
+          ( \(rty', rbity', constraints') (label, field) ->
+              case field of
+                RecordFieldEqual eField -> do
+                  (tyField', bityField@(BIType btField _), constraints) <-
+                    extractConstraintsFromTypeExpr trav btenv eField
+                  pure
+                    ( Map.insert label tyField' rty',
+                      Map.insert label bityField rbity',
+                      constraints' ++ constraints ++ [CLeq ann bt btField]
+                    )
+                RecordFieldColon _ ->
+                  analysisError trav $ InvalidSyntaxAsTypeExpr spanInFile
+          )
+          (Map.empty, Map.empty, [])
+          fields
+      pure (BTypeExpr (bt, ann) (BTyRecord rty), BIType bt (BITyRecord rbity), constraints)
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; LetOpenIn {}; Sequential {}; Tuple {}; FieldProj {}; IfThenElse {}; As {}; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}) ->
       analysisError trav $ InvalidSyntaxAsTypeExpr spanInFile
   where
     bityNat :: BIType
