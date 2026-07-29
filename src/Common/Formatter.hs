@@ -909,71 +909,71 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Cannot instantiate a stage-0 type guided by the application context"
         <+> disp spanInFile
         <> hardline
-        <+> "application context:"
+        <> "application context:"
         <> nest 2 (hardline <> disps appCtx)
         <> hardline
-        <+> "type:"
+        <> "type:"
         <> nest 2 (hardline <> stage0Style (disp a0tye))
     CannotInstantiateGuidedByAppContext1 spanInFile appCtx a1tye ->
       "Cannot instantiate a stage-1 type guided by the application context"
         <+> disp spanInFile
         <> hardline
-        <+> "application context:"
+        <> "application context:"
         <> nest 2 (hardline <> disps appCtx)
         <> hardline
-        <+> "type:"
+        <> "type:"
         <> nest 2 (hardline <> stage1Style (disp a1tye))
     CannotInferImplicit spanInFile x a0tye appCtx ->
       "Cannot infer an implicit argument for"
         <+> stage0Style (disp x)
         <+> disp spanInFile
         <> hardline
-        <+> "application context:"
+        <> "application context:"
         <> nest 2 (hardline <> disps appCtx)
         <> hardline
-        <+> "type:"
+        <> "type:"
         <> nest 2 (hardline <> stage0Style (disp a0tye))
     CannotInferTypeVariableInstance0 spanInFile atyvar appCtx a0tye ->
       "Cannot infer an instance for type variable"
         <+> stage0Style (disp atyvar)
         <+> disp spanInFile
         <> hardline
-        <+> "application context:"
+        <> "application context:"
         <> nest 2 (hardline <> disps appCtx)
         <> hardline
-        <+> "type:"
+        <> "type:"
         <> nest 2 (hardline <> stage0Style (disp a0tye))
     CannotInferTypeVariableInstance1 spanInFile atyvar appCtx a1tye ->
       "Cannot infer an instance for type variable"
         <+> stage1Style (disp atyvar)
         <+> disp spanInFile
         <> hardline
-        <+> "application context:"
+        <> "application context:"
         <> nest 2 (hardline <> disps appCtx)
         <> hardline
-        <+> "type:"
+        <> "type:"
         <> nest 2 (hardline <> stage1Style (disp a1tye))
     CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile atyvar a0tye1 a0tye2 ->
       "Cannot instantiate type variable"
         <+> stage0Style (disp atyvar)
         <+> disp spanInFile
         <> hardline
-        <+> "left:"
+        <> "left:"
         <> nest 2 (hardline <> stage0Style (disp a0tye1))
         <> hardline
-        <+> "right:"
+        <> "right:"
         <> nest 2 (hardline <> stage0Style (disp a0tye2))
     Stage1IfThenElseRestrictedToEmptyContext spanInFile appCtx ->
       "Stage-1 if-expressions are restricted to be used at empty application contexts"
         <+> disp spanInFile
         <> hardline
-        <+> "application context:"
+        <> "application context:"
         <> nest 2 (hardline <> disps appCtx)
     Stage1CaseRestrictedToEmptyContext spanInFile appCtx ->
       "Stage-1 case-expressions are restricted to be used at empty application contexts"
         <+> disp spanInFile
         <> hardline
-        <+> "application context:"
+        <> "application context:"
         <> nest 2 (hardline <> disps appCtx)
     BindingOverwritten spanInFile x ->
       "value " <+> disp x <+> "is overwritten by another binding" <+> disp spanInFile
@@ -1082,6 +1082,14 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <+> disp spanInFile
         <> hardline
         <> nest 2 (hardline <> stage0Style (disp a1tye))
+    InvalidConstructorApplication spanInFile appCtx mods ctor ->
+      "Invalid constructor application of"
+        <+> disp (Text.intercalate "." (mods ++ [ctor]))
+        <+> disp spanInFile
+        <> hardline
+        <> "application context:"
+        <> hardline
+        <> nest 2 (hardline <> disps appCtx)
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case
@@ -1575,6 +1583,7 @@ instance Disp (Bta.BCTypeExprMainF ann) where
     Bta.BTyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2
     Bta.BTyRefinement x tye1 e2 -> dispRefinementType req x tye1 e2
     Bta.BTyProduct tye1 rest -> dispProduct req tye1 (fmap (first (const "*")) rest)
+    Bta.BTyRecord rty -> dispRecord ":" rty
 
 instance Disp (Bta.BCArgForTypeF ann) where
   dispGen req = \case
