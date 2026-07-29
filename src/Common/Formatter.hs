@@ -486,7 +486,8 @@ instance Disp (ExprMainF ann) where
     LetOpenIn m e -> dispLetOpenIn req m e
     Sequential e1 e2 -> dispSequential req e1 e2
     Tuple es -> dispTuple es
-    Record fields -> "{" <> commaSep (map (\(label, field) -> disp label <+> disp field) fields) <> "}"
+    Record fields -> "(|" <> commaSep (map (\(label, field) -> disp label <+> disp field) fields) <> "|)"
+    FieldProj e label -> dispFieldProj req e label
     IfThenElse e0 e1 e2 -> dispIfThenElse req e0 e1 e2
     Case e0 branches -> dispCase req e0 branches
     As e1 tye2 -> dispAs req e1 tye2

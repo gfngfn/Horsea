@@ -434,6 +434,18 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             pure (Pure (A0TyRecord a0rty), A0Record a0re)
           _ : _ -> do
             typeError trav $ CannotApplyRecord spanInFile
+      FieldProj e1 label -> do
+        (a0tye1, a0e1) <- typecheckExpr0Single trav tyEnv e1
+        case a0tye1 of
+          A0TyRecord a0rty1 ->
+            case Map.lookup label a0rty1 of
+              Just a0tyeSub -> do
+                result <- instantiateGuidedByAppContext0 trav loc appCtx a0tyeSub
+                pure (result, A0FieldProj a0e1 label)
+              Nothing ->
+                typeError trav $ NoRecordFieldAtStage0 spanInFile label a0rty1
+          _ ->
+            typeError trav $ NotARecordAtStage0 spanInFile a0tye1
       IfThenElse e0 e1 e2 -> do
         (a0tye0, a0e0) <- typecheckExpr0Single trav tyEnv e0
         case a0tye0 of
@@ -1100,6 +1112,18 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             pure (Pure (A1TyRecord a1rty), A1Record a1re)
           _ : _ -> do
             typeError trav $ CannotApplyRecord spanInFile
+      FieldProj e1 label -> do
+        (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
+        case a1tye1 of
+          A1TyRecord a1rty1 ->
+            case Map.lookup label a1rty1 of
+              Just a1tyeSub -> do
+                (result, _) <- instantiateGuidedByAppContext1 trav loc Set.empty appCtx a1tyeSub
+                pure (result, A1FieldProj a1e1 label)
+              Nothing ->
+                typeError trav $ NoRecordFieldAtStage1 spanInFile label a1rty1
+          _ ->
+            typeError trav $ NotARecordAtStage1 spanInFile a1tye1
       IfThenElse e0 e1 e2 -> do
         (a1tye0, a1e0) <- typecheckExpr1Single trav tyEnv e0
         case a1tye0 of
@@ -1426,7 +1450,7 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv
         typecheckTypeExpr0 trav tyEnv' tye1
       pure $ A0TyForAll atyvar a0tye1
-    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfType {}; AppInfType {}; Persistent {}) ->
+    (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; FieldProj {}; LamInfType {}; AppInfType {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
 validatePersistentExprArg :: trav -> TypeEnv -> Ass0TypeExpr -> Expr -> M trav Ass0Expr
@@ -1617,7 +1641,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv
         typecheckTypeExpr1 trav tyEnv' tye1
       pure $ A1TyForAll atyvar a1tye1
-    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; LamInfType {}; AppInfType {}; Persistent {}) ->
+    (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; FieldProj {}; LamInfType {}; AppInfType {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
 validatePersistentType :: trav -> Span -> Ass0TypeExpr -> M trav AssPersTypeExpr
