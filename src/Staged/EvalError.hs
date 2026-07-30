@@ -47,6 +47,7 @@ data EvalErrorF sv
   = Bug (BugF sv)
   | AssertionFailure SpanInFile (Ass1TypeValF sv) (Ass1TypeValF sv)
   | RefinementAssertionFailure SpanInFile (Ass0ValF sv) (Ass0ValF sv)
+  | NoMatch (Ass0ValF sv)
   deriving stock (Eq, Show, Functor)
 
 type Bug = BugF StaticVar

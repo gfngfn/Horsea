@@ -337,7 +337,7 @@ evalCase env a0v = goBranch
   where
     goBranch = \case
       [] ->
-        error "TODO (error): evalCase, no match"
+        evalError $ NoMatch a0v
       A0Branch a0pat a0e : branchesRest ->
         case matchWithPattern a0v a0pat of
           Nothing -> goBranch branchesRest

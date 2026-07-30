@@ -1430,6 +1430,8 @@ instance (Disp sv) => Disp (EvalErrorF sv) where
         <> hardline
         <> "got:"
         <+> stage0Style (disp a0vTarget)
+    NoMatch a0v ->
+      "No match:" <+> stage0Style (disp a0v)
 
 instance Disp Bta.AnalysisError where
   dispGen _ = \case
