@@ -11,6 +11,8 @@ module Surface.BindingTime.Core
     BIParameterizedTypeF (..),
     BIType,
     BITypeMain,
+    BIPolyType,
+    BIMonoType,
     BExprF (..),
     BExprMainF (..),
     BTypeExprF (..),
@@ -21,8 +23,6 @@ module Surface.BindingTime.Core
     BTypeExpr,
     BTypeExprMain,
     BArgForType,
-    BIPolyTypeVoid,
-    BITypeVoid,
   )
 where
 
@@ -37,6 +37,7 @@ import Staged.Core (Label)
 import Surface.Syntax (Literal, ModuleName, TypeName, Var)
 import Prelude
 
+-- | Binding-time variables that can be resolved to 0 or 1.
 newtype BindingTimeVar = BindingTimeVar Int
   deriving stock (Eq, Ord, Show)
 
@@ -48,27 +49,9 @@ data BindingTime
   | BTVar BindingTimeVar
   deriving stock (Eq, Show, Generic)
 
-newtype BITypeVar = BITypeVar Int
-  deriving stock (Eq, Ord, Show)
-
--- Intermediate, minimal type representations for binding-time analysis
+-- | BTA types, i.e., intermediate, minimal type representations for binding-time analysis.
 data BITypeF bt tv = BIType bt (BITypeMainF bt tv)
   deriving stock (Functor, Show)
-
-newtype BITypeBoundVar = BITypeBoundVar Int
-  deriving stock (Eq, Ord, Show)
-
--- Prenex-polymorphic types
-data BIPolyTypeF bt = BIPolyType (Set BITypeBoundVar) (BITypeF bt BITypeBoundVar)
-  deriving stock (Show)
-
-data BITypeParam
-  = BITypeParamType BITypeBoundVar
-  | BITypeParamVal0 BIPolyTypeVoid
-  deriving stock (Show)
-
-data BIParameterizedTypeF bt = BIParameterizedType [BITypeParam] (BITypeF bt BITypeBoundVar)
-  deriving stock (Show)
 
 data BITypeMainF bt tv
   = BITyVar tv
@@ -80,10 +63,36 @@ data BITypeMainF bt tv
   | BITyInfArrow (BITypeF bt tv) (BITypeF bt tv)
   deriving stock (Functor, Show)
 
+newtype BITypeVar = BITypeVar Int
+  deriving stock (Eq, Ord, Show)
+
+-- | Universally quantified BTA type variables.
+newtype BITypeBoundVar = BITypeBoundVar Int
+  deriving stock (Eq, Ord, Show)
+
+-- | Prenex-polymorphic BTA types.
+data BIPolyTypeF bt = BIPolyType (Set BITypeBoundVar) (BITypeF bt BITypeBoundVar)
+  deriving stock (Show)
+
+data BITypeParam
+  = BITypeParamType BITypeBoundVar
+  | BITypeParamVal0 BIMonoType
+  deriving stock (Show)
+
+data BIParameterizedTypeF bt = BIParameterizedType [BITypeParam] (BITypeF bt BITypeBoundVar)
+  deriving stock (Show)
+
 type BIType = BITypeF BindingTime BITypeVar
 
 type BITypeMain = BITypeMainF BindingTime BITypeVar
 
+-- | Prenex-polymorphic BTA types for built-in values.
+type BIPolyType = BIPolyTypeF BindingTimeConst
+
+-- | Monomorphic BTA types for type parameters.
+type BIMonoType = BITypeF BindingTimeConst Void
+
+-- | Intermediate term expressions produced by binding-time analysis.
 data BExprF ann bt = BExpr (bt, ann) (BExprMainF ann bt)
   deriving stock (Functor, Show)
 
@@ -109,6 +118,7 @@ data BExprMainF ann bt
   | BAppInfOmitted (BExprF ann bt)
   deriving stock (Functor, Show)
 
+-- | Intermediate type expressions produced by binding-time analysis.
 data BTypeExprF ann bt = BTypeExpr (bt, ann) (BTypeExprMainF ann bt)
   deriving stock (Functor, Show)
 
@@ -136,9 +146,3 @@ type BTypeExpr = BTypeExprF Span BindingTime
 type BTypeExprMain = BTypeExprMainF Span BindingTime
 
 type BArgForType = BArgForTypeF Span BindingTime
-
--- For built-in values.
-type BIPolyTypeVoid = BIPolyTypeF BindingTimeConst
-
--- For built-in values.
-type BITypeVoid = BITypeF BindingTimeConst Void

@@ -95,6 +95,7 @@ data TypeErrorF sv
   | LetTupleLengthMismatch1 SpanInFile (TwoOrMore Var) (TwoOrMore (Ass1TypeExprF sv))
   | NonMaybeAnnotForLamOms0 SpanInFile (Ass0TypeExprF sv)
   | NonMaybeAnnotForLamOms1 SpanInFile (Ass1TypeExprF sv)
+  | InvalidConstructorApplication SpanInFile (AppContextF sv) [ModuleName] ConstructorName
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv

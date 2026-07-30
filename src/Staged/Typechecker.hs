@@ -163,7 +163,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                 let a0eRet = A0Lam Nothing (ax, strictify a0tye1) (A0Constructor "Just" [A0Var ax])
                 pure (Cast0 Nothing a0tye1 (Pure (A0TyMaybe a0tye1)), a0eRet)
               _ ->
-                error "TODO (error): other app contexts"
+                typeError trav $ InvalidConstructorApplication spanInFile appCtx mods ctor
           ([], "Nothing") ->
             typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
           (_, _) ->
@@ -865,7 +865,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                 let a1eRet = A1Lam Nothing (ax, a1tye1) (A1Constructor "Just" [A1Var ax])
                 pure (Cast1 Nothing a1tye1 (Pure (A1TyMaybe a1tye1)), a1eRet)
               _ ->
-                error "TODO (error): other app contexts"
+                typeError trav $ InvalidConstructorApplication spanInFile appCtx mods ctor
           ([], "Nothing") ->
             typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
           (_, _) ->

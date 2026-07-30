@@ -10,7 +10,7 @@ import Common.Formatter qualified as Formatter
 import Common.LocationInFile (SourceSpec (SourceSpec))
 import Common.LocationInFile qualified as LocationInFile
 import Common.TokenUtil (Span)
-import Control.Monad (unless)
+import Control.Monad (forM_, unless)
 import Control.Monad.Trans.Reader
 import Data.Text.IO.Util (readFileEither)
 import Staged.Entrypoint qualified
@@ -105,7 +105,11 @@ handle arg = do
               putRenderedLines arg (fmap (Staged.Entrypoint.showVar assVarDisplay) tyErr)
               failure ExitByTypeError
             Right (tyEnvStub, sigr, abinds) -> do
-              let initialBindingTimeEnv = makeBindingTimeEnvFromStub sigr
+              let (initialBindingTimeEnv, warnings) = makeBindingTimeEnvFromStub [] sigr
+              unless (null warnings) $ do
+                putNormalLine "Warnings:"
+                forM_ warnings $ \warning ->
+                  putRenderedLines arg (fmap (Staged.Entrypoint.showVar assVarDisplay) warning)
               source_ <- readFileEither inputFilePath
               case source_ of
                 Left err -> do
