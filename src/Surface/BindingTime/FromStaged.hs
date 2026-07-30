@@ -36,10 +36,10 @@ data WarningF sv
 type Warning = WarningF StaticVar
 
 -- Accepts only prenex universal quantifications.
-fromStaged0 :: Staged.Ass0TypeExpr -> Maybe BIPolyTypeVoid
+fromStaged0 :: Staged.Ass0TypeExpr -> Maybe BIPolyType
 fromStaged0 = goPoly 0 Map.empty
   where
-    goPoly :: Int -> Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass0TypeExpr -> Maybe BIPolyTypeVoid
+    goPoly :: Int -> Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass0TypeExpr -> Maybe BIPolyType
     goPoly i vars0 = \case
       Staged.A0TyForAll atyvar a0tye ->
         goPoly (i + 1) (Map.insert atyvar (BITypeBoundVar i) vars0) a0tye
@@ -88,10 +88,10 @@ fromStaged0' f = go
     wrap0 = BIType BT0
 
 -- Accepts only prenex universal quantifications.
-fromStaged1 :: Staged.Ass1TypeExpr -> Maybe BIPolyTypeVoid
+fromStaged1 :: Staged.Ass1TypeExpr -> Maybe BIPolyType
 fromStaged1 = goPoly 0 Map.empty
   where
-    goPoly :: Int -> Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass1TypeExpr -> Maybe BIPolyTypeVoid
+    goPoly :: Int -> Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass1TypeExpr -> Maybe BIPolyType
     goPoly i vars1 = \case
       Staged.A1TyForAll atyvar a1tye ->
         goPoly (i + 1) (Map.insert atyvar (BITypeBoundVar i) vars1) a1tye
@@ -230,8 +230,11 @@ makeBindingTimeEnvFromStub mods sigr =
                                 let btvar = BITypeBoundVar i
                                 pure (BITypeParamType btvar : btTy1ParamAcc', Map.insert atyvar btvar vars', i + 1)
                               A1TypeParamVal0 _ax a0tye -> do
-                                bipty <- fromStaged0 a0tye
-                                pure (BITypeParamVal0 bipty : btTy1ParamAcc', vars', i + 1)
+                                bity <-
+                                  fromStaged0'
+                                    (\_ -> error "Bug: makeBindingTimeEnvFromStub; unbound type variable")
+                                    a0tye
+                                pure (BITypeParamVal0 bity : btTy1ParamAcc', vars', i + 1)
                         )
                         ([], Map.empty, 0)
                         a1tyParams

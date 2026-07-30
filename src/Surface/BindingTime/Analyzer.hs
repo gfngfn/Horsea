@@ -15,7 +15,7 @@ import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
-import Data.Set qualified as Set
+import Data.Void (absurd)
 import Safe.Exact (zipExactMay)
 import Staged.Core (Label)
 import Staged.Syntax qualified as Staged
@@ -734,13 +734,8 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
                               BTypeExprArg tyeArg : bArgAcc',
                               cs' ++ csArg ++ [CLeq ann bt btArg]
                             )
-                        BITypeParamVal0 (BIPolyType boundVars biptyBody) -> do
-                          let bityParam =
-                                if Set.null boundVars
-                                  then
-                                    enhanceBIType BTConst (\_ -> error "Bug: bound var exists") biptyBody
-                                  else
-                                    error "TODO (error): extractConstraintsFromTypeExpr, polymorphic type parameter"
+                        BITypeParamVal0 bityParam' -> do
+                          let bityParam = enhanceBIType BTConst absurd bityParam'
                           let Expr ann' _ = arg
                           (e', bityArg, csArg) <- extractConstraintsFromExpr trav btenv arg
                           csEq <- makeConstraintsFromBITypeEquation trav ann' bityArg bityParam
