@@ -1757,7 +1757,7 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
           -- TODO: bind persistent values
           spanInFile <- askSpanInFile loc
           typeError trav $ Unsupported spanInFile (CannotBindPersistentValue x)
-    BindType stage tyName tyParams tye ->
+    BindType stage tyName tyParams tydef ->
       case stage of
         Stage1 -> do
           (a1tyParamAcc, tyEnv') <-
@@ -1778,8 +1778,12 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
               ([], tyEnv)
               tyParams
           let a1tyParams = reverse a1tyParamAcc
-          a1tye <- typecheckTypeExpr1 trav tyEnv' tye
-          pure (SigRecord.singletonType tyName (Ass1TypeEntry a1tyParams a1tye), [])
+          case tydef of
+            TypeDefAlias tye -> do
+              a1tye <- typecheckTypeExpr1 trav tyEnv' tye
+              pure (SigRecord.singletonType tyName (Ass1TypeEntry a1tyParams a1tye), [])
+            TypeDefData _ctorDefs ->
+              error "TODO: BindType, TypeDefData"
         _ ->
           error "TODO: BindType, non-Stage1"
     BindModule m binds -> do

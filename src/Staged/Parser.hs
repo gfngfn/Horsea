@@ -430,15 +430,20 @@ pat = con
 
 bind :: P Bind
 bind =
-  (makeBindVal <$> token TokVal <*> stagedBinder (noLoc boundIdent) <*> valBody)
-    <|> (makeBindType <$> token TokType <*> stagedBinder (noLoc upper) <*> many typeParamBinder <*> (token TokEqual *> typeExpr))
+  (makeBindVal <$> token TokVal <*> stagedBinder (noLoc boundIdent) <*> valDef)
+    <|> (makeBindType <$> token TokType <*> stagedBinder (noLoc upper) <*> many typeParamBinder <*> (token TokEqual *> typeDef))
     <|> (makeBindModule <$> token TokModule <*> noLoc upper <*> (token TokEqual *> token TokStruct *> many bind) <*> token TokEnd)
   where
     makeBindVal locFirst (stage, x) (bv, locLast) =
       Bind (mergeSpan locFirst locLast) (BindVal stage x bv)
 
-    makeBindType locFirst (stage, tyName) params tye@(Expr locLast _) =
-      Bind (mergeSpan locFirst locLast) (BindType stage tyName params tye)
+    makeBindType locFirst (stage, tyName) params tydef =
+      Bind (mergeSpan locFirst locLast) (BindType stage tyName params tydef)
+      where
+        locLast =
+          case tydef of
+            TypeDefAlias (Expr locLast' _) -> locLast'
+            TypeDefData _ctor -> error "TODO: Parser, TypeDefData"
 
     makeBindModule locFirst m binds locLast =
       Bind (mergeSpan locFirst locLast) (BindModule m binds)
@@ -449,8 +454,8 @@ stagedBinder pIdent =
     <|> ((StagePers,) <$> (token TokPersistent *> pIdent))
     <|> ((Stage1,) <$> pIdent)
 
-valBody :: P (BindVal, Span)
-valBody =
+valDef :: P (BindVal, Span)
+valDef =
   try (makeBindValExternal <$> (token TokColon *> typeExpr) <*> (token TokExternal *> external))
     <|> (makeBindValNormal <$> many lamBinder <*> optional (token TokColon *> typeExpr) <*> (token TokEqual *> expr))
   where
@@ -463,6 +468,10 @@ external =
   where
     field :: P (Text, Text)
     field = (,) <$> (noLoc lower <* token TokEqual) <*> noLoc string
+
+typeDef :: P TypeDefinition
+typeDef =
+  TypeDefAlias <$> typeExpr
 
 parse :: P a -> SourceSpec -> Text -> Either FrontError a
 parse p sourceSpec source = do
