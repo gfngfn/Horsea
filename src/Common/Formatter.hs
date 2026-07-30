@@ -37,6 +37,7 @@ import Staged.TypeError
 import Staged.Typechecker.Monad (InferableArgLogF (..))
 import Surface.BindingTime.Analyzer qualified as Bta
 import Surface.BindingTime.Core qualified as Bta
+import Surface.BindingTime.FromStaged qualified as FromStaged
 import Surface.BindingTime.Stager qualified as Bta
 import Surface.Syntax qualified as Surface
 import Prelude
@@ -1591,3 +1592,15 @@ instance Disp (Bta.BCArgForTypeF ann) where
   dispGen req = \case
     Bta.BExprArg e -> dispGen req e
     Bta.BTypeExprArg tye -> dispGen req tye
+
+instance (Disp sv) => Disp (FromStaged.WarningF sv) where
+  dispGen _ =
+    ("Warning:" <+>) . \case
+      FromStaged.WarnIgnoredVal0 (mods, x) a0tye ->
+        "ignored" <+> dispLongName mods x <+> ":" <+> stage0Style (disp a0tye)
+      FromStaged.WarnIgnoredVal1 (mods, x) a1tye ->
+        "ignored" <+> dispLongName mods x <+> ":" <+> stage1Style (disp a1tye)
+      FromStaged.WarnIgnoredValPers (mods, x) ->
+        "ignored" <+> dispLongName mods x
+      FromStaged.WarnIgnoredType1 (mods, tyName) ->
+        "ignored" <+> dispLongName mods tyName
