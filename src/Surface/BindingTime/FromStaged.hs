@@ -2,9 +2,9 @@ module Surface.BindingTime.FromStaged
   ( WarningF (..),
     Warning,
     fromStaged0,
-    fromStaged0Body,
+    fromStaged0',
     fromStaged1,
-    fromStaged1Body,
+    fromStaged1',
     fromStagedPers,
     makeBindingTimeEnvFromStub,
   )
@@ -43,19 +43,25 @@ fromStaged0 = goPoly 0 Map.empty
     goPoly i vars0 = \case
       Staged.A0TyForAll atyvar a0tye ->
         goPoly (i + 1) (Map.insert atyvar (BITypeBoundVar i) vars0) a0tye
-      a0tye ->
-        BIPolyType (Set.fromList (Map.elems vars0)) <$> fromStaged0Body vars0 a0tye
+      a0tye -> do
+        biptyBody <-
+          fromStaged0'
+            ( \atyvar ->
+                case Map.lookup atyvar vars0 of
+                  Nothing -> error "Bug: fromStaged0, type variable not found"
+                  Just bitv -> pure $ BITyVar bitv
+            )
+            a0tye
+        pure $ BIPolyType (Set.fromList (Map.elems vars0)) biptyBody
 
-fromStaged0Body :: Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass0TypeExpr -> Maybe (BITypeF BindingTimeConst BITypeBoundVar)
-fromStaged0Body vars0 = go
+fromStaged0' :: (Staged.AssTypeVar -> Maybe (BITypeMainF BindingTimeConst b)) -> Staged.Ass0TypeExpr -> Maybe (BITypeF BindingTimeConst b)
+fromStaged0' f = go
   where
     go = \case
       Staged.A0TyPrim _a0tyPrim _maybePred ->
         pure . wrap0 $ BITyBase []
       Staged.A0TyVar atyvar ->
-        case Map.lookup atyvar vars0 of
-          Nothing -> error "bug: fromStaged0Body, type variable not found"
-          Just bitv -> pure . wrap0 $ BITyVar bitv
+        wrap0 <$> f atyvar
       Staged.A0TyList a0tye' _maybePred -> do
         bity <- go a0tye'
         pure . wrap0 $ BITyBase [bity]
@@ -75,7 +81,7 @@ fromStaged0Body vars0 = go
       Staged.A0TyInfArrow (_, a0tye1) a0tye2 ->
         wrap0 <$> (BITyInfArrow <$> go a0tye1 <*> go a0tye2)
       Staged.A0TyCode a1tye ->
-        fromStaged1Body Map.empty a1tye
+        fromStaged1' (\_ -> error "Bug: fromStage0'; bound var exists") a1tye
       Staged.A0TyForAll _atyvar _a0tye2 ->
         Nothing
 
@@ -89,20 +95,25 @@ fromStaged1 = goPoly 0 Map.empty
     goPoly i vars1 = \case
       Staged.A1TyForAll atyvar a1tye ->
         goPoly (i + 1) (Map.insert atyvar (BITypeBoundVar i) vars1) a1tye
-      a1tye ->
-        BIPolyType (Set.fromList (Map.elems vars1)) <$> fromStaged1Body vars1 a1tye
+      a1tye -> do
+        biptyBody <-
+          fromStaged1'
+            ( \atyvar ->
+                case Map.lookup atyvar vars1 of
+                  Nothing -> error "Bug: fromStaged1, type variable not found"
+                  Just bitv -> pure $ BITyVar bitv
+            )
+            a1tye
+        pure $ BIPolyType (Set.fromList (Map.elems vars1)) biptyBody
 
-fromStaged1Body :: Map Staged.AssTypeVar BITypeBoundVar -> Staged.Ass1TypeExpr -> Maybe (BITypeF BindingTimeConst BITypeBoundVar)
-fromStaged1Body vars1 = go
+fromStaged1' :: (Staged.AssTypeVar -> Maybe (BITypeMainF BindingTimeConst b)) -> Staged.Ass1TypeExpr -> Maybe (BITypeF BindingTimeConst b)
+fromStaged1' f = go
   where
-    go :: Staged.Ass1TypeExpr -> Maybe (BITypeF BindingTimeConst BITypeBoundVar)
     go = \case
       Staged.A1TyPrim _a1tyPrim ->
         pure . wrap1 $ BITyBase []
       Staged.A1TyVar atyvar ->
-        case Map.lookup atyvar vars1 of
-          Nothing -> error "bug: fromStaged1Body, type variable not found"
-          Just bitv -> pure . wrap1 $ BITyVar bitv
+        wrap1 <$> f atyvar
       Staged.A1TyList a1tye' -> do
         bity1 <- go a1tye'
         pure . wrap1 $ BITyBase [bity1]
@@ -128,7 +139,7 @@ fromStaged1Body vars1 = go
 
     wrap1 = BIType BT1
 
--- Accepts only top-level universal quantifications.
+-- Accepts only prenex universal quantifications.
 fromStagedPers :: Staged.AssPersTypeExpr -> Maybe (BIPolyTypeF ())
 fromStagedPers = goPoly 0 Map.empty
   where
@@ -145,7 +156,7 @@ fromStagedPers = goPoly 0 Map.empty
               pure . wrapP $ BITyBase []
             Staged.APersTyVar atyvar ->
               case Map.lookup atyvar vars of
-                Nothing -> error "bug: fromStagedPers, type variable not found"
+                Nothing -> error "Bug: fromStagedPers, type variable not found"
                 Just bitv -> pure . wrapP $ BITyVar bitv
             Staged.APersTyList aPtye' -> do
               bity <- go aPtye'
@@ -219,13 +230,20 @@ makeBindingTimeEnvFromStub mods sigr =
                                 let btvar = BITypeBoundVar i
                                 pure (BITypeParamType btvar : btTy1ParamAcc', Map.insert atyvar btvar vars', i + 1)
                               A1TypeParamVal0 _ax a0tye -> do
-                                btpty <- fromStaged0 a0tye
-                                pure (BITypeParamVal0 btpty : btTy1ParamAcc', vars', i + 1)
+                                bipty <- fromStaged0 a0tye
+                                pure (BITypeParamVal0 bipty : btTy1ParamAcc', vars', i + 1)
                         )
                         ([], Map.empty, 0)
                         a1tyParams
                     let btTy1Params = reverse btTy1ParamAcc
-                    biptyBody <- fromStaged1Body vars a1tyeBody
+                    biptyBody <-
+                      fromStaged1'
+                        ( \atyvar ->
+                            case Map.lookup atyvar vars of
+                              Nothing -> error "Bug: makeBindingTimeEnvFromStub; bound var not found"
+                              Just bitv -> pure $ BITyVar bitv
+                        )
+                        a1tyeBody
                     pure (btTy1Params, biptyBody)
                in case r of
                     Nothing ->
