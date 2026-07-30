@@ -17,6 +17,7 @@ import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Text (Text)
+import Staged.Core (ConstructorName)
 import Staged.SrcSyntax
 import Staged.Token (Token (..))
 import Staged.Token qualified as Token
@@ -471,7 +472,16 @@ external =
 
 typeDef :: P TypeDefinition
 typeDef =
-  TypeDefAlias <$> typeExpr
+  try (TypeDefAlias <$> typeExpr)
+    <|> (TypeDefData <$> constructorDefs)
+
+constructorDefs :: P (NonEmpty ((ConstructorName, Span), Maybe TypeExpr))
+constructorDefs =
+  (:|) <$> (optional (token TokBar) *> constructorDef) <*> many constructorDef
+
+constructorDef :: P ((ConstructorName, Span), Maybe TypeExpr)
+constructorDef =
+  (\(Located loc ctor) ty_ -> ((ctor, loc), ty_)) <$> upper <*> optional typeExpr
 
 parse :: P a -> SourceSpec -> Text -> Either FrontError a
 parse p sourceSpec source = do

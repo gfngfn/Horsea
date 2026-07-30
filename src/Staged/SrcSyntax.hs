@@ -177,7 +177,7 @@ data BindValF ann
 
 data TypeDefinitionF ann
   = TypeDefAlias (TypeExprF ann)
-  | TypeDefData (NonEmpty (ConstructorName, Maybe (TypeExprF ann)))
+  | TypeDefData (NonEmpty ((ConstructorName, ann), Maybe (TypeExprF ann)))
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 data Stage = Stage0 | Stage1 | StagePers

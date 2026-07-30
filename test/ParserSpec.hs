@@ -481,7 +481,7 @@ spec = do
           ]
     it "parses single, stage-1 type binding" $
       parseBinds "type Foo = Int"
-        `shouldBe` pure [Bind () (BindType Stage1 "Foo" [] tyInt)]
+        `shouldBe` pure [Bind () (BindType Stage1 "Foo" [] (TypeDefAlias tyInt))]
     it "parses single, stage-1 type binding, record types" $
       parseBinds "type Qux = (| foo : Int, bar : Bool |)"
         `shouldBe` pure
@@ -490,7 +490,7 @@ spec = do
                 Stage1
                 "Qux"
                 []
-                (typ (Record [("foo", RecordFieldColon tyInt), ("bar", RecordFieldColon tyBool)]))
+                (TypeDefAlias (typ (Record [("foo", RecordFieldColon tyInt), ("bar", RecordFieldColon tyBool)])))
           ]
     it "parses single, stage-1 type binding with value parameters" $
       parseBinds "type RectMat %(n : Nat) = Tensor %[n, n]"
@@ -500,5 +500,5 @@ spec = do
                 Stage1
                 "RectMat"
                 [TypeParamVal0Binder ("n", tyNat)]
-                (tyPersTensor (litList [var "n", var "n"]))
+                (TypeDefAlias (tyPersTensor (litList [var "n", var "n"])))
           ]
