@@ -461,6 +461,7 @@ data Type1EquationF sv
   = TyEq1Prim (Type1PrimEquationF sv)
   | TyEq1List (Type1EquationF sv)
   | TyEq1Maybe (Type1EquationF sv)
+  | TyEq1Data DatatypeId [DatatypeArg1EquationF sv]
   | TyEq1Arrow (Maybe Label) (Type1EquationF sv) (Type1EquationF sv)
   | TyEq1OmsArrow Label (Type1EquationF sv) (Type1EquationF sv)
   | TyEq1Product (TwoOrMore (Type1EquationF sv))
@@ -477,6 +478,11 @@ data Type1PrimEquationF sv
   | TyEq1Dataset (DatasetParamEquationF sv)
   | TyEq1Lstm (Ass0ExprF sv, Ass0ExprF sv) (Ass0ExprF sv, Ass0ExprF sv)
   | TyEq1TextHelper (Ass0ExprF sv, Ass0ExprF sv)
+  deriving stock (Eq, Show, Functor)
+
+data DatatypeArg1EquationF sv
+  = DatatypeArgEq1Type (Type1EquationF sv)
+  | DatatypeArgEq1Val0 (Ass0ExprF sv, Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data ListEquationF sv
@@ -581,6 +587,8 @@ makeTrivialEquationFromType1 = \case
     TyEq1List (makeTrivialEquationFromType1 a1tye)
   A1TyMaybe a1tye ->
     TyEq1Maybe (makeTrivialEquationFromType1 a1tye)
+  A1TyData datatyId a1datatyArgs ->
+    TyEq1Data datatyId (map makeTrivialEquationFromDatatypeArg1 a1datatyArgs)
   A1TyVar atyvar ->
     TyEq1TypeVar atyvar
   A1TyProduct a1tyes ->
@@ -593,6 +601,11 @@ makeTrivialEquationFromType1 = \case
     TyEq1OmsArrow label (makeTrivialEquationFromType1 a1tye1) (makeTrivialEquationFromType1 a1tye2)
   A1TyForAll atyvar a1tye ->
     TyEq1ForAll atyvar (makeTrivialEquationFromType1 a1tye)
+
+makeTrivialEquationFromDatatypeArg1 :: Ass1DatatypeArgF sv -> DatatypeArg1EquationF sv
+makeTrivialEquationFromDatatypeArg1 = \case
+  A1DatatypeArgType a1tye -> DatatypeArgEq1Type (makeTrivialEquationFromType1 a1tye)
+  A1DatatypeArgVal0 a0e -> DatatypeArgEq1Val0 (a0e, a0e)
 
 decomposeType1Equation :: Type1EquationF sv -> (Ass1TypeExprF sv, Ass1TypeExprF sv)
 decomposeType1Equation = \case
