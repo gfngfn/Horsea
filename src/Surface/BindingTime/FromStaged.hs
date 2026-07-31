@@ -10,16 +10,17 @@ module Surface.BindingTime.FromStaged
   )
 where
 
+import Control.Lens ((^?))
 import Control.Monad (foldM)
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set qualified as Set
 import Data.Tuple.Extra (second)
 import Staged.SrcSyntax (ModuleName, TypeName, Var)
 import Staged.Syntax (Ass0TypeExprF, Ass1TypeExprF, StaticVar)
 import Staged.Syntax qualified as Staged
-import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
+import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeDef (..), Ass1TypeParam (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Surface.BindingTime.Core
 import Surface.BindingTime.Env (BindingTimeEnv, BindingTimeModuleEntry (..), BindingTimeTypeEntry (..), BindingTimeValueEntry (..))
@@ -120,6 +121,9 @@ fromStaged1' f = go
       Staged.A1TyMaybe a1tye' -> do
         bity1 <- go a1tye'
         pure . wrap1 $ BITyBase [bity1]
+      Staged.A1TyData _datatyId a1datatyArgs -> do
+        bitys <- mapM go $ mapMaybe (^? #_A1DatatypeArgType) a1datatyArgs
+        pure . wrap1 $ BITyBase bitys
       Staged.A1TyProduct a1tyes -> do
         bitys <- mapM go a1tyes
         pure . wrap1 $ BITyProduct bitys
@@ -220,7 +224,7 @@ makeBindingTimeEnvFromStub mods sigr =
       )
       ( \tyName tyEntry (btenv, warningAcc) ->
           case tyEntry of
-            Ass1TypeEntry a1tyParams a1tyeBody ->
+            Ass1TypeEntry a1tyParams a1tydef ->
               let r = do
                     (btTy1ParamAcc, vars, _) <-
                       foldM
@@ -239,21 +243,24 @@ makeBindingTimeEnvFromStub mods sigr =
                         ([], Map.empty, 0)
                         a1tyParams
                     let btTy1Params = reverse btTy1ParamAcc
-                    biptyBody <-
-                      fromStaged1'
-                        ( \atyvar ->
-                            case Map.lookup atyvar vars of
-                              Nothing -> error "Bug: makeBindingTimeEnvFromStub; bound var not found"
-                              Just bitv -> pure $ BITyVar bitv
-                        )
-                        a1tyeBody
-                    pure (btTy1Params, biptyBody)
+                    case a1tydef of
+                      A1TypeDefAlias a1tyeBody -> do
+                        biptyBody <-
+                          fromStaged1'
+                            ( \atyvar ->
+                                case Map.lookup atyvar vars of
+                                  Nothing -> error "Bug: makeBindingTimeEnvFromStub; bound var not found"
+                                  Just bitv -> pure $ BITyVar bitv
+                            )
+                            a1tyeBody
+                        pure $ BTType1Alias (BIParameterizedType btTy1Params biptyBody)
+                      A1TypeDefData _datatyId _ctormap ->
+                        pure $ BTType1Data btTy1Params
                in case r of
                     Nothing ->
                       (btenv, WarnIgnoredType1 (mods, tyName) : warningAcc)
-                    Just (btTy1Params, biptyBody) ->
-                      let btTyEntry = BTType1 (BIParameterizedType btTy1Params biptyBody)
-                       in (Env.addType tyName btTyEntry btenv, warningAcc)
+                    Just btTyEntry ->
+                      (Env.addType tyName btTyEntry btenv, warningAcc)
       )
       ( \m (ModuleEntry sigr') (btenv, warningAcc) ->
           -- Reuses the module name `m` in the core language for the surface language:

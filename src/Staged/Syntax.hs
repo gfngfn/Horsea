@@ -4,6 +4,7 @@ module Staged.Syntax
     Symbol (..),
     symbolToVar,
     AssTypeVar (..),
+    DatatypeId (..),
     AssLiteralF (..),
     Ass0ExprF (..),
     Ass0BranchF (..),
@@ -22,6 +23,7 @@ module Staged.Syntax
     AssPrimBaseType (..),
     validatePrimBaseType,
     Ass0PrimType (..),
+    Ass1DatatypeArgF (..),
     Ass1TypeExprF (..),
     Ass1PrimTypeF (..),
     AssPersTypeExpr (..),
@@ -111,6 +113,9 @@ symbolToVar :: Symbol -> AssVarF sv
 symbolToVar (Symbol n) = AssVarDynamic n
 
 newtype AssTypeVar = AssTypeVar Int
+  deriving newtype (Eq, Ord, Show)
+
+newtype DatatypeId = DatatypeId Int
   deriving newtype (Eq, Ord, Show)
 
 data AssLiteralF af sv
@@ -294,11 +299,17 @@ data Ass0PrimType
   | A0TyTextHelper Int
   deriving stock (Eq, Show)
 
+data Ass1DatatypeArgF sv
+  = A1DatatypeArgType (Ass1TypeExprF sv)
+  | A1DatatypeArgVal0 (Ass0ExprF sv)
+  deriving stock (Eq, Show, Functor, Generic)
+
 -- | The type of stage-1 type expressions.
 data Ass1TypeExprF sv
   = A1TyPrim (Ass1PrimTypeF sv)
   | A1TyList (Ass1TypeExprF sv)
   | A1TyMaybe (Ass1TypeExprF sv)
+  | A1TyData DatatypeId [Ass1DatatypeArgF sv]
   | A1TyVar AssTypeVar
   | A1TyProduct (TwoOrMore (Ass1TypeExprF sv))
   | A1TyRecord (Map Label (Ass1TypeExprF sv))

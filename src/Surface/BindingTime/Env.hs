@@ -26,8 +26,9 @@ data BindingTimeValueEntry
   | BTValBuiltInFixed1 Var BIPolyType
   | BTValLocallyBound BindingTime BIType
 
-newtype BindingTimeTypeEntry
-  = BTType1 (BIParameterizedTypeF BindingTimeConst)
+data BindingTimeTypeEntry
+  = BTType1Alias (BIParameterizedTypeF BindingTimeConst)
+  | BTType1Data [BITypeParam]
 
 newtype BindingTimeModuleEntry
   = BTModule BindingTimeEnv

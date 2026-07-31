@@ -17,6 +17,7 @@ module Staged.Typechecker.Monad
     logShapeAnnot,
     generateFreshVar,
     generateFreshTypeVar,
+    generateFreshDatatypeId,
     makeIdentityLam,
     askSpanInFile,
   )
@@ -47,6 +48,8 @@ data TypecheckState = TypecheckState
     assVarDisplay :: Map StaticVar Text,
     nextTypeVarIndex :: Int,
     assTypeVarDisplay :: Map AssTypeVar Text,
+    nextDatatypeIndex :: Int,
+    datatypeDisplay :: Map DatatypeId Text,
     inferableArgLogRev :: [InferableArgLog],
     shapeAnnotLogRev :: [ShapeAnnotLog]
   }
@@ -98,6 +101,17 @@ generateFreshTypeVar (TypeVar name) = do
         assTypeVarDisplay = Map.insert atyvar name assTypeVarDisplay
       }
   pure atyvar
+
+generateFreshDatatypeId :: TypeName -> M' err trav DatatypeId
+generateFreshDatatypeId tyName = do
+  currentState@TypecheckState {nextDatatypeIndex = n, datatypeDisplay} <- getState
+  let datatyId = DatatypeId n
+  putState $
+    currentState
+      { nextDatatypeIndex = n + 1,
+        datatypeDisplay = Map.insert datatyId tyName datatypeDisplay
+      }
+  pure datatyId
 
 makeIdentityLam :: Ass0TypeExpr -> M trav Ass0Expr
 makeIdentityLam a0tye = do

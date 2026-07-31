@@ -25,7 +25,7 @@ import Data.Set qualified as Set
 import Data.Tensor.Matrix qualified as Matrix
 import Data.Tensor.Vector qualified as Vector
 import Data.Text (Text)
-import Data.Tuple.Extra (both, second)
+import Data.Tuple.Extra (both, first, second)
 import Safe.Exact (zipExactMay)
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
@@ -39,7 +39,7 @@ import Staged.Typechecker.CastInsertion
 import Staged.Typechecker.Instantiation
 import Staged.Typechecker.Merging
 import Staged.Typechecker.Monad
-import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
+import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeDef (..), Ass1TypeParam (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
@@ -1494,10 +1494,14 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
     Constructor (mods, tyName) -> do
       tyEntry_ <- findType trav loc mods tyName tyEnv
       case tyEntry_ of
-        Just (Ass1TypeEntry a1tyParams a1tye) ->
+        Just (Ass1TypeEntry a1tyParams a1tydef) ->
           case a1tyParams of
             [] ->
-              pure a1tye
+              case a1tydef of
+                A1TypeDefAlias a1tye ->
+                  pure a1tye
+                A1TypeDefData datatyId _ctormap ->
+                  pure $ A1TyData datatyId []
             _ : _ ->
               typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
         Nothing ->
@@ -1512,22 +1516,40 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
       ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
       tyEntry_ <- findType trav loc mods tyName tyEnv
       case tyEntry_ of
-        Just (Ass1TypeEntry a1tyParams a1tyeBody) ->
+        Just (Ass1TypeEntry a1tyParams a1tydef) ->
           case zipExactMay a1tyParams args of
             Just zipped -> do
               (a1tye, hasValArg) <-
-                foldM
-                  ( \(a1tye', hasValArg') (a1tyParam, arg) ->
-                      case a1tyParam of
-                        A1TypeParamType atyvar -> do
-                          a1tyeArg <- typecheckTypeExpr1 trav tyEnv arg
-                          pure (tySubst1 a1tyeArg atyvar a1tye', hasValArg')
-                        A1TypeParamVal0 ax a0tye -> do
-                          a0eArg <- validatePersistentExprArg trav tyEnv a0tye arg
-                          pure (subst0 a0eArg ax a1tye', True)
-                  )
-                  (a1tyeBody, False)
-                  zipped
+                case a1tydef of
+                  A1TypeDefAlias a1tyeBody ->
+                    foldM
+                      ( \(a1tye', hasValArg') (a1tyParam, arg) ->
+                          case a1tyParam of
+                            A1TypeParamType atyvar -> do
+                              a1tyeArg <- typecheckTypeExpr1 trav tyEnv arg
+                              pure (tySubst1 a1tyeArg atyvar a1tye', hasValArg')
+                            A1TypeParamVal0 ax a0tye -> do
+                              a0eArg <- validatePersistentExprArg trav tyEnv a0tye arg
+                              pure (subst0 a0eArg ax a1tye', True)
+                      )
+                      (a1tyeBody, False)
+                      zipped
+                  A1TypeDefData datatyId _ctormap -> do
+                    first (A1TyData datatyId . reverse)
+                      <$> foldM
+                        ( \(a1datatyArgAcc', hasValArg') (a1tyParam, arg) ->
+                            case a1tyParam of
+                              A1TypeParamType _atyvar -> do
+                                -- TODO: use `atyvar`?
+                                a1tyeArg <- typecheckTypeExpr1 trav tyEnv arg
+                                pure (A1DatatypeArgType a1tyeArg : a1datatyArgAcc', hasValArg')
+                              A1TypeParamVal0 _ax a0tye -> do
+                                -- TODO: use `ax`?
+                                a0eArg <- validatePersistentExprArg trav tyEnv a0tye arg
+                                pure (A1DatatypeArgVal0 a0eArg : a1datatyArgAcc', True)
+                        )
+                        ([], False)
+                        zipped
               when hasValArg $ logShapeAnnot (ShapeAnnotLog loc)
               pure a1tye
             Nothing ->
@@ -1778,12 +1800,27 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
               ([], tyEnv)
               tyParams
           let a1tyParams = reverse a1tyParamAcc
-          case tydef of
-            TypeDefAlias tye -> do
-              a1tye <- typecheckTypeExpr1 trav tyEnv' tye
-              pure (SigRecord.singletonType tyName (Ass1TypeEntry a1tyParams a1tye), [])
-            TypeDefData _ctorDefs ->
-              error "TODO: BindType, TypeDefData"
+          a1tydef <-
+            case tydef of
+              TypeDefAlias tye -> do
+                a1tye <- typecheckTypeExpr1 trav tyEnv' tye
+                pure $ A1TypeDefAlias a1tye
+              TypeDefData ctorDefs -> do
+                datatyId <- generateFreshDatatypeId tyName
+                ctormap <-
+                  foldM
+                    ( \ctormap' ((ctor, _), tye_) -> do
+                        case tye_ of
+                          Nothing ->
+                            pure $ Map.insert ctor Nothing ctormap'
+                          Just tye -> do
+                            a1tye <- typecheckTypeExpr1 trav tyEnv' tye
+                            pure $ Map.insert ctor (Just a1tye) ctormap'
+                    )
+                    Map.empty
+                    ctorDefs
+                pure $ A1TypeDefData datatyId ctormap
+          pure (SigRecord.singletonType tyName (Ass1TypeEntry a1tyParams a1tydef), [])
         _ ->
           error "TODO: BindType, non-Stage1"
     BindModule m binds -> do

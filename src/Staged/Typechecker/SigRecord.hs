@@ -4,6 +4,7 @@ module Staged.Typechecker.SigRecord
     AssPersMetadata (..),
     ValEntry (..),
     Ass1TypeParam (..),
+    Ass1TypeDef (..),
     TypeEntry (..),
     ModuleEntry (..),
     SigRecord,
@@ -23,6 +24,7 @@ where
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Staged.BuiltIn.Core
+import Staged.Core (ConstructorName)
 import Staged.SrcSyntax (ModuleName, TypeName, Var)
 import Staged.Syntax
 import Surface.Syntax qualified as SurfaceSyntax
@@ -52,8 +54,12 @@ data Ass1TypeParam
   = A1TypeParamType AssTypeVar
   | A1TypeParamVal0 AssVar Ass0TypeExpr
 
+data Ass1TypeDef
+  = A1TypeDefAlias Ass1TypeExpr
+  | A1TypeDefData DatatypeId (Map ConstructorName (Maybe Ass1TypeExpr))
+
 data TypeEntry
-  = Ass1TypeEntry [Ass1TypeParam] Ass1TypeExpr
+  = Ass1TypeEntry [Ass1TypeParam] Ass1TypeDef
 
 newtype ModuleEntry
   = ModuleEntry SigRecord
