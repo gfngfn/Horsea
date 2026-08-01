@@ -1316,6 +1316,7 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
     A1TyValPrim a1tyvPrim -> dispGen req a1tyvPrim
     A1TyValList a1tyv -> dispListType req a1tyv
     A1TyValMaybe a1tyv -> dispMaybeType req a1tyv
+    A1TyValData datatyId a1datatyArgVals -> dispDatatype req datatyId a1datatyArgVals
     A1TyValVar atyvar -> disp atyvar
     A1TyValProduct a1tyvs ->
       let (a1tyv1, a1tyvsRest) = TwoOrMore.decompose1 a1tyvs
@@ -1324,6 +1325,11 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
     A1TyValArrow labelOpt a1tyv1 a1tyv2 -> dispNondepArrowType req labelOpt a1tyv1 a1tyv2
     A1TyValOmsArrow label a1tyv1 a1tyv2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tyv1 a1tyv2
     A1TyValForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
+
+instance (Disp sv) => Disp (Ass1DatatypeArgValF sv) where
+  dispGen req = \case
+    A1DatatypeArgValType a1tyv -> dispGen req a1tyv
+    A1DatatypeArgValVal0 a0v -> stagingOperatorStyle "%" <> stage0Style (dispGen Atomic a0v)
 
 instance Disp Ass1PrimTypeVal where
   dispGen req = \case
