@@ -473,15 +473,11 @@ external =
 typeDef :: P TypeDefinition
 typeDef =
   try (TypeDefAlias <$> typeExpr)
-    <|> (TypeDefData <$> constructorDefs)
-
-constructorDefs :: P (NonEmpty ((ConstructorName, Span), Maybe TypeExpr))
-constructorDefs =
-  (:|) <$> (optional (token TokBar) *> constructorDef) <*> many constructorDef
+    <|> (TypeDefData <$> many1 constructorDef)
 
 constructorDef :: P ((ConstructorName, Span), Maybe TypeExpr)
 constructorDef =
-  (\(Located loc ctor) ty_ -> ((ctor, loc), ty_)) <$> upper <*> optional typeExpr
+  (\(Located loc ctor) ty_ -> ((ctor, loc), ty_)) <$> (token TokBar *> upper) <*> optional typeExpr
 
 parse :: P a -> SourceSpec -> Text -> Either FrontError a
 parse p sourceSpec source = do

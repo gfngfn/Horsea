@@ -14,7 +14,7 @@ import Control.Monad
 import Data.Either.Extra (mapLeft, maybeToEither)
 import Data.Foldable (foldrM)
 import Data.Function
-import Data.Functor.Identity
+{- import Data.Functor.Identity -}
 import Data.List (length)
 import Data.List.Extra (firstJust)
 import Data.List.NonEmpty (NonEmpty (..))
