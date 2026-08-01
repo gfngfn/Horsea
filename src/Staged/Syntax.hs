@@ -64,9 +64,11 @@ module Staged.Syntax
     AssBind,
     Type1Equation,
     ListEquation,
+    DatatypeArg1Equation,
     Ass0TypeExpr,
     StrictAss0TypeExpr,
     Ass1TypeExpr,
+    Ass1DatatypeArg,
     Ass0Val,
     Ass1Val,
     Ass1BranchVal,
@@ -753,6 +755,8 @@ type Type1Equation = Type1EquationF StaticVar
 
 type ListEquation = ListEquationF StaticVar
 
+type DatatypeArg1Equation = DatatypeArg1EquationF StaticVar
+
 type Ass0TypeExpr = Ass0TypeExprF StaticVar
 
 type StrictAss0TypeExpr = StrictAss0TypeExprF StaticVar
@@ -760,6 +764,8 @@ type StrictAss0TypeExpr = StrictAss0TypeExprF StaticVar
 type Ass1TypeExpr = Ass1TypeExprF StaticVar
 
 type Ass1PrimType = Ass1PrimTypeF StaticVar
+
+type Ass1DatatypeArg = Ass1DatatypeArgF StaticVar
 
 type Ass0Val = Ass0ValF StaticVar
 

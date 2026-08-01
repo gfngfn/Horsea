@@ -453,6 +453,38 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
         (A1TyMaybe a1tye1elem, A1TyMaybe a1tye2elem) -> do
           (trivial, ty1eqElem, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1elem a1tye2elem
           pure (trivial, TyEq1Maybe ty1eqElem, varSolution, tyvar1Solution)
+        (A1TyData datatyId1 a1datatyArgs1, A1TyData datatyId2 a1datatyArgs2) ->
+          if datatyId1 == datatyId2
+            then
+              case zipExactMay a1datatyArgs1 a1datatyArgs2 of
+                Just zipped -> do
+                  ((_, _, trivialRet, varSolutionRet, tyvar1SolutionRet), datatyArg1eqs) <-
+                    mapAccumM
+                      ( \(varsToInfer', tyvars1ToInfer', trivial', varSolution', tyvar1Solution') (a1datatyArg1, a1datatyArg2) -> do
+                          (trivial, datatyArg1eq, varSolution, tyvar1Solution) <-
+                            goDatatyArg
+                              varsToInfer'
+                              tyvars1ToInfer'
+                              (applySolution1 varSolution' tyvar1Solution' a1datatyArg1)
+                              (applySolution1 varSolution' tyvar1Solution' a1datatyArg2)
+                          pure
+                            ( ( varsToInfer' \\ Map.keysSet varSolution,
+                                tyvars1ToInfer' \\ Map.keysSet tyvar1Solution,
+                                trivial' && trivial,
+                                composeVarSolution varSolution' varSolution,
+                                composeTypeVar1Solution tyvar1Solution' tyvar1Solution
+                              ),
+                              datatyArg1eq
+                            )
+                      )
+                      (varsToInfer, tyvars1ToInfer, True, Map.empty, Map.empty)
+                      zipped
+                  let datatyArg1eqsRet = applySolution1 varSolutionRet tyvar1SolutionRet <$> datatyArg1eqs
+                  pure (trivialRet, TyEq1Data datatyId1 datatyArg1eqsRet, varSolutionRet, tyvar1SolutionRet)
+                Nothing ->
+                  Left ()
+            else
+              Left ()
         (A1TyProduct a1tyes1, A1TyProduct a1tyes2) -> do
           zipped <-
             case TwoOrMore.zipExact a1tyes1 a1tyes2 of
@@ -542,6 +574,19 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
         (_, A1TyForAll atyvar2 a1tye22) ->
           -- Not confident. TODO (theory): ensure that this works correctly
           go varsToInfer (Set.insert atyvar2 tyvars1ToInfer) a1tye1 a1tye22
+        (_, _) ->
+          Left ()
+
+    goDatatyArg :: Set AssVar -> Set AssTypeVar -> Ass1DatatypeArg -> Ass1DatatypeArg -> Either () (Bool, DatatypeArg1Equation, VarSolution, TypeVar1Solution)
+    goDatatyArg varsToInfer tyvars1ToInfer a1datatyArg1 a1datatyArg2 =
+      case (a1datatyArg1, a1datatyArg2) of
+        (A1DatatypeArgType a1tye1, A1DatatypeArgType a1tye2) -> do
+          (trivial, ty1eq, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1 a1tye2
+          pure (trivial, DatatypeArgEq1Type ty1eq, varSolution, tyvar1Solution)
+        (A1DatatypeArgVal0 a0e1, A1DatatypeArgVal0 a0e2) -> do
+          let a0tye = error "TODO: goDatatyArg; get a0tye from tyEnv and datatyId"
+          let (trivial, a0e2', varSolution) = checkExprArgs varsToInfer (a0e1, a0tye) a0e2
+          pure (trivial, DatatypeArgEq1Val0 (a0e1, a0e2'), varSolution, Map.empty)
         (_, _) ->
           Left ()
 

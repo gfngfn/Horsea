@@ -98,6 +98,7 @@ instance HasTypeVar Ass1TypeExprF where
     A1TyPrim a1tyPrim -> A1TyPrim (go a1tyPrim)
     A1TyList a1tye1 -> A1TyList (go a1tye1)
     A1TyMaybe a1tye1 -> A1TyMaybe (go a1tye1)
+    A1TyData datatyId a1datatyArgs -> A1TyData datatyId (map go a1datatyArgs)
     A1TyVar atyvar ->
       case s of
         TypeSubst0 _ _ -> A1TyVar atyvar
@@ -134,6 +135,15 @@ instance HasTypeVar Ass1PrimTypeF where
       A1TyLstm (go a0e1) (go a0e2)
     A1TyTextHelper a0e ->
       A1TyTextHelper (go a0e)
+    where
+      go :: forall af. (HasTypeVar af) => af sv -> af sv
+      go = tySubst s
+
+instance HasTypeVar Ass1DatatypeArgF where
+  tySubst :: forall sv. TypeSubstF sv -> Ass1DatatypeArgF sv -> Ass1DatatypeArgF sv
+  tySubst s = \case
+    A1DatatypeArgType a1tye -> A1DatatypeArgType (go a1tye)
+    A1DatatypeArgVal0 a0e -> A1DatatypeArgVal0 (go a0e)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
@@ -194,6 +204,8 @@ instance HasTypeVar Type1EquationF where
       TyEq1List (go ty1eqElem)
     TyEq1Maybe ty1eqElem ->
       TyEq1Maybe (go ty1eqElem)
+    TyEq1Data datatyId datatyArg1eqs ->
+      TyEq1Data datatyId (map go datatyArg1eqs)
     TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
       TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
     TyEq1OmsArrow label ty1eqDom ty1eqCod ->
@@ -212,6 +224,15 @@ instance HasTypeVar Type1EquationF where
             else TyEq1TypeVar atyvar
     TyEq1ForAll atyvar ty1eq ->
       TyEq1ForAll atyvar (go ty1eq)
+    where
+      go :: forall af. (HasTypeVar af) => af sv -> af sv
+      go = tySubst s
+
+instance HasTypeVar DatatypeArg1EquationF where
+  tySubst :: forall sv. TypeSubstF sv -> DatatypeArg1EquationF sv -> DatatypeArg1EquationF sv
+  tySubst s = \case
+    DatatypeArgEq1Type ty1eq -> DatatypeArgEq1Type (go ty1eq)
+    DatatypeArgEq1Val0 (a0e1, a0e2) -> DatatypeArgEq1Val0 (go a0e1, go a0e2)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
