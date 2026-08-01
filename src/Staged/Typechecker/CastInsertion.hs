@@ -455,34 +455,33 @@ makeEquation1 trav loc varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whol
           pure (trivial, TyEq1Maybe ty1eqElem, varSolution, tyvar1Solution)
         (A1TyData datatyId1 a1datatyArgs1, A1TyData datatyId2 a1datatyArgs2) ->
           if datatyId1 == datatyId2
-            then
-              case zipExactMay a1datatyArgs1 a1datatyArgs2 of
-                Just zipped -> do
-                  ((_, _, trivialRet, varSolutionRet, tyvar1SolutionRet), datatyArg1eqs) <-
-                    mapAccumM
-                      ( \(varsToInfer', tyvars1ToInfer', trivial', varSolution', tyvar1Solution') (a1datatyArg1, a1datatyArg2) -> do
-                          (trivial, datatyArg1eq, varSolution, tyvar1Solution) <-
-                            goDatatyArg
-                              varsToInfer'
-                              tyvars1ToInfer'
-                              (applySolution1 varSolution' tyvar1Solution' a1datatyArg1)
-                              (applySolution1 varSolution' tyvar1Solution' a1datatyArg2)
-                          pure
-                            ( ( varsToInfer' \\ Map.keysSet varSolution,
-                                tyvars1ToInfer' \\ Map.keysSet tyvar1Solution,
-                                trivial' && trivial,
-                                composeVarSolution varSolution' varSolution,
-                                composeTypeVar1Solution tyvar1Solution' tyvar1Solution
-                              ),
-                              datatyArg1eq
-                            )
-                      )
-                      (varsToInfer, tyvars1ToInfer, True, Map.empty, Map.empty)
-                      zipped
-                  let datatyArg1eqsRet = applySolution1 varSolutionRet tyvar1SolutionRet <$> datatyArg1eqs
-                  pure (trivialRet, TyEq1Data datatyId1 datatyArg1eqsRet, varSolutionRet, tyvar1SolutionRet)
-                Nothing ->
-                  Left ()
+            then case zipExactMay a1datatyArgs1 a1datatyArgs2 of
+              Just zipped -> do
+                ((_, _, trivialRet, varSolutionRet, tyvar1SolutionRet), datatyArg1eqs) <-
+                  mapAccumM
+                    ( \(varsToInfer', tyvars1ToInfer', trivial', varSolution', tyvar1Solution') (a1datatyArg1, a1datatyArg2) -> do
+                        (trivial, datatyArg1eq, varSolution, tyvar1Solution) <-
+                          goDatatyArg
+                            varsToInfer'
+                            tyvars1ToInfer'
+                            (applySolution1 varSolution' tyvar1Solution' a1datatyArg1)
+                            (applySolution1 varSolution' tyvar1Solution' a1datatyArg2)
+                        pure
+                          ( ( varsToInfer' \\ Map.keysSet varSolution,
+                              tyvars1ToInfer' \\ Map.keysSet tyvar1Solution,
+                              trivial' && trivial,
+                              composeVarSolution varSolution' varSolution,
+                              composeTypeVar1Solution tyvar1Solution' tyvar1Solution
+                            ),
+                            datatyArg1eq
+                          )
+                    )
+                    (varsToInfer, tyvars1ToInfer, True, Map.empty, Map.empty)
+                    zipped
+                let datatyArg1eqsRet = applySolution1 varSolutionRet tyvar1SolutionRet <$> datatyArg1eqs
+                pure (trivialRet, TyEq1Data datatyId1 datatyArg1eqsRet, varSolutionRet, tyvar1SolutionRet)
+              Nothing ->
+                Left ()
             else
               Left ()
         (A1TyProduct a1tyes1, A1TyProduct a1tyes2) -> do
