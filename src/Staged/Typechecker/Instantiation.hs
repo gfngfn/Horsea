@@ -15,10 +15,11 @@ import Staged.TypeSubst
 import Staged.Typechecker.CastInsertion
 import Staged.Typechecker.Monad
 import Staged.Typechecker.Solution
+import Staged.Typechecker.TypeEnv (DatatypeEnv)
 import Prelude
 
-instantiateGuidedByAppContext0 :: forall trav. trav -> Span -> AppContext -> Ass0TypeExpr -> M trav Result0
-instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
+instantiateGuidedByAppContext0 :: forall trav. trav -> Span -> DatatypeEnv -> AppContext -> Ass0TypeExpr -> M trav Result0
+instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
   (result, _varSolution, _tyvar0Solution) <- go Set.empty Set.empty appCtx0 a0tye0
   pure result
   where
@@ -34,7 +35,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
               typeError trav $ ApplicationLabelMismatch spanInFile appCtx labelOpt' labelOpt
             else do
               (cast, varSolution1, tyvar0Solution1) <-
-                makeAssertiveCast trav loc varsToInfer tyvars0ToInfer a0tye1' a0tye1
+                makeAssertiveCast trav loc datatyEnv varsToInfer tyvars0ToInfer a0tye1' a0tye1
               let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
               let tyvars0ToInfer' = tyvars0ToInfer \\ Map.keysSet tyvar0Solution1
               let a0tye2s = applySolution0 varSolution1 tyvar0Solution1 a0tye2
@@ -51,7 +52,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
           case appCtxEntry of
             AppArgOmsGiven0 label' a0e1' a0tyeElem1' | label' == label -> do
               (cast, varSolution1, tyvar0Solution1) <-
-                makeAssertiveCast trav loc varsToInfer tyvars0ToInfer a0tyeElem1' a0tyeElem1
+                makeAssertiveCast trav loc datatyEnv varsToInfer tyvars0ToInfer a0tyeElem1' a0tyeElem1
               let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
               let tyvars0ToInfer' = tyvars0ToInfer \\ Map.keysSet tyvar0Solution1
               let a0tye2s = applySolution0 varSolution1 tyvar0Solution1 a0tye2
@@ -77,7 +78,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
           case appCtxEntry of
             AppArgInfGiven0 a0e1' a0tye1' -> do
               (cast, varSolution1, tyvar0Solution1) <-
-                makeAssertiveCast trav loc varsToInfer tyvars0ToInfer a0tye1' a0tye1
+                makeAssertiveCast trav loc datatyEnv varsToInfer tyvars0ToInfer a0tye1' a0tye1
               let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
               let tyvars0ToInfer' = tyvars0ToInfer \\ Map.keysSet tyvar0Solution1
               let a0tye2s = applySolution0 varSolution1 tyvar0Solution1 a0tye2
@@ -102,6 +103,7 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
                 makeAssertiveCast
                   trav
                   loc
+                  datatyEnv
                   Set.empty
                   Set.empty
                   a0tyeInferred
@@ -123,13 +125,14 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
                 makeAssertiveCast
                   trav
                   loc
+                  datatyEnv
                   Set.empty
                   Set.empty
                   a0tyeInferred
                   (applySolution0 varSolution' tyvar0Solution' a0tye1)
               pure (InsertInferred0 (applyCast0 cast' a0eInferred) result', varSolution', tyvar0Solution')
         (_ : _, A0TyCode a1tye) -> do
-          (result', varSolution) <- instantiateGuidedByAppContext1 trav loc varsToInfer appCtx a1tye
+          (result', varSolution) <- instantiateGuidedByAppContext1 trav loc datatyEnv varsToInfer appCtx a1tye
           let tyvar0Solution = Map.empty
           result <- mapMPure (pure . A0TyCode) result'
           pure (result, varSolution, tyvar0Solution)
@@ -153,8 +156,8 @@ instantiateGuidedByAppContext0 trav loc appCtx0 a0tye0 = do
           spanInFile <- askSpanInFile loc
           typeError trav $ CannotInstantiateGuidedByAppContext0 spanInFile appCtx a0tye
 
-instantiateGuidedByAppContext1 :: forall trav. trav -> Span -> Set AssVar -> AppContext -> Ass1TypeExpr -> M trav (Result1, VarSolution)
-instantiateGuidedByAppContext1 trav loc varsToInfer0 appCtx0 a1tye0 = do
+instantiateGuidedByAppContext1 :: forall trav. trav -> Span -> DatatypeEnv -> Set AssVar -> AppContext -> Ass1TypeExpr -> M trav (Result1, VarSolution)
+instantiateGuidedByAppContext1 trav loc datatyEnv varsToInfer0 appCtx0 a1tye0 = do
   (result, varSolution, _tyvar1Solution) <- go varsToInfer0 Set.empty appCtx0 a1tye0
   pure (result, varSolution)
   where
@@ -179,7 +182,7 @@ instantiateGuidedByAppContext1 trav loc varsToInfer0 appCtx0 a1tye0 = do
               typeError trav $ ApplicationLabelMismatch spanInFile appCtx labelOpt' labelOpt
             else do
               (eq, varSolution1, tyvar1Solution1) <-
-                makeEquation1 trav loc varsToInfer tyvars1ToInfer a1tye1' a1tye1
+                makeEquation1 trav loc datatyEnv varsToInfer tyvars1ToInfer a1tye1' a1tye1
               (result', varSolution', tyvar1Solution') <-
                 go
                   (varsToInfer \\ Map.keysSet varSolution1)
@@ -194,7 +197,7 @@ instantiateGuidedByAppContext1 trav loc varsToInfer0 appCtx0 a1tye0 = do
           case appCtxEntry of
             AppArgOmsGiven1 label' a1tye1' | label' == label -> do
               (eq, varSolution1, tyvar1Solution1) <-
-                makeEquation1 trav loc varsToInfer tyvars1ToInfer a1tye1' a1tye1
+                makeEquation1 trav loc datatyEnv varsToInfer tyvars1ToInfer a1tye1' a1tye1
               (result', varSolution', tyvar1Solution') <-
                 go
                   (varsToInfer \\ Map.keysSet varSolution1)

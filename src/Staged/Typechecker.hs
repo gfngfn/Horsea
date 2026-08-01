@@ -39,7 +39,7 @@ import Staged.Typechecker.CastInsertion
 import Staged.Typechecker.Instantiation
 import Staged.Typechecker.Merging
 import Staged.Typechecker.Monad
-import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeDef (..), Ass1TypeParam (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
+import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
@@ -118,7 +118,8 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
             _ -> typeError trav $ CannotForceType0 spanInFile a0tyeReq
         _ -> do
           (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
-          (cast, _varSolution, _tyvar0Solution) <- makeAssertiveCast trav loc Set.empty Set.empty a0tye a0tyeReq
+          (cast, _varSolution, _tyvar0Solution) <-
+            makeAssertiveCast trav loc (TypeEnv.datatypeOnly tyEnv) Set.empty Set.empty a0tye a0tyeReq
           pure $ applyCast0 cast a0e
     IfThenElse e0 e1 e2 -> do
       (a0tye0, a0e0) <- typecheckExpr0Single trav tyEnv e0
@@ -133,7 +134,8 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
           typeError trav $ NotABoolTypeForStage0 spanInFile0 a0tye0
     _ -> do
       (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
-      (cast, _varSolution, _tyvar0Solution) <- makeAssertiveCast trav loc Set.empty Set.empty a0tye a0tyeReq
+      (cast, _varSolution, _tyvar0Solution) <-
+        makeAssertiveCast trav loc (TypeEnv.datatypeOnly tyEnv) Set.empty Set.empty a0tye a0tyeReq
       pure $ applyCast0 cast a0e
 
 typecheckExpr0Single :: trav -> TypeEnv -> Expr -> M trav (Ass0TypeExpr, Ass0Expr)
@@ -207,7 +209,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             typeError trav $ CannotApplyLiteral spanInFile
       Var (ms, x) -> do
         (a0tye, a0e) <- typecheckValVar0 trav loc tyEnv ms x
-        result <- instantiateGuidedByAppContext0 trav loc appCtx a0tye
+        result <- instantiateGuidedByAppContext0 trav loc (TypeEnv.datatypeOnly tyEnv) appCtx a0tye
         pure (result, a0e)
       Lam recOpt labelOpt (x1, tye1) e2 ->
         case appCtx of
@@ -235,7 +237,14 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                   typecheckExpr0Single trav tyEnv' e2
                 let a0tyeSynth = A0TyArrow labelOpt (Just ax1, a0tye1) a0tye2
                 (cast, _varSolution, _tyvar0Solution) <-
-                  makeAssertiveCast trav loc Set.empty Set.empty a0tyeSynth a0tyeRec
+                  makeAssertiveCast
+                    trav
+                    loc
+                    (TypeEnv.datatypeOnly tyEnv)
+                    Set.empty
+                    Set.empty
+                    a0tyeSynth
+                    a0tyeRec
                 let sa0tyeRec = strictify a0tyeRec
                 let sa0tye1 = strictify a0tye1
                 pure (Pure a0tyeRec, applyCast0 cast (A0Lam (Just (af, sa0tyeRec)) (ax1, sa0tye1) a0e2))
@@ -346,7 +355,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           typecheckLetInBody0 trav tyEnv' paramsRest (Just tyeBody) eBody
         let a0tye1Synth = A0TyArrow labelOpt (Just ax0, a0tyeParam0) a0tyeRestSynth
         (cast, _varSolution, _tyvar0Solution) <-
-          makeAssertiveCast trav loc Set.empty Set.empty a0tye1Synth a0tye1Rec
+          makeAssertiveCast trav loc (TypeEnv.datatypeOnly tyEnv) Set.empty Set.empty a0tye1Synth a0tye1Rec
         let a0e1 = applyCast0 cast (A0Lam (Just (afInner, strictify a0tye1Rec)) (ax0, strictify a0tyeParam0) a0eRest)
         svFOuter <- generateFreshVar (Just f)
         let afOuter = AssVarStatic svFOuter
@@ -440,7 +449,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
           A0TyRecord a0rty1 ->
             case Map.lookup label a0rty1 of
               Just a0tyeSub -> do
-                result <- instantiateGuidedByAppContext0 trav loc appCtx a0tyeSub
+                result <- instantiateGuidedByAppContext0 trav loc (TypeEnv.datatypeOnly tyEnv) appCtx a0tyeSub
                 pure (result, A0FieldProj a0e1 label)
               Nothing ->
                 typeError trav $ NoRecordFieldAtStage0 spanInFile label a0rty1
@@ -820,7 +829,8 @@ forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
             _ -> typeError trav $ CannotForceType1 spanInFile a1tyeReq
         _ -> do
           (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
-          (eq, _varSolution, _tyvar1Solution) <- makeEquation1 trav loc Set.empty Set.empty a1tye a1tyeReq
+          (eq, _varSolution, _tyvar1Solution) <-
+            makeEquation1 trav loc (TypeEnv.datatypeOnly tyEnv) Set.empty Set.empty a1tye a1tyeReq
           pure $ applyEquationCast loc eq a1e
     IfThenElse e0 e1 e2 -> do
       (a1tye0, a1e0) <- typecheckExpr1Single trav tyEnv e0
@@ -835,7 +845,8 @@ forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
           typeError trav $ NotABoolTypeForStage1 spanInFile0 a1tye0
     _ -> do
       (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
-      (eq, _varSolution, _tyvar1Solution) <- makeEquation1 trav loc Set.empty Set.empty a1tye a1tyeReq
+      (eq, _varSolution, _tyvar1Solution) <-
+        makeEquation1 trav loc (TypeEnv.datatypeOnly tyEnv) Set.empty Set.empty a1tye a1tyeReq
       pure $ applyEquationCast loc eq a1e
 
 typecheckExpr1Single :: trav -> TypeEnv -> Expr -> M trav (Ass1TypeExpr, Ass1Expr)
@@ -898,7 +909,14 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                           ( \e@(Expr locElem _) -> do
                               (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
                               (eq, _varSolution, _tyvar1Solution) <-
-                                makeEquation1 trav locElem Set.empty Set.empty a1tye a1tyeFirst
+                                makeEquation1
+                                  trav
+                                  locElem
+                                  (TypeEnv.datatypeOnly tyEnv)
+                                  Set.empty
+                                  Set.empty
+                                  a1tye
+                                  a1tyeFirst
                               pure (applyEquationCast locElem eq a1e)
                           )
                           esTail
@@ -916,7 +934,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             typeError trav $ CannotApplyLiteral spanInFile
       Var (ms, x) -> do
         (a1tye, a1e) <- typecheckValVar1 trav loc tyEnv ms x
-        (result, _) <- instantiateGuidedByAppContext1 trav loc Set.empty appCtx a1tye
+        (result, _) <- instantiateGuidedByAppContext1 trav loc (TypeEnv.datatypeOnly tyEnv) Set.empty appCtx a1tye
         pure (result, a1e)
       Lam recOpt labelOpt (x1, tye1) e2 ->
         case appCtx of
@@ -944,7 +962,14 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                 let af = AssVarStatic svF
                 let a1tyeSynth = A1TyArrow labelOpt a1tye1 a1tye2
                 (eq, _varSolution, _tyvar1Solution) <-
-                  makeEquation1 trav loc Set.empty Set.empty a1tyeSynth a1tyeRec
+                  makeEquation1
+                    trav
+                    loc
+                    (TypeEnv.datatypeOnly tyEnv)
+                    Set.empty
+                    Set.empty
+                    a1tyeSynth
+                    a1tyeRec
                 pure (Pure a1tyeRec, applyEquationCast loc eq (A1Lam (Just (af, a1tyeRec)) (ax1, a1tye1) a1e2))
           _ : _ ->
             -- TODO (enhance): consider supporting lambda abstractions with direct arguments
@@ -1026,7 +1051,15 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                   & TypeEnv.addVal x0 (Ass1Entry a1tyeParam0 (Right svX0))
           typecheckLetInBody1 trav tyEnv' paramsRest (Just tyeBody) eBody
         let a1tye1Synth = A1TyArrow labelOpt a1tyeParam0 a1tyeRestSynth
-        (eq, _varSolution, _tyvar1Solution) <- makeEquation1 trav loc Set.empty Set.empty a1tye1Synth a1tye1Rec
+        (eq, _varSolution, _tyvar1Solution) <-
+          makeEquation1
+            trav
+            loc
+            (TypeEnv.datatypeOnly tyEnv)
+            Set.empty
+            Set.empty
+            a1tye1Synth
+            a1tye1Rec
         let a1e1 = applyEquationCast loc eq (A1Lam (Just (afInner, a1tye1Rec)) (ax0, a1tyeParam0) a1eRest)
         svFOuter <- generateFreshVar (Just f)
         let afOuter = AssVarStatic svFOuter
@@ -1118,7 +1151,14 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           A1TyRecord a1rty1 ->
             case Map.lookup label a1rty1 of
               Just a1tyeSub -> do
-                (result, _) <- instantiateGuidedByAppContext1 trav loc Set.empty appCtx a1tyeSub
+                (result, _) <-
+                  instantiateGuidedByAppContext1
+                    trav
+                    loc
+                    (TypeEnv.datatypeOnly tyEnv)
+                    Set.empty
+                    appCtx
+                    a1tyeSub
                 pure (result, A1FieldProj a1e1 label)
               Nothing ->
                 typeError trav $ NoRecordFieldAtStage1 spanInFile label a1rty1
@@ -1132,7 +1172,15 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
               [] -> do
                 (a1tye1, a1e1) <- typecheckExpr1Single trav tyEnv e1
                 (a1tye2, a1e2) <- typecheckExpr1Single trav tyEnv e2
-                (eq, _varSolution, _tyvar1Solution) <- makeEquation1 trav loc Set.empty Set.empty a1tye2 a1tye1
+                (eq, _varSolution, _tyvar1Solution) <-
+                  makeEquation1
+                    trav
+                    loc
+                    (TypeEnv.datatypeOnly tyEnv)
+                    Set.empty
+                    Set.empty
+                    a1tye2
+                    a1tye1
                 pure (Pure a1tye1, A1IfThenElse a1e0 a1e1 (applyEquationCast loc eq a1e2))
               _ : _ -> do
                 typeError trav $ Stage1IfThenElseRestrictedToEmptyContext spanInFile appCtx
@@ -1317,17 +1365,19 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           a0e <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
           ns <- validateIntListLiteral trav loc' a0e
           pure $ A0TyPrim (A0TyTensor ns) Nothing
-        ([], "Dataset", [arg1@(Expr loc1 _), arg2@(Expr loc2 _), arg3@(Expr loc3 _), arg4@(Expr loc4 _)]) -> do
-          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
-          a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
-          a0e3 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
-          a0e4 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg4
-          numTrain <- validateIntLiteral trav loc1 a0e1
-          numTest <- validateIntLiteral trav loc2 a0e2
-          image <- validateIntListLiteral trav loc3 a0e3
-          label <- validateIntListLiteral trav loc4 a0e4
-          let datasetParam = DatasetParam {numTrain, numTest, image, label}
-          pure $ A0TyPrim (A0TyDataset datasetParam) Nothing
+        {-
+          ([], "Dataset", [arg1@(Expr loc1 _), arg2@(Expr loc2 _), arg3@(Expr loc3 _), arg4@(Expr loc4 _)]) -> do
+            a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
+            a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
+            a0e3 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
+            a0e4 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg4
+            numTrain <- validateIntLiteral trav loc1 a0e1
+            numTest <- validateIntLiteral trav loc2 a0e2
+            image <- validateIntListLiteral trav loc3 a0e3
+            label <- validateIntListLiteral trav loc4 a0e4
+            let datasetParam = DatasetParam {numTrain, numTest, image, label}
+            pure $ A0TyPrim (A0TyDataset datasetParam) Nothing
+        -}
         ([], "Lstm", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
@@ -1494,16 +1544,16 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
     Constructor (mods, tyName) -> do
       tyEntry_ <- findType trav loc mods tyName tyEnv
       case tyEntry_ of
-        Just (Ass1TypeEntry a1tyParams a1tydef) ->
-          case a1tyParams of
-            [] ->
-              case a1tydef of
-                A1TypeDefAlias a1tye ->
-                  pure a1tye
-                A1TypeDefData datatyId _ctormap ->
-                  pure $ A1TyData datatyId []
-            _ : _ ->
-              typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
+        Just tyEntry -> do
+          case tyEntry of
+            Ass1TypeAlias a1tyParams a1tye ->
+              case a1tyParams of
+                [] -> pure a1tye
+                _ : _ -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
+            Ass1TypeData a1tyParams datatyId ->
+              case a1tyParams of
+                [] -> pure $ A1TyData datatyId []
+                _ : _ -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
         Nothing ->
           case mods of
             [] ->
@@ -1516,12 +1566,12 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
       ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
       tyEntry_ <- findType trav loc mods tyName tyEnv
       case tyEntry_ of
-        Just (Ass1TypeEntry a1tyParams a1tydef) ->
-          case zipExactMay a1tyParams args of
-            Just zipped -> do
-              (a1tye, hasValArg) <-
-                case a1tydef of
-                  A1TypeDefAlias a1tyeBody ->
+        Just tyEntry -> do
+          (a1tye, hasValArg) <-
+            case tyEntry of
+              Ass1TypeAlias a1tyParams a1tyeBody ->
+                case zipExactMay a1tyParams args of
+                  Just zipped -> do
                     foldM
                       ( \(a1tye', hasValArg') (a1tyParam, arg) ->
                           case a1tyParam of
@@ -1534,7 +1584,11 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
                       )
                       (a1tyeBody, False)
                       zipped
-                  A1TypeDefData datatyId _ctormap -> do
+                  Nothing ->
+                    typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
+              Ass1TypeData a1tyParams datatyId -> do
+                case zipExactMay a1tyParams args of
+                  Just zipped -> do
                     first (A1TyData datatyId . reverse)
                       <$> foldM
                         ( \(a1datatyArgAcc', hasValArg') (a1tyParam, arg) ->
@@ -1550,10 +1604,10 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
                         )
                         ([], False)
                         zipped
-              when hasValArg $ logShapeAnnot (ShapeAnnotLog loc)
-              pure a1tye
-            Nothing ->
-              typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
+                  Nothing ->
+                    typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
+          when hasValArg $ logShapeAnnot (ShapeAnnotLog loc)
+          pure a1tye
         Nothing ->
           case mods of
             [] ->
@@ -1575,20 +1629,22 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
                   logShapeAnnot (ShapeAnnotLog loc)
                   a0eList <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
                   pure $ A1TyPrim (A1TyTensor a0eList)
-                ("Dataset", [arg1, arg2, arg3, arg4]) -> do
-                  logShapeAnnot (ShapeAnnotLog loc)
-                  a0e1 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
-                  a0e2 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
-                  a0e3 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
-                  a0e4 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg4
-                  let datasetParam =
-                        DatasetParam
-                          { numTrain = a0e1,
-                            numTest = a0e2,
-                            image = Identity a0e3,
-                            label = Identity a0e4
-                          }
-                  pure $ A1TyPrim (A1TyDataset datasetParam)
+                {-
+                  ("Dataset", [arg1, arg2, arg3, arg4]) -> do
+                    logShapeAnnot (ShapeAnnotLog loc)
+                    a0e1 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
+                    a0e2 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
+                    a0e3 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
+                    a0e4 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg4
+                    let datasetParam =
+                          DatasetParam
+                            { numTrain = a0e1,
+                              numTest = a0e2,
+                              image = Identity a0e3,
+                              label = Identity a0e4
+                            }
+                    pure $ A1TyPrim (A1TyDataset datasetParam)
+                -}
                 ("Lstm", [arg1, arg2]) -> do
                   logShapeAnnot (ShapeAnnotLog loc)
                   a0eInputSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
@@ -1800,27 +1856,25 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
               ([], tyEnv)
               tyParams
           let a1tyParams = reverse a1tyParamAcc
-          a1tydef <-
-            case tydef of
-              TypeDefAlias tye -> do
-                a1tye <- typecheckTypeExpr1 trav tyEnv' tye
-                pure $ A1TypeDefAlias a1tye
-              TypeDefData ctorDefs -> do
-                datatyId <- generateFreshDatatypeId tyName
-                ctormap <-
-                  foldM
-                    ( \ctormap' ((ctor, _), tye_) -> do
-                        case tye_ of
-                          Nothing ->
-                            pure $ Map.insert ctor Nothing ctormap'
-                          Just tye -> do
-                            a1tye <- typecheckTypeExpr1 trav tyEnv' tye
-                            pure $ Map.insert ctor (Just a1tye) ctormap'
-                    )
-                    Map.empty
-                    ctorDefs
-                pure $ A1TypeDefData datatyId ctormap
-          pure (SigRecord.singletonType tyName (Ass1TypeEntry a1tyParams a1tydef), [])
+          case tydef of
+            TypeDefAlias tyeBody -> do
+              a1tyeBody <- typecheckTypeExpr1 trav tyEnv' tyeBody
+              pure (SigRecord.singletonTypeAlias tyName a1tyParams a1tyeBody, [])
+            TypeDefData ctorDefs -> do
+              datatyId <- generateFreshDatatypeId tyName
+              ctormap <-
+                foldM
+                  ( \ctormap' ((ctor, _), tye_) -> do
+                      case tye_ of
+                        Nothing ->
+                          pure $ Map.insert ctor Nothing ctormap'
+                        Just tye -> do
+                          a1tye <- typecheckTypeExpr1 trav tyEnv' tye
+                          pure $ Map.insert ctor (Just a1tye) ctormap'
+                  )
+                  Map.empty
+                  ctorDefs
+              pure (SigRecord.singletonTypeData tyName a1tyParams datatyId ctormap, [])
         _ ->
           error "TODO: BindType, non-Stage1"
     BindModule m binds -> do

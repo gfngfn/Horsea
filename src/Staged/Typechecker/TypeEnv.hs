@@ -1,5 +1,6 @@
 module Staged.Typechecker.TypeEnv
-  ( TypeEnv,
+  ( DatatypeEnv,
+    TypeEnv,
     TypeVarEntry (..),
     empty,
     addVal,
@@ -9,6 +10,9 @@ module Staged.Typechecker.TypeEnv
     findTypeVar,
     addType,
     findType,
+    addDatatype,
+    findDatatype,
+    datatypeOnly,
     addModule,
     findModule,
     appendSigRecord,
@@ -18,17 +22,21 @@ where
 import Data.List.Extra (firstJust)
 import Data.Map (Map)
 import Data.Map qualified as Map
+import Staged.DatatypeId (DatatypeId)
 import Staged.SrcSyntax (ModuleName, TypeName, TypeVar, Var)
 import Staged.Syntax (AssTypeVar)
-import Staged.Typechecker.SigRecord (ModuleEntry, SigRecord, TypeEntry, ValEntry)
+import Staged.Typechecker.SigRecord (DatatypeEntry, ModuleEntry, SigRecord, TypeEntry, ValEntry)
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Prelude
+
+type DatatypeEnv = Map DatatypeId DatatypeEntry
 
 -- TODO (enhance): optimize internal representation
 data TypeEnv = TypeEnv
   { envVals :: [(Var, ValEntry)],
     envTypeVars :: [(TypeVar, TypeVarEntry)],
     envTypes :: [(TypeName, TypeEntry)],
+    envDatatypes :: DatatypeEnv,
     envModules :: [(ModuleName, ModuleEntry)]
   }
 
@@ -42,6 +50,7 @@ empty =
     { envVals = [],
       envTypeVars = [],
       envTypes = [],
+      envDatatypes = Map.empty,
       envModules = []
     }
 
@@ -80,6 +89,17 @@ findType tyName0 tyEnv =
     (\(tyName, tyEntry) -> if tyName == tyName0 then Just tyEntry else Nothing)
     tyEnv.envTypes
 
+addDatatype :: DatatypeId -> DatatypeEntry -> TypeEnv -> TypeEnv
+addDatatype datatyId ctormap tyEnv =
+  tyEnv {envDatatypes = Map.insert datatyId ctormap tyEnv.envDatatypes}
+
+findDatatype :: DatatypeId -> TypeEnv -> Maybe DatatypeEntry
+findDatatype datatyId tyEnv =
+  Map.lookup datatyId tyEnv.envDatatypes
+
+datatypeOnly :: TypeEnv -> DatatypeEnv
+datatypeOnly = (.envDatatypes)
+
 addModule :: ModuleName -> ModuleEntry -> TypeEnv -> TypeEnv
 addModule m modEntry tyEnv =
   tyEnv {envModules = (m, modEntry) : tyEnv.envModules}
@@ -92,4 +112,4 @@ findModule m0 tyEnv =
 
 appendSigRecord :: TypeEnv -> SigRecord -> TypeEnv
 appendSigRecord =
-  SigRecord.fold addVal addType addModule
+  SigRecord.fold addVal addType addDatatype addModule

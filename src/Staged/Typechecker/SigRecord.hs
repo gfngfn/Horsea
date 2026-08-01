@@ -4,8 +4,8 @@ module Staged.Typechecker.SigRecord
     AssPersMetadata (..),
     ValEntry (..),
     Ass1TypeParam (..),
-    Ass1TypeDef (..),
     TypeEntry (..),
+    DatatypeEntry (..),
     ModuleEntry (..),
     SigRecord,
     empty,
@@ -13,7 +13,8 @@ module Staged.Typechecker.SigRecord
     findType,
     findModule,
     singletonVal,
-    singletonType,
+    singletonTypeAlias,
+    singletonTypeData,
     singletonModule,
     intersection,
     union,
@@ -55,12 +56,14 @@ data Ass1TypeParam
   = A1TypeParamType AssTypeVar
   | A1TypeParamVal0 AssVar Ass0TypeExpr
 
-data Ass1TypeDef
-  = A1TypeDefAlias Ass1TypeExpr
-  | A1TypeDefData DatatypeId (Map ConstructorName (Maybe Ass1TypeExpr))
-
 data TypeEntry
-  = Ass1TypeEntry [Ass1TypeParam] Ass1TypeDef
+  = Ass1TypeAlias [Ass1TypeParam] Ass1TypeExpr
+  | Ass1TypeData [Ass1TypeParam] DatatypeId
+
+data DatatypeEntry = DatatypeEntry
+  { parameters :: [Ass1TypeParam],
+    constructors :: Map ConstructorName (Maybe Ass1TypeExpr)
+  }
 
 newtype ModuleEntry
   = ModuleEntry SigRecord
@@ -68,11 +71,18 @@ newtype ModuleEntry
 data SigRecord = SigRecord
   { sigVals :: Map Var ValEntry,
     sigTypes :: Map TypeName TypeEntry,
+    sigDatatypes :: Map DatatypeId DatatypeEntry,
     sigModules :: Map ModuleName ModuleEntry
   }
 
 empty :: SigRecord
-empty = SigRecord {sigVals = Map.empty, sigTypes = Map.empty, sigModules = Map.empty}
+empty =
+  SigRecord
+    { sigVals = Map.empty,
+      sigTypes = Map.empty,
+      sigDatatypes = Map.empty,
+      sigModules = Map.empty
+    }
 
 findVal :: Var -> SigRecord -> Maybe ValEntry
 findVal x sigr = Map.lookup x sigr.sigVals
@@ -86,8 +96,16 @@ findModule m sigr = Map.lookup m sigr.sigModules
 singletonVal :: Var -> ValEntry -> SigRecord
 singletonVal var entry = empty {sigVals = Map.singleton var entry}
 
-singletonType :: TypeName -> TypeEntry -> SigRecord
-singletonType tyName tyEntry = empty {sigTypes = Map.singleton tyName tyEntry}
+singletonTypeAlias :: TypeName -> [Ass1TypeParam] -> Ass1TypeExpr -> SigRecord
+singletonTypeAlias tyName a1tyParams a1tye =
+  empty {sigTypes = Map.singleton tyName (Ass1TypeAlias a1tyParams a1tye)}
+
+singletonTypeData :: TypeName -> [Ass1TypeParam] -> DatatypeId -> Map ConstructorName (Maybe Ass1TypeExpr) -> SigRecord
+singletonTypeData tyName a1tyParams datatyId ctormap =
+  empty
+    { sigTypes = Map.singleton tyName (Ass1TypeData a1tyParams datatyId),
+      sigDatatypes = Map.singleton datatyId (DatatypeEntry a1tyParams ctormap)
+    }
 
 singletonModule :: ModuleName -> ModuleEntry -> SigRecord
 singletonModule m modEntry = empty {sigModules = Map.singleton m modEntry}
@@ -104,13 +122,15 @@ union sigr1 sigr2 =
   SigRecord
     { sigVals = Map.union sigr1.sigVals sigr2.sigVals,
       sigTypes = Map.union sigr1.sigTypes sigr2.sigTypes,
+      sigDatatypes = Map.union sigr1.sigDatatypes sigr2.sigDatatypes,
       sigModules = Map.union sigr1.sigModules sigr2.sigModules
     }
 
-fold :: (Var -> ValEntry -> a -> a) -> (TypeName -> TypeEntry -> a -> a) -> (ModuleName -> ModuleEntry -> a -> a) -> a -> SigRecord -> a
-fold fVal fType fModule acc0 (SigRecord {sigVals, sigTypes, sigModules}) =
-  acc3
+fold :: (Var -> ValEntry -> a -> a) -> (TypeName -> TypeEntry -> a -> a) -> (DatatypeId -> DatatypeEntry -> a -> a) -> (ModuleName -> ModuleEntry -> a -> a) -> a -> SigRecord -> a
+fold fVal fType fDatatype fModule acc0 (SigRecord {sigVals, sigTypes, sigDatatypes, sigModules}) =
+  acc4
   where
     acc1 = Map.foldrWithKey fVal acc0 sigVals
     acc2 = Map.foldrWithKey fType acc1 sigTypes
-    acc3 = Map.foldrWithKey fModule acc2 sigModules
+    acc3 = Map.foldrWithKey fDatatype acc2 sigDatatypes
+    acc4 = Map.foldrWithKey fModule acc3 sigModules

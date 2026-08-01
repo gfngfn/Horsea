@@ -15,6 +15,10 @@ instance Eq DatatypeId where
   (==) (DatatypeId i1 _) (DatatypeId i2 _) =
     i1 == i2
 
+instance Ord DatatypeId where
+  compare (DatatypeId i1 _) (DatatypeId i2 _) =
+    compare i1 i2
+
 fresh :: Int -> Text -> DatatypeId
 fresh index name =
   DatatypeId index name

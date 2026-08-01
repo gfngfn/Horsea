@@ -20,7 +20,7 @@ import Data.Tuple.Extra (second)
 import Staged.SrcSyntax (ModuleName, TypeName, Var)
 import Staged.Syntax (Ass0TypeExprF, Ass1TypeExprF, StaticVar)
 import Staged.Syntax qualified as Staged
-import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeDef (..), Ass1TypeParam (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
+import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Surface.BindingTime.Core
 import Surface.BindingTime.Env (BindingTimeEnv, BindingTimeModuleEntry (..), BindingTimeTypeEntry (..), BindingTimeValueEntry (..))
@@ -224,43 +224,36 @@ makeBindingTimeEnvFromStub mods sigr =
       )
       ( \tyName tyEntry (btenv, warningAcc) ->
           case tyEntry of
-            Ass1TypeEntry a1tyParams a1tydef ->
+            Ass1TypeAlias a1tyParams a1tyeBody ->
               let r = do
-                    (btTy1ParamAcc, vars, _) <-
-                      foldM
-                        ( \(btTy1ParamAcc', vars', i) a1tyParam ->
-                            case a1tyParam of
-                              A1TypeParamType atyvar -> do
-                                let btvar = BITypeBoundVar i
-                                pure (BITypeParamType btvar : btTy1ParamAcc', Map.insert atyvar btvar vars', i + 1)
-                              A1TypeParamVal0 _ax a0tye -> do
-                                bity <-
-                                  fromStaged0'
-                                    (\_ -> error "Bug: makeBindingTimeEnvFromStub; unbound type variable")
-                                    a0tye
-                                pure (BITypeParamVal0 bity : btTy1ParamAcc', vars', i + 1)
+                    (btTy1Params, vars) <- makeBindingTimeParams a1tyParams
+                    biptyBody <-
+                      fromStaged1'
+                        ( \atyvar ->
+                            case Map.lookup atyvar vars of
+                              Nothing -> error "Bug: makeBindingTimeEnvFromStub; bound var not found"
+                              Just bitv -> pure $ BITyVar bitv
                         )
-                        ([], Map.empty, 0)
-                        a1tyParams
-                    let btTy1Params = reverse btTy1ParamAcc
-                    case a1tydef of
-                      A1TypeDefAlias a1tyeBody -> do
-                        biptyBody <-
-                          fromStaged1'
-                            ( \atyvar ->
-                                case Map.lookup atyvar vars of
-                                  Nothing -> error "Bug: makeBindingTimeEnvFromStub; bound var not found"
-                                  Just bitv -> pure $ BITyVar bitv
-                            )
-                            a1tyeBody
-                        pure $ BTType1Alias (BIParameterizedType btTy1Params biptyBody)
-                      A1TypeDefData _datatyId _ctormap ->
-                        pure $ BTType1Data btTy1Params
+                        a1tyeBody
+                    pure $ BTType1Alias (BIParameterizedType btTy1Params biptyBody)
                in case r of
                     Nothing ->
                       (btenv, WarnIgnoredType1 (mods, tyName) : warningAcc)
                     Just btTyEntry ->
                       (Env.addType tyName btTyEntry btenv, warningAcc)
+            Ass1TypeData a1tyParams _datatyId -> do
+              let r = do
+                    (btTy1Params, _vars) <- makeBindingTimeParams a1tyParams
+                    pure $ BTType1Data btTy1Params
+               in case r of
+                    Nothing ->
+                      (btenv, WarnIgnoredType1 (mods, tyName) : warningAcc)
+                    Just btTyEntry ->
+                      (Env.addType tyName btTyEntry btenv, warningAcc)
+      )
+      ( \_datatyId _ctormap acc ->
+          -- We don't have to use datatype definitions for BTA.
+          acc
       )
       ( \m (ModuleEntry sigr') (btenv, warningAcc) ->
           -- Reuses the module name `m` in the core language for the surface language:
@@ -269,3 +262,23 @@ makeBindingTimeEnvFromStub mods sigr =
       )
       (Env.empty, [])
       sigr
+  where
+    makeBindingTimeParams a1tyParams = do
+      (btTy1ParamAcc, vars, _) <-
+        foldM
+          ( \(btTy1ParamAcc', vars', i) a1tyParam ->
+              case a1tyParam of
+                A1TypeParamType atyvar -> do
+                  let btvar = BITypeBoundVar i
+                  pure (BITypeParamType btvar : btTy1ParamAcc', Map.insert atyvar btvar vars', i + 1)
+                A1TypeParamVal0 _ax a0tye -> do
+                  bity <-
+                    fromStaged0'
+                      (\_ -> error "Bug: makeBindingTimeEnvFromStub; unbound type variable")
+                      a0tye
+                  pure (BITypeParamVal0 bity : btTy1ParamAcc', vars', i + 1)
+          )
+          ([], Map.empty, 0)
+          a1tyParams
+      let btTy1Params = reverse btTy1ParamAcc
+      pure (btTy1Params, vars)
