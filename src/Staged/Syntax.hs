@@ -35,6 +35,7 @@ module Staged.Syntax
     Ass1BranchValF (..),
     Ass0TypeValF (..),
     Ass1TypeValF (..),
+    Ass1DatatypeArgValF (..),
     Ass1PrimTypeVal (..),
     EvalEnv (..),
     EvalEnvValEntry (..),
@@ -74,6 +75,7 @@ module Staged.Syntax
     Ass1BranchVal,
     Ass0TypeVal,
     Ass1TypeVal,
+    Ass1DatatypeArgVal,
     Ass1PrimType,
     AppContext,
     Result0,
@@ -441,6 +443,7 @@ data Ass1TypeValF sv
   = A1TyValPrim Ass1PrimTypeVal
   | A1TyValList (Ass1TypeValF sv)
   | A1TyValMaybe (Ass1TypeValF sv)
+  | A1TyValData DatatypeId [Ass1DatatypeArgValF sv]
   | A1TyValVar AssTypeVar
   | A1TyValProduct (TwoOrMore (Ass1TypeValF sv))
   | A1TyValRecord (Map Label (Ass1TypeValF sv))
@@ -456,6 +459,11 @@ data Ass1PrimTypeVal
   | A1TyValLstm Int Int
   | A1TyValTextHelper Int
   deriving stock (Eq, Show)
+
+data Ass1DatatypeArgValF sv
+  = A1DatatypeArgValType (Ass1TypeValF sv)
+  | A1DatatypeArgValVal0 (Ass0ValF sv)
+  deriving stock (Eq, Show, Functor)
 
 -- | The type of well-formed type equations for assertion.
 data Type1EquationF sv
@@ -776,6 +784,8 @@ type Ass1BranchVal = Ass1BranchValF StaticVar
 type Ass0TypeVal = Ass0TypeValF StaticVar
 
 type Ass1TypeVal = Ass1TypeValF StaticVar
+
+type Ass1DatatypeArgVal = Ass1DatatypeArgValF StaticVar
 
 type AppContext = AppContextF StaticVar
 

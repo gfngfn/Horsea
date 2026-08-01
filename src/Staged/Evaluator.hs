@@ -626,6 +626,9 @@ evalTypeExpr1 env = \case
   A1TyMaybe a1tye -> do
     a1tyv <- evalTypeExpr1 env a1tye
     pure $ A1TyValMaybe a1tyv
+  A1TyData datatyId a1datatyArgs -> do
+    a1datatyArgVals <- mapM (evalDatatypeArg1 env) a1datatyArgs
+    pure $ A1TyValData datatyId a1datatyArgVals
   A1TyVar atyvar ->
     pure $ A1TyValVar atyvar
   A1TyProduct a1tyes -> do
@@ -645,6 +648,11 @@ evalTypeExpr1 env = \case
   A1TyForAll atyvar a1tye2 -> do
     a1tyv2 <- evalTypeExpr1 env a1tye2
     pure $ A1TyValForAll atyvar a1tyv2
+
+evalDatatypeArg1 :: EvalEnv -> Ass1DatatypeArg -> M Ass1DatatypeArgVal
+evalDatatypeArg1 env = \case
+  A1DatatypeArgType a1tye -> A1DatatypeArgValType <$> evalTypeExpr1 env a1tye
+  A1DatatypeArgVal0 a0e -> A1DatatypeArgValVal0 <$> evalExpr0 env a0e
 
 run :: M a -> EvalState -> Either EvalError a
 run = evalStateT
@@ -713,6 +721,8 @@ unliftTypeVal = \case
     SA0TyList (unliftTypeVal a1tyv) Nothing
   A1TyValMaybe a1tyv ->
     SA0TyMaybe (unliftTypeVal a1tyv)
+  A1TyValData _datatyId _a1datatyArgVals ->
+    error "TODO: unliftTypeVal, A1TyValData"
   A1TyValVar atyvar ->
     SA0TyVar atyvar
   A1TyValProduct a1tyvs ->
