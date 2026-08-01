@@ -78,6 +78,7 @@ library
       Staged.BuiltIn.Core,
       Staged.BuiltIn.Definitions,
       Staged.Core,
+      Staged.DatatypeId,
       Staged.Entrypoint,
       Staged.EvalError,
       Staged.Evaluator,

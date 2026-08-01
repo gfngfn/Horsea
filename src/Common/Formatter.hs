@@ -14,7 +14,7 @@ import Common.FrontError (FrontError (..))
 import Common.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
 import Common.ParserUtil (ParseError (..))
 import Data.Functor.Identity
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
@@ -30,6 +30,8 @@ import Staged.BuiltIn.CompileTime (deriveDisp)
 import Staged.BuiltIn.Core
 import Staged.BuiltIn.Definitions (definitions)
 import Staged.Core
+import Staged.DatatypeId (DatatypeId)
+import Staged.DatatypeId qualified as DatatypeId
 import Staged.EvalError
 import Staged.SrcSyntax
 import Staged.Syntax
@@ -331,6 +333,17 @@ dispMaybeType :: (Disp ty) => Associativity -> ty -> Doc Ann
 dispMaybeType req tye =
   deepenParenWhen (req <= Atomic) $
     group ("Maybe" <+> dispGen Atomic tye)
+
+dispDatatype :: (Disp datatyArg) => Associativity -> DatatypeId -> [datatyArg] -> Doc Ann
+dispDatatype req datatyId datatyArgs =
+  case nonEmpty datatyArgs of
+    Nothing ->
+      disp tyName
+    Just datatyArgs' ->
+      deepenParenWhen (req <= Atomic) $
+        disp tyName <+> foldl1 (<+>) (fmap (dispGen Atomic) datatyArgs')
+  where
+    tyName = DatatypeId.getName datatyId
 
 dispProduct :: (Disp ty) => Associativity -> ty -> NonEmpty (Text, ty) -> Doc Ann
 dispProduct req tye1 rest =
@@ -765,12 +778,18 @@ instance (Disp sv) => Disp (Ass1TypeExprF sv) where
     A1TyPrim a1tyPrim -> dispGen req a1tyPrim
     A1TyList a1tye -> dispListType req a1tye
     A1TyMaybe a1tye -> dispMaybeType req a1tye
+    A1TyData datatyId a1datatyArgs -> dispDatatype req datatyId a1datatyArgs
     A1TyVar atyvar -> disp atyvar
     A1TyProduct a1tyes -> dispProductType req a1tyes
     A1TyRecord a1rty -> dispRecord ":" a1rty
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2
     A1TyOmsArrow label a1tye1 a1tye2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tye1 a1tye2
     A1TyForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
+
+instance (Disp sv) => Disp (Ass1DatatypeArgF sv) where
+  dispGen req = \case
+    A1DatatypeArgType a1tye -> dispGen req a1tye
+    A1DatatypeArgVal0 a0e -> stagingOperatorStyle "%" <> stage0Style (dispGen Atomic a0e)
 
 instance Disp FrontError where
   dispGen _ = \case

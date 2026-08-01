@@ -32,6 +32,8 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import GHC.Generics (Generic)
+import Staged.DatatypeId (DatatypeId)
+import Staged.DatatypeId qualified as DatatypeId
 import Staged.SrcSyntax
 import Staged.Syntax
 import Staged.TypeError
@@ -49,7 +51,6 @@ data TypecheckState = TypecheckState
     nextTypeVarIndex :: Int,
     assTypeVarDisplay :: Map AssTypeVar Text,
     nextDatatypeIndex :: Int,
-    datatypeDisplay :: Map DatatypeId Text,
     inferableArgLogRev :: [InferableArgLog],
     shapeAnnotLogRev :: [ShapeAnnotLog]
   }
@@ -104,13 +105,9 @@ generateFreshTypeVar (TypeVar name) = do
 
 generateFreshDatatypeId :: TypeName -> M' err trav DatatypeId
 generateFreshDatatypeId tyName = do
-  currentState@TypecheckState {nextDatatypeIndex = n, datatypeDisplay} <- getState
-  let datatyId = DatatypeId n
-  putState $
-    currentState
-      { nextDatatypeIndex = n + 1,
-        datatypeDisplay = Map.insert datatyId tyName datatypeDisplay
-      }
+  currentState@TypecheckState {nextDatatypeIndex = n} <- getState
+  let datatyId = DatatypeId.fresh n tyName
+  putState $ currentState {nextDatatypeIndex = n + 1}
   pure datatyId
 
 makeIdentityLam :: Ass0TypeExpr -> M trav Ass0Expr

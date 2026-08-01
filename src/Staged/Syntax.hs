@@ -4,7 +4,6 @@ module Staged.Syntax
     Symbol (..),
     symbolToVar,
     AssTypeVar (..),
-    DatatypeId (..),
     AssLiteralF (..),
     Ass0ExprF (..),
     Ass0BranchF (..),
@@ -89,10 +88,12 @@ import Data.Map qualified as Map
 import Data.Tensor.Matrix (Matrix)
 import Data.Tensor.Vector (Vector)
 import Data.Text (Text)
+import Data.Tuple.Extra (both)
 import GHC.Base hiding (Symbol, mapM)
 import Generic.Data (Generic)
 import Staged.BuiltIn.Core
 import Staged.Core
+import Staged.DatatypeId (DatatypeId)
 import Prelude
 
 newtype StaticVar = StaticVar Int
@@ -113,9 +114,6 @@ symbolToVar :: Symbol -> AssVarF sv
 symbolToVar (Symbol n) = AssVarDynamic n
 
 newtype AssTypeVar = AssTypeVar Int
-  deriving newtype (Eq, Ord, Show)
-
-newtype DatatypeId = DatatypeId Int
   deriving newtype (Eq, Ord, Show)
 
 data AssLiteralF af sv
@@ -646,6 +644,9 @@ decomposeType1Equation = \case
   TyEq1Maybe ty1eqElem ->
     let (a1tye1elem, a1tye2elem) = decomposeType1Equation ty1eqElem
      in (A1TyMaybe a1tye1elem, A1TyMaybe a1tye2elem)
+  TyEq1Data datatyId datatyArg1eqs ->
+    let (a1datatyArgs1, a1datatyArgs2) = unzip $ map decomposeDatatypeArg1Equation datatyArg1eqs
+     in (A1TyData datatyId a1datatyArgs1, A1TyData datatyId a1datatyArgs2)
   TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
     let (a1tye11, a1tye21) = decomposeType1Equation ty1eqDom
         (a1tye12, a1tye22) = decomposeType1Equation ty1eqCod
@@ -674,6 +675,11 @@ decomposeListEquation = \case
   ListEqByWhole a0eList1 a0eList2 -> (a0eList1, a0eList2)
   where
     makeList = A0Literal . ALitList
+
+decomposeDatatypeArg1Equation :: DatatypeArg1EquationF sv -> (Ass1DatatypeArgF sv, Ass1DatatypeArgF sv)
+decomposeDatatypeArg1Equation = \case
+  DatatypeArgEq1Type ty1eq -> both A1DatatypeArgType $ decomposeType1Equation ty1eq
+  DatatypeArgEq1Val0 (a0e1, a0e2) -> (A1DatatypeArgVal0 a0e1, A1DatatypeArgVal0 a0e2)
 
 -- | The type of application contexts, which play a key role of
 -- the "Let arguments go first" [Xie & Oliveira 2018] formalization.

@@ -601,6 +601,8 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
           let pairs = (a0pat1, a1tyeElem1) :| pairsRest
           a1tyeElem' <- go1 pairs
           pure $ A1TyMaybe a1tyeElem'
+        A1TyData _datatyId _a1datatyArgs1 ->
+          error "TODO: mergeTypesByConditional1, A1TyData"
         A1TyArrow labelOpt1 a1tyeDom1 a1tyeCod1 -> do
           triplesRest <-
             mapM

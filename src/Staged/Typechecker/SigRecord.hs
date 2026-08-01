@@ -25,6 +25,7 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Staged.BuiltIn.Core
 import Staged.Core (ConstructorName)
+import Staged.DatatypeId (DatatypeId)
 import Staged.SrcSyntax (ModuleName, TypeName, Var)
 import Staged.Syntax
 import Surface.Syntax qualified as SurfaceSyntax
