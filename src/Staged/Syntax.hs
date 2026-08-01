@@ -15,6 +15,7 @@ module Staged.Syntax
     makeExprFromBinds,
     Type1EquationF (..),
     Type1PrimEquationF (..),
+    DatatypeArg1EquationF (..),
     ListEquationF (..),
     DatasetParamEquationF (..),
     Ass0TypeExprF (..),

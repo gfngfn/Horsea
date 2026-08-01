@@ -616,6 +616,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       frees a1tye1
     A1TyMaybe a1tye1 ->
       frees a1tye1
+    A1TyData _datatyId a1datatyArgs ->
+      unionPairs (map frees a1datatyArgs)
     A1TyVar _atyvar ->
       (Set.empty, Set.empty)
     A1TyProduct a1tyes ->
@@ -641,6 +643,8 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       A1TyList (go a1tye1)
     A1TyMaybe a1tye1 ->
       A1TyMaybe (go a1tye1)
+    A1TyData datatyId a1datatyArgs ->
+      A1TyData datatyId (map go a1datatyArgs)
     A1TyVar atyvar ->
       A1TyVar atyvar
     A1TyProduct a1tyes ->
@@ -671,6 +675,11 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
         go a1tye1' a1tye2'
       (A1TyMaybe a1tye1', A1TyMaybe a1tye2') ->
         go a1tye1' a1tye2'
+      (A1TyData datatyId1 a1datatyArgs1, A1TyData datatyId2 a1datatyArgs2) ->
+        datatyId1 == datatyId2
+          && case zipExactMay a1datatyArgs1 a1datatyArgs2 of
+            Just zipped -> all (uncurry go) zipped
+            Nothing -> False
       (A1TyVar atyvar1, A1TyVar atyvar2) ->
         atyvar1 == atyvar2
       (A1TyProduct a1tyes1, A1TyProduct a1tyes2) ->
@@ -686,6 +695,27 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
         label1 == label2 && go a1tye11 a1tye21 && go a1tye12 a1tye22
       (_, _) ->
         False
+    where
+      go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
+      go = alphaEquivalent
+
+instance (Ord sv) => HasVar sv Ass1DatatypeArgF where
+  frees = \case
+    A1DatatypeArgType a1tye -> frees a1tye
+    A1DatatypeArgVal0 a0e -> frees a0e
+
+  subst s = \case
+    A1DatatypeArgType a1tye -> A1DatatypeArgType (go a1tye)
+    A1DatatypeArgVal0 a0e -> A1DatatypeArgVal0 (go a0e)
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent a1datatyArg1 a1datatyArg2 =
+    case (a1datatyArg1, a1datatyArg2) of
+      (A1DatatypeArgType a1tye1, A1DatatypeArgType a1tye2) -> go a1tye1 a1tye2
+      (A1DatatypeArgVal0 a0e1, A1DatatypeArgVal0 a0e2) -> go a0e1 a0e2
+      _ -> False
     where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
@@ -788,6 +818,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       frees ty1eqElem
     TyEq1Maybe ty1eqElem ->
       frees ty1eqElem
+    TyEq1Data _datatyId datatyArg1eqs ->
+      unionPairs (map frees datatyArg1eqs)
     TyEq1Arrow _labelOpt ty1eqDom ty1eqCod ->
       unionPairs [frees ty1eqDom, frees ty1eqCod]
     TyEq1OmsArrow _label ty1eqDom ty1eqCod ->
@@ -814,6 +846,8 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       TyEq1List (go ty1eqElem)
     TyEq1Maybe ty1eqElem ->
       TyEq1Maybe (go ty1eqElem)
+    TyEq1Data datatyId datatyArg1eqs ->
+      TyEq1Data datatyId (map go datatyArg1eqs)
     TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
       TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
     TyEq1OmsArrow label ty1eqDom ty1eqCod ->
@@ -840,10 +874,54 @@ instance (Ord sv) => HasVar sv Type1EquationF where
           (_, _) -> False
       (TyEq1List ty1eqElem1, TyEq1List ty1eqElem2) ->
         go ty1eqElem1 ty1eqElem2
+      (TyEq1Maybe ty1eqElem1, TyEq1Maybe ty1eqElem2) ->
+        go ty1eqElem1 ty1eqElem2
+      (TyEq1Data datatyId1 datatyArg1eqs1, TyEq1Data datatyId2 datatyArg1eqs2) ->
+        datatyId1 == datatyId2
+          && case zipExactMay datatyArg1eqs1 datatyArg1eqs2 of
+            Just zipped -> all (uncurry go) zipped
+            Nothing -> False
       (TyEq1Arrow labelOpt1 ty1eqDom1 ty1eqCod1, TyEq1Arrow labelOpt2 ty1eqDom2 ty1eqCod2) ->
         labelOpt1 == labelOpt2 && go ty1eqDom1 ty1eqDom2 && go ty1eqCod1 ty1eqCod2
+      (TyEq1OmsArrow label1 ty1eqDom1 ty1eqCod1, TyEq1OmsArrow label2 ty1eqDom2 ty1eqCod2) ->
+        label1 == label2 && go ty1eqDom1 ty1eqDom2 && go ty1eqCod1 ty1eqCod2
+      (TyEq1Product ty1eqs1, TyEq1Product ty1eqs2) ->
+        case zipExactMay (TwoOrMore.toList ty1eqs1) (TwoOrMore.toList ty1eqs2) of
+          Just zipped -> all (uncurry go) zipped
+          Nothing -> False
+      (TyEq1Record rty1eq1, TyEq1Record rty1eq2) ->
+        Map.keysSet rty1eq1 == Map.keysSet rty1eq2
+          && all (uncurry go . snd) (Map.toList (Map.intersectionWith (,) rty1eq1 rty1eq2))
+      (TyEq1TypeVar atyvar1, TyEq1TypeVar atyvar2) ->
+        atyvar1 == atyvar2
+      (TyEq1ForAll atyvar1 ty1eq1', TyEq1ForAll atyvar2 ty1eq2') ->
+        -- TODO (enhance): true alpha-equivalence
+        atyvar1 == atyvar2 && go ty1eq1' ty1eq2'
       (_, _) ->
         False
+    where
+      go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
+      go = alphaEquivalent
+
+instance (Ord sv) => HasVar sv DatatypeArg1EquationF where
+  frees = \case
+    DatatypeArgEq1Type ty1eq -> frees ty1eq
+    DatatypeArgEq1Val0 (a0e1, a0e2) -> unionPairs [frees a0e1, frees a0e2]
+
+  subst s = \case
+    DatatypeArgEq1Type ty1eq ->
+      DatatypeArgEq1Type (go ty1eq)
+    DatatypeArgEq1Val0 (a0e1, a0e2) ->
+      DatatypeArgEq1Val0 (go a0e1, go a0e2)
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent datatyArg1eq1 datatyArg1eq2 =
+    case (datatyArg1eq1, datatyArg1eq2) of
+      (DatatypeArgEq1Type ty1eq1, DatatypeArgEq1Type ty1eq2) -> go ty1eq1 ty1eq2
+      (DatatypeArgEq1Val0 (a0e11, a0e12), DatatypeArgEq1Val0 (a0e21, a0e22)) -> go a0e11 a0e21 && go a0e12 a0e22
+      _ -> False
     where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
