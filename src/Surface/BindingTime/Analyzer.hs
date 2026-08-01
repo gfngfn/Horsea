@@ -826,21 +826,25 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
                   ("Tensor", [eList]) -> do
                     (exprArgs, cs) <- extractConstraintsFromExprArgsForType trav btenv bt ann [(eList, bityNatList)]
                     pure (map BExprArg exprArgs, [], cs)
-                  ("Dataset", [e1, e2, e3, e4]) -> do
-                    (exprArgs, cs) <-
-                      extractConstraintsFromExprArgsForType trav btenv bt ann $
-                        [(e1, bityNat), (e2, bityNat), (e3, bityNatList), (e4, bityNatList)]
-                    pure (map BExprArg exprArgs, [], cs)
+                  {-
+                    ("Dataset", [e1, e2, e3, e4]) -> do
+                      (exprArgs, cs) <-
+                        extractConstraintsFromExprArgsForType trav btenv bt ann $
+                          [(e1, bityNat), (e2, bityNat), (e3, bityNatList), (e4, bityNatList)]
+                      pure (map BExprArg exprArgs, [], cs)
+                  -}
                   ("Lstm", [eInputSize, eHiddenSize]) -> do
                     (exprArgs, cs) <-
                       extractConstraintsFromExprArgsForType trav btenv bt ann $
                         [(eInputSize, bityNat), (eHiddenSize, bityNat)]
                     pure (map BExprArg exprArgs, [], cs)
-                  ("TextHelper", [eLabels]) -> do
-                    (exprArgs, cs) <-
-                      extractConstraintsFromExprArgsForType trav btenv bt ann $
-                        [(eLabels, bityNat)]
-                    pure (map BExprArg exprArgs, [], cs)
+                  {-
+                    ("TextHelper", [eLabels]) -> do
+                      (exprArgs, cs) <-
+                        extractConstraintsFromExprArgsForType trav btenv bt ann $
+                          [(eLabels, bityNat)]
+                      pure (map BExprArg exprArgs, [], cs)
+                  -}
                   (_, _) ->
                     analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName (length args)
               let tye' = BTypeExpr (bt, ann) (BTyName (locQualName, (mods, tyName)) args')

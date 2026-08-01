@@ -766,6 +766,9 @@ module Module = struct
     external (builtin = "module__gen_forward", surface = "forward")
 end
 
+type TextHelper %(labels : Nat) =
+  | TextHelper (* TODO: `external` for types *)
+
 module TextHelper = struct
   val ~gen_create : {labels : Nat} -> #filename String -> &(TextHelper %labels)
     external (builtin = "text_helper__gen_create", surface = "create")

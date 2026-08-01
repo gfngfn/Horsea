@@ -1384,10 +1384,12 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           inputSize <- validateIntLiteral trav loc1 a0e1
           hiddenSize <- validateIntLiteral trav loc2 a0e2
           pure $ A0TyPrim (A0TyLstm inputSize hiddenSize) Nothing
-        ([], "TextHelper", [arg1@(Expr loc1 _)]) -> do
-          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
-          labels <- validateIntLiteral trav loc1 a0e1
-          pure $ A0TyPrim (A0TyTextHelper labels) Nothing
+        {-
+          ([], "TextHelper", [arg1@(Expr loc1 _)]) -> do
+            a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
+            labels <- validateIntLiteral trav loc1 a0e1
+            pure $ A0TyPrim (A0TyTextHelper labels) Nothing
+        -}
         _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName (length args)
     TyVar tyvar -> do
@@ -1650,10 +1652,12 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
                   a0eInputSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
                   a0eHiddenSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
                   pure $ A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize)
-                ("TextHelper", [arg1]) -> do
-                  logShapeAnnot (ShapeAnnotLog loc)
-                  a0eLabels <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
-                  pure $ A1TyPrim (A1TyTextHelper a0eLabels)
+                {-
+                  ("TextHelper", [arg1]) -> do
+                    logShapeAnnot (ShapeAnnotLog loc)
+                    a0eLabels <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
+                    pure $ A1TyPrim (A1TyTextHelper a0eLabels)
+                -}
                 _ ->
                   typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName (length args)
             _ : _ ->
