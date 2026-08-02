@@ -1364,12 +1364,6 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           a0e <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
           ns <- validateIntListLiteral trav loc' a0e
           pure $ A0TyPrim (A0TyTensor ns) Nothing
-        ([], "Lstm", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
-          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
-          a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
-          inputSize <- validateIntLiteral trav loc1 a0e1
-          hiddenSize <- validateIntLiteral trav loc2 a0e2
-          pure $ A0TyPrim (A0TyLstm inputSize hiddenSize) Nothing
         _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName (length args)
     TyVar tyvar -> do
@@ -1611,11 +1605,6 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
                   logShapeAnnot (ShapeAnnotLog loc)
                   a0eList <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
                   pure $ A1TyPrim (A1TyTensor a0eList)
-                ("Lstm", [arg1, arg2]) -> do
-                  logShapeAnnot (ShapeAnnotLog loc)
-                  a0eInputSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
-                  a0eHiddenSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
-                  pure $ A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize)
                 _ ->
                   typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName (length args)
             _ : _ ->

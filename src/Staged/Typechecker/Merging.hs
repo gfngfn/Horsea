@@ -529,19 +529,6 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                   -- General rule:
                   _ ->
                     pure $ A1TyTensor (A0Case a0e0 (fmap (uncurry A0Branch) pairs))
-              A1TyLstm a0eInputSize1 a0eHiddenSize1 -> do
-                triplesRest <-
-                  mapM
-                    ( \(a0pat, a1tye) ->
-                        case a1tye of
-                          A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize) -> pure (a0pat, (a0eInputSize, a0eHiddenSize))
-                          _ -> failure
-                    )
-                    rest
-                let triples = (a0pat1, (a0eInputSize1, a0eHiddenSize1)) :| triplesRest
-                let a0branchesInputSize = fmap (\(a0pat, pair) -> A0Branch a0pat (fst pair)) triples
-                let a0branchesHiddenSize = fmap (\(a0pat, pair) -> A0Branch a0pat (snd pair)) triples
-                pure $ A1TyLstm (A0Case a0e0 a0branchesInputSize) (A0Case a0e0 a0branchesHiddenSize)
         A1TyList a1tyeElem1 -> do
           pairsRest <-
             mapM

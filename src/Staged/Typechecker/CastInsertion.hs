@@ -365,35 +365,6 @@ makeEquation1 trav loc datatyEnv varsToInferInit tyvars1ToInferInit a1tye1Whole 
             (A1TyTensor a0eList1, A1TyTensor a0eList2) -> do
               (trivial, listEq, varSolution) <- goList varsToInfer a0eList1 a0eList2
               pure (trivial, TyEq1Prim (TyEq1Tensor listEq), varSolution, Map.empty)
-            (A1TyLstm a0eInputSize1 a0eHiddenSize1, A1TyLstm a0eInputSize2 a0eHiddenSize2) -> do
-              let (trivialOnInputSize, inputSize2', varSolutionByInputSize) =
-                    checkExprArgs
-                      varsToInfer
-                      (a0eInputSize1, BuiltIn.tyNat)
-                      a0eInputSize2
-              let solAcc1 = varSolutionByInputSize
-              let varsToInferAcc1 = varsToInfer \\ Map.keysSet varSolutionByInputSize
-
-              let (trivialOnHiddenSize, hiddenSize2', varSolutionByHiddenSize) =
-                    checkExprArgs
-                      varsToInferAcc1
-                      (applyVarSolution varSolutionByInputSize a0eHiddenSize1, BuiltIn.tyNat)
-                      a0eHiddenSize2
-              let solAcc2 = composeVarSolution solAcc1 varSolutionByHiddenSize
-
-              let finalize :: forall af. (HasVar StaticVar af) => af StaticVar -> af StaticVar
-                  finalize = applyVarSolution solAcc2
-
-              pure
-                ( trivialOnInputSize && trivialOnHiddenSize,
-                  TyEq1Prim
-                    ( TyEq1Lstm
-                        (finalize a0eInputSize1, finalize inputSize2')
-                        (finalize a0eHiddenSize1, finalize hiddenSize2')
-                    ),
-                  solAcc2,
-                  Map.empty
-                )
             (_, _) ->
               Left ()
         (A1TyList a1tye1elem, A1TyList a1tye2elem) -> do

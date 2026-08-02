@@ -462,6 +462,9 @@ module VarStore = struct
   end
 end
 
+type Lstm %(input_size : Nat) %(hidden_size : Nat) =
+  | Lstm (* TODO: abstract types *)
+
 module Layer = struct
   (* TODO: define `Activation` as an ADT *)
   module Activation = struct
@@ -767,7 +770,7 @@ module Module = struct
 end
 
 type TextHelper %(labels : Nat) =
-  | TextHelper (* TODO: `external` for types *)
+  | TextHelper (* TODO: abstract types *)
 
 module TextHelper = struct
   val ~gen_create : {labels : Nat} -> #filename String -> &(TextHelper %labels)

@@ -715,7 +715,6 @@ instance Disp Ass0PrimType where
     A0TyTensor [n] -> dispNameWithArgs req "Vec" disp [n]
     A0TyTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
-    A0TyLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
 
 instance (Disp sv) => Disp (Ass0TypeExprF sv) where
   dispGen req = \case
@@ -756,8 +755,6 @@ instance (Disp sv) => Disp (Ass1PrimTypeF sv) where
         A0Literal (ALitList [a0e]) -> dispNameWithArgs req "Vec" dispPersistent [a0e]
         A0Literal (ALitList [a0e1, a0e2]) -> dispNameWithArgs req "Mat" dispPersistent [a0e1, a0e2]
         _ -> dispNameWithArgs req "Tensor" dispPersistent [a0eList]
-    A1TyLstm a0eInputSize a0eHiddenSize ->
-      dispNameWithArgs req "Lstm" disp [a0eInputSize, a0eHiddenSize]
 
 instance (Disp sv) => Disp (Ass1TypeExprF sv) where
   dispGen req = \case
@@ -1323,7 +1320,6 @@ instance Disp Ass1PrimTypeVal where
     A1TyValTensor [n] -> dispNameWithArgs req "Vec" dispPersistent [n]
     A1TyValTensor [m, n] -> dispNameWithArgs req "Mat" dispPersistent [m, n]
     A1TyValTensor ns -> dispNameWithArgs req "Tensor" dispPersistentListLiteral [ns]
-    A1TyValLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
 
 instance Disp LocationInFile where
   dispGen _ (LocationInFile l c) =

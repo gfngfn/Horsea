@@ -119,7 +119,6 @@ instance HasTypeVar Ass1PrimTypeF where
   tySubst s = \case
     A1TyPrimBase bty -> A1TyPrimBase bty
     A1TyTensor a0e -> A1TyTensor (go a0e)
-    A1TyLstm a0e1 a0e2 -> A1TyLstm (go a0e1) (go a0e2)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
@@ -182,7 +181,6 @@ instance HasTypeVar Type1EquationF where
         case ty1eqPrim of
           TyEq1PrimBase tyPrimBase -> TyEq1PrimBase tyPrimBase
           TyEq1Tensor listEq -> TyEq1Tensor (go listEq)
-          TyEq1Lstm (i1, i2) (h1, h2) -> TyEq1Lstm (go i1, go i2) (go h1, go h2)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
     TyEq1Maybe ty1eqElem ->

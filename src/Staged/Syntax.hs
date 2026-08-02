@@ -295,7 +295,6 @@ validatePrimBaseType = \case
 data Ass0PrimType
   = A0TyPrimBase AssPrimBaseType
   | A0TyTensor [Int]
-  | A0TyLstm Int Int
   deriving stock (Eq, Show)
 
 data Ass1DatatypeArgF sv
@@ -320,7 +319,6 @@ data Ass1TypeExprF sv
 data Ass1PrimTypeF sv
   = A1TyPrimBase AssPrimBaseType
   | A1TyTensor (Ass0ExprF sv)
-  | A1TyLstm (Ass0ExprF sv) (Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of types for persistent value items.
@@ -359,12 +357,8 @@ persistentTypeTo1 = \case
 
 liftPrimType :: Ass0PrimType -> Ass1PrimTypeF sv
 liftPrimType = \case
-  A0TyPrimBase tyPrimBase ->
-    A1TyPrimBase tyPrimBase
-  A0TyTensor ns ->
-    A1TyTensor (liftIntList ns)
-  A0TyLstm i h ->
-    A1TyLstm (liftInt i) (liftInt h)
+  A0TyPrimBase tyPrimBase -> A1TyPrimBase tyPrimBase
+  A0TyTensor ns -> A1TyTensor (liftIntList ns)
   where
     liftInt = A0Literal . ALitInt
     liftIntList = A0Literal . ALitList . map liftInt
@@ -439,7 +433,6 @@ data Ass1TypeValF sv
 data Ass1PrimTypeVal
   = A1TyValPrimBase AssPrimBaseType
   | A1TyValTensor [Int]
-  | A1TyValLstm Int Int
   deriving stock (Eq, Show)
 
 data Ass1DatatypeArgValF sv
@@ -466,7 +459,6 @@ data Type1EquationF sv
 data Type1PrimEquationF sv
   = TyEq1PrimBase AssPrimBaseType
   | TyEq1Tensor (ListEquationF sv)
-  | TyEq1Lstm (Ass0ExprF sv, Ass0ExprF sv) (Ass0ExprF sv, Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data DatatypeArg1EquationF sv
@@ -552,7 +544,6 @@ makeTrivialEquationFromType1 = \case
       case a1tyPrim of
         A1TyPrimBase aPrimTy -> TyEq1PrimBase aPrimTy
         A1TyTensor a0e -> TyEq1Tensor (ListEqByWhole a0e a0e)
-        A1TyLstm a0e1 a0e2 -> TyEq1Lstm (a0e1, a0e1) (a0e2, a0e2)
   A1TyList a1tye ->
     TyEq1List (makeTrivialEquationFromType1 a1tye)
   A1TyMaybe a1tye ->
@@ -586,8 +577,6 @@ decomposeType1Equation = \case
       TyEq1Tensor listEq ->
         let (a0eList1, a0eList2) = decomposeListEquation listEq
          in (A1TyPrim (A1TyTensor a0eList1), A1TyPrim (A1TyTensor a0eList2))
-      TyEq1Lstm (inputSize1, inputSize2) (hiddenSize1, hiddenSize2) ->
-        (A1TyPrim (A1TyLstm inputSize1 hiddenSize1), A1TyPrim (A1TyLstm inputSize2 hiddenSize2))
   TyEq1List ty1eqElem ->
     let (a1tye1elem, a1tye2elem) = decomposeType1Equation ty1eqElem
      in (A1TyList a1tye1elem, A1TyList a1tye2elem)
