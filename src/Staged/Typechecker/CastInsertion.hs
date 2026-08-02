@@ -394,9 +394,6 @@ makeEquation1 trav loc datatyEnv varsToInferInit tyvars1ToInferInit a1tye1Whole 
                   solAcc2,
                   Map.empty
                 )
-            (A1TyTextHelper a0e1, A1TyTextHelper a0e2) -> do
-              let (trivial, a0e2', varSolution) = checkExprArgs varsToInfer (a0e1, BuiltIn.tyNat) a0e2
-              pure (trivial, TyEq1Prim (TyEq1TextHelper (a0e1, a0e2')), varSolution, Map.empty)
             (_, _) ->
               Left ()
         (A1TyList a1tye1elem, A1TyList a1tye2elem) -> do

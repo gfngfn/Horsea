@@ -595,14 +595,9 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
   frees = \case
     A1TyPrim a1tyPrim ->
       case a1tyPrim of
-        A1TyPrimBase _ ->
-          (Set.empty, Set.empty)
-        A1TyTensor a0eList ->
-          frees a0eList
-        A1TyLstm a0e1 a0e2 ->
-          unionPairs [frees a0e1, frees a0e2]
-        A1TyTextHelper a0e ->
-          frees a0e
+        A1TyPrimBase _ -> (Set.empty, Set.empty)
+        A1TyTensor a0eList -> frees a0eList
+        A1TyLstm a0e1 a0e2 -> unionPairs [frees a0e1, frees a0e2]
     A1TyList a1tye1 ->
       frees a1tye1
     A1TyMaybe a1tye1 ->
@@ -628,7 +623,6 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
         A1TyPrimBase tyPrimBase -> A1TyPrimBase tyPrimBase
         A1TyTensor a0eList -> A1TyTensor (go a0eList)
         A1TyLstm a0e1 a0e2 -> A1TyLstm (go a0e1) (go a0e2)
-        A1TyTextHelper a0e -> A1TyTextHelper (go a0e)
     A1TyList a1tye1 ->
       A1TyList (go a1tye1)
     A1TyMaybe a1tye1 ->
@@ -802,7 +796,6 @@ instance (Ord sv) => HasVar sv Type1EquationF where
         TyEq1PrimBase _ -> (Set.empty, Set.empty)
         TyEq1Tensor listEq -> frees listEq
         TyEq1Lstm (i1, i2) (h1, h2) -> unionPairs [frees i1, frees i2, frees h1, frees h2]
-        TyEq1TextHelper (labels1, labels2) -> unionPairs [frees labels1, frees labels2]
     TyEq1List ty1eqElem ->
       frees ty1eqElem
     TyEq1Maybe ty1eqElem ->
@@ -829,7 +822,6 @@ instance (Ord sv) => HasVar sv Type1EquationF where
           TyEq1PrimBase tyPrimBase -> TyEq1PrimBase tyPrimBase
           TyEq1Tensor listEq -> TyEq1Tensor (go listEq)
           TyEq1Lstm (i1, i2) (h1, h2) -> TyEq1Lstm (go i1, go i2) (go h1, go h2)
-          TyEq1TextHelper (labels1, labels2) -> TyEq1TextHelper (go labels1, go labels2)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
     TyEq1Maybe ty1eqElem ->

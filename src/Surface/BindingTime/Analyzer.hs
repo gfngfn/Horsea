@@ -831,13 +831,6 @@ extractConstraintsFromTypeExpr trav btenv (Expr ann typeExprMain) = do
                       extractConstraintsFromExprArgsForType trav btenv bt ann $
                         [(eInputSize, bityNat), (eHiddenSize, bityNat)]
                     pure (map BExprArg exprArgs, [], cs)
-                  {-
-                    ("TextHelper", [eLabels]) -> do
-                      (exprArgs, cs) <-
-                        extractConstraintsFromExprArgsForType trav btenv bt ann $
-                          [(eLabels, bityNat)]
-                      pure (map BExprArg exprArgs, [], cs)
-                  -}
                   (_, _) ->
                     analysisError trav $ UnknownTypeOrInvalidArity spanInFile mods tyName (length args)
               let tye' = BTypeExpr (bt, ann) (BTyName (locQualName, (mods, tyName)) args')

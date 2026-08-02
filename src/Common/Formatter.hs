@@ -716,7 +716,6 @@ instance Disp Ass0PrimType where
     A0TyTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
     A0TyLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
-    A0TyTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
 instance (Disp sv) => Disp (Ass0TypeExprF sv) where
   dispGen req = \case
@@ -759,8 +758,6 @@ instance (Disp sv) => Disp (Ass1PrimTypeF sv) where
         _ -> dispNameWithArgs req "Tensor" dispPersistent [a0eList]
     A1TyLstm a0eInputSize a0eHiddenSize ->
       dispNameWithArgs req "Lstm" disp [a0eInputSize, a0eHiddenSize]
-    A1TyTextHelper a0eLabels ->
-      dispNameWithArgs req "TextHelper" disp [a0eLabels]
 
 instance (Disp sv) => Disp (Ass1TypeExprF sv) where
   dispGen req = \case
@@ -1327,7 +1324,6 @@ instance Disp Ass1PrimTypeVal where
     A1TyValTensor [m, n] -> dispNameWithArgs req "Mat" dispPersistent [m, n]
     A1TyValTensor ns -> dispNameWithArgs req "Tensor" dispPersistentListLiteral [ns]
     A1TyValLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
-    A1TyValTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
 instance Disp LocationInFile where
   dispGen _ (LocationInFile l c) =

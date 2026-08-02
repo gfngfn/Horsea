@@ -542,18 +542,6 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                 let a0branchesInputSize = fmap (\(a0pat, pair) -> A0Branch a0pat (fst pair)) triples
                 let a0branchesHiddenSize = fmap (\(a0pat, pair) -> A0Branch a0pat (snd pair)) triples
                 pure $ A1TyLstm (A0Case a0e0 a0branchesInputSize) (A0Case a0e0 a0branchesHiddenSize)
-              A1TyTextHelper a0eLabels1 -> do
-                pairsRest <-
-                  mapM
-                    ( \(a0pat, a1tye) ->
-                        case a1tye of
-                          A1TyPrim (A1TyTextHelper a0eLabels) -> pure (a0pat, a0eLabels)
-                          _ -> failure
-                    )
-                    rest
-                let pairs = (a0pat1, a0eLabels1) :| pairsRest
-                let a0branches = fmap (uncurry A0Branch) pairs
-                pure $ A1TyTextHelper (A0Case a0e0 a0branches)
         A1TyList a1tyeElem1 -> do
           pairsRest <-
             mapM

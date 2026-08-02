@@ -608,10 +608,6 @@ evalTypeExpr1 env = \case
           inputSize <- validateIntLiteral a0vInputSize
           hiddenSize <- validateIntLiteral a0vHiddenSize
           pure $ A1TyValLstm inputSize hiddenSize
-        A1TyTextHelper a0eLabels -> do
-          a0v <- evalExpr0 env a0eLabels
-          labels <- validateIntLiteral a0v
-          pure $ A1TyValTextHelper labels
   A1TyList a1tye -> do
     a1tyv <- evalTypeExpr1 env a1tye
     pure $ A1TyValList a1tyv
@@ -706,7 +702,6 @@ unliftTypeVal = \case
             A1TyValPrimBase tyPrimBase -> A0TyPrimBase tyPrimBase
             A1TyValTensor ns -> A0TyTensor ns
             A1TyValLstm i h -> A0TyLstm i h
-            A1TyValTextHelper labels -> A0TyTextHelper labels
      in SA0TyPrim a0tyPrim Nothing
   A1TyValList a1tyv ->
     SA0TyList (unliftTypeVal a1tyv) Nothing
