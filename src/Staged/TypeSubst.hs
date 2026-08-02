@@ -5,10 +5,8 @@ module Staged.TypeSubst
   )
 where
 
-{- import Data.Functor.Identity -}
 import Data.Maybe1
 import Data.Tuple.Extra
-{- import Staged.Core -}
 import Staged.Syntax
 import Prelude
 
@@ -123,16 +121,6 @@ instance HasTypeVar Ass1PrimTypeF where
       A1TyPrimBase bty
     A1TyTensor a0e ->
       A1TyTensor (go a0e)
-    {-
-      A1TyDataset dp ->
-        A1TyDataset
-          DatasetParam
-            { numTrain = go dp.numTrain,
-              numTest = go dp.numTest,
-              image = Identity (go (runIdentity dp.image)),
-              label = Identity (go (runIdentity dp.label))
-            }
-    -}
     A1TyLstm a0e1 a0e2 ->
       A1TyLstm (go a0e1) (go a0e2)
     A1TyTextHelper a0e ->
@@ -199,7 +187,6 @@ instance HasTypeVar Type1EquationF where
         case ty1eqPrim of
           TyEq1PrimBase tyPrimBase -> TyEq1PrimBase tyPrimBase
           TyEq1Tensor listEq -> TyEq1Tensor (go listEq)
-          {- TyEq1Dataset dpEq -> TyEq1Dataset (go dpEq) -}
           TyEq1Lstm (i1, i2) (h1, h2) -> TyEq1Lstm (go i1, go i2) (go h1, go h2)
           TyEq1TextHelper (labels1, labels2) -> TyEq1TextHelper (go labels1, go labels2)
     TyEq1List ty1eqElem ->
@@ -249,21 +236,6 @@ instance HasTypeVar ListEquationF where
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
-
-{-
-instance HasTypeVar DatasetParamEquationF where
-  tySubst :: forall sv. TypeSubstF sv -> DatasetParamEquationF sv -> DatasetParamEquationF sv
-  tySubst s DatasetParamEquation {numTrainEq, numTestEq, imageEq, labelEq} =
-    DatasetParamEquation
-      { numTrainEq = both go numTrainEq,
-        numTestEq = both go numTestEq,
-        imageEq = go imageEq,
-        labelEq = go labelEq
-      }
-    where
-      go :: forall af. (HasTypeVar af) => af sv -> af sv
-      go = tySubst s
--}
 
 instance HasTypeVar Ass1ExprF where
   tySubst :: forall sv. TypeSubstF sv -> Ass1ExprF sv -> Ass1ExprF sv

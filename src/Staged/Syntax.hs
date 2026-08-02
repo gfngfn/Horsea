@@ -17,7 +17,6 @@ module Staged.Syntax
     Type1PrimEquationF (..),
     DatatypeArg1EquationF (..),
     ListEquationF (..),
-    {- DatasetParamEquationF (..), -}
     Ass0TypeExprF (..),
     StrictAss0TypeExprF (..),
     AssPrimBaseType (..),
@@ -85,7 +84,6 @@ where
 
 import Common.TokenUtil (Span)
 import Control.Lens (over)
-{- import Data.Functor.Identity -}
 import Data.Generics.Labels ()
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
@@ -297,8 +295,7 @@ validatePrimBaseType = \case
 data Ass0PrimType
   = A0TyPrimBase AssPrimBaseType
   | A0TyTensor [Int]
-  | {-  | A0TyDataset (DatasetParam [] Int) -}
-    A0TyLstm Int Int
+  | A0TyLstm Int Int
   | A0TyTextHelper Int
   deriving stock (Eq, Show)
 
@@ -324,8 +321,7 @@ data Ass1TypeExprF sv
 data Ass1PrimTypeF sv
   = A1TyPrimBase AssPrimBaseType
   | A1TyTensor (Ass0ExprF sv)
-  | {-  | A1TyDataset (DatasetParam Identity (Ass0ExprF sv)) -}
-    A1TyLstm (Ass0ExprF sv) (Ass0ExprF sv)
+  | A1TyLstm (Ass0ExprF sv) (Ass0ExprF sv)
   | A1TyTextHelper (Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
@@ -369,16 +365,6 @@ liftPrimType = \case
     A1TyPrimBase tyPrimBase
   A0TyTensor ns ->
     A1TyTensor (liftIntList ns)
-  {-
-    A0TyDataset DatasetParam {numTrain, numTest, image, label} ->
-      A1TyDataset
-        DatasetParam
-          { numTrain = liftInt numTrain,
-            numTest = liftInt numTest,
-            image = Identity (liftIntList image),
-            label = Identity (liftIntList label)
-          }
-  -}
   A0TyLstm i h ->
     A1TyLstm (liftInt i) (liftInt h)
   A0TyTextHelper labels ->
@@ -457,8 +443,7 @@ data Ass1TypeValF sv
 data Ass1PrimTypeVal
   = A1TyValPrimBase AssPrimBaseType
   | A1TyValTensor [Int]
-  | {-  | A1TyValDataset (DatasetParam [] Int) -}
-    A1TyValLstm Int Int
+  | A1TyValLstm Int Int
   | A1TyValTextHelper Int
   deriving stock (Eq, Show)
 
@@ -486,8 +471,7 @@ data Type1EquationF sv
 data Type1PrimEquationF sv
   = TyEq1PrimBase AssPrimBaseType
   | TyEq1Tensor (ListEquationF sv)
-  | {-  | TyEq1Dataset (DatasetParamEquationF sv) -}
-    TyEq1Lstm (Ass0ExprF sv, Ass0ExprF sv) (Ass0ExprF sv, Ass0ExprF sv)
+  | TyEq1Lstm (Ass0ExprF sv, Ass0ExprF sv) (Ass0ExprF sv, Ass0ExprF sv)
   | TyEq1TextHelper (Ass0ExprF sv, Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
@@ -501,16 +485,6 @@ data ListEquationF sv
   | -- | Pairs of expressions of type `List Nat`.
     ListEqByWhole (Ass0ExprF sv) (Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
-
-{-
-data DatasetParamEquationF sv = DatasetParamEquation
-  { numTrainEq :: (Ass0ExprF sv, Ass0ExprF sv),
-    numTestEq :: (Ass0ExprF sv, Ass0ExprF sv),
-    imageEq :: ListEquationF sv,
-    labelEq :: ListEquationF sv
-  }
-  deriving stock (Eq, Show, Functor)
--}
 
 data EvalEnv = EvalEnv
   { vals :: Map AssVar EvalEnvValEntry,
@@ -584,16 +558,6 @@ makeTrivialEquationFromType1 = \case
       case a1tyPrim of
         A1TyPrimBase aPrimTy -> TyEq1PrimBase aPrimTy
         A1TyTensor a0e -> TyEq1Tensor (ListEqByWhole a0e a0e)
-        {-
-          A1TyDataset DatasetParam {numTrain, numTest, image = Identity image, label = Identity label} ->
-            TyEq1Dataset
-              DatasetParamEquation
-                { numTrainEq = (numTrain, numTrain),
-                  numTestEq = (numTest, numTest),
-                  imageEq = ListEqByWhole image image,
-                  labelEq = ListEqByWhole label label
-                }
-        -}
         A1TyLstm a0e1 a0e2 ->
           TyEq1Lstm (a0e1, a0e1) (a0e2, a0e2)
         A1TyTextHelper a0e ->
@@ -631,28 +595,6 @@ decomposeType1Equation = \case
       TyEq1Tensor listEq ->
         let (a0eList1, a0eList2) = decomposeListEquation listEq
          in (A1TyPrim (A1TyTensor a0eList1), A1TyPrim (A1TyTensor a0eList2))
-      {-
-        TyEq1Dataset datasetParamEq ->
-          let (numTrain1, numTrain2) = datasetParamEq.numTrainEq
-              (numTest1, numTest2) = datasetParamEq.numTestEq
-              (image1, image2) = decomposeListEquation datasetParamEq.imageEq
-              (label1, label2) = decomposeListEquation datasetParamEq.labelEq
-              datasetParam1 =
-                DatasetParam
-                  { numTrain = numTrain1,
-                    numTest = numTest1,
-                    image = Identity image1,
-                    label = Identity label1
-                  }
-              datasetParam2 =
-                DatasetParam
-                  { numTrain = numTrain2,
-                    numTest = numTest2,
-                    image = Identity image2,
-                    label = Identity label2
-                  }
-           in (A1TyPrim (A1TyDataset datasetParam1), A1TyPrim (A1TyDataset datasetParam2))
-      -}
       TyEq1Lstm (inputSize1, inputSize2) (hiddenSize1, hiddenSize2) ->
         (A1TyPrim (A1TyLstm inputSize1 hiddenSize1), A1TyPrim (A1TyLstm inputSize2 hiddenSize2))
       TyEq1TextHelper (a0e1, a0e2) ->

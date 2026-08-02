@@ -14,7 +14,6 @@ import Control.Monad
 import Data.Either.Extra (mapLeft, maybeToEither)
 import Data.Foldable (foldrM)
 import Data.Function
-{- import Data.Functor.Identity -}
 import Data.List (length)
 import Data.List.Extra (firstJust)
 import Data.List.NonEmpty (NonEmpty (..))
@@ -1365,19 +1364,6 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           a0e <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
           ns <- validateIntListLiteral trav loc' a0e
           pure $ A0TyPrim (A0TyTensor ns) Nothing
-        {-
-          ([], "Dataset", [arg1@(Expr loc1 _), arg2@(Expr loc2 _), arg3@(Expr loc3 _), arg4@(Expr loc4 _)]) -> do
-            a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
-            a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
-            a0e3 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
-            a0e4 <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg4
-            numTrain <- validateIntLiteral trav loc1 a0e1
-            numTest <- validateIntLiteral trav loc2 a0e2
-            image <- validateIntListLiteral trav loc3 a0e3
-            label <- validateIntListLiteral trav loc4 a0e4
-            let datasetParam = DatasetParam {numTrain, numTest, image, label}
-            pure $ A0TyPrim (A0TyDataset datasetParam) Nothing
-        -}
         ([], "Lstm", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
           a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
           a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
@@ -1631,22 +1617,6 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
                   logShapeAnnot (ShapeAnnotLog loc)
                   a0eList <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
                   pure $ A1TyPrim (A1TyTensor a0eList)
-                {-
-                  ("Dataset", [arg1, arg2, arg3, arg4]) -> do
-                    logShapeAnnot (ShapeAnnotLog loc)
-                    a0e1 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1
-                    a0e2 <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg2
-                    a0e3 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg3
-                    a0e4 <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg4
-                    let datasetParam =
-                          DatasetParam
-                            { numTrain = a0e1,
-                              numTest = a0e2,
-                              image = Identity a0e3,
-                              label = Identity a0e4
-                            }
-                    pure $ A1TyPrim (A1TyDataset datasetParam)
-                -}
                 ("Lstm", [arg1, arg2]) -> do
                   logShapeAnnot (ShapeAnnotLog loc)
                   a0eInputSize <- validatePersistentExprArg trav tyEnv BuiltIn.tyNat arg1

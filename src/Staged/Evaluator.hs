@@ -15,7 +15,6 @@ import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Function ((&))
-{- import Data.Functor.Identity -}
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
@@ -31,7 +30,6 @@ import Safe.Exact (zipExactMay)
 import Staged.BuiltIn.CompileTime (deriveDeltaReduction)
 import Staged.BuiltIn.Core
 import Staged.BuiltIn.Definitions (definitions)
-{- import Staged.Core -}
 import Staged.EvalError
 import Staged.Syntax
 import Prelude
@@ -604,14 +602,6 @@ evalTypeExpr1 env = \case
           a0vs <- validateListValue a0v
           ns <- mapM validateIntLiteral a0vs
           pure $ A1TyValTensor ns
-        {-
-          A1TyDataset datasetParam -> do
-            numTrain <- validateIntLiteral =<< evalExpr0 env datasetParam.numTrain
-            numTest <- validateIntLiteral =<< evalExpr0 env datasetParam.numTest
-            image <- validateIntListLiteral =<< evalExpr0 env (runIdentity datasetParam.image)
-            label <- validateIntListLiteral =<< evalExpr0 env (runIdentity datasetParam.label)
-            pure $ A1TyValDataset DatasetParam {numTrain, numTest, image, label}
-        -}
         A1TyLstm a0eInputSize a0eHiddenSize -> do
           a0vInputSize <- evalExpr0 env a0eInputSize
           a0vHiddenSize <- evalExpr0 env a0eHiddenSize
@@ -715,7 +705,6 @@ unliftTypeVal = \case
           case a1tyvPrim of
             A1TyValPrimBase tyPrimBase -> A0TyPrimBase tyPrimBase
             A1TyValTensor ns -> A0TyTensor ns
-            {- A1TyValDataset datasetParam -> A0TyDataset datasetParam -}
             A1TyValLstm i h -> A0TyLstm i h
             A1TyValTextHelper labels -> A0TyTextHelper labels
      in SA0TyPrim a0tyPrim Nothing

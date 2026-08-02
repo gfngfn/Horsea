@@ -7,7 +7,6 @@ where
 
 import Common.TokenUtil (Span)
 import Control.Monad
-{- import Data.Functor.Identity -}
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty.Util qualified as NonEmptyUtil
 import Data.List.TwoOrMore (TwoOrMore)
@@ -16,7 +15,6 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (isNothing)
 import Data.Tuple.Extra (second)
-{- import Staged.Core -}
 import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
@@ -531,29 +529,6 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                   -- General rule:
                   _ ->
                     pure $ A1TyTensor (A0Case a0e0 (fmap (uncurry A0Branch) pairs))
-              {-
-                A1TyDataset dp1 -> do
-                  pairsRest <-
-                    mapM
-                      ( \(a0pat, a1tye) ->
-                          case a1tye of
-                            A1TyPrim (A1TyDataset dp) -> pure (a0pat, dp)
-                            _ -> failure
-                      )
-                      rest
-                  let pairs = (a0pat1, dp1) :| pairsRest
-                  let a0branchesNumTrain = fmap (\(a0pat, dp) -> A0Branch a0pat dp.numTrain) pairs
-                  let a0branchesNumTest = fmap (\(a0pat, dp) -> A0Branch a0pat dp.numTest) pairs
-                  let a0branchesImage = fmap (\(a0pat, dp) -> A0Branch a0pat (runIdentity dp.image)) pairs
-                  let a0branchesLabel = fmap (\(a0pat, dp) -> A0Branch a0pat (runIdentity dp.label)) pairs
-                  pure . A1TyDataset $
-                    DatasetParam
-                      { numTrain = A0Case a0e0 a0branchesNumTrain,
-                        numTest = A0Case a0e0 a0branchesNumTest,
-                        image = Identity (A0Case a0e0 a0branchesImage),
-                        label = Identity (A0Case a0e0 a0branchesLabel)
-                      }
-              -}
               A1TyLstm a0eInputSize1 a0eHiddenSize1 -> do
                 triplesRest <-
                   mapM

@@ -9,7 +9,6 @@ where
 
 import Common.TokenUtil (Span)
 import Data.Bifunctor (bimap)
-{- import Data.Functor.Identity -}
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map qualified as Map
@@ -20,7 +19,6 @@ import Data.Traversable.Compat (mapAccumM)
 import Safe.Exact (zipExactMay)
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
-{- import Staged.Core -}
 import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
@@ -367,56 +365,6 @@ makeEquation1 trav loc datatyEnv varsToInferInit tyvars1ToInferInit a1tye1Whole 
             (A1TyTensor a0eList1, A1TyTensor a0eList2) -> do
               (trivial, listEq, varSolution) <- goList varsToInfer a0eList1 a0eList2
               pure (trivial, TyEq1Prim (TyEq1Tensor listEq), varSolution, Map.empty)
-            {-
-              (A1TyDataset dp1, A1TyDataset dp2) -> do
-                let (trivialOnNumTrain, numTrain2', varSolutionByNumTrain) =
-                      checkExprArgs
-                        varsToInfer
-                        (dp1.numTrain, BuiltIn.tyNat)
-                        dp2.numTrain
-                let solAcc1 = varSolutionByNumTrain
-                let varsToInferAcc1 = varsToInfer \\ Map.keysSet varSolutionByNumTrain
-
-                let (trivialOnNumTest, numTest2', varSolutionByNumTest) =
-                      checkExprArgs
-                        varsToInferAcc1
-                        (applyVarSolution varSolutionByNumTrain dp1.numTest, BuiltIn.tyNat)
-                        dp2.numTest
-                let solAcc2 = composeVarSolution solAcc1 varSolutionByNumTest
-                let varsToInferAcc2 = varsToInferAcc1 \\ Map.keysSet varSolutionByNumTest
-
-                (trivialOnImage, listEqOfImage, varSolutionByImage) <-
-                  goList
-                    varsToInferAcc2
-                    (applyVarSolution solAcc2 (runIdentity dp1.image))
-                    (applyVarSolution solAcc2 (runIdentity dp2.image))
-                let solAcc3 = composeVarSolution solAcc2 varSolutionByImage
-                let varsToInferAcc3 = varsToInferAcc2 \\ Map.keysSet varSolutionByImage
-
-                (trivialOnLabel, listEqOfLabel, varSolutionByLabel) <-
-                  goList
-                    varsToInferAcc3
-                    (applyVarSolution solAcc3 (runIdentity dp1.label))
-                    (applyVarSolution solAcc3 (runIdentity dp2.label))
-                let solAcc4 = composeVarSolution solAcc3 varSolutionByLabel
-
-                let finalize :: forall af. (HasVar StaticVar af) => af StaticVar -> af StaticVar
-                    finalize = applyVarSolution solAcc4
-
-                let datasetParamEq =
-                      DatasetParamEquation
-                        { numTrainEq = (finalize dp1.numTrain, finalize numTrain2'),
-                          numTestEq = (finalize dp1.numTest, finalize numTest2'),
-                          imageEq = finalize listEqOfImage,
-                          labelEq = listEqOfLabel
-                        }
-                pure
-                  ( trivialOnNumTrain && trivialOnNumTest && trivialOnImage && trivialOnLabel,
-                    TyEq1Prim (TyEq1Dataset datasetParamEq),
-                    solAcc4,
-                    Map.empty
-                  )
-            -}
             (A1TyLstm a0eInputSize1 a0eHiddenSize1, A1TyLstm a0eInputSize2 a0eHiddenSize2) -> do
               let (trivialOnInputSize, inputSize2', varSolutionByInputSize) =
                     checkExprArgs

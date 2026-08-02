@@ -9,7 +9,6 @@ module Staged.Subst
   )
 where
 
-{- import Data.Functor.Identity -}
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map qualified as Map
@@ -18,7 +17,6 @@ import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Safe.Exact (zipExactMay)
-{- import Staged.Core -}
 import Staged.Syntax
 import Prelude
 
@@ -601,15 +599,6 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
           (Set.empty, Set.empty)
         A1TyTensor a0eList ->
           frees a0eList
-        {-
-          A1TyDataset DatasetParam {numTrain, numTest, image, label} ->
-            unionPairs
-              [ frees numTrain,
-                frees numTest,
-                frees (runIdentity image),
-                frees (runIdentity label)
-              ]
-        -}
         A1TyLstm a0e1 a0e2 ->
           unionPairs [frees a0e1, frees a0e2]
         A1TyTextHelper a0e ->
@@ -638,7 +627,6 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       A1TyPrim $ case a1tyPrim of
         A1TyPrimBase tyPrimBase -> A1TyPrimBase tyPrimBase
         A1TyTensor a0eList -> A1TyTensor (go a0eList)
-        {- A1TyDataset datasetParam -> A1TyDataset (fmap go datasetParam) -}
         A1TyLstm a0e1 a0e2 -> A1TyLstm (go a0e1) (go a0e2)
         A1TyTextHelper a0e -> A1TyTextHelper (go a0e)
     A1TyList a1tye1 ->
@@ -813,7 +801,6 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       case ty1eqPrim of
         TyEq1PrimBase _ -> (Set.empty, Set.empty)
         TyEq1Tensor listEq -> frees listEq
-        {- TyEq1Dataset datasetParamEq -> frees datasetParamEq -}
         TyEq1Lstm (i1, i2) (h1, h2) -> unionPairs [frees i1, frees i2, frees h1, frees h2]
         TyEq1TextHelper (labels1, labels2) -> unionPairs [frees labels1, frees labels2]
     TyEq1List ty1eqElem ->
@@ -841,7 +828,6 @@ instance (Ord sv) => HasVar sv Type1EquationF where
         case ty1eqPrim of
           TyEq1PrimBase tyPrimBase -> TyEq1PrimBase tyPrimBase
           TyEq1Tensor listEq -> TyEq1Tensor (go listEq)
-          {- TyEq1Dataset dpEq -> TyEq1Dataset (go dpEq) -}
           TyEq1Lstm (i1, i2) (h1, h2) -> TyEq1Lstm (go i1, go i2) (go h1, go h2)
           TyEq1TextHelper (labels1, labels2) -> TyEq1TextHelper (go labels1, go labels2)
     TyEq1List ty1eqElem ->
@@ -872,7 +858,6 @@ instance (Ord sv) => HasVar sv Type1EquationF where
         case (ty1eqPrim1, ty1eqPrim2) of
           (TyEq1PrimBase tyPrimBase1, TyEq1PrimBase tyPrimBase2) -> tyPrimBase1 == tyPrimBase2
           (TyEq1Tensor listEq1, TyEq1Tensor listEq2) -> go listEq1 listEq2
-          {- (TyEq1Dataset dpEq1, TyEq1Dataset dpEq2) -> go dpEq1 dpEq2 -}
           (_, _) -> False
       (TyEq1List ty1eqElem1, TyEq1List ty1eqElem2) ->
         go ty1eqElem1 ty1eqElem2
@@ -964,49 +949,6 @@ instance (Ord sv) => HasVar sv ListEquationF where
     where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
-
-{-
-instance (Ord sv) => HasVar sv DatasetParamEquationF where
-  frees DatasetParamEquation {numTrainEq, numTestEq, imageEq, labelEq} =
-    unionPairs
-      [ frees numTrain1,
-        frees numTrain2,
-        frees numTest1,
-        frees numTest2,
-        frees imageEq,
-        frees labelEq
-      ]
-    where
-      (numTrain1, numTrain2) = numTrainEq
-      (numTest1, numTest2) = numTestEq
-
-  subst s DatasetParamEquation {numTrainEq, numTestEq, imageEq, labelEq} =
-    DatasetParamEquation
-      { numTrainEq = both go numTrainEq,
-        numTestEq = both go numTestEq,
-        imageEq = go imageEq,
-        labelEq = go labelEq
-      }
-    where
-      go :: forall af. (HasVar sv af) => af sv -> af sv
-      go = subst s
-
-  alphaEquivalent dpEq1 dpEq2 =
-    go numTrain11 numTrain21
-      && go numTrain12 numTrain22
-      && go numTest11 numTest21
-      && go numTest12 numTest22
-      && go dpEq1.imageEq dpEq2.imageEq
-      && go dpEq1.labelEq dpEq2.labelEq
-    where
-      (numTrain11, numTrain12) = dpEq1.numTrainEq
-      (numTrain21, numTrain22) = dpEq2.numTrainEq
-      (numTest11, numTest12) = dpEq1.numTestEq
-      (numTest21, numTest22) = dpEq2.numTestEq
-
-      go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
-      go = alphaEquivalent
--}
 
 instance (HasVar sv af) => HasVar sv (Maybe1 af) where
   frees = maybe (Set.empty, Set.empty) frees . unMaybe1
