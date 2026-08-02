@@ -13,7 +13,7 @@ where
 import Common.FrontError (FrontError (..))
 import Common.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
 import Common.ParserUtil (ParseError (..))
-import Data.Functor.Identity
+{- import Data.Functor.Identity -}
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
@@ -434,12 +434,14 @@ dispNameWithArgs req name dispArg args =
     [] -> name
     _ : _ -> deepenParenWhen (req <= Atomic) (foldl' (<+>) name (map dispArg args))
 
+{-
 dispDatasetParam :: (a -> Doc Ann) -> (f a -> Doc Ann) -> DatasetParam f a -> Doc Ann
 dispDatasetParam dispElem dispList DatasetParam {numTrain, numTest, image, label} =
   dispElem numTrain <> " " <> dispElem numTest <> " " <> dispList image <> " " <> dispList label
 
 dispDatasetParam0 :: DatasetParam [] Int -> Doc Ann
 dispDatasetParam0 = dispDatasetParam disp dispListLiteral
+-}
 
 dispLongName :: (Disp var) => [var] -> var -> Doc Ann
 dispLongName ms x =
@@ -723,7 +725,7 @@ instance Disp Ass0PrimType where
     A0TyTensor [n] -> dispNameWithArgs req "Vec" disp [n]
     A0TyTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
-    A0TyDataset datasetParam -> dispNameWithArgs req "Dataset" dispDatasetParam0 [datasetParam]
+    {- A0TyDataset datasetParam -> dispNameWithArgs req "Dataset" dispDatasetParam0 [datasetParam] -}
     A0TyLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
     A0TyTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
@@ -766,8 +768,10 @@ instance (Disp sv) => Disp (Ass1PrimTypeF sv) where
         A0Literal (ALitList [a0e]) -> dispNameWithArgs req "Vec" dispPersistent [a0e]
         A0Literal (ALitList [a0e1, a0e2]) -> dispNameWithArgs req "Mat" dispPersistent [a0e1, a0e2]
         _ -> dispNameWithArgs req "Tensor" dispPersistent [a0eList]
-    A1TyDataset datasetParam ->
-      dispNameWithArgs req "Dataset" (dispDatasetParam disp (disp . runIdentity)) [datasetParam]
+    {-
+      A1TyDataset datasetParam ->
+        dispNameWithArgs req "Dataset" (dispDatasetParam disp (disp . runIdentity)) [datasetParam]
+    -}
     A1TyLstm a0eInputSize a0eHiddenSize ->
       dispNameWithArgs req "Lstm" disp [a0eInputSize, a0eHiddenSize]
     A1TyTextHelper a0eLabels ->
@@ -1337,7 +1341,7 @@ instance Disp Ass1PrimTypeVal where
     A1TyValTensor [n] -> dispNameWithArgs req "Vec" dispPersistent [n]
     A1TyValTensor [m, n] -> dispNameWithArgs req "Mat" dispPersistent [m, n]
     A1TyValTensor ns -> dispNameWithArgs req "Tensor" dispPersistentListLiteral [ns]
-    A1TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
+    {- A1TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam] -}
     A1TyValLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
     A1TyValTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
