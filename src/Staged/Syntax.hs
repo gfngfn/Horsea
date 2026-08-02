@@ -17,7 +17,7 @@ module Staged.Syntax
     Type1PrimEquationF (..),
     DatatypeArg1EquationF (..),
     ListEquationF (..),
-    DatasetParamEquationF (..),
+    {- DatasetParamEquationF (..), -}
     Ass0TypeExprF (..),
     StrictAss0TypeExprF (..),
     AssPrimBaseType (..),
@@ -502,6 +502,7 @@ data ListEquationF sv
     ListEqByWhole (Ass0ExprF sv) (Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
+{-
 data DatasetParamEquationF sv = DatasetParamEquation
   { numTrainEq :: (Ass0ExprF sv, Ass0ExprF sv),
     numTestEq :: (Ass0ExprF sv, Ass0ExprF sv),
@@ -509,6 +510,7 @@ data DatasetParamEquationF sv = DatasetParamEquation
     labelEq :: ListEquationF sv
   }
   deriving stock (Eq, Show, Functor)
+-}
 
 data EvalEnv = EvalEnv
   { vals :: Map AssVar EvalEnvValEntry,

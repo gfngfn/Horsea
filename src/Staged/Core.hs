@@ -1,17 +1,19 @@
 module Staged.Core
   ( Label,
     ConstructorName,
-    DatasetParam (..),
+    {- DatasetParam (..), -}
   )
 where
 
 import Data.Text (Text)
-import Prelude
+
+{- import Prelude -}
 
 type Label = Text
 
 type ConstructorName = Text
 
+{-
 data DatasetParam f a = DatasetParam
   { numTrain :: a,
     numTest :: a,
@@ -19,3 +21,4 @@ data DatasetParam f a = DatasetParam
     label :: f a
   }
   deriving stock (Eq, Show, Functor)
+-}

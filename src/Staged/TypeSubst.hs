@@ -250,6 +250,7 @@ instance HasTypeVar ListEquationF where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
 
+{-
 instance HasTypeVar DatasetParamEquationF where
   tySubst :: forall sv. TypeSubstF sv -> DatasetParamEquationF sv -> DatasetParamEquationF sv
   tySubst s DatasetParamEquation {numTrainEq, numTestEq, imageEq, labelEq} =
@@ -262,6 +263,7 @@ instance HasTypeVar DatasetParamEquationF where
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
+-}
 
 instance HasTypeVar Ass1ExprF where
   tySubst :: forall sv. TypeSubstF sv -> Ass1ExprF sv -> Ass1ExprF sv

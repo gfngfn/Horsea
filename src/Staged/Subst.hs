@@ -965,6 +965,7 @@ instance (Ord sv) => HasVar sv ListEquationF where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
 
+{-
 instance (Ord sv) => HasVar sv DatasetParamEquationF where
   frees DatasetParamEquation {numTrainEq, numTestEq, imageEq, labelEq} =
     unionPairs
@@ -1005,6 +1006,7 @@ instance (Ord sv) => HasVar sv DatasetParamEquationF where
 
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
+-}
 
 instance (HasVar sv af) => HasVar sv (Maybe1 af) where
   frees = maybe (Set.empty, Set.empty) frees . unMaybe1
