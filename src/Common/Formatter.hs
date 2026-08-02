@@ -13,7 +13,7 @@ where
 import Common.FrontError (FrontError (..))
 import Common.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
 import Common.ParserUtil (ParseError (..))
-import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map (Map)
@@ -334,13 +334,8 @@ dispMaybeType req tye =
     group ("Maybe" <+> dispGen Atomic tye)
 
 dispDatatype :: (Disp datatyArg) => Associativity -> DatatypeId -> [datatyArg] -> Doc Ann
-dispDatatype req datatyId datatyArgs =
-  case nonEmpty datatyArgs of
-    Nothing ->
-      disp tyName
-    Just datatyArgs' ->
-      deepenParenWhen (req <= Atomic) $
-        disp tyName <+> foldl1 (<+>) (fmap (dispGen Atomic) datatyArgs')
+dispDatatype req datatyId =
+  dispNameWithArgs req (disp tyName) (dispGen Atomic)
   where
     tyName = DatatypeId.getName datatyId
 
