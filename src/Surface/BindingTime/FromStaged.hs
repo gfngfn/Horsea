@@ -251,8 +251,12 @@ makeBindingTimeEnvFromStub mods sigr =
                     Just btTyEntry ->
                       (Env.addType tyName btTyEntry btenv, warningAcc)
       )
-      ( \_datatyId _ctormap acc ->
+      ( \_datatyId _datatyEntry acc ->
           -- We don't have to use datatype definitions for BTA.
+          acc
+      )
+      ( \_ctor _ctorEntry acc ->
+          -- TODO: use the type of constructors for BTA
           acc
       )
       ( \m (ModuleEntry sigr') (btenv, warningAcc) ->

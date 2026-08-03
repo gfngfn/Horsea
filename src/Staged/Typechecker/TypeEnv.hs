@@ -13,6 +13,8 @@ module Staged.Typechecker.TypeEnv
     addDatatype,
     findDatatype,
     datatypeOnly,
+    addConstructor,
+    findConstructor,
     addModule,
     findModule,
     appendSigRecord,
@@ -22,10 +24,11 @@ where
 import Data.List.Extra (firstJust)
 import Data.Map (Map)
 import Data.Map qualified as Map
+import Staged.Core (ConstructorName)
 import Staged.DatatypeId (DatatypeId)
 import Staged.SrcSyntax (ModuleName, TypeName, TypeVar, Var)
 import Staged.Syntax (AssTypeVar)
-import Staged.Typechecker.SigRecord (DatatypeEntry, ModuleEntry, SigRecord, TypeEntry, ValEntry)
+import Staged.Typechecker.SigRecord (ConstructorEntry, DatatypeEntry, ModuleEntry, SigRecord, TypeEntry, ValEntry)
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Prelude
 
@@ -37,6 +40,7 @@ data TypeEnv = TypeEnv
     envTypeVars :: [(TypeVar, TypeVarEntry)],
     envTypes :: [(TypeName, TypeEntry)],
     envDatatypes :: DatatypeEnv,
+    envConstructors :: [(ConstructorName, ConstructorEntry)],
     envModules :: [(ModuleName, ModuleEntry)]
   }
 
@@ -51,6 +55,7 @@ empty =
       envTypeVars = [],
       envTypes = [],
       envDatatypes = Map.empty,
+      envConstructors = [],
       envModules = []
     }
 
@@ -100,6 +105,16 @@ findDatatype datatyId tyEnv =
 datatypeOnly :: TypeEnv -> DatatypeEnv
 datatypeOnly = (.envDatatypes)
 
+addConstructor :: ConstructorName -> ConstructorEntry -> TypeEnv -> TypeEnv
+addConstructor ctor ctorEntry tyEnv =
+  tyEnv {envConstructors = (ctor, ctorEntry) : tyEnv.envConstructors}
+
+findConstructor :: ConstructorName -> TypeEnv -> Maybe ConstructorEntry
+findConstructor ctor0 tyEnv =
+  firstJust
+    (\(ctor, ctorEntry) -> if ctor == ctor0 then Just ctorEntry else Nothing)
+    tyEnv.envConstructors
+
 addModule :: ModuleName -> ModuleEntry -> TypeEnv -> TypeEnv
 addModule m modEntry tyEnv =
   tyEnv {envModules = (m, modEntry) : tyEnv.envModules}
@@ -112,4 +127,4 @@ findModule m0 tyEnv =
 
 appendSigRecord :: TypeEnv -> SigRecord -> TypeEnv
 appendSigRecord =
-  SigRecord.fold addVal addType addDatatype addModule
+  SigRecord.fold addVal addType addDatatype addConstructor addModule

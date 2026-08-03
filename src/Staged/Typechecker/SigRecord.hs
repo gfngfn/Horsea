@@ -135,11 +135,13 @@ union sigr1 sigr2 =
       sigModules = Map.union sigr1.sigModules sigr2.sigModules
     }
 
-fold :: (Var -> ValEntry -> a -> a) -> (TypeName -> TypeEntry -> a -> a) -> (DatatypeId -> DatatypeEntry -> a -> a) -> (ModuleName -> ModuleEntry -> a -> a) -> a -> SigRecord -> a
-fold fVal fType fDatatype fModule acc0 (SigRecord {sigVals, sigTypes, sigDatatypes, sigModules}) =
-  acc4
+fold :: (Var -> ValEntry -> a -> a) -> (TypeName -> TypeEntry -> a -> a) -> (DatatypeId -> DatatypeEntry -> a -> a) -> (ConstructorName -> ConstructorEntry -> a -> a) -> (ModuleName -> ModuleEntry -> a -> a) -> a -> SigRecord -> a
+fold fVal fType fDatatype fCtor fModule acc0 sigr =
+  acc5
   where
+    SigRecord {sigVals, sigTypes, sigDatatypes, sigConstructors, sigModules} = sigr
     acc1 = Map.foldrWithKey fVal acc0 sigVals
     acc2 = Map.foldrWithKey fType acc1 sigTypes
     acc3 = Map.foldrWithKey fDatatype acc2 sigDatatypes
-    acc4 = Map.foldrWithKey fModule acc3 sigModules
+    acc4 = Map.foldrWithKey fCtor acc3 sigConstructors
+    acc5 = Map.foldrWithKey fModule acc4 sigModules
