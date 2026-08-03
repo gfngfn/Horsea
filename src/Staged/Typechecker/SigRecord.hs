@@ -6,6 +6,7 @@ module Staged.Typechecker.SigRecord
     Ass1TypeParam (..),
     TypeEntry (..),
     DatatypeEntry (..),
+    ConstructorEntry (..),
     ModuleEntry (..),
     SigRecord,
     empty,
@@ -65,6 +66,9 @@ data DatatypeEntry = DatatypeEntry
     constructors :: Map ConstructorName [Ass1TypeExpr]
   }
 
+data ConstructorEntry
+  = Ass1Constructor [Ass1TypeParam] [Ass1TypeExpr] DatatypeId
+
 newtype ModuleEntry
   = ModuleEntry SigRecord
 
@@ -72,6 +76,7 @@ data SigRecord = SigRecord
   { sigVals :: Map Var ValEntry,
     sigTypes :: Map TypeName TypeEntry,
     sigDatatypes :: Map DatatypeId DatatypeEntry,
+    sigConstructors :: Map ConstructorName ConstructorEntry,
     sigModules :: Map ModuleName ModuleEntry
   }
 
@@ -81,6 +86,7 @@ empty =
     { sigVals = Map.empty,
       sigTypes = Map.empty,
       sigDatatypes = Map.empty,
+      sigConstructors = Map.empty,
       sigModules = Map.empty
     }
 
@@ -104,7 +110,8 @@ singletonTypeData :: TypeName -> [Ass1TypeParam] -> DatatypeId -> Map Constructo
 singletonTypeData tyName a1tyParams datatyId ctormap =
   empty
     { sigTypes = Map.singleton tyName (Ass1TypeData a1tyParams datatyId),
-      sigDatatypes = Map.singleton datatyId (DatatypeEntry a1tyParams ctormap)
+      sigDatatypes = Map.singleton datatyId (DatatypeEntry a1tyParams ctormap),
+      sigConstructors = Map.map (\a1tyes -> Ass1Constructor a1tyParams a1tyes datatyId) ctormap
     }
 
 singletonModule :: ModuleName -> ModuleEntry -> SigRecord
@@ -117,12 +124,14 @@ intersection sigr1 sigr2 =
     map fst $ Map.toList (Map.intersection sigr1.sigModules sigr2.sigModules)
   )
 
+-- | Note: prefers `sigr1` for duplicate keys.
 union :: SigRecord -> SigRecord -> SigRecord
 union sigr1 sigr2 =
   SigRecord
     { sigVals = Map.union sigr1.sigVals sigr2.sigVals,
       sigTypes = Map.union sigr1.sigTypes sigr2.sigTypes,
       sigDatatypes = Map.union sigr1.sigDatatypes sigr2.sigDatatypes,
+      sigConstructors = Map.union sigr1.sigConstructors sigr2.sigConstructors,
       sigModules = Map.union sigr1.sigModules sigr2.sigModules
     }
 
