@@ -135,8 +135,8 @@ data DomainSpec
   | DomOmissible (Located Text) (Maybe (Span, Var), TypeExpr)
   | DomInferable ((Span, Var), TypeExpr)
 
-expr :: P Expr
-expr = letin
+expr, exprAtom :: P Expr
+(expr, exprAtom) = (letin, atom)
   where
     atom :: P Expr
     atom =
@@ -369,6 +369,9 @@ expr = letin
 typeExpr :: P TypeExpr
 typeExpr = expr
 
+typeExprAtom :: P TypeExpr
+typeExprAtom = exprAtom
+
 recordField :: P (Text, RecordField)
 recordField =
   (,) <$> noLoc lower <*> (equalField <|> colonField)
@@ -475,9 +478,9 @@ typeDef =
   try (TypeDefAlias <$> typeExpr)
     <|> (TypeDefData <$> many1 constructorDef)
 
-constructorDef :: P ((ConstructorName, Span), Maybe TypeExpr)
+constructorDef :: P ((ConstructorName, Span), [TypeExpr])
 constructorDef =
-  (\(Located loc ctor) ty_ -> ((ctor, loc), ty_)) <$> (token TokBar *> upper) <*> optional typeExpr
+  (\(Located loc ctor) ty_ -> ((ctor, loc), ty_)) <$> (token TokBar *> upper) <*> many typeExprAtom
 
 parse :: P a -> SourceSpec -> Text -> Either FrontError a
 parse p sourceSpec source = do

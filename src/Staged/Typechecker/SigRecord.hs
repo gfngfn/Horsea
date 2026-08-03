@@ -62,7 +62,7 @@ data TypeEntry
 
 data DatatypeEntry = DatatypeEntry
   { parameters :: [Ass1TypeParam],
-    constructors :: Map ConstructorName (Maybe Ass1TypeExpr)
+    constructors :: Map ConstructorName [Ass1TypeExpr]
   }
 
 newtype ModuleEntry
@@ -100,7 +100,7 @@ singletonTypeAlias :: TypeName -> [Ass1TypeParam] -> Ass1TypeExpr -> SigRecord
 singletonTypeAlias tyName a1tyParams a1tye =
   empty {sigTypes = Map.singleton tyName (Ass1TypeAlias a1tyParams a1tye)}
 
-singletonTypeData :: TypeName -> [Ass1TypeParam] -> DatatypeId -> Map ConstructorName (Maybe Ass1TypeExpr) -> SigRecord
+singletonTypeData :: TypeName -> [Ass1TypeParam] -> DatatypeId -> Map ConstructorName [Ass1TypeExpr] -> SigRecord
 singletonTypeData tyName a1tyParams datatyId ctormap =
   empty
     { sigTypes = Map.singleton tyName (Ass1TypeData a1tyParams datatyId),

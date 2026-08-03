@@ -1815,13 +1815,9 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
               datatyId <- generateFreshDatatypeId tyName
               ctormap <-
                 foldM
-                  ( \ctormap' ((ctor, _), tye_) -> do
-                      case tye_ of
-                        Nothing ->
-                          pure $ Map.insert ctor Nothing ctormap'
-                        Just tye -> do
-                          a1tye <- typecheckTypeExpr1 trav tyEnv' tye
-                          pure $ Map.insert ctor (Just a1tye) ctormap'
+                  ( \ctormap' ((ctor, _), tyes) -> do
+                      a1tyes <- mapM (typecheckTypeExpr1 trav tyEnv') tyes
+                      pure $ Map.insert ctor a1tyes ctormap'
                   )
                   Map.empty
                   ctorDefs
