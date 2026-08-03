@@ -11,7 +11,7 @@ where
 
 import Common.TokenUtil (Span, mergeSpan)
 import Control.Monad
-import Data.Either.Extra (mapLeft, maybeToEither)
+import Data.Either.Extra (mapLeft)
 import Data.Foldable (foldrM)
 import Data.Function
 import Data.List (length)
@@ -38,7 +38,7 @@ import Staged.Typechecker.CastInsertion
 import Staged.Typechecker.Instantiation
 import Staged.Typechecker.Merging
 import Staged.Typechecker.Monad
-import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
+import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ConstructorEntry (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
@@ -47,23 +47,37 @@ import Prelude hiding (length)
 bug :: String -> a
 bug msg = error $ "bug: " ++ msg
 
-findValVar :: trav -> Span -> [ModuleName] -> Var -> TypeEnv -> M trav ValEntry
-findValVar trav loc ms x tyEnv = do
-  spanInFile <- askSpanInFile loc
-  liftEither $ maybeToEither (UnboundVar spanInFile ms x, trav) $ do
-    case ms of
-      [] ->
-        TypeEnv.findVal x tyEnv
-      m : ms' -> do
-        ModuleEntry sigr <- TypeEnv.findModule m tyEnv
-        go sigr ms'
+findChained :: forall name entity. (name -> TypeEnv -> Maybe entity) -> (name -> SigRecord -> Maybe entity) -> [ModuleName] -> name -> TypeEnv -> Either ModuleName (Maybe entity)
+findChained lookupTyEnv lookupSigRecord mods name tyEnv = do
+  case mods of
+    [] ->
+      pure $ lookupTyEnv name tyEnv
+    m : mods' -> do
+      case TypeEnv.findModule m tyEnv of
+        Just (ModuleEntry sigr) -> go sigr mods'
+        Nothing -> Left m
   where
-    go :: SigRecord -> [ModuleName] -> Maybe ValEntry
     go sigr [] =
-      SigRecord.findVal x sigr
-    go sigr (m : ms') = do
-      ModuleEntry sigr' <- SigRecord.findModule m sigr
-      go sigr' ms'
+      pure $ lookupSigRecord name sigr
+    go sigr (m : mods') =
+      case SigRecord.findModule m sigr of
+        Just (ModuleEntry sigr') -> go sigr' mods'
+        Nothing -> Left m
+
+findValVar :: trav -> Span -> [ModuleName] -> Var -> TypeEnv -> M trav ValEntry
+findValVar trav loc mods x tyEnv = do
+  spanInFile <- askSpanInFile loc
+  case findChained TypeEnv.findVal SigRecord.findVal mods x tyEnv of
+    Left m -> typeError trav $ UnboundModule spanInFile m
+    Right Nothing -> typeError trav $ UnboundVar spanInFile mods x
+    Right (Just valEntry) -> pure valEntry
+
+findConstructor :: trav -> Span -> [ModuleName] -> ConstructorName -> TypeEnv -> M trav (Maybe ConstructorEntry)
+findConstructor trav loc mods ctor tyEnv = do
+  spanInFile <- askSpanInFile loc
+  case findChained TypeEnv.findConstructor SigRecord.findConstructor mods ctor tyEnv of
+    Left m -> typeError trav $ UnboundModule spanInFile m
+    Right ctorEntry_ -> pure ctorEntry_
 
 findTypeVar :: trav -> Span -> TypeVar -> TypeEnv -> M trav TypeVarEntry
 findTypeVar trav loc tyvar tyEnv = do
@@ -152,23 +166,32 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
   completeImplicit spanInFile
     =<< case eMain of
-      Constructor (mods, ctor) ->
-        case (mods, ctor) of
-          ([], "Just") ->
-            case appCtx of
+      Constructor (mods, ctor) -> do
+        ctorEntry_ <- findConstructor trav loc mods ctor tyEnv
+        case ctorEntry_ of
+          Just _ctorEntry ->
+            error "TODO: typecheckExpr0, Constructor"
+          Nothing ->
+            case mods of
               [] ->
-                typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
-              [AppArg0 Nothing _a0e1 a0tye1] -> do
-                svX <- generateFreshVar Nothing
-                let ax = AssVarStatic svX
-                let a0eRet = A0Lam Nothing (ax, strictify a0tye1) (A0Constructor "Just" [A0Var ax])
-                pure (Cast0 Nothing a0tye1 (Pure (A0TyMaybe a0tye1)), a0eRet)
-              _ ->
-                typeError trav $ InvalidConstructorApplication spanInFile appCtx mods ctor
-          ([], "Nothing") ->
-            typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
-          (_, _) ->
-            typeError trav $ UnboundConstructor spanInFile mods ctor
+                case ctor of
+                  "Just" ->
+                    case appCtx of
+                      [] ->
+                        typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
+                      [AppArg0 Nothing _a0e1 a0tye1] -> do
+                        svX <- generateFreshVar Nothing
+                        let ax = AssVarStatic svX
+                        let a0eRet = A0Lam Nothing (ax, strictify a0tye1) (A0Constructor "Just" [A0Var ax])
+                        pure (Cast0 Nothing a0tye1 (Pure (A0TyMaybe a0tye1)), a0eRet)
+                      _ ->
+                        typeError trav $ InvalidConstructorApplication spanInFile appCtx mods ctor
+                  "Nothing" ->
+                    typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
+                  _ ->
+                    typeError trav $ UnboundConstructor spanInFile mods ctor
+              _ : _ ->
+                typeError trav $ UnboundConstructor spanInFile mods ctor
       Product e1 rest ->
         typecheckExpr0 trav tyEnv appCtx (convertProductToApp e1 rest)
       Literal lit ->

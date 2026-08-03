@@ -12,6 +12,7 @@ module Staged.Typechecker.SigRecord
     empty,
     findVal,
     findType,
+    findConstructor,
     findModule,
     singletonVal,
     singletonTypeAlias,
@@ -95,6 +96,9 @@ findVal x sigr = Map.lookup x sigr.sigVals
 
 findType :: TypeName -> SigRecord -> Maybe TypeEntry
 findType tyName sigr = Map.lookup tyName sigr.sigTypes
+
+findConstructor :: ConstructorName -> SigRecord -> Maybe ConstructorEntry
+findConstructor ctor sigr = Map.lookup ctor sigr.sigConstructors
 
 findModule :: ModuleName -> SigRecord -> Maybe ModuleEntry
 findModule m sigr = Map.lookup m sigr.sigModules
