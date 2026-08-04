@@ -127,7 +127,7 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
       case (mods, ctor) of
         ([], "Nothing") ->
           case a0tyeReq of
-            A0TyMaybe _a0tyeElem -> pure $ A0Constructor "Nothing" []
+            A0TyMaybe _a0tyeElem -> pure $ A0Constructor "Nothing"
             _ -> typeError trav $ CannotForceType0 spanInFile a0tyeReq
         _ -> do
           (a0tye, a0e) <- typecheckExpr0Single trav tyEnv e
@@ -182,7 +182,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                       [AppArg0 Nothing _a0e1 a0tye1] -> do
                         svX <- generateFreshVar Nothing
                         let ax = AssVarStatic svX
-                        let a0eRet = A0Lam Nothing (ax, strictify a0tye1) (A0Constructor "Just" [A0Var ax])
+                        let a0eRet = A0Lam Nothing (ax, strictify a0tye1) (A0App (A0Constructor "Just") (A0Var ax))
                         pure (Cast0 Nothing a0tye1 (Pure (A0TyMaybe a0tye1)), a0eRet)
                       _ ->
                         typeError trav $ InvalidConstructorApplication spanInFile appCtx mods ctor
@@ -305,7 +305,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgOmsGiven0 label a0e2 a0tye2 : appCtx) e1
         case result1 of
           CastOmsGiven0 cast _a0tyeElem11 result -> do
-            pure (result, A0App a0e1 (A0Constructor "Just" [applyCast0 cast a0e2]))
+            pure (result, A0App a0e1 (A0App (A0Constructor "Just") (applyCast0 cast a0e2)))
           _ ->
             bug "stage-0, AppOms, fun"
       LamInf (x1, tye1) e2 -> do
@@ -539,7 +539,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         go pair@(result, a0e) =
           case result of
             InsertOmitted0 result' ->
-              go (result', A0App a0e (A0Constructor "Nothing" []))
+              go (result', A0App a0e (A0Constructor "Nothing"))
             InsertInferred0 a0eInferred result' -> do
               logInferableArg $ LogInferredArg spanInFile a0eInferred
               go (result', A0App a0e a0eInferred)
@@ -579,7 +579,7 @@ forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) = do
       case (mods, ctor) of
         ([], "Nothing") ->
           case a0tyePatReq of
-            A0TyMaybe _ -> pure (A0PatConstructor "Nothing" [], Map.empty)
+            A0TyMaybe _ -> pure (A0PatConstructorApp "Nothing" [], Map.empty)
             _ -> typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
         (_, _) ->
           typeError trav $ UnboundConstructorOrInvalidArity spanInFile mods ctor 0
@@ -590,7 +590,7 @@ forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) = do
           case a0tyePatReq of
             A0TyMaybe a0tyePatReq1 -> do
               (a0pat1, binders) <- forcePattern0 trav tyEnv a0tyePatReq1 pat1
-              pure (A0PatConstructor "Just" [a0pat1], binders)
+              pure (A0PatConstructorApp "Just" [a0pat1], binders)
             _ ->
               typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
         ([], "::", [pat1, pat2]) ->
@@ -632,7 +632,7 @@ forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) = do
       case (mods, ctor) of
         (_, "Nothing") ->
           case a1tyePatReq of
-            A1TyMaybe _ -> pure (A1PatConstructor "Nothing" [], Map.empty)
+            A1TyMaybe _ -> pure (A1PatConstructorApp "Nothing" [], Map.empty)
             _ -> typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
         _ ->
           typeError trav $ UnboundConstructorOrInvalidArity spanInFile mods ctor 0
@@ -643,7 +643,7 @@ forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) = do
           case a1tyePatReq of
             A1TyMaybe a1tyePatReq1 -> do
               (a1pat1, binders) <- forcePattern1 trav tyEnv a1tyePatReq1 pat1
-              pure (A1PatConstructor "Just" [a1pat1], binders)
+              pure (A1PatConstructorApp "Just" [a1pat1], binders)
             _ ->
               typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
         ([], "::", [pat1, pat2]) ->
@@ -847,7 +847,7 @@ forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
       case (mods, ctor) of
         ([], "Nothing") ->
           case a1tyeReq of
-            A1TyMaybe _a1tyeElem -> pure $ A1Constructor "Nothing" []
+            A1TyMaybe _a1tyeElem -> pure $ A1Constructor "Nothing"
             _ -> typeError trav $ CannotForceType1 spanInFile a1tyeReq
         _ -> do
           (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
@@ -886,23 +886,33 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
   completeImplicit
     <$> case eMain of
-      Constructor (mods, ctor) ->
-        case (mods, ctor) of
-          ([], "Just") ->
-            case appCtx of
+      Constructor (mods, ctor) -> do
+        ctorEntry_ <- findConstructor trav loc mods ctor tyEnv
+        case ctorEntry_ of
+          Just ctorEntry ->
+            case ctorEntry of
+              Ass1Constructor _a1tyParams _a1tyes _datatyId -> do
+                let a1tye = error "TODO: typecheckExpr1, Constructor, make `a1tye` from `a1tyParams`, `a1tyes`, and `datatyId`"
+                (result, _) <- instantiateGuidedByAppContext1 trav loc (TypeEnv.datatypeOnly tyEnv) Set.empty appCtx a1tye
+                pure (result, A1Constructor ctor)
+          Nothing ->
+            case mods of
               [] ->
-                typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
-              [AppArg1 Nothing a1tye1] -> do
-                svX <- generateFreshVar Nothing
-                let ax = AssVarStatic svX
-                let a1eRet = A1Lam Nothing (ax, a1tye1) (A1Constructor "Just" [A1Var ax])
-                pure (Cast1 Nothing a1tye1 (Pure (A1TyMaybe a1tye1)), a1eRet)
+                case ctor of
+                  "Just" ->
+                    case appCtx of
+                      [] ->
+                        typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
+                      [AppArg1 Nothing a1tye1] -> do
+                        pure (Cast1 Nothing a1tye1 (Pure (A1TyMaybe a1tye1)), A1Constructor "Just")
+                      _ ->
+                        typeError trav $ InvalidConstructorApplication spanInFile appCtx mods ctor
+                  "Nothing" ->
+                    typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
+                  _ ->
+                    typeError trav $ UnboundConstructor spanInFile mods ctor
               _ ->
-                typeError trav $ InvalidConstructorApplication spanInFile appCtx mods ctor
-          ([], "Nothing") ->
-            typeError trav $ CannotSynthesizeTypeFromExpr spanInFile
-          (_, _) ->
-            typeError trav $ UnboundConstructor spanInFile mods ctor
+                typeError trav $ UnboundConstructor spanInFile mods ctor
       Product e1 rest ->
         typecheckExpr1 trav tyEnv appCtx (convertProductToApp e1 rest)
       Literal lit ->
@@ -1029,7 +1039,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         case result1 of
           CastOmsGiven1 cast _a1tye11 result ->
             -- Embeds type equality assertion at stage 0 here!
-            pure (result, A1App a1e1 (A1Constructor "Just" [applyCast1 cast a1e2]))
+            pure (result, A1App a1e1 (A1App (A1Constructor "Just") (applyCast1 cast a1e2)))
           _ ->
             bug "stage-1, AppOms, fun, not a CastOms1"
       LamInf _ _ ->
@@ -1268,7 +1278,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
     completeImplicit pair@(result, a1e) =
       case result of
         InsertOmitted1 result' ->
-          completeImplicit (result', A1App a1e (A1Constructor "Nothing" []))
+          completeImplicit (result', A1App a1e (A1Constructor "Nothing"))
         InsertInferredType1 a1tyeInferred result' ->
           completeImplicit (result', A1AppType a1e a1tyeInferred)
         _ ->

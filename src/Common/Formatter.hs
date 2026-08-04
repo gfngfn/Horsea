@@ -630,7 +630,7 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
     A0Tuple a0es -> dispTuple a0es
     A0Record a0re -> dispRecord "=" a0re
     A0FieldProj a0e1 label -> dispFieldProj req a0e1 label
-    A0Constructor ctor a0es -> dispConstructorApp req ctor a0es
+    A0Constructor ctor -> disp ctor
     A0Bracket a1e1 -> dispBracket a1e1
     A0IfThenElse a0e0 a0e1 a0e2 -> dispIfThenElse req a0e0 a0e1 a0e2
     A0Case a0e0 a0branches -> dispCase req a0e0 a0branches
@@ -650,7 +650,7 @@ instance (Disp sv) => Disp (Ass0BranchF sv) where
 
 instance (Disp sv) => Disp (Ass0PatternF sv) where
   dispGen req = \case
-    A0PatConstructor ctor a0pats -> dispConstructorApp req ctor a0pats
+    A0PatConstructorApp ctor a0pats -> dispConstructorApp req ctor a0pats
     A0PatVar x -> disp x
     A0PatBool b -> dispBool b
     A0PatListNil -> "[]"
@@ -670,7 +670,7 @@ instance (Disp sv) => Disp (Ass1ExprF sv) where
     A1Tuple a1es -> dispTuple a1es
     A1Record a1re -> dispRecord "=" a1re
     A1FieldProj a1e1 label -> dispFieldProj req a1e1 label
-    A1Constructor ctor a1es -> dispConstructorApp req ctor a1es
+    A1Constructor ctor -> disp ctor
     A1IfThenElse a1e0 a1e1 a1e2 -> dispIfThenElse req a1e0 a1e1 a1e2
     A1Case a1e0 a1branches -> dispCase req a1e0 a1branches
     A1Escape a0e1 -> dispEscape a0e1
@@ -682,7 +682,7 @@ instance (Disp sv) => Disp (Ass1BranchF sv) where
 
 instance (Disp sv) => Disp (Ass1PatternF sv) where
   dispGen req = \case
-    A1PatConstructor ctor a0pats -> dispConstructorApp req ctor a0pats
+    A1PatConstructorApp ctor a0pats -> dispConstructorApp req ctor a0pats
     A1PatVar x -> disp x
     A1PatBool b -> dispBool b
     A1PatListNil -> "[]"
@@ -1166,7 +1166,7 @@ instance (Disp sv) => Disp (Ass0ValF sv) where
     A0ValLiteral lit -> disp lit
     A0ValTuple a0vs -> dispTuple a0vs
     A0ValRecord a0rv -> dispRecord "=" a0rv
-    A0ValConstructor ctor a0vs -> dispConstructorApp req ctor a0vs
+    A0ValConstructorApp ctor a0vs -> dispConstructorApp req ctor a0vs
     A0ValLam Nothing (x, a0tyv1) a0v2 _env -> dispNonrecLam req Nothing x a0tyv1 a0v2
     A0ValLam (Just (f, a0tyvRec)) (x, a0tyv1) a0v2 _env -> dispRecLam req f a0tyvRec Nothing x a0tyv1 a0v2
     A0ValBracket a1v1 -> dispBracket a1v1
@@ -1260,8 +1260,8 @@ instance (Disp sv) => Disp (Ass1ValF sv) where
       dispRecord "=" a1rv
     A1ValFieldProj a1e1 label ->
       dispFieldProj req a1e1 label
-    A1ValConstructor ctor a1vs ->
-      dispConstructorApp req ctor a1vs
+    A1ValConstructor ctor ->
+      disp ctor
     A1ValIfThenElse a1v0 a1v1 a1v2 ->
       dispIfThenElse req a1v0 a1v1 a1v2
     A1ValCase a1v0 a1branchVs ->

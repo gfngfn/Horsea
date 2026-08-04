@@ -121,8 +121,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       unionPairs (map (frees . snd) (Map.toList a0re))
     A0FieldProj a0e _label ->
       frees a0e
-    A0Constructor _ctor a0es ->
-      unionPairs (map frees a0es)
+    A0Constructor _ctor ->
+      (Set.empty, Set.empty)
     A0IfThenElse a0e0 a0e1 a0e2 ->
       unionPairs [frees a0e0, frees a0e1, frees a0e2]
     A0Case a0e0 a0branches ->
@@ -177,8 +177,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       A0Record (fmap go a0re)
     A0FieldProj a0e label ->
       A0FieldProj (go a0e) label
-    A0Constructor ctor a0es ->
-      A0Constructor ctor (map go a0es)
+    A0Constructor ctor ->
+      A0Constructor ctor
     A0IfThenElse a0e0 a0e1 a0e2 ->
       A0IfThenElse (go a0e0) (go a0e1) (go a0e2)
     A0Case a0e0 a0branches ->
@@ -231,11 +231,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       (A0Record a0re1, A0Record a0re2) ->
         Map.keysSet a0re1 == Map.keysSet a0re2
           && all (uncurry go . snd) (Map.toList (Map.intersectionWith (,) a0re1 a0re2))
-      (A0Constructor ctor1 a0es1, A0Constructor ctor2 a0es2) ->
+      (A0Constructor ctor1, A0Constructor ctor2) ->
         ctor1 == ctor2
-          && case zipExactMay a0es1 a0es2 of
-            Just zipped -> all (uncurry go) zipped
-            Nothing -> False
       (A0IfThenElse a0e10 a0e11 a0e12, A0IfThenElse a0e20 a0e21 a0e22) ->
         go a0e10 a0e20 && go a0e11 a0e21 && go a0e12 a0e22
       (A0Case a0e10 a0branches1, A0Case a0e20 a0branches2) ->
@@ -279,7 +276,7 @@ instance (Ord sv) => HasVar sv Ass0BranchF where
 
 freesInPattern0 :: (Ord sv) => Ass0PatternF sv -> Set (AssVarF sv)
 freesInPattern0 = \case
-  A0PatConstructor _ctor a0pats -> Set.unions (map freesInPattern0 a0pats)
+  A0PatConstructorApp _ctor a0pats -> Set.unions (map freesInPattern0 a0pats)
   A0PatVar x -> Set.singleton x
   A0PatBool _ -> Set.empty
   A0PatListNil -> Set.empty
@@ -323,8 +320,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       unionPairs (map (frees . snd) (Map.toList a1rty))
     A1FieldProj a1e _label ->
       frees a1e
-    A1Constructor _ctor a1es ->
-      unionPairs (map frees a1es)
+    A1Constructor _ctor ->
+      (Set.empty, Set.empty)
     A1IfThenElse a1e0 a1e1 a1e2 ->
       unionPairs [frees a1e0, frees a1e1, frees a1e2]
     A1Case a1e0 a1branches ->
@@ -375,8 +372,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       A1Record (fmap go a1rty)
     A1FieldProj a1e label ->
       A1FieldProj (go a1e) label
-    A1Constructor ctor a1es ->
-      A1Constructor ctor (map go a1es)
+    A1Constructor ctor ->
+      A1Constructor ctor
     A1IfThenElse a1e0 a1e1 a1e2 ->
       A1IfThenElse (go a1e0) (go a1e1) (go a1e2)
     A1Case a1e0 a1branches ->
@@ -451,7 +448,7 @@ instance (Ord sv) => HasVar sv Ass1BranchF where
 
 freesInPattern1 :: (Ord sv) => Ass1PatternF sv -> Set (AssVarF sv)
 freesInPattern1 = \case
-  A1PatConstructor _ctor a1pats -> Set.unions (map freesInPattern1 a1pats)
+  A1PatConstructorApp _ctor a1pats -> Set.unions (map freesInPattern1 a1pats)
   A1PatVar x -> Set.singleton x
   A1PatBool _ -> Set.empty
   A1PatListNil -> Set.empty

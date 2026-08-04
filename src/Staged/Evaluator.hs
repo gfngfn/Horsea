@@ -128,8 +128,8 @@ validatePairValue a0v = do
 
 validateMaybeValue :: Ass0Val -> M (Maybe Ass0Val)
 validateMaybeValue = \case
-  A0ValConstructor "Nothing" [] -> pure Nothing
-  A0ValConstructor "Just" [a0vElem] -> pure (Just a0vElem)
+  A0ValConstructorApp "Nothing" [] -> pure Nothing
+  A0ValConstructorApp "Just" [a0vElem] -> pure (Just a0vElem)
   a0v -> bug $ NotAMaybe a0v
 
 validateIntMaybe :: Ass0Val -> M (Maybe Int)
@@ -316,6 +316,8 @@ reduceBeta a0vFun a0vArg =
         a0eBody
     A0ValPartialBuiltInApp pba ->
       reduceDelta pba a0vArg
+    A0ValConstructorApp ctor a0vs ->
+      pure $ A0ValConstructorApp ctor (a0vs ++ [a0vArg])
     _ ->
       bug $ NotAClosure a0vFun
 
@@ -344,7 +346,7 @@ evalCase env a0v = goBranch
 matchWithPattern :: Ass0Val -> Ass0Pattern -> Maybe (Map AssVar Ass0Val)
 matchWithPattern a0v a0pat =
   case (a0v, a0pat) of
-    (A0ValConstructor ctor1 a0vs, A0PatConstructor ctor2 a0pats) ->
+    (A0ValConstructorApp ctor1 a0vs, A0PatConstructorApp ctor2 a0pats) ->
       if ctor1 == ctor2
         then do
           zipped <- zipExactMay a0vs a0pats
@@ -433,9 +435,8 @@ evalExpr0 env = \case
           Nothing -> bug $ NoRecordField a0rv label
       _ ->
         bug $ NotARecord a0v
-  A0Constructor ctor a0es -> do
-    a0vs <- mapM (evalExpr0 env) a0es
-    pure $ A0ValConstructor ctor a0vs
+  A0Constructor ctor -> do
+    pure $ A0ValConstructorApp ctor []
   A0IfThenElse a0e0 a0e1 a0e2 -> do
     a0v0 <- evalExpr0 env a0e0
     b <- validateBoolLiteral "if" a0v0
@@ -531,9 +532,8 @@ evalExpr1 env = \case
   A1FieldProj a1e1 label -> do
     a1v1 <- evalExpr1 env a1e1
     pure $ A1ValFieldProj a1v1 label
-  A1Constructor ctor a1es -> do
-    a1vs <- mapM (evalExpr1 env) a1es
-    pure $ A1ValConstructor ctor a1vs
+  A1Constructor ctor -> do
+    pure $ A1ValConstructor ctor
   A1IfThenElse a1e0 a1e1 a1e2 -> do
     a1v0 <- evalExpr1 env a1e0
     a1v1 <- evalExpr1 env a1e1
@@ -665,8 +665,8 @@ unliftVal = \case
     A0Record (fmap unliftVal a1rv)
   A1ValFieldProj a1v1 label ->
     A0FieldProj (unliftVal a1v1) label
-  A1ValConstructor ctor a1vs ->
-    A0Constructor ctor (map unliftVal a1vs)
+  A1ValConstructor ctor ->
+    A0Constructor ctor
   A1ValIfThenElse a1v0 a1v1 a1v2 ->
     A0IfThenElse (unliftVal a1v0) (unliftVal a1v1) (unliftVal a1v2)
   A1ValCase a1v0 a1branchVs ->
@@ -682,7 +682,7 @@ unliftBranchVal (A1ValBranch a1pat a1e) =
 
 unliftPattern :: Ass1Pattern -> Ass0Pattern
 unliftPattern = \case
-  A1PatConstructor ctor a1pats -> A0PatConstructor ctor (map unliftPattern a1pats)
+  A1PatConstructorApp ctor a1pats -> A0PatConstructorApp ctor (map unliftPattern a1pats)
   A1PatVar ax -> A0PatVar ax
   A1PatBool b -> A0PatBool b
   A1PatListNil -> A0PatListNil

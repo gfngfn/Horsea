@@ -322,10 +322,10 @@ definitions =
           a0vInOpt <- validateMaybeValue a0v2
           case a0vInOpt of
             Nothing ->
-              pure $ A0ValConstructor "Nothing" []
+              pure $ A0ValConstructorApp "Nothing" []
             Just a0vIn -> do
               a0vOut <- reduceBeta a0v1 a0vIn
-              pure $ A0ValConstructor "Just" [a0vOut]
+              pure $ A0ValConstructorApp "Just" [a0vOut]
         |],
     versatile ["list"] "map" ForBothStages 2 $
       [|

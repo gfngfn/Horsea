@@ -72,7 +72,7 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
                 go varsToInfer tyvars0ToInfer appCtx $
                   case xOpt of
                     Nothing -> a0tye2
-                    Just x -> subst0 (A0Constructor "Nothing" []) x a0tye2
+                    Just x -> subst0 (A0Constructor "Nothing") x a0tye2
               pure (InsertOmitted0 result', varSolution', tyvar0Solution')
         (appCtxEntry : appCtx', A0TyInfArrow (x, a0tye1) a0tye2) ->
           case appCtxEntry of

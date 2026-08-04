@@ -144,7 +144,7 @@ data Ass0ExprF sv
   | A0Tuple (TwoOrMore (Ass0ExprF sv))
   | A0Record (Map Label (Ass0ExprF sv))
   | A0FieldProj (Ass0ExprF sv) Label
-  | A0Constructor ConstructorName [Ass0ExprF sv]
+  | A0Constructor ConstructorName
   | A0IfThenElse (Ass0ExprF sv) (Ass0ExprF sv) (Ass0ExprF sv)
   | A0Case (Ass0ExprF sv) (NonEmpty (Ass0BranchF sv))
   | A0Bracket (Ass1ExprF sv)
@@ -160,7 +160,7 @@ data Ass0BranchF sv = A0Branch (Ass0PatternF sv) (Ass0ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data Ass0PatternF sv
-  = A0PatConstructor ConstructorName [Ass0PatternF sv]
+  = A0PatConstructorApp ConstructorName [Ass0PatternF sv]
   | A0PatVar (AssVarF sv)
   | A0PatBool Bool
   | A0PatListNil
@@ -180,7 +180,7 @@ data Ass1ExprF sv
   | A1Tuple (TwoOrMore (Ass1ExprF sv))
   | A1Record (Map Label (Ass1ExprF sv))
   | A1FieldProj (Ass1ExprF sv) Label
-  | A1Constructor ConstructorName [Ass1ExprF sv]
+  | A1Constructor ConstructorName
   | A1IfThenElse (Ass1ExprF sv) (Ass1ExprF sv) (Ass1ExprF sv)
   | A1Case (Ass1ExprF sv) (NonEmpty (Ass1BranchF sv))
   | A1Escape (Ass0ExprF sv)
@@ -192,7 +192,7 @@ data Ass1BranchF sv = A1Branch (Ass1PatternF sv) (Ass1ExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data Ass1PatternF sv
-  = A1PatConstructor ConstructorName [Ass1PatternF sv]
+  = A1PatConstructorApp ConstructorName [Ass1PatternF sv]
   | A1PatVar (AssVarF sv)
   | A1PatBool Bool
   | A1PatListNil
@@ -368,7 +368,7 @@ data Ass0ValF sv
   = A0ValLiteral (AssLiteralF Ass0ValF sv)
   | A0ValTuple (TwoOrMore (Ass0ValF sv))
   | A0ValRecord (Map Label (Ass0ValF sv))
-  | A0ValConstructor ConstructorName [Ass0ValF sv]
+  | A0ValConstructorApp ConstructorName [Ass0ValF sv]
   | -- | Function closures.
     A0ValLam (Maybe (AssVarF sv, Ass0TypeValF sv)) (AssVarF sv, Ass0TypeValF sv) (Ass0ExprF sv) EvalEnv
   | -- | code fragments.
@@ -392,7 +392,7 @@ data Ass1ValF sv
   | A1ValTuple (TwoOrMore (Ass1ValF sv))
   | A1ValRecord (Map Label (Ass1ValF sv))
   | A1ValFieldProj (Ass1ValF sv) Label
-  | A1ValConstructor ConstructorName [Ass1ValF sv]
+  | A1ValConstructor ConstructorName
   | A1ValIfThenElse (Ass1ValF sv) (Ass1ValF sv) (Ass1ValF sv)
   | A1ValCase (Ass1ValF sv) (NonEmpty (Ass1BranchValF sv))
   | A1ValLamType AssTypeVar (Ass1ValF sv)
