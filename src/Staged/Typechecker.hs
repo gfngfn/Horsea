@@ -29,6 +29,7 @@ import Safe.Exact (zipExactMay)
 import Staged.BuiltIn qualified as BuiltIn
 import Staged.BuiltIn.Core
 import Staged.Core
+import Staged.DatatypeId (DatatypeId)
 import Staged.SrcSyntax
 import Staged.Subst
 import Staged.Syntax
@@ -881,6 +882,27 @@ typecheckExpr1Single trav tyEnv e@(Expr loc _) = do
       spanInFile <- askSpanInFile loc
       bug $ "non-empty result1: " ++ show spanInFile
 
+makeConstructorType1 :: [Ass1TypeParam] -> [Ass1TypeExpr] -> DatatypeId -> Ass1TypeExpr
+makeConstructorType1 a1tyParams a1tyeArgs datatyId =
+  foldl'
+    ( \a1tye a1tyParam ->
+        case a1tyParam of
+          A1TypeParamType atyvar -> A1TyForAll atyvar a1tye
+          A1TypeParamVal0 _ax _a0tye -> error "TODO: makeConstructorType1; redesign how to apply constructors"
+    )
+    a1tyeQuantified
+    a1tyParams
+  where
+    a1datatyArgs =
+      map
+        ( \case
+            A1TypeParamType atyvar -> A1DatatypeArgType (A1TyVar atyvar)
+            A1TypeParamVal0 ax _a0tye -> A1DatatypeArgVal0 (A0Var ax)
+        )
+        a1tyParams
+    a1tyeCod = A1TyData datatyId a1datatyArgs
+    a1tyeQuantified = foldl' (\a1tye a1tyeArg -> A1TyArrow Nothing a1tyeArg a1tye) a1tyeCod a1tyeArgs
+
 typecheckExpr1 :: trav -> TypeEnv -> AppContext -> Expr -> M trav (Result1, Ass1Expr)
 typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
   spanInFile <- askSpanInFile loc
@@ -891,8 +913,8 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         case ctorEntry_ of
           Just ctorEntry ->
             case ctorEntry of
-              Ass1Constructor _a1tyParams _a1tyes _datatyId -> do
-                let a1tye = error "TODO: typecheckExpr1, Constructor, make `a1tye` from `a1tyParams`, `a1tyes`, and `datatyId`"
+              Ass1Constructor a1tyParams a1tyes datatyId -> do
+                let a1tye = makeConstructorType1 a1tyParams a1tyes datatyId
                 (result, _) <- instantiateGuidedByAppContext1 trav loc (TypeEnv.datatypeOnly tyEnv) Set.empty appCtx a1tye
                 pure (result, A1Constructor ctor)
           Nothing ->
