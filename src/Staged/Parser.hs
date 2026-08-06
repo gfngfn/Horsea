@@ -446,8 +446,13 @@ bind =
       where
         locLast =
           case tydef of
-            TypeDefAlias (Expr locLast' _) -> locLast'
-            TypeDefData _ctor -> error "TODO: Parser, TypeDefData"
+            TypeDefAlias (Expr locLast' _) ->
+              locLast'
+            TypeDefData ctors ->
+              let ((_, locCtor), tys) = NonEmpty.last ctors
+               in case reverse tys of
+                    [] -> locCtor
+                    Expr locTyArgLast _ : _ -> locTyArgLast
 
     makeBindModule locFirst m binds locLast =
       Bind (mergeSpan locFirst locLast) (BindModule m binds)

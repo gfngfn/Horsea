@@ -1088,6 +1088,8 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> "application context:"
         <> hardline
         <> nest 2 (hardline <> disps appCtx)
+    VarBoundMoreThanOnceInPattern spanInFile x ->
+      "Variable" <+> disp x <+> "bound more than once in a pattern" <+> disp spanInFile
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case
@@ -1128,8 +1130,15 @@ instance (Disp sv) => Disp (UnsupportedF sv) where
         <> hardline
         <+> "application context:"
         <> nest 2 (hardline <> disps appCtx)
+    LamInfTypeWithArguments appCtx ->
+      "Lambda abstraction for an inferrable type parameter directly applied to argument(s); consider reducing it manually"
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
     PersistentFunWithOms ->
-      "persistent function with an omissible parameter"
+      "Persistent function with an omissible parameter"
+    NonStage1TypeDefinition ->
+      "Non-stage-1 type definition"
 
 instance (Disp sv) => Disp (AppContextEntryF sv) where
   dispGen _ = \case

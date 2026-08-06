@@ -131,7 +131,7 @@ deriveNameValidationFun0 allBiSpecs =
     funType :: TH.Type
     funType = TH.ConT ''Text `arr` TH.AppT (TH.ConT ''Maybe) (TH.ConT (TH.mkName "BuiltIn"))
 
-    -- TODO: change this to `_ -> Nothing`
+    -- TODO (enhance): change this to `_ -> Nothing`
     otherwiseBranch0 :: TH.Match
     otherwiseBranch0 =
       TH.Match (TH.VarP name) (TH.NormalB body) []
@@ -175,7 +175,7 @@ deriveNameValidationFun1 allBiSpecs =
     funType :: TH.Type
     funType = TH.ConT ''Text `arr` TH.AppT (TH.ConT ''Maybe) (TH.ConT (TH.mkName "Ass1BuiltIn"))
 
-    -- TODO: change this to `_ -> Nothing`
+    -- TODO (enhance): change this to `_ -> Nothing`
     otherwiseBranch0 :: TH.Match
     otherwiseBranch0 =
       TH.Match (TH.VarP name) (TH.NormalB body) []

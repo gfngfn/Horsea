@@ -42,7 +42,7 @@ data BuiltIn
   | BuiltInArity6 BuiltInArity6
   | BuiltInArity7 BuiltInArity7
   | BuiltInArity8 BuiltInArity8
-  | BuiltInOther Text -- TODO: remove this
+  | BuiltInOther Text -- TODO (enhance): remove this
   deriving stock (Eq, Show)
 
 data Ass0PartialBuiltInApp val
@@ -127,7 +127,7 @@ unliftBuiltInName = \case
   A1BITensorAdd ns1 ns2 ->
     if ns1 == ns2
       then arity2 (BITensorAdd ns1)
-      else error $ "TODO: unliftBuiltInName, A1BITensorAdd, broadcast, " ++ show ns1 ++ " and " ++ show ns2
+      else error $ "TODO (enhance): unliftBuiltInName, A1BITensorAdd, broadcast, " ++ show ns1 ++ " and " ++ show ns2
   A1BIListMap -> arity2 BIListMap
   A1BIListAppend -> arity2 BIListAppend
   A1BIListIter -> arity2 BIListIter
@@ -135,7 +135,7 @@ unliftBuiltInName = \case
   A1BIListInitialize -> arity2 BIListInitialize
   A1BIListEqual -> arity3 BIListEqual
   A1BITensorMm k m n -> arity2 (BITensorMm k m n)
-  a1builtInName -> error $ "TODO: unliftBuiltInName, " ++ show a1builtInName
+  a1builtInName -> error $ "TODO (enhance): unliftBuiltInName, " ++ show a1builtInName
   where
     arity1 = BuiltInArity1
     arity2 = BuiltInArity2

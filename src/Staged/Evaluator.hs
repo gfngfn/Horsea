@@ -327,7 +327,7 @@ reduceTypeBeta0 a0vTypeFun a0tyvArg =
     A0ValLamType atyvar a0e env ->
       evalExpr0 (env & updateTypeVals (Map.insert atyvar a0tyvArg)) a0e
     A0ValPartialBuiltInApp _ ->
-      -- Built-in functions simply ignore type applications. TODO: make this less ad-hoc
+      -- Built-in functions simply ignore type applications. TODO (enhance): make this less ad-hoc
       pure a0vTypeFun
     _ ->
       bug $ NotATypeClosure a0vTypeFun

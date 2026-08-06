@@ -362,7 +362,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             InferableBinder {} : _ ->
               typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             TypeBinder {} : _ ->
-              error "TODO: typecheckExpr0, LetRecIn, TypeBinder"
+              typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             [] ->
               typeError trav $ LetRecRequiresNonEmptyParams spanInFile
         svFInner <- generateFreshVar (Just f)
@@ -521,7 +521,8 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
               typecheckExpr0Single trav tyEnv' e2
             pure (Pure (A0TyForAll atyvar1 a0tye2), A0LamType atyvar1 a0e2)
           _ : _ ->
-            error "TODO: typecheckExpr0, LamInfType, non-empty context"
+            -- TODO (enhance): consider supporting lambda abstractions with direct arguments
+            typeError trav $ Unsupported spanInFile $ LamInfTypeWithArguments appCtx
       AppInfType e1 tye2 -> do
         a0tye2 <- typecheckTypeExpr0 trav tyEnv tye2
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgInfTypeGiven0 a0tye2 : appCtx) e1
@@ -595,7 +596,7 @@ forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) = do
             A0TyList a0tyePatElemReq _maybePred -> do
               (a0pat1, binders1) <- forcePattern0 trav tyEnv a0tyePatElemReq pat1
               (a0pat2, binders2) <- forcePattern0 trav tyEnv a0tyePatReq pat2
-              binders <- disjointUnion trav binders1 binders2
+              binders <- disjointUnion trav loc binders1 binders2
               pure (A0PatListCons a0pat1 a0pat2, binders)
             _ ->
               typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
@@ -616,10 +617,12 @@ forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) = do
         _ ->
           typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
 
--- TODO: judge that two maps are disjoint
-disjointUnion :: trav -> Map Var ValEntry -> Map Var ValEntry -> M trav (Map Var ValEntry)
-disjointUnion _trav binders1 binders2 =
-  pure $ Map.union binders1 binders2
+disjointUnion :: trav -> Span -> Map Var ValEntry -> Map Var ValEntry -> M trav (Map Var ValEntry)
+disjointUnion trav loc binders1 binders2 = do
+  spanInFile <- askSpanInFile loc
+  case Set.toList (Set.intersection (Map.keysSet binders1) (Map.keysSet binders2)) of
+    [] -> pure $ Map.union binders1 binders2
+    x : _ -> typeError trav $ VarBoundMoreThanOnceInPattern spanInFile x
 
 forcePattern1 :: trav -> TypeEnv -> Ass1TypeExpr -> Pattern -> M trav (Ass1Pattern, Map Var ValEntry)
 forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) = do
@@ -644,7 +647,7 @@ forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) = do
             A1TyList a1tyePatElemReq -> do
               (a1pat1, binders1) <- forcePattern1 trav tyEnv a1tyePatElemReq pat1
               (a1pat2, binders2) <- forcePattern1 trav tyEnv a1tyePatReq pat2
-              binders <- disjointUnion trav binders1 binders2
+              binders <- disjointUnion trav loc binders1 binders2
               pure (A1PatListCons a1pat1 a1pat2, binders)
             _ ->
               typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
@@ -1082,7 +1085,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             InferableBinder {} : _ ->
               typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             TypeBinder {} : _ ->
-              error "TODO: typecheckExpr1, LetRecIn, TypeBinder"
+              typeError trav $ LetRecParamsCannotStartWithImplicit spanInFile
             [] ->
               typeError trav $ LetRecRequiresNonEmptyParams spanInFile
         svFInner <- generateFreshVar (Just f)
@@ -1275,7 +1278,8 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
               typecheckExpr1Single trav tyEnv' e2
             pure (Pure (A1TyForAll atyvar1 a1tye2), A1LamType atyvar1 a1e2)
           _ : _ ->
-            error "TODO: typecheckExpr0, LamInfType, non-empty context"
+            -- TODO (enhance): consider supporting lambda abstractions with direct arguments
+            typeError trav $ Unsupported spanInFile $ LamInfTypeWithArguments appCtx
       AppInfType e1 tye2 -> do
         a1tye2 <- typecheckTypeExpr1 trav tyEnv tye2
         (result1, a1e1) <- typecheckExpr1 trav tyEnv (AppArgInfTypeGiven1 a1tye2 : appCtx) e1
@@ -1749,37 +1753,29 @@ extractFromExternal field0 =
   firstJust (\(field, s) -> if field == field0 then Just s else Nothing)
 
 typecheckBind :: trav -> TypeEnv -> Bind -> M trav (SigRecord, [AssBind])
-typecheckBind trav tyEnv (Bind loc bindMain) =
+typecheckBind trav tyEnv (Bind loc bindMain) = do
+  spanInFile <- askSpanInFile loc
   case bindMain of
     BindVal stage x (BindValExternal tye ext) -> do
       extName <-
         case extractFromExternal "builtin" ext of
-          Just s ->
-            pure s
-          Nothing -> do
-            spanInFile <- askSpanInFile loc
-            typeError trav $ NoBuiltInNameInExternal spanInFile
+          Just s -> pure s
+          Nothing -> typeError trav $ NoBuiltInNameInExternal spanInFile
       let surfaceName = extractFromExternal "surface" ext
       case stage of
         Stage0 -> do
           a0tye <- typecheckTypeExpr0 trav tyEnv tye
           ass0builtInName <-
             case validateExternalName0 extName of
-              Just a0builtInName' ->
-                pure a0builtInName'
-              Nothing -> do
-                spanInFile <- askSpanInFile loc
-                typeError trav $ UnknownExternalName spanInFile extName
+              Just a0builtInName' -> pure a0builtInName'
+              Nothing -> typeError trav $ UnknownExternalName spanInFile extName
           let a0metadata = Ass0Metadata {ass0builtInName, ass0surfaceName = surfaceName}
           pure (SigRecord.singletonVal x (Ass0Entry a0tye (Left a0metadata)), [])
         Stage1 -> do
           ass1builtInName <-
             case validateExternalName1 extName of
-              Just ass1builtInName' ->
-                pure ass1builtInName'
-              Nothing -> do
-                spanInFile <- askSpanInFile loc
-                typeError trav $ UnknownExternalName spanInFile extName
+              Just ass1builtInName' -> pure ass1builtInName'
+              Nothing -> typeError trav $ UnknownExternalName spanInFile extName
           a1tye <- typecheckTypeExpr1 trav tyEnv tye
           let a1metadata = Ass1Metadata {ass1builtInName, ass1surfaceName = surfaceName}
           pure (SigRecord.singletonVal x (Ass1Entry a1tye (Left a1metadata)), [])
@@ -1788,11 +1784,8 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
           aPtye <- validatePersistentType trav loc a0tye
           assPbuiltInName <-
             case validateExternalName1 extName of
-              Just a1builtInName' ->
-                pure a1builtInName'
-              Nothing -> do
-                spanInFile <- askSpanInFile loc
-                typeError trav $ UnknownExternalName spanInFile extName
+              Just a1builtInName' -> pure a1builtInName'
+              Nothing -> typeError trav $ UnknownExternalName spanInFile extName
           let aPmetadata = AssPersMetadata {assPbuiltInName, assPsurfaceName = surfaceName}
           pure (SigRecord.singletonVal x (AssPersEntry aPtye aPmetadata), [])
     BindVal stage x (BindValNormal params tyeBodyOpt e) -> do
@@ -1807,8 +1800,7 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
           (a1tye, a1e) <- typecheckLetInBody1 trav tyEnv params tyeBodyOpt e
           pure (SigRecord.singletonVal x (Ass1Entry a1tye (Right svX)), [ABind1 (ax, a1tye) a1e])
         StagePers -> do
-          -- TODO: bind persistent values
-          spanInFile <- askSpanInFile loc
+          -- TODO (enhance): bind persistent values
           typeError trav $ Unsupported spanInFile (CannotBindPersistentValue x)
     BindType stage tyName tyParams tydef ->
       case stage of
@@ -1846,8 +1838,9 @@ typecheckBind trav tyEnv (Bind loc bindMain) =
                   Map.empty
                   ctorDefs
               pure (SigRecord.singletonTypeData tyName a1tyParams datatyId ctormap, [])
-        _ ->
-          error "TODO: BindType, non-Stage1"
+        _ -> do
+          -- TODO (enhance): BindType, non-Stage1"
+          typeError trav $ Unsupported spanInFile $ NonStage1TypeDefinition
     BindModule m binds -> do
       (_, sigr, abinds) <- typecheckBinds trav tyEnv binds
       pure (SigRecord.singletonModule m (ModuleEntry sigr), abinds)
