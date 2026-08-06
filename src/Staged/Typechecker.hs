@@ -576,17 +576,13 @@ forcePattern0 :: trav -> TypeEnv -> Ass0TypeExpr -> Pattern -> M trav (Ass0Patte
 forcePattern0 trav tyEnv a0tyePatReq (Pattern loc patMain) = do
   spanInFile <- askSpanInFile loc
   case patMain of
-    PatConstructor (mods, ctor) ->
-      case (mods, ctor) of
-        ([], "Nothing") ->
+    (PatConstructor _; PatApp _ _) -> do
+      ((mods, ctor), patArgs) <- collectPatternArgs trav loc patMain
+      case (mods, ctor, patArgs) of
+        ([], "Nothing", []) ->
           case a0tyePatReq of
             A0TyMaybe _ -> pure (A0PatConstructorApp "Nothing" [], Map.empty)
             _ -> typeError trav $ CannotForceTypeOnPattern0 spanInFile a0tyePatReq
-        (_, _) ->
-          typeError trav $ UnboundConstructorOrInvalidArity spanInFile mods ctor 0
-    PatApp _ _ -> do
-      ((mods, ctor), patArgs) <- collectPatternArgs trav loc patMain
-      case (mods, ctor, patArgs) of
         ([], "Just", [pat1]) ->
           case a0tyePatReq of
             A0TyMaybe a0tyePatReq1 -> do
@@ -629,17 +625,13 @@ forcePattern1 :: trav -> TypeEnv -> Ass1TypeExpr -> Pattern -> M trav (Ass1Patte
 forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) = do
   spanInFile <- askSpanInFile loc
   case patMain of
-    PatConstructor (mods, ctor) ->
-      case (mods, ctor) of
-        (_, "Nothing") ->
+    (PatConstructor _; PatApp _ _) -> do
+      ((mods, ctor), patArgs) <- collectPatternArgs trav loc patMain
+      case (mods, ctor, patArgs) of
+        ([], "Nothing", []) ->
           case a1tyePatReq of
             A1TyMaybe _ -> pure (A1PatConstructorApp "Nothing" [], Map.empty)
             _ -> typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
-        _ ->
-          typeError trav $ UnboundConstructorOrInvalidArity spanInFile mods ctor 0
-    PatApp _ _ -> do
-      ((mods, ctor), patArgs) <- collectPatternArgs trav loc patMain
-      case (mods, ctor, patArgs) of
         ([], "Just", [pat1]) ->
           case a1tyePatReq of
             A1TyMaybe a1tyePatReq1 -> do
@@ -1384,19 +1376,7 @@ typecheckTypeExpr0 :: trav -> TypeEnv -> TypeExpr -> M trav Ass0TypeExpr
 typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    Constructor (mods, tyName) ->
-      case mods of
-        [] ->
-          case tyName of
-            "Nat" ->
-              pure BuiltIn.tyNat
-            _ ->
-              case validatePrimBaseType tyName of
-                Just tyPrimBase -> pure $ A0TyPrim (A0TyPrimBase tyPrimBase) Nothing
-                Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
-        _ : _ ->
-          typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
-    App {} -> do
+    (Constructor _; App {}) -> do
       ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
       case (mods, tyName, args) of
         ([], "List", [arg1]) -> do
@@ -1419,6 +1399,12 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           a0e <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
           ns <- validateIntListLiteral trav loc' a0e
           pure $ A0TyPrim (A0TyTensor ns) Nothing
+        ([], "Nat", []) ->
+          pure BuiltIn.tyNat
+        ([], _, []) ->
+          case validatePrimBaseType tyName of
+            Just tyPrimBase -> pure $ A0TyPrim (A0TyPrimBase tyPrimBase) Nothing
+            Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
         _ ->
           typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName (length args)
     TyVar tyvar -> do
@@ -1572,28 +1558,7 @@ typecheckTypeExpr1 :: trav -> TypeEnv -> TypeExpr -> M trav Ass1TypeExpr
 typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
   spanInFile <- askSpanInFile loc
   case tyeMain of
-    Constructor (mods, tyName) -> do
-      tyEntry_ <- findType trav loc mods tyName tyEnv
-      case tyEntry_ of
-        Just tyEntry -> do
-          case tyEntry of
-            Ass1TypeAlias a1tyParams a1tye ->
-              case a1tyParams of
-                [] -> pure a1tye
-                _ : _ -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
-            Ass1TypeData a1tyParams datatyId ->
-              case a1tyParams of
-                [] -> pure $ A1TyData datatyId []
-                _ : _ -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
-        Nothing ->
-          case mods of
-            [] ->
-              case validatePrimBaseType tyName of
-                Just tyPrimBase -> pure $ A1TyPrim (A1TyPrimBase tyPrimBase)
-                Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
-            _ : _ ->
-              typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
-    App {} -> do
+    (Constructor _; App {}) -> do
       ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
       tyEntry_ <- findType trav loc mods tyName tyEnv
       case tyEntry_ of
@@ -1660,6 +1625,10 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
                   logShapeAnnot (ShapeAnnotLog loc)
                   a0eList <- validatePersistentExprArg trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
                   pure $ A1TyPrim (A1TyTensor a0eList)
+                (_, []) ->
+                  case validatePrimBaseType tyName of
+                    Just tyPrimBase -> pure $ A1TyPrim (A1TyPrimBase tyPrimBase)
+                    Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName 0
                 _ ->
                   typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile mods tyName (length args)
             _ : _ ->
