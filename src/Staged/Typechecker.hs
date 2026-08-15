@@ -641,8 +641,44 @@ forcePattern1 trav tyEnv a1tyePatReq (Pattern loc patMain) = do
       ((mods, ctor), patArgs) <- collectPatternArgs trav loc patMain
       ctorEntry_ <- findConstructor trav loc mods ctor tyEnv
       case ctorEntry_ of
-        Just _ctorEntry ->
-          error "TODO: forcePattern1, PatConstructor"
+        Just ctorEntry ->
+          case ctorEntry of
+            Ass1Constructor a1tyParams a1tyes datatyId ->
+              case a1tyePatReq of
+                A1TyData datatyId' a1datatyArgs | datatyId' == datatyId ->
+                  case zipExactMay a1datatyArgs a1tyParams of
+                    Just zipped -> do
+                      a1tyesInst <-
+                        foldM
+                          ( \a1tyes' pair ->
+                              case pair of
+                                (A1DatatypeArgType a1tye, A1TypeParamType atyvar) ->
+                                  pure $ map (tySubst1 a1tye atyvar) a1tyes'
+                                (A1DatatypeArgVal0 a0v, A1TypeParamVal0 ax _a0tye) ->
+                                  pure $ map (subst0 a0v ax) a1tyes'
+                                (_, _) ->
+                                  error "TODO (error): forcePattern1, PatConstructor"
+                          )
+                          a1tyes
+                          zipped
+                      case zipExactMay patArgs a1tyesInst of
+                        Just zipped' -> do
+                          results <-
+                            mapM
+                              ( \(patArg, a1tyeInst) -> do
+                                  forcePattern1 trav tyEnv a1tyeInst patArg
+                              )
+                              zipped'
+                          let a1patArgs = map fst results
+                          let binderss = map snd results
+                          binders <- foldM (disjointUnion trav loc) Map.empty binderss
+                          pure (A1PatConstructorApp ctor a1patArgs, binders)
+                        Nothing ->
+                          typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
+                    Nothing ->
+                      typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
+                _ ->
+                  typeError trav $ CannotForceTypeOnPattern1 spanInFile a1tyePatReq
         Nothing ->
           case mods of
             [] ->
