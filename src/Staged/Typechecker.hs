@@ -1292,11 +1292,27 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             spanInFile0 <- askSpanInFile loc0
             typeError trav $ NotABoolTypeForStage1 spanInFile0 a1tye0
       Case e0 branches -> do
-        (a1tye0, _a1e0) <- typecheckExpr1Single trav tyEnv e0
+        (a1tye0, a1e0) <- typecheckExpr1Single trav tyEnv e0
         case appCtx of
           [] -> do
-            _triples <- mapM (forceBranch1 trav tyEnv a1tye0) branches
-            error "TODO: typecheckExpr1, Case"
+            (a1pat0, (a1tyeBranch0, a1eBranch0)) :| triplesRest <- mapM (forceBranch1 trav tyEnv a1tye0) branches
+            a1branchesRest <-
+              mapM
+                ( \(a1pat, (a1tyeBranch, a1eBranch)) -> do
+                    (eq, _varSolution, _tyvar0Solution) <-
+                      makeEquation1
+                        trav
+                        loc
+                        (TypeEnv.datatypeOnly tyEnv)
+                        Set.empty
+                        Set.empty
+                        a1tyeBranch0
+                        a1tyeBranch
+                    pure $ A1Branch a1pat (applyEquationCast loc eq a1eBranch)
+                )
+                triplesRest
+            let a1branches = A1Branch a1pat0 a1eBranch0 :| a1branchesRest
+            pure (Pure a1tyeBranch0, A1Case a1e0 a1branches)
           _ : _ -> do
             typeError trav $ Stage1CaseRestrictedToEmptyContext spanInFile appCtx
       As e1 tye2 ->
