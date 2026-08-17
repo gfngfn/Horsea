@@ -187,27 +187,23 @@ extractConstraintsFromLiteral trav btenv (btLit, annLit) = \case
   LitMat nss ->
     pure (LitMat nss, [], [])
 
-findVal :: BindingTimeEnv -> [ModuleName] -> Var -> Maybe BindingTimeValueEntry
-findVal = go
+lookupBindingTimeEnv :: forall k v. (k -> BindingTimeEnv -> Maybe v) -> BindingTimeEnv -> [ModuleName] -> k -> Maybe v
+lookupBindingTimeEnv f = go
   where
+    go :: BindingTimeEnv -> [ModuleName] -> k -> Maybe v
     go btenv ms x =
       case ms of
         [] ->
-          Env.findVal x btenv
+          f x btenv
         m : ms' -> do
           BTModule btenv' <- Env.findModule m btenv
           go btenv' ms' x
 
-findType :: BindingTimeEnv -> [ModuleName] -> Var -> Maybe BindingTimeTypeEntry
-findType = go
-  where
-    go btenv ms tyName =
-      case ms of
-        [] ->
-          Env.findType tyName btenv
-        m : ms' -> do
-          BTModule btenv' <- Env.findModule m btenv
-          go btenv' ms' tyName
+findVal :: BindingTimeEnv -> [ModuleName] -> Var -> Maybe BindingTimeValueEntry
+findVal = lookupBindingTimeEnv Env.findVal
+
+findType :: BindingTimeEnv -> [ModuleName] -> TypeName -> Maybe BindingTimeTypeEntry
+findType = lookupBindingTimeEnv Env.findType
 
 openModule :: trav -> SpanInFile -> ModuleName -> BindingTimeEnv -> M trav BindingTimeEnv
 openModule trav spanInFile m btenv =
@@ -294,7 +290,7 @@ extractConstraintsFromExpr trav btenv (Expr ann exprMain) = do
     Literal lit -> do
       (lit', bityBaseArgs, constraints) <- extractConstraintsFromLiteral trav btenv (bt, ann) lit
       pure (BExpr (bt, ann) (BLiteral lit'), BIType bt (BITyBase bityBaseArgs), constraints)
-    Constructor _ ->
+    Constructor (_ms, _ctor) ->
       error "TODO: extractConstraintsFromExpr, Constructor"
     Var (ms, x) -> do
       (x', bity, constraints) <- extractConstraintsFromVar trav btenv bt ann ms x

@@ -1295,7 +1295,8 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
         (a1tye0, a1e0) <- typecheckExpr1Single trav tyEnv e0
         case appCtx of
           [] -> do
-            (a1pat0, (a1tyeBranch0, a1eBranch0)) :| triplesRest <- mapM (forceBranch1 trav tyEnv a1tye0) branches
+            triples <- mapM (forceBranch1 trav tyEnv a1tye0) branches
+            let (a1pat0, (a1tyeBranch0, a1eBranch0)) :| triplesRest = triples
             a1branchesRest <-
               mapM
                 ( \(a1pat, (a1tyeBranch, a1eBranch)) -> do

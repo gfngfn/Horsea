@@ -20,7 +20,7 @@ import Common.TokenUtil (Span)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Text (Text)
-import Staged.Core
+import Staged.Core (ConstructorName, Label)
 import Prelude
 
 type Var = Text
@@ -42,7 +42,7 @@ data ExprF ann = Expr ann (ExprMainF ann)
 data ExprMainF ann
   = Literal (Literal (ExprF ann))
   | Var ([ModuleName], Var)
-  | Constructor ([ModuleName], Var)
+  | Constructor ([ModuleName], ConstructorName)
   | Lam (Maybe (Var, TypeExprF ann)) (Maybe Label) (Var, TypeExprF ann) (ExprF ann)
   | App (ExprF ann) (Maybe Label) (ExprF ann)
   | LetIn Var [LamBinderF ann] (Maybe (TypeExprF ann)) (ExprF ann) (ExprF ann)
