@@ -700,7 +700,7 @@ instance Disp AssPrimBaseType where
     ATyPrimVarStore -> "VarStore"
     ATyPrimOptimizer -> "Optimizer"
     ATyPrimChar -> "Char"
-    -- ATyPrimClipGrad -> "ClipGrad"
+    ATyPrimClipGrad -> "ClipGrad"
     ATyPrimOutChannel -> "OutChannel"
     ATyPrimVarStoreInit -> "VarStoreInit"
 

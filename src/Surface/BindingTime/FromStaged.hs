@@ -23,7 +23,7 @@ import Staged.Syntax qualified as Staged
 import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ConstructorEntry (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Surface.BindingTime.Core
-import Surface.BindingTime.Env (BindingTimeEnv, BindingTimeConstructorEntry (..), BindingTimeModuleEntry (..), BindingTimeTypeEntry (..), BindingTimeValueEntry (..))
+import Surface.BindingTime.Env (BindingTimeConstructorEntry (..), BindingTimeEnv, BindingTimeModuleEntry (..), BindingTimeTypeEntry (..), BindingTimeValueEntry (..))
 import Surface.BindingTime.Env qualified as Env
 import Prelude
 
