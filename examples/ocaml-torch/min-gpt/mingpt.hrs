@@ -141,7 +141,7 @@ let gpt
     VarStore.new_var #shape [1, cfg_block_size, cfg_n_embd]
       vs
       #name "pos_emb"
-      #init VarStore.Init.zeros
+      #init InitZeros
   in
   let ln_f =
     Layer.layer_norm #dim cfg_n_embd {[b, seq_len, cfg_n_embd]}

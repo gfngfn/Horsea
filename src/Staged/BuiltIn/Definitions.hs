@@ -559,8 +559,6 @@ definitions =
       [|error "UNIMPLEMENTED: VarStore.device"|],
     gen ["var_store"] "all_vars" [ParamIntList],
     gen ["var_store"] "new_var" [ParamIntList],
-    versatile ["var_store", "init"] "zeros" ForStage1 0 $
-      [|error "UNIMPLEMENTED: VarStore.Init.zeros"|],
     versatile ["layer", "activation"] "relu" ForStage1 0 $
       [|error "UNIMPLEMENTED: Layer.Activation.relu"|],
     versatile ["layer", "activation"] "softmax" ForStage1 0 $

@@ -271,7 +271,6 @@ data AssPrimBaseType
   | ATyPrimOptimizer
   | ATyPrimChar
   | ATyPrimOutChannel
-  | ATyPrimVarStoreInit
   deriving stock (Eq, Show)
 
 validatePrimBaseType :: Text -> Maybe AssPrimBaseType
@@ -287,7 +286,6 @@ validatePrimBaseType = \case
   "Optimizer" -> pure ATyPrimOptimizer
   "Char" -> pure ATyPrimChar
   "OutChannel" -> pure ATyPrimOutChannel
-  "VarStoreInit" -> pure ATyPrimVarStoreInit
   _ -> Nothing
 
 data Ass0PrimType

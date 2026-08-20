@@ -701,7 +701,6 @@ instance Disp AssPrimBaseType where
     ATyPrimOptimizer -> "Optimizer"
     ATyPrimChar -> "Char"
     ATyPrimOutChannel -> "OutChannel"
-    ATyPrimVarStoreInit -> "VarStoreInit"
 
 instance Disp Ass0PrimType where
   dispGen req = \case

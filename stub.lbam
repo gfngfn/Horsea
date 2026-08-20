@@ -427,6 +427,9 @@ module Tensor = struct
     external (builtin = "tensor__gen_const_batch_norm", surface = "const_batch_norm")
 end
 
+type VarStoreInit =
+  | InitZeros
+
 module VarStore = struct
   val create :
     ?frozen Bool -> (* default: false *)
@@ -456,10 +459,6 @@ module VarStore = struct
       Tensor %shape
     )
     external (builtin = "var_store__gen_new_var", surface = "new_var")
-  module Init = struct
-    val zeros : VarStoreInit
-      external (builtin = "var_store__init__zeros", surface = "zeros")
-  end
 end
 
 type Lstm %(input_size : Nat) %(hidden_size : Nat) =
