@@ -600,10 +600,6 @@ definitions =
           _momentum <- validateFloatLiteral a0v3
           error "UNIMPLEMENTED: Optimizer.sgd"
         |],
-    versatile ["optimizer", "clip_grad"] "norm2" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Optimizer.ClipGrad.norm2"|],
-    versatile ["optimizer", "clip_grad"] "value" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Optimizer.ClipGrad.value"|],
     versatile ["optimizer"] "step" ForStage1 2 $
       [|error "UNIMPLEMENTED: Optimizer.step"|],
     versatile ["optimizer"] "zero_grad" ForStage1 1 $

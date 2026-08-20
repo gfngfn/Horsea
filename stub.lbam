@@ -614,6 +614,10 @@ module Layer = struct
   end
 end
 
+type ClipGrad =
+  | Norm2 Float
+  | Value Float
+
 module Optimizer = struct
   val adam :
     VarStore ->
@@ -627,12 +631,14 @@ module Optimizer = struct
     Optimizer
     external (builtin = "optimizer__sgd", surface = "sgd")
   (* TODO: handle `Optimizer.ClipGrad` as an ADT *)
+(*
   module ClipGrad = struct
     val norm2 : Float -> ClipGrad
       external (builtin = "optimizer__clip_grad__norm2", surface = "norm2")
     val value : Float -> ClipGrad
       external (builtin = "optimizer__clip_grad__value", surface = "value")
   end
+*)
   val step :
     ?clip_grad ClipGrad ->
     Optimizer ->

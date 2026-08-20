@@ -270,7 +270,6 @@ data AssPrimBaseType
   | ATyPrimVarStore
   | ATyPrimOptimizer
   | ATyPrimChar
-  | ATyPrimClipGrad
   | ATyPrimOutChannel
   | ATyPrimVarStoreInit
   deriving stock (Eq, Show)
@@ -287,7 +286,6 @@ validatePrimBaseType = \case
   "VarStore" -> pure ATyPrimVarStore
   "Optimizer" -> pure ATyPrimOptimizer
   "Char" -> pure ATyPrimChar
-  "ClipGrad" -> pure ATyPrimClipGrad
   "OutChannel" -> pure ATyPrimOutChannel
   "VarStoreInit" -> pure ATyPrimVarStoreInit
   _ -> Nothing
