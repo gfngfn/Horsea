@@ -449,7 +449,6 @@ module VarStore = struct
     external (builtin = "var_store__device", surface = "device")
   val ~gen_all_vars : {ns : List Nat} -> &(VarStore -> List (String * Tensor %ns))
     external (builtin = "var_store__gen_all_vars", surface = "all_vars")
-  (* TODO: handle `VarStoreInit` by an ADT *)
   val ~gen_new_var :
     #shape (shape : List Nat) ->
     &(VarStore ->
@@ -622,15 +621,6 @@ module Optimizer = struct
     #momentum Float ->
     Optimizer
     external (builtin = "optimizer__sgd", surface = "sgd")
-  (* TODO: handle `Optimizer.ClipGrad` as an ADT *)
-(*
-  module ClipGrad = struct
-    val norm2 : Float -> ClipGrad
-      external (builtin = "optimizer__clip_grad__norm2", surface = "norm2")
-    val value : Float -> ClipGrad
-      external (builtin = "optimizer__clip_grad__value", surface = "value")
-  end
-*)
   val step :
     ?clip_grad ClipGrad ->
     Optimizer ->
