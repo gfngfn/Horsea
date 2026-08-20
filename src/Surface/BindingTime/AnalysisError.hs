@@ -6,7 +6,7 @@ where
 import Common.LocationInFile (SpanInFile)
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.Map (Map)
-import Staged.Core (Label)
+import Staged.Core (ConstructorName, Label)
 import Surface.BindingTime.Core
 import Surface.Syntax (ModuleName, TypeName, Var)
 import Prelude
@@ -15,6 +15,7 @@ data AnalysisError
   = InvalidSyntaxAsExpr SpanInFile
   | InvalidSyntaxAsTypeExpr SpanInFile
   | UnboundVar SpanInFile [ModuleName] Var
+  | UnboundConstructor SpanInFile [ModuleName] ConstructorName
   | UnboundModule SpanInFile ModuleName
   | NotAFunction SpanInFile BIType
   | NotAnOptFunction SpanInFile BIType

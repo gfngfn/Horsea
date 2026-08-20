@@ -1451,6 +1451,8 @@ instance Disp Bta.AnalysisError where
       "Invalid syntax as type expression" <+> disp spanInFile
     Bta.UnboundVar spanInFile ms x ->
       "Unbound variable" <+> disp (Text.intercalate "." (ms ++ [x])) <+> disp spanInFile
+    Bta.UnboundConstructor spanInFile ms ctor ->
+      "Unbound constructor" <+> disp (Text.intercalate "." (ms ++ [ctor])) <+> disp spanInFile
     Bta.UnboundModule spanInFile m ->
       "Unbound module" <+> disp m <+> disp spanInFile
     Bta.NotAFunction spanInFile bity ->
