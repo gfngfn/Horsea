@@ -696,7 +696,6 @@ instance Disp AssPrimBaseType where
     ATyPrimUnit -> "Unit"
     ATyPrimString -> "String"
     ATyPrimDevice -> "Device"
-    ATyPrimActivation -> "Activation"
     ATyPrimVarStore -> "VarStore"
     ATyPrimOptimizer -> "Optimizer"
     ATyPrimChar -> "Char"

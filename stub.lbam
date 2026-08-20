@@ -464,22 +464,15 @@ end
 type Lstm %(input_size : Nat) %(hidden_size : Nat) =
   | Lstm (* TODO: abstract types *)
 
+type Activation =
+  | Relu
+  | Softmax
+  | LogSoftmax
+  | Tanh
+  | LeakyRelu
+  | Sigmoid
+
 module Layer = struct
-  (* TODO: define `Activation` as an ADT *)
-  module Activation = struct
-    val relu : Activation
-      external (builtin = "layer__activation__relu", surface = "relu")
-    val softmax : Activation
-      external (builtin = "layer__activation__softmax", surface = "softmax")
-    val log_softmax : Activation
-      external (builtin = "layer__activation__log_softmax", surface = "log_softmax")
-    val tanh : Activation
-      external (builtin = "layer__activation__tanh", surface = "tanh")
-    val leaky_relu : Activation
-      external (builtin = "layer__activation__leaky_relu", surface = "leaky_relu")
-    val sigmoid : Activation
-      external (builtin = "layer__activation__sigmoid", surface = "sigmoid")
-  end
   val ~gen_forward :
     {shape1 : List Nat} ->
     {shape2 : List Nat} ->

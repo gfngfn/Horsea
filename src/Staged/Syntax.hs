@@ -266,7 +266,6 @@ data AssPrimBaseType
   | ATyPrimBool
   | ATyPrimString
   | ATyPrimDevice
-  | ATyPrimActivation
   | ATyPrimVarStore
   | ATyPrimOptimizer
   | ATyPrimChar
@@ -281,7 +280,6 @@ validatePrimBaseType = \case
   "Bool" -> pure ATyPrimBool
   "String" -> pure ATyPrimString
   "Device" -> pure ATyPrimDevice
-  "Activation" -> pure ATyPrimActivation
   "VarStore" -> pure ATyPrimVarStore
   "Optimizer" -> pure ATyPrimOptimizer
   "Char" -> pure ATyPrimChar

@@ -559,18 +559,6 @@ definitions =
       [|error "UNIMPLEMENTED: VarStore.device"|],
     gen ["var_store"] "all_vars" [ParamIntList],
     gen ["var_store"] "new_var" [ParamIntList],
-    versatile ["layer", "activation"] "relu" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.relu"|],
-    versatile ["layer", "activation"] "softmax" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.softmax"|],
-    versatile ["layer", "activation"] "log_softmax" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.log_softmax"|],
-    versatile ["layer", "activation"] "tanh" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.tanh"|],
-    versatile ["layer", "activation"] "leaky_relu" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.leaky_relu"|],
-    versatile ["layer", "activation"] "sigmoid" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.sigmoid"|],
     gen ["layer"] "forward" [ParamIntList, ParamIntList],
     gen ["layer"] "forward_" [ParamIntList, ParamIntList],
     gen ["layer"] "of_fn_" [ParamIntList, ParamIntList],

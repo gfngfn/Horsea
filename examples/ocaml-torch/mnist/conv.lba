@@ -16,7 +16,7 @@ let batch_size = 256 in
   in
   let linear1 =
     ~(Layer.gen_linear #input_dim 1024 #output_dim 1024 {[batch_size, 1024]})
-      ?activation Layer.Activation.relu
+      ?activation Relu
       vs
   in
   let linear2 =
