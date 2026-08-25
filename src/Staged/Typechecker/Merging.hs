@@ -493,7 +493,8 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
   where
     go1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
     go1 patAndTypePairs@((a0pat1, a1tye1) :| rest) = do
-      let failure = typeError trav $ CannotMerge1 patAndTypePairs
+      let err = CannotMerge1 patAndTypePairs
+      let failure = typeError trav err
       case a1tye1 of
         A1TyPrim a1tyePrim1 -> do
           A1TyPrim
@@ -553,8 +554,23 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
           let pairs = (a0pat1, a1tyeElem1) :| pairsRest
           a1tyeElem' <- go1 pairs
           pure $ A1TyMaybe a1tyeElem'
-        A1TyData _datatyId _a1datatyArgs1 ->
-          error "TODO: mergeTypesByConditional1, A1TyData"
+        A1TyData datatyId1 a1datatyArgs1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyData datatyId a1datatyArgs ->
+                      if datatyId == datatyId1
+                        then pure (a0pat, a1datatyArgs)
+                        else failure
+                    _ ->
+                      failure
+              )
+              rest
+          let pairs = (a0pat1, a1datatyArgs1) :| pairsRest
+          case distribute pairs of
+            Nothing -> failure
+            Just transposed -> A1TyData datatyId1 <$> mapM (goDatatypeArg1 err) transposed
         A1TyArrow labelOpt1 a1tyeDom1 a1tyeCod1 -> do
           triplesRest <-
             mapM
@@ -641,3 +657,29 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
               rest
           let pairs = (a0pat1, a1tyeSub1) :| map (second (uncurry (tySubst1 (A1TyVar atyvar1)))) triplesRest
           A1TyForAll atyvar1 <$> go1 pairs
+
+    goDatatypeArg1 :: ConditionalMergeError -> NonEmpty (Ass0Pattern, Ass1DatatypeArg) -> M' ConditionalMergeError trav Ass1DatatypeArg
+    goDatatypeArg1 err ((a0pat1, a1datatyArg1) :| rest) =
+      case a1datatyArg1 of
+        A1DatatypeArgType a1tye1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1datatyArg) ->
+                  case a1datatyArg of
+                    A1DatatypeArgType a1tye -> pure (a0pat, a1tye)
+                    _ -> typeError trav err
+              )
+              rest
+          let pairs = (a0pat1, a1tye1) :| pairsRest
+          A1DatatypeArgType <$> go1 pairs
+        A1DatatypeArgVal0 a0e1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1datatyArg) ->
+                  case a1datatyArg of
+                    A1DatatypeArgVal0 a0e -> pure (a0pat, a0e)
+                    _ -> typeError trav err
+              )
+              rest
+          let pairs = (a0pat1, a0e1) :| pairsRest
+          pure $ A1DatatypeArgVal0 (A0Case a0e0 (fmap (uncurry A0Branch) pairs))
