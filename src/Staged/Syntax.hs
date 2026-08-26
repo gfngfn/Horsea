@@ -18,6 +18,8 @@ module Staged.Syntax
     DatatypeArg1EquationF (..),
     ListEquationF (..),
     Ass0TypeExprF (..),
+    StrictAss0ValF (..),
+    StrictAss0DatatypeArgF (..),
     StrictAss0TypeExprF (..),
     AssPrimBaseType (..),
     validatePrimBaseType,
@@ -66,6 +68,8 @@ module Staged.Syntax
     ListEquation,
     DatatypeArg1Equation,
     Ass0TypeExpr,
+    StrictAss0Val,
+    StrictAss0DatatypeArg,
     StrictAss0TypeExpr,
     Ass1TypeExpr,
     Ass1DatatypeArg,
@@ -241,6 +245,19 @@ data Ass0TypeExprF sv
     A0TyForAll AssTypeVar (Ass0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
+-- | The type of stage-0, order-0 term values.
+data StrictAss0ValF sv
+  = SA0ValLiteral (AssLiteralF StrictAss0ValF sv)
+  | SA0ValTuple (TwoOrMore (StrictAss0ValF sv))
+  | SA0ValRecord (Map Label (StrictAss0ValF sv))
+  | SA0ValConstructorApp ConstructorName [StrictAss0ValF sv]
+  deriving stock (Eq, Show, Functor)
+
+data StrictAss0DatatypeArgF sv
+  = SA0DatatypeArgType (StrictAss0TypeExprF sv)
+  | SA0DatatypeArgVal0 (StrictAss0ValF sv)
+  deriving stock (Eq, Show, Functor)
+
 -- | The type of type annotations in target terms.
 -- Unlike @Ass0TypeExprF@, this does not contain function types with implicit parameters.
 data StrictAss0TypeExprF sv
@@ -249,6 +266,7 @@ data StrictAss0TypeExprF sv
   | -- | List types possibly equipped with a refinement predicate.
     SA0TyList (StrictAss0TypeExprF sv) (Maybe (Ass0ExprF sv))
   | SA0TyMaybe (StrictAss0TypeExprF sv)
+  | SA0TyData DatatypeId [StrictAss0DatatypeArgF sv]
   | SA0TyVar AssTypeVar
   | SA0TyProduct (TwoOrMore (StrictAss0TypeExprF sv))
   | SA0TyRecord (Map Label (StrictAss0TypeExprF sv))
@@ -688,6 +706,10 @@ type ListEquation = ListEquationF StaticVar
 type DatatypeArg1Equation = DatatypeArg1EquationF StaticVar
 
 type Ass0TypeExpr = Ass0TypeExprF StaticVar
+
+type StrictAss0Val = StrictAss0ValF StaticVar
+
+type StrictAss0DatatypeArg = StrictAss0DatatypeArgF StaticVar
 
 type StrictAss0TypeExpr = StrictAss0TypeExprF StaticVar
 

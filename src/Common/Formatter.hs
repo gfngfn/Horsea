@@ -724,6 +724,18 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyOmsArrow label (xOpt, a0tye1) a0tye2 -> dispOmsArrowType req label xOpt a0tye1 a0tye2
     A0TyForAll atyvar a0tye -> dispForAllType req atyvar a0tye
 
+instance (Disp sv) => Disp (StrictAss0ValF sv) where
+  dispGen req = \case
+    SA0ValLiteral alit -> dispGen req alit
+    SA0ValTuple sa0vs -> dispTuple sa0vs
+    SA0ValRecord sa0rv -> dispRecord "=" sa0rv
+    SA0ValConstructorApp ctor sa0vs -> dispConstructorApp req ctor sa0vs
+
+instance (Disp sv) => Disp (StrictAss0DatatypeArgF sv) where
+  dispGen req = \case
+    SA0DatatypeArgType sa1tye -> dispGen req sa1tye
+    SA0DatatypeArgVal0 sa0v -> dispGen req sa0v
+
 instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
   dispGen req = \case
     SA0TyPrim a0tyPrim Nothing -> disp a0tyPrim
@@ -732,6 +744,7 @@ instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
     SA0TyList sa0tye Nothing -> dispListType req sa0tye
     SA0TyList sa0tye (Just a0ePred) -> dispInternalRefinementListType req sa0tye a0ePred
     SA0TyMaybe sa0tye -> dispMaybeType req sa0tye
+    SA0TyData datatyId sa0datatyArgs -> dispDatatype req datatyId sa0datatyArgs
     SA0TyProduct sa0tyes -> dispProductType req sa0tyes
     SA0TyRecord sa0rty -> dispRecord ":" sa0rty
     SA0TyArrow (xOpt, sa0tye1) sa0tye2 -> dispArrowType req Nothing xOpt sa0tye1 sa0tye2

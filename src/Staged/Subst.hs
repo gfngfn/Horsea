@@ -699,6 +699,44 @@ instance (Ord sv) => HasVar sv Ass1DatatypeArgF where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
 
+instance (Ord sv) => HasVar sv StrictAss0ValF where
+  frees = \case
+    SA0ValLiteral alit -> frees alit
+    SA0ValTuple sa0vs -> unionPairs $ map frees $ TwoOrMore.toList sa0vs
+    SA0ValRecord sa0rv -> unionPairs $ map (frees . snd) $ Map.toList sa0rv
+    SA0ValConstructorApp _ctor sa0vs -> unionPairs $ map frees sa0vs
+
+  subst s = \case
+    SA0ValLiteral alit -> SA0ValLiteral (go alit)
+    SA0ValTuple sa0vs -> SA0ValTuple (fmap go sa0vs)
+    SA0ValRecord sa0rv -> SA0ValRecord (fmap go sa0rv)
+    SA0ValConstructorApp ctor sa0vs -> SA0ValConstructorApp ctor (map go sa0vs)
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent _sa0v1 _sa0v2 =
+    -- TODO (enhance): alpha-equivalence on `StrictAss0Val`
+    False
+
+instance (Ord sv) => HasVar sv StrictAss0DatatypeArgF where
+  frees = \case
+    SA0DatatypeArgType sa0tye -> frees sa0tye
+    SA0DatatypeArgVal0 sa0v -> frees sa0v
+
+  subst s = \case
+    SA0DatatypeArgType sa0tye -> SA0DatatypeArgType (go sa0tye)
+    SA0DatatypeArgVal0 sa0v -> SA0DatatypeArgVal0 (go sa0v)
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent sa0datatyArg1 sa0datatyArg2 =
+    case (sa0datatyArg1, sa0datatyArg2) of
+      (SA0DatatypeArgType sa0tye1, SA0DatatypeArgType sa0tye2) -> alphaEquivalent sa0tye1 sa0tye2
+      (SA0DatatypeArgVal0 sa0v1, SA0DatatypeArgVal0 sa0v2) -> alphaEquivalent sa0v1 sa0v2
+      (_, _) -> False
+
 instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
   frees = \case
     SA0TyPrim _ maybePred ->
@@ -709,6 +747,8 @@ instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
       unionPairs [frees a0tye, frees (Maybe1 maybePred)]
     SA0TyMaybe a0tye ->
       frees a0tye
+    SA0TyData _datatyId a0datatyArgs ->
+      unionPairs (map frees a0datatyArgs)
     SA0TyProduct a0tyes ->
       unionPairs (map frees (TwoOrMore.toList a0tyes))
     SA0TyRecord a0rty ->
@@ -737,6 +777,8 @@ instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
       SA0TyList (go a0tye) (unMaybe1 . go . Maybe1 $ maybePred)
     SA0TyMaybe a0tye ->
       SA0TyMaybe (go a0tye)
+    SA0TyData datatyId a0datatyArgs ->
+      SA0TyData datatyId (map go a0datatyArgs)
     SA0TyProduct a0tyes ->
       SA0TyProduct (fmap go a0tyes)
     SA0TyRecord a0rty ->

@@ -60,6 +60,15 @@ instance HasTypeVar Ass0TypeExprF where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
 
+instance HasTypeVar StrictAss0DatatypeArgF where
+  tySubst :: forall sv. TypeSubstF sv -> StrictAss0DatatypeArgF sv -> StrictAss0DatatypeArgF sv
+  tySubst s = \case
+    SA0DatatypeArgType sa0tye -> SA0DatatypeArgType (go sa0tye)
+    SA0DatatypeArgVal0 a0v -> SA0DatatypeArgVal0 (go a0v)
+    where
+      go :: forall af. (HasTypeVar af) => af sv -> af sv
+      go = tySubst s
+
 instance HasTypeVar StrictAss0TypeExprF where
   tySubst :: forall sv. TypeSubstF sv -> StrictAss0TypeExprF sv -> StrictAss0TypeExprF sv
   tySubst s = \case
@@ -73,6 +82,8 @@ instance HasTypeVar StrictAss0TypeExprF where
       SA0TyList (go sa0tye1) ((unMaybe1 . go . Maybe1) maybePred)
     SA0TyMaybe a0tye1 ->
       SA0TyMaybe (go a0tye1)
+    SA0TyData datatyId sa0datatyArgs ->
+      SA0TyData datatyId (map go sa0datatyArgs)
     SA0TyProduct sa0tyes ->
       SA0TyProduct (fmap go sa0tyes)
     SA0TyRecord sa0rty ->
@@ -128,6 +139,17 @@ instance HasTypeVar Ass1DatatypeArgF where
   tySubst s = \case
     A1DatatypeArgType a1tye -> A1DatatypeArgType (go a1tye)
     A1DatatypeArgVal0 a0e -> A1DatatypeArgVal0 (go a0e)
+    where
+      go :: forall af. (HasTypeVar af) => af sv -> af sv
+      go = tySubst s
+
+instance HasTypeVar StrictAss0ValF where
+  tySubst :: forall sv. TypeSubstF sv -> StrictAss0ValF sv -> StrictAss0ValF sv
+  tySubst s = \case
+    SA0ValLiteral alit -> SA0ValLiteral (go alit)
+    SA0ValTuple a0vs -> SA0ValTuple (fmap go a0vs)
+    SA0ValRecord a0rv -> SA0ValRecord (fmap go a0rv)
+    SA0ValConstructorApp ctor a0vs -> SA0ValConstructorApp ctor (map go a0vs)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s

@@ -572,6 +572,8 @@ evalTypeExpr0 env = \case
     a0tyv1 <- evalTypeExpr0 env sa0tye1
     maybeVPred <- mapM (evalExpr0 env) maybePred
     pure $ A0TyValList a0tyv1 maybeVPred
+  SA0TyData _datatyId _sa0datatyArgs -> do
+    error "TODO: evalTypeExpr0, SA0TyData"
   SA0TyMaybe sa0tye1 -> do
     a0tyv1 <- evalTypeExpr0 env sa0tye1
     pure $ A0TyValMaybe a0tyv1
@@ -688,6 +690,19 @@ unliftPattern = \case
   A1PatListNil -> A0PatListNil
   A1PatListCons a1pat1 a1pat2 -> A0PatListCons (unliftPattern a1pat1) (unliftPattern a1pat2)
 
+strictifyVal :: Ass0Val -> StrictAss0Val
+strictifyVal = \case
+  A0ValLiteral alit -> SA0ValLiteral (mapAssLiteral strictifyVal alit)
+  A0ValTuple a0vs -> SA0ValTuple (fmap strictifyVal a0vs)
+  A0ValRecord a0rv -> SA0ValRecord (fmap strictifyVal a0rv)
+  A0ValConstructorApp ctor a0vs -> SA0ValConstructorApp ctor (map strictifyVal a0vs)
+  a0v -> error $ "Bug: strictifyVal, not an order-0 value: " ++ show a0v
+
+unliftDatatypeArgVal :: Ass1DatatypeArgVal -> StrictAss0DatatypeArg
+unliftDatatypeArgVal = \case
+  A1DatatypeArgValType a1tyv -> SA0DatatypeArgType (unliftTypeVal a1tyv)
+  A1DatatypeArgValVal0 a0v -> SA0DatatypeArgVal0 (strictifyVal a0v)
+
 unliftTypeVal :: Ass1TypeVal -> StrictAss0TypeExpr
 unliftTypeVal = \case
   A1TyValPrim a1tyvPrim ->
@@ -700,8 +715,8 @@ unliftTypeVal = \case
     SA0TyList (unliftTypeVal a1tyv) Nothing
   A1TyValMaybe a1tyv ->
     SA0TyMaybe (unliftTypeVal a1tyv)
-  A1TyValData _datatyId _a1datatyArgVals ->
-    error "TODO: unliftTypeVal, A1TyValData"
+  A1TyValData datatyId a1datatyArgVals ->
+    SA0TyData datatyId (map unliftDatatypeArgVal a1datatyArgVals)
   A1TyValVar atyvar ->
     SA0TyVar atyvar
   A1TyValProduct a1tyvs ->
