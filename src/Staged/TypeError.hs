@@ -96,6 +96,7 @@ data TypeErrorF sv
   | NonMaybeAnnotForLamOms0 SpanInFile (Ass0TypeExprF sv)
   | NonMaybeAnnotForLamOms1 SpanInFile (Ass1TypeExprF sv)
   | InvalidConstructorApplication SpanInFile (AppContextF sv) [ModuleName] ConstructorName
+  | VarBoundMoreThanOnceInPattern SpanInFile Var
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv
@@ -110,7 +111,9 @@ data UnsupportedF sv
   | LamWithArguments (AppContextF sv)
   | LamOmsWithArguments (AppContextF sv)
   | LamInfWithArguments (AppContextF sv)
+  | LamInfTypeWithArguments (AppContextF sv)
   | PersistentFunWithOms
+  | NonStage1TypeDefinition
   deriving stock (Eq, Show, Functor)
 
 type TypeError = TypeErrorF StaticVar

@@ -17,6 +17,7 @@ import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Text (Text)
+import Staged.Core (ConstructorName)
 import Staged.SrcSyntax
 import Staged.Token (Token (..))
 import Staged.Token qualified as Token
@@ -134,8 +135,8 @@ data DomainSpec
   | DomOmissible (Located Text) (Maybe (Span, Var), TypeExpr)
   | DomInferable ((Span, Var), TypeExpr)
 
-expr :: P Expr
-expr = letin
+expr, exprAtom :: P Expr
+(expr, exprAtom) = (letin, atom)
   where
     atom :: P Expr
     atom =
@@ -368,6 +369,9 @@ expr = letin
 typeExpr :: P TypeExpr
 typeExpr = expr
 
+typeExprAtom :: P TypeExpr
+typeExprAtom = exprAtom
+
 recordField :: P (Text, RecordField)
 recordField =
   (,) <$> noLoc lower <*> (equalField <|> colonField)
@@ -430,15 +434,25 @@ pat = con
 
 bind :: P Bind
 bind =
-  (makeBindVal <$> token TokVal <*> stagedBinder (noLoc boundIdent) <*> valBody)
-    <|> (makeBindType <$> token TokType <*> stagedBinder (noLoc upper) <*> many typeParamBinder <*> (token TokEqual *> typeExpr))
+  (makeBindVal <$> token TokVal <*> stagedBinder (noLoc boundIdent) <*> valDef)
+    <|> (makeBindType <$> token TokType <*> stagedBinder (noLoc upper) <*> many typeParamBinder <*> (token TokEqual *> typeDef))
     <|> (makeBindModule <$> token TokModule <*> noLoc upper <*> (token TokEqual *> token TokStruct *> many bind) <*> token TokEnd)
   where
     makeBindVal locFirst (stage, x) (bv, locLast) =
       Bind (mergeSpan locFirst locLast) (BindVal stage x bv)
 
-    makeBindType locFirst (stage, tyName) params tye@(Expr locLast _) =
-      Bind (mergeSpan locFirst locLast) (BindType stage tyName params tye)
+    makeBindType locFirst (stage, tyName) params tydef =
+      Bind (mergeSpan locFirst locLast) (BindType stage tyName params tydef)
+      where
+        locLast =
+          case tydef of
+            TypeDefAlias (Expr locLast' _) ->
+              locLast'
+            TypeDefData ctors ->
+              let ((_, locCtor), tys) = NonEmpty.last ctors
+               in case reverse tys of
+                    [] -> locCtor
+                    Expr locTyArgLast _ : _ -> locTyArgLast
 
     makeBindModule locFirst m binds locLast =
       Bind (mergeSpan locFirst locLast) (BindModule m binds)
@@ -449,8 +463,8 @@ stagedBinder pIdent =
     <|> ((StagePers,) <$> (token TokPersistent *> pIdent))
     <|> ((Stage1,) <$> pIdent)
 
-valBody :: P (BindVal, Span)
-valBody =
+valDef :: P (BindVal, Span)
+valDef =
   try (makeBindValExternal <$> (token TokColon *> typeExpr) <*> (token TokExternal *> external))
     <|> (makeBindValNormal <$> many lamBinder <*> optional (token TokColon *> typeExpr) <*> (token TokEqual *> expr))
   where
@@ -463,6 +477,15 @@ external =
   where
     field :: P (Text, Text)
     field = (,) <$> (noLoc lower <* token TokEqual) <*> noLoc string
+
+typeDef :: P TypeDefinition
+typeDef =
+  try (TypeDefAlias <$> typeExpr)
+    <|> (TypeDefData <$> many1 constructorDef)
+
+constructorDef :: P ((ConstructorName, Span), [TypeExpr])
+constructorDef =
+  (\(Located loc ctor) ty_ -> ((ctor, loc), ty_)) <$> (token TokBar *> upper) <*> many typeExprAtom
 
 parse :: P a -> SourceSpec -> Text -> Either FrontError a
 parse p sourceSpec source = do

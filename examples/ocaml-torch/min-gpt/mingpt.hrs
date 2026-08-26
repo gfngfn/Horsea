@@ -141,7 +141,7 @@ let gpt
     VarStore.new_var #shape [1, cfg_block_size, cfg_n_embd]
       vs
       #name "pos_emb"
-      #init VarStore.Init.zeros
+      #init InitZeros
   in
   let ln_f =
     Layer.layer_norm #dim cfg_n_embd {[b, seq_len, cfg_n_embd]}
@@ -272,7 +272,7 @@ let train
             (let open Tensor in sum_loss += loss);
             print_string (show_int batch_idx ++ "/" ++ show_int batches_per_epoch);
             print_float (Tensor.float_value sum_loss / float (1 + batch_idx));
-            Optimizer.backward_step ?clip_grad (Optimizer.ClipGrad.norm2 4.0) adam #loss loss
+            Optimizer.backward_step ?clip_grad (Norm2 4.0) adam #loss loss
         )
         #device device
         dataset;

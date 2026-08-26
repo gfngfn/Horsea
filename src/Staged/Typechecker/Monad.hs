@@ -17,6 +17,7 @@ module Staged.Typechecker.Monad
     logShapeAnnot,
     generateFreshVar,
     generateFreshTypeVar,
+    generateFreshDatatypeId,
     makeIdentityLam,
     askSpanInFile,
   )
@@ -31,6 +32,8 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import GHC.Generics (Generic)
+import Staged.DatatypeId (DatatypeId)
+import Staged.DatatypeId qualified as DatatypeId
 import Staged.SrcSyntax
 import Staged.Syntax
 import Staged.TypeError
@@ -47,6 +50,7 @@ data TypecheckState = TypecheckState
     assVarDisplay :: Map StaticVar Text,
     nextTypeVarIndex :: Int,
     assTypeVarDisplay :: Map AssTypeVar Text,
+    nextDatatypeIndex :: Int,
     inferableArgLogRev :: [InferableArgLog],
     shapeAnnotLogRev :: [ShapeAnnotLog]
   }
@@ -98,6 +102,13 @@ generateFreshTypeVar (TypeVar name) = do
         assTypeVarDisplay = Map.insert atyvar name assTypeVarDisplay
       }
   pure atyvar
+
+generateFreshDatatypeId :: TypeName -> M' err trav DatatypeId
+generateFreshDatatypeId tyName = do
+  currentState@TypecheckState {nextDatatypeIndex = n} <- getState
+  let datatyId = DatatypeId.fresh n tyName
+  putState $ currentState {nextDatatypeIndex = n + 1}
+  pure datatyId
 
 makeIdentityLam :: Ass0TypeExpr -> M trav Ass0Expr
 makeIdentityLam a0tye = do

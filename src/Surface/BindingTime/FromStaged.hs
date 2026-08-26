@@ -10,19 +10,20 @@ module Surface.BindingTime.FromStaged
   )
 where
 
+import Control.Lens ((^?))
 import Control.Monad (foldM)
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Set qualified as Set
 import Data.Tuple.Extra (second)
 import Staged.SrcSyntax (ModuleName, TypeName, Var)
 import Staged.Syntax (Ass0TypeExprF, Ass1TypeExprF, StaticVar)
 import Staged.Syntax qualified as Staged
-import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
+import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ConstructorEntry (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Surface.BindingTime.Core
-import Surface.BindingTime.Env (BindingTimeEnv, BindingTimeModuleEntry (..), BindingTimeTypeEntry (..), BindingTimeValueEntry (..))
+import Surface.BindingTime.Env (BindingTimeConstructorEntry (..), BindingTimeEnv, BindingTimeModuleEntry (..), BindingTimeTypeEntry (..), BindingTimeValueEntry (..))
 import Surface.BindingTime.Env qualified as Env
 import Prelude
 
@@ -120,6 +121,9 @@ fromStaged1' f = go
       Staged.A1TyMaybe a1tye' -> do
         bity1 <- go a1tye'
         pure . wrap1 $ BITyBase [bity1]
+      Staged.A1TyData _datatyId a1datatyArgs -> do
+        bitys <- mapM go $ mapMaybe (^? #_A1DatatypeArgType) a1datatyArgs
+        pure . wrap1 $ BITyBase bitys
       Staged.A1TyProduct a1tyes -> do
         bitys <- mapM go a1tyes
         pure . wrap1 $ BITyProduct bitys
@@ -190,11 +194,8 @@ makeBindingTimeEnvFromStub mods sigr =
                       Left Ass0Metadata {ass0surfaceName} -> fromMaybe varVal ass0surfaceName
                       Right _ -> varVal
                in case fromStaged0 a0tye of
-                    Nothing ->
-                      (btenv, WarnIgnoredVal0 (mods, x) a0tye : warningAcc)
-                    Just biptyVoid ->
-                      let btValEntry = BTValBuiltInFixed0 varVal biptyVoid
-                       in (Env.addVal x btValEntry btenv, warningAcc)
+                    Nothing -> (btenv, WarnIgnoredVal0 (mods, x) a0tye : warningAcc)
+                    Just biptyVoid -> (Env.addVal x (BTValBuiltInFixed0 varVal biptyVoid) btenv, warningAcc)
             Ass1Entry a1tye a1metadataOpt ->
               let x =
                     -- Uses the same name if not specified:
@@ -202,58 +203,48 @@ makeBindingTimeEnvFromStub mods sigr =
                       Left Ass1Metadata {ass1surfaceName} -> fromMaybe varVal ass1surfaceName
                       Right _ -> varVal
                in case fromStaged1 a1tye of
-                    Nothing ->
-                      (btenv, WarnIgnoredVal1 (mods, x) a1tye : warningAcc)
-                    Just bityVoid ->
-                      let btValEntry = BTValBuiltInFixed1 varVal bityVoid
-                       in (Env.addVal x btValEntry btenv, warningAcc)
+                    Nothing -> (btenv, WarnIgnoredVal1 (mods, x) a1tye : warningAcc)
+                    Just bityVoid -> (Env.addVal x (BTValBuiltInFixed1 varVal bityVoid) btenv, warningAcc)
             AssPersEntry aPtye AssPersMetadata {assPsurfaceName} ->
               let x =
                     -- Uses the same name if not specified:
                     fromMaybe varVal assPsurfaceName
                in case fromStagedPers aPtye of
-                    Nothing ->
-                      (btenv, WarnIgnoredValPers (mods, x) : warningAcc)
-                    Just bipty ->
-                      let btValEntry = BTValBuiltInPersistent varVal bipty
-                       in (Env.addVal x btValEntry btenv, warningAcc)
+                    Nothing -> (btenv, WarnIgnoredValPers (mods, x) : warningAcc)
+                    Just bipty -> (Env.addVal x (BTValBuiltInPersistent varVal bipty) btenv, warningAcc)
       )
       ( \tyName tyEntry (btenv, warningAcc) ->
           case tyEntry of
-            Ass1TypeEntry a1tyParams a1tyeBody ->
+            Ass1TypeAlias a1tyParams a1tyeBody ->
               let r = do
-                    (btTy1ParamAcc, vars, _) <-
-                      foldM
-                        ( \(btTy1ParamAcc', vars', i) a1tyParam ->
-                            case a1tyParam of
-                              A1TypeParamType atyvar -> do
-                                let btvar = BITypeBoundVar i
-                                pure (BITypeParamType btvar : btTy1ParamAcc', Map.insert atyvar btvar vars', i + 1)
-                              A1TypeParamVal0 _ax a0tye -> do
-                                bity <-
-                                  fromStaged0'
-                                    (\_ -> error "Bug: makeBindingTimeEnvFromStub; unbound type variable")
-                                    a0tye
-                                pure (BITypeParamVal0 bity : btTy1ParamAcc', vars', i + 1)
-                        )
-                        ([], Map.empty, 0)
-                        a1tyParams
-                    let btTy1Params = reverse btTy1ParamAcc
-                    biptyBody <-
-                      fromStaged1'
-                        ( \atyvar ->
-                            case Map.lookup atyvar vars of
-                              Nothing -> error "Bug: makeBindingTimeEnvFromStub; bound var not found"
-                              Just bitv -> pure $ BITyVar bitv
-                        )
-                        a1tyeBody
-                    pure (btTy1Params, biptyBody)
+                    (btTy1Params, vars) <- makeBindingTimeParams a1tyParams
+                    biptyBody <- makeBtFromStaged1 vars a1tyeBody
+                    pure $ BTType1Alias (BIParameterizedType btTy1Params biptyBody)
                in case r of
-                    Nothing ->
-                      (btenv, WarnIgnoredType1 (mods, tyName) : warningAcc)
-                    Just (btTy1Params, biptyBody) ->
-                      let btTyEntry = BTType1 (BIParameterizedType btTy1Params biptyBody)
-                       in (Env.addType tyName btTyEntry btenv, warningAcc)
+                    Nothing -> (btenv, WarnIgnoredType1 (mods, tyName) : warningAcc)
+                    Just btTyEntry -> (Env.addType tyName btTyEntry btenv, warningAcc)
+            Ass1TypeData a1tyParams _datatyId -> do
+              let r = do
+                    (btTy1Params, _vars) <- makeBindingTimeParams a1tyParams
+                    pure $ BTType1Data btTy1Params
+               in case r of
+                    Nothing -> (btenv, WarnIgnoredType1 (mods, tyName) : warningAcc)
+                    Just btTyEntry -> (Env.addType tyName btTyEntry btenv, warningAcc)
+      )
+      ( \_datatyId _datatyEntry acc ->
+          -- We don't have to use datatype definitions for BTA.
+          acc
+      )
+      ( \ctor ctorEntry (btenv, warningAcc) ->
+          case ctorEntry of
+            Ass1Constructor a1tyParams a1tyes _datatyId ->
+              let r = do
+                    (btTy1Params, vars) <- makeBindingTimeParams a1tyParams
+                    biptys <- mapM (makeBtFromStaged1 vars) a1tyes
+                    pure $ BTCtor btTy1Params biptys
+               in case r of
+                    Nothing -> (btenv, warningAcc)
+                    Just btCtorEntry -> (Env.addConstructor ctor btCtorEntry btenv, warningAcc)
       )
       ( \m (ModuleEntry sigr') (btenv, warningAcc) ->
           -- Reuses the module name `m` in the core language for the surface language:
@@ -262,3 +253,31 @@ makeBindingTimeEnvFromStub mods sigr =
       )
       (Env.empty, [])
       sigr
+  where
+    makeBindingTimeParams a1tyParams = do
+      (btTy1ParamAcc, vars, _) <-
+        foldM
+          ( \(btTy1ParamAcc', vars', i) a1tyParam ->
+              case a1tyParam of
+                A1TypeParamType atyvar -> do
+                  let btvar = BITypeBoundVar i
+                  pure (BITypeParamType btvar : btTy1ParamAcc', Map.insert atyvar btvar vars', i + 1)
+                A1TypeParamVal0 _ax a0tye -> do
+                  bity <-
+                    fromStaged0'
+                      (\_ -> error "Bug: makeBindingTimeEnvFromStub; unbound type variable")
+                      a0tye
+                  pure (BITypeParamVal0 bity : btTy1ParamAcc', vars', i + 1)
+          )
+          ([], Map.empty, 0)
+          a1tyParams
+      let btTy1Params = reverse btTy1ParamAcc
+      pure (btTy1Params, vars)
+
+    makeBtFromStaged1 vars =
+      fromStaged1'
+        ( \atyvar ->
+            case Map.lookup atyvar vars of
+              Nothing -> error "Bug: makeBindingTimeEnvFromStub; bound var not found"
+              Just bitv -> pure $ BITyVar bitv
+        )

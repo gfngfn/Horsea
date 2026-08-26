@@ -7,7 +7,6 @@ where
 
 import Common.TokenUtil (Span)
 import Control.Monad
-import Data.Functor.Identity
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty.Util qualified as NonEmptyUtil
 import Data.List.TwoOrMore (TwoOrMore)
@@ -16,7 +15,6 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (isNothing)
 import Data.Tuple.Extra (second)
-import Staged.Core
 import Staged.Subst
 import Staged.Syntax
 import Staged.TypeError
@@ -495,7 +493,8 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
   where
     go1 :: NonEmpty (Ass0Pattern, Ass1TypeExpr) -> M' ConditionalMergeError trav Ass1TypeExpr
     go1 patAndTypePairs@((a0pat1, a1tye1) :| rest) = do
-      let failure = typeError trav $ CannotMerge1 patAndTypePairs
+      let err = CannotMerge1 patAndTypePairs
+      let failure = typeError trav err
       case a1tye1 of
         A1TyPrim a1tyePrim1 -> do
           A1TyPrim
@@ -531,52 +530,6 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
                   -- General rule:
                   _ ->
                     pure $ A1TyTensor (A0Case a0e0 (fmap (uncurry A0Branch) pairs))
-              A1TyDataset dp1 -> do
-                pairsRest <-
-                  mapM
-                    ( \(a0pat, a1tye) ->
-                        case a1tye of
-                          A1TyPrim (A1TyDataset dp) -> pure (a0pat, dp)
-                          _ -> failure
-                    )
-                    rest
-                let pairs = (a0pat1, dp1) :| pairsRest
-                let a0branchesNumTrain = fmap (\(a0pat, dp) -> A0Branch a0pat dp.numTrain) pairs
-                let a0branchesNumTest = fmap (\(a0pat, dp) -> A0Branch a0pat dp.numTest) pairs
-                let a0branchesImage = fmap (\(a0pat, dp) -> A0Branch a0pat (runIdentity dp.image)) pairs
-                let a0branchesLabel = fmap (\(a0pat, dp) -> A0Branch a0pat (runIdentity dp.label)) pairs
-                pure . A1TyDataset $
-                  DatasetParam
-                    { numTrain = A0Case a0e0 a0branchesNumTrain,
-                      numTest = A0Case a0e0 a0branchesNumTest,
-                      image = Identity (A0Case a0e0 a0branchesImage),
-                      label = Identity (A0Case a0e0 a0branchesLabel)
-                    }
-              A1TyLstm a0eInputSize1 a0eHiddenSize1 -> do
-                triplesRest <-
-                  mapM
-                    ( \(a0pat, a1tye) ->
-                        case a1tye of
-                          A1TyPrim (A1TyLstm a0eInputSize a0eHiddenSize) -> pure (a0pat, (a0eInputSize, a0eHiddenSize))
-                          _ -> failure
-                    )
-                    rest
-                let triples = (a0pat1, (a0eInputSize1, a0eHiddenSize1)) :| triplesRest
-                let a0branchesInputSize = fmap (\(a0pat, pair) -> A0Branch a0pat (fst pair)) triples
-                let a0branchesHiddenSize = fmap (\(a0pat, pair) -> A0Branch a0pat (snd pair)) triples
-                pure $ A1TyLstm (A0Case a0e0 a0branchesInputSize) (A0Case a0e0 a0branchesHiddenSize)
-              A1TyTextHelper a0eLabels1 -> do
-                pairsRest <-
-                  mapM
-                    ( \(a0pat, a1tye) ->
-                        case a1tye of
-                          A1TyPrim (A1TyTextHelper a0eLabels) -> pure (a0pat, a0eLabels)
-                          _ -> failure
-                    )
-                    rest
-                let pairs = (a0pat1, a0eLabels1) :| pairsRest
-                let a0branches = fmap (uncurry A0Branch) pairs
-                pure $ A1TyTextHelper (A0Case a0e0 a0branches)
         A1TyList a1tyeElem1 -> do
           pairsRest <-
             mapM
@@ -601,6 +554,23 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
           let pairs = (a0pat1, a1tyeElem1) :| pairsRest
           a1tyeElem' <- go1 pairs
           pure $ A1TyMaybe a1tyeElem'
+        A1TyData datatyId1 a1datatyArgs1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1tye) ->
+                  case a1tye of
+                    A1TyData datatyId a1datatyArgs ->
+                      if datatyId == datatyId1
+                        then pure (a0pat, a1datatyArgs)
+                        else failure
+                    _ ->
+                      failure
+              )
+              rest
+          let pairs = (a0pat1, a1datatyArgs1) :| pairsRest
+          case distribute pairs of
+            Nothing -> failure
+            Just transposed -> A1TyData datatyId1 <$> mapM (goDatatypeArg1 err) transposed
         A1TyArrow labelOpt1 a1tyeDom1 a1tyeCod1 -> do
           triplesRest <-
             mapM
@@ -687,3 +657,29 @@ mergeTypesByConditional1 trav distributeIfUnderTensorShape a0e0 = go1
               rest
           let pairs = (a0pat1, a1tyeSub1) :| map (second (uncurry (tySubst1 (A1TyVar atyvar1)))) triplesRest
           A1TyForAll atyvar1 <$> go1 pairs
+
+    goDatatypeArg1 :: ConditionalMergeError -> NonEmpty (Ass0Pattern, Ass1DatatypeArg) -> M' ConditionalMergeError trav Ass1DatatypeArg
+    goDatatypeArg1 err ((a0pat1, a1datatyArg1) :| rest) =
+      case a1datatyArg1 of
+        A1DatatypeArgType a1tye1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1datatyArg) ->
+                  case a1datatyArg of
+                    A1DatatypeArgType a1tye -> pure (a0pat, a1tye)
+                    _ -> typeError trav err
+              )
+              rest
+          let pairs = (a0pat1, a1tye1) :| pairsRest
+          A1DatatypeArgType <$> go1 pairs
+        A1DatatypeArgVal0 a0e1 -> do
+          pairsRest <-
+            mapM
+              ( \(a0pat, a1datatyArg) ->
+                  case a1datatyArg of
+                    A1DatatypeArgVal0 a0e -> pure (a0pat, a0e)
+                    _ -> typeError trav err
+              )
+              rest
+          let pairs = (a0pat1, a0e1) :| pairsRest
+          pure $ A1DatatypeArgVal0 (A0Case a0e0 (fmap (uncurry A0Branch) pairs))

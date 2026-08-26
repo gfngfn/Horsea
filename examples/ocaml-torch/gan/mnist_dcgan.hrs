@@ -42,7 +42,7 @@ let create_generator
           #input_dim 32
           #output_dim 1
           {[List.nth 0 shape, 32, (List.nth 2 shape + 6) * 2, (List.nth 3 shape + 6) * 2]}
-          ?activation Layer.Activation.tanh
+          ?activation Tanh
           vs
       )
 in
@@ -70,7 +70,7 @@ let create_discriminator {shape : List Nat} (vs : VarStore) =
       #input_dim 64
       #output_dim 1
       {[List.nth 0 shape, 64, List.nth 2 shape // 4, List.nth 3 shape // 4]}
-      ?activation Layer.Activation.sigmoid
+      ?activation Sigmoid
       vs
   in
   fun (xs : Tensor shape) ->

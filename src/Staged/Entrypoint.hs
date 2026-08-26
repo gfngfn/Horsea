@@ -98,6 +98,7 @@ typecheckStub sourceSpecOfStub bindsInStub = do
             assVarDisplay = Map.empty,
             nextTypeVarIndex = 0,
             assTypeVarDisplay = Map.empty,
+            nextDatatypeIndex = 0,
             inferableArgLogRev = [],
             shapeAnnotLogRev = []
           }

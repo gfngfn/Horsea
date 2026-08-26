@@ -322,10 +322,10 @@ definitions =
           a0vInOpt <- validateMaybeValue a0v2
           case a0vInOpt of
             Nothing ->
-              pure $ A0ValConstructor "Nothing" []
+              pure $ A0ValConstructorApp "Nothing" []
             Just a0vIn -> do
               a0vOut <- reduceBeta a0v1 a0vIn
-              pure $ A0ValConstructor "Just" [a0vOut]
+              pure $ A0ValConstructorApp "Just" [a0vOut]
         |],
     versatile ["list"] "map" ForBothStages 2 $
       [|
@@ -559,20 +559,6 @@ definitions =
       [|error "UNIMPLEMENTED: VarStore.device"|],
     gen ["var_store"] "all_vars" [ParamIntList],
     gen ["var_store"] "new_var" [ParamIntList],
-    versatile ["var_store", "init"] "zeros" ForStage1 0 $
-      [|error "UNIMPLEMENTED: VarStore.Init.zeros"|],
-    versatile ["layer", "activation"] "relu" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.relu"|],
-    versatile ["layer", "activation"] "softmax" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.softmax"|],
-    versatile ["layer", "activation"] "log_softmax" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.log_softmax"|],
-    versatile ["layer", "activation"] "tanh" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.tanh"|],
-    versatile ["layer", "activation"] "leaky_relu" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.leaky_relu"|],
-    versatile ["layer", "activation"] "sigmoid" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Layer.Activation.sigmoid"|],
     gen ["layer"] "forward" [ParamIntList, ParamIntList],
     gen ["layer"] "forward_" [ParamIntList, ParamIntList],
     gen ["layer"] "of_fn_" [ParamIntList, ParamIntList],
@@ -600,10 +586,6 @@ definitions =
           _momentum <- validateFloatLiteral a0v3
           error "UNIMPLEMENTED: Optimizer.sgd"
         |],
-    versatile ["optimizer", "clip_grad"] "norm2" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Optimizer.ClipGrad.norm2"|],
-    versatile ["optimizer", "clip_grad"] "value" ForStage1 0 $
-      [|error "UNIMPLEMENTED: Optimizer.ClipGrad.value"|],
     versatile ["optimizer"] "step" ForStage1 2 $
       [|error "UNIMPLEMENTED: Optimizer.step"|],
     versatile ["optimizer"] "zero_grad" ForStage1 1 $

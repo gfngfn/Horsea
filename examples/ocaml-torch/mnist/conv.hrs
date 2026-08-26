@@ -16,7 +16,7 @@ let conv2d2 (t : Tensor [batch_size, 32, 12, 12]) =
 in
 let linear1 =
   Layer.linear #input_dim 1024 #output_dim 1024 {[batch_size, 1024]}
-    ?activation Layer.Activation.relu
+    ?activation Relu
     vs
 in
 let linear2 =

@@ -13,7 +13,6 @@ where
 import Common.FrontError (FrontError (..))
 import Common.LocationInFile (LocationInFile (LocationInFile), SpanInFile (..))
 import Common.ParserUtil (ParseError (..))
-import Data.Functor.Identity
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.TwoOrMore (TwoOrMore)
 import Data.List.TwoOrMore qualified as TwoOrMore
@@ -30,6 +29,8 @@ import Staged.BuiltIn.CompileTime (deriveDisp)
 import Staged.BuiltIn.Core
 import Staged.BuiltIn.Definitions (definitions)
 import Staged.Core
+import Staged.DatatypeId (DatatypeId)
+import Staged.DatatypeId qualified as DatatypeId
 import Staged.EvalError
 import Staged.SrcSyntax
 import Staged.Syntax
@@ -332,6 +333,12 @@ dispMaybeType req tye =
   deepenParenWhen (req <= Atomic) $
     group ("Maybe" <+> dispGen Atomic tye)
 
+dispDatatype :: (Disp datatyArg) => Associativity -> DatatypeId -> [datatyArg] -> Doc Ann
+dispDatatype req datatyId =
+  dispNameWithArgs req (disp tyName) (dispGen Atomic)
+  where
+    tyName = DatatypeId.getName datatyId
+
 dispProduct :: (Disp ty) => Associativity -> ty -> NonEmpty (Text, ty) -> Doc Ann
 dispProduct req tye1 rest =
   deepenParenWhen (req <= Atomic) $
@@ -420,13 +427,6 @@ dispNameWithArgs req name dispArg args =
   case args of
     [] -> name
     _ : _ -> deepenParenWhen (req <= Atomic) (foldl' (<+>) name (map dispArg args))
-
-dispDatasetParam :: (a -> Doc Ann) -> (f a -> Doc Ann) -> DatasetParam f a -> Doc Ann
-dispDatasetParam dispElem dispList DatasetParam {numTrain, numTest, image, label} =
-  dispElem numTrain <> " " <> dispElem numTest <> " " <> dispList image <> " " <> dispList label
-
-dispDatasetParam0 :: DatasetParam [] Int -> Doc Ann
-dispDatasetParam0 = dispDatasetParam disp dispListLiteral
 
 dispLongName :: (Disp var) => [var] -> var -> Doc Ann
 dispLongName ms x =
@@ -630,7 +630,7 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
     A0Tuple a0es -> dispTuple a0es
     A0Record a0re -> dispRecord "=" a0re
     A0FieldProj a0e1 label -> dispFieldProj req a0e1 label
-    A0Constructor ctor a0es -> dispConstructorApp req ctor a0es
+    A0Constructor ctor -> disp ctor
     A0Bracket a1e1 -> dispBracket a1e1
     A0IfThenElse a0e0 a0e1 a0e2 -> dispIfThenElse req a0e0 a0e1 a0e2
     A0Case a0e0 a0branches -> dispCase req a0e0 a0branches
@@ -650,7 +650,7 @@ instance (Disp sv) => Disp (Ass0BranchF sv) where
 
 instance (Disp sv) => Disp (Ass0PatternF sv) where
   dispGen req = \case
-    A0PatConstructor ctor a0pats -> dispConstructorApp req ctor a0pats
+    A0PatConstructorApp ctor a0pats -> dispConstructorApp req ctor a0pats
     A0PatVar x -> disp x
     A0PatBool b -> dispBool b
     A0PatListNil -> "[]"
@@ -670,7 +670,7 @@ instance (Disp sv) => Disp (Ass1ExprF sv) where
     A1Tuple a1es -> dispTuple a1es
     A1Record a1re -> dispRecord "=" a1re
     A1FieldProj a1e1 label -> dispFieldProj req a1e1 label
-    A1Constructor ctor a1es -> dispConstructorApp req ctor a1es
+    A1Constructor ctor -> disp ctor
     A1IfThenElse a1e0 a1e1 a1e2 -> dispIfThenElse req a1e0 a1e1 a1e2
     A1Case a1e0 a1branches -> dispCase req a1e0 a1branches
     A1Escape a0e1 -> dispEscape a0e1
@@ -682,7 +682,7 @@ instance (Disp sv) => Disp (Ass1BranchF sv) where
 
 instance (Disp sv) => Disp (Ass1PatternF sv) where
   dispGen req = \case
-    A1PatConstructor ctor a0pats -> dispConstructorApp req ctor a0pats
+    A1PatConstructorApp ctor a0pats -> dispConstructorApp req ctor a0pats
     A1PatVar x -> disp x
     A1PatBool b -> dispBool b
     A1PatListNil -> "[]"
@@ -696,13 +696,10 @@ instance Disp AssPrimBaseType where
     ATyPrimUnit -> "Unit"
     ATyPrimString -> "String"
     ATyPrimDevice -> "Device"
-    ATyPrimActivation -> "Activation"
     ATyPrimVarStore -> "VarStore"
     ATyPrimOptimizer -> "Optimizer"
     ATyPrimChar -> "Char"
-    ATyPrimClipGrad -> "ClipGrad"
     ATyPrimOutChannel -> "OutChannel"
-    ATyPrimVarStoreInit -> "VarStoreInit"
 
 instance Disp Ass0PrimType where
   dispGen req = \case
@@ -710,9 +707,6 @@ instance Disp Ass0PrimType where
     A0TyTensor [n] -> dispNameWithArgs req "Vec" disp [n]
     A0TyTensor [m, n] -> dispNameWithArgs req "Mat" disp [m, n]
     A0TyTensor ns -> dispNameWithArgs req "Tensor" dispListLiteral [ns]
-    A0TyDataset datasetParam -> dispNameWithArgs req "Dataset" dispDatasetParam0 [datasetParam]
-    A0TyLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
-    A0TyTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
 instance (Disp sv) => Disp (Ass0TypeExprF sv) where
   dispGen req = \case
@@ -730,6 +724,18 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyOmsArrow label (xOpt, a0tye1) a0tye2 -> dispOmsArrowType req label xOpt a0tye1 a0tye2
     A0TyForAll atyvar a0tye -> dispForAllType req atyvar a0tye
 
+instance (Disp sv) => Disp (StrictAss0ValF sv) where
+  dispGen req = \case
+    SA0ValLiteral alit -> dispGen req alit
+    SA0ValTuple sa0vs -> dispTuple sa0vs
+    SA0ValRecord sa0rv -> dispRecord "=" sa0rv
+    SA0ValConstructorApp ctor sa0vs -> dispConstructorApp req ctor sa0vs
+
+instance (Disp sv) => Disp (StrictAss0DatatypeArgF sv) where
+  dispGen req = \case
+    SA0DatatypeArgType sa0tye -> dispGen req sa0tye
+    SA0DatatypeArgVal0 sa0v -> dispGen req sa0v
+
 instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
   dispGen req = \case
     SA0TyPrim a0tyPrim Nothing -> disp a0tyPrim
@@ -738,6 +744,7 @@ instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
     SA0TyList sa0tye Nothing -> dispListType req sa0tye
     SA0TyList sa0tye (Just a0ePred) -> dispInternalRefinementListType req sa0tye a0ePred
     SA0TyMaybe sa0tye -> dispMaybeType req sa0tye
+    SA0TyData datatyId sa0datatyArgs -> dispDatatype req datatyId sa0datatyArgs
     SA0TyProduct sa0tyes -> dispProductType req sa0tyes
     SA0TyRecord sa0rty -> dispRecord ":" sa0rty
     SA0TyArrow (xOpt, sa0tye1) sa0tye2 -> dispArrowType req Nothing xOpt sa0tye1 sa0tye2
@@ -753,24 +760,24 @@ instance (Disp sv) => Disp (Ass1PrimTypeF sv) where
         A0Literal (ALitList [a0e]) -> dispNameWithArgs req "Vec" dispPersistent [a0e]
         A0Literal (ALitList [a0e1, a0e2]) -> dispNameWithArgs req "Mat" dispPersistent [a0e1, a0e2]
         _ -> dispNameWithArgs req "Tensor" dispPersistent [a0eList]
-    A1TyDataset datasetParam ->
-      dispNameWithArgs req "Dataset" (dispDatasetParam disp (disp . runIdentity)) [datasetParam]
-    A1TyLstm a0eInputSize a0eHiddenSize ->
-      dispNameWithArgs req "Lstm" disp [a0eInputSize, a0eHiddenSize]
-    A1TyTextHelper a0eLabels ->
-      dispNameWithArgs req "TextHelper" disp [a0eLabels]
 
 instance (Disp sv) => Disp (Ass1TypeExprF sv) where
   dispGen req = \case
     A1TyPrim a1tyPrim -> dispGen req a1tyPrim
     A1TyList a1tye -> dispListType req a1tye
     A1TyMaybe a1tye -> dispMaybeType req a1tye
+    A1TyData datatyId a1datatyArgs -> dispDatatype req datatyId a1datatyArgs
     A1TyVar atyvar -> disp atyvar
     A1TyProduct a1tyes -> dispProductType req a1tyes
     A1TyRecord a1rty -> dispRecord ":" a1rty
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2
     A1TyOmsArrow label a1tye1 a1tye2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tye1 a1tye2
     A1TyForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
+
+instance (Disp sv) => Disp (Ass1DatatypeArgF sv) where
+  dispGen req = \case
+    A1DatatypeArgType a1tye -> dispGen req a1tye
+    A1DatatypeArgVal0 a0e -> stagingOperatorStyle "%" <> stage0Style (dispGen Atomic a0e)
 
 instance Disp FrontError where
   dispGen _ = \case
@@ -1091,6 +1098,8 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> "application context:"
         <> hardline
         <> nest 2 (hardline <> disps appCtx)
+    VarBoundMoreThanOnceInPattern spanInFile x ->
+      "Variable" <+> disp x <+> "bound more than once in a pattern" <+> disp spanInFile
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case
@@ -1131,8 +1140,15 @@ instance (Disp sv) => Disp (UnsupportedF sv) where
         <> hardline
         <+> "application context:"
         <> nest 2 (hardline <> disps appCtx)
+    LamInfTypeWithArguments appCtx ->
+      "Lambda abstraction for an inferrable type parameter directly applied to argument(s); consider reducing it manually"
+        <> hardline
+        <+> "application context:"
+        <> nest 2 (hardline <> disps appCtx)
     PersistentFunWithOms ->
-      "persistent function with an omissible parameter"
+      "Persistent function with an omissible parameter"
+    NonStage1TypeDefinition ->
+      "Non-stage-1 type definition"
 
 instance (Disp sv) => Disp (AppContextEntryF sv) where
   dispGen _ = \case
@@ -1169,7 +1185,7 @@ instance (Disp sv) => Disp (Ass0ValF sv) where
     A0ValLiteral lit -> disp lit
     A0ValTuple a0vs -> dispTuple a0vs
     A0ValRecord a0rv -> dispRecord "=" a0rv
-    A0ValConstructor ctor a0vs -> dispConstructorApp req ctor a0vs
+    A0ValConstructorApp ctor a0vs -> dispConstructorApp req ctor a0vs
     A0ValLam Nothing (x, a0tyv1) a0v2 _env -> dispNonrecLam req Nothing x a0tyv1 a0v2
     A0ValLam (Just (f, a0tyvRec)) (x, a0tyv1) a0v2 _env -> dispRecLam req f a0tyvRec Nothing x a0tyv1 a0v2
     A0ValBracket a1v1 -> dispBracket a1v1
@@ -1263,8 +1279,8 @@ instance (Disp sv) => Disp (Ass1ValF sv) where
       dispRecord "=" a1rv
     A1ValFieldProj a1e1 label ->
       dispFieldProj req a1e1 label
-    A1ValConstructor ctor a1vs ->
-      dispConstructorApp req ctor a1vs
+    A1ValConstructor ctor ->
+      disp ctor
     A1ValIfThenElse a1v0 a1v1 a1v2 ->
       dispIfThenElse req a1v0 a1v1 a1v2
     A1ValCase a1v0 a1branchVs ->
@@ -1297,6 +1313,7 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
     A1TyValPrim a1tyvPrim -> dispGen req a1tyvPrim
     A1TyValList a1tyv -> dispListType req a1tyv
     A1TyValMaybe a1tyv -> dispMaybeType req a1tyv
+    A1TyValData datatyId a1datatyArgVals -> dispDatatype req datatyId a1datatyArgVals
     A1TyValVar atyvar -> disp atyvar
     A1TyValProduct a1tyvs ->
       let (a1tyv1, a1tyvsRest) = TwoOrMore.decompose1 a1tyvs
@@ -1306,15 +1323,17 @@ instance (Disp sv) => Disp (Ass1TypeValF sv) where
     A1TyValOmsArrow label a1tyv1 a1tyv2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tyv1 a1tyv2
     A1TyValForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
 
+instance (Disp sv) => Disp (Ass1DatatypeArgValF sv) where
+  dispGen req = \case
+    A1DatatypeArgValType a1tyv -> dispGen req a1tyv
+    A1DatatypeArgValVal0 a0v -> stagingOperatorStyle "%" <> stage0Style (dispGen Atomic a0v)
+
 instance Disp Ass1PrimTypeVal where
   dispGen req = \case
     A1TyValPrimBase tyPrimBase -> disp tyPrimBase
     A1TyValTensor [n] -> dispNameWithArgs req "Vec" dispPersistent [n]
     A1TyValTensor [m, n] -> dispNameWithArgs req "Mat" dispPersistent [m, n]
     A1TyValTensor ns -> dispNameWithArgs req "Tensor" dispPersistentListLiteral [ns]
-    A1TyValDataset datasetParam -> dispNameWithArgs req "Dataset" (dispDatasetParam disp dispListLiteral) [datasetParam]
-    A1TyValLstm i h -> dispNameWithArgs req "Lstm" disp [i, h]
-    A1TyValTextHelper labels -> dispNameWithArgs req "TextHelper" disp [labels]
 
 instance Disp LocationInFile where
   dispGen _ (LocationInFile l c) =
@@ -1442,6 +1461,8 @@ instance Disp Bta.AnalysisError where
       "Invalid syntax as type expression" <+> disp spanInFile
     Bta.UnboundVar spanInFile ms x ->
       "Unbound variable" <+> disp (Text.intercalate "." (ms ++ [x])) <+> disp spanInFile
+    Bta.UnboundConstructor spanInFile ms ctor ->
+      "Unbound constructor" <+> disp (Text.intercalate "." (ms ++ [ctor])) <+> disp spanInFile
     Bta.UnboundModule spanInFile m ->
       "Unbound module" <+> disp m <+> disp spanInFile
     Bta.NotAFunction spanInFile bity ->

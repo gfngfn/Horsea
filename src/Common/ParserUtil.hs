@@ -9,6 +9,7 @@ module Common.ParserUtil
     optional,
     some,
     many,
+    many1,
     sepBy,
     sepBy1,
     expectToken,
@@ -88,6 +89,9 @@ some p = do
 
 many :: (Ord token) => GenP token a -> GenP token [a]
 many = Mp.many
+
+many1 :: (Ord token) => GenP token a -> GenP token (NonEmpty a)
+many1 p = (:|) <$> p <*> many p
 
 sepBy :: (Ord token) => GenP token a -> GenP token sep -> GenP token [a]
 sepBy = Mp.sepBy

@@ -5,10 +5,8 @@ module Staged.TypeSubst
   )
 where
 
-import Data.Functor.Identity
 import Data.Maybe1
 import Data.Tuple.Extra
-import Staged.Core
 import Staged.Syntax
 import Prelude
 
@@ -62,6 +60,15 @@ instance HasTypeVar Ass0TypeExprF where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
 
+instance HasTypeVar StrictAss0DatatypeArgF where
+  tySubst :: forall sv. TypeSubstF sv -> StrictAss0DatatypeArgF sv -> StrictAss0DatatypeArgF sv
+  tySubst s = \case
+    SA0DatatypeArgType sa0tye -> SA0DatatypeArgType (go sa0tye)
+    SA0DatatypeArgVal0 a0v -> SA0DatatypeArgVal0 (go a0v)
+    where
+      go :: forall af. (HasTypeVar af) => af sv -> af sv
+      go = tySubst s
+
 instance HasTypeVar StrictAss0TypeExprF where
   tySubst :: forall sv. TypeSubstF sv -> StrictAss0TypeExprF sv -> StrictAss0TypeExprF sv
   tySubst s = \case
@@ -75,6 +82,8 @@ instance HasTypeVar StrictAss0TypeExprF where
       SA0TyList (go sa0tye1) ((unMaybe1 . go . Maybe1) maybePred)
     SA0TyMaybe a0tye1 ->
       SA0TyMaybe (go a0tye1)
+    SA0TyData datatyId sa0datatyArgs ->
+      SA0TyData datatyId (map go sa0datatyArgs)
     SA0TyProduct sa0tyes ->
       SA0TyProduct (fmap go sa0tyes)
     SA0TyRecord sa0rty ->
@@ -98,6 +107,7 @@ instance HasTypeVar Ass1TypeExprF where
     A1TyPrim a1tyPrim -> A1TyPrim (go a1tyPrim)
     A1TyList a1tye1 -> A1TyList (go a1tye1)
     A1TyMaybe a1tye1 -> A1TyMaybe (go a1tye1)
+    A1TyData datatyId a1datatyArgs -> A1TyData datatyId (map go a1datatyArgs)
     A1TyVar atyvar ->
       case s of
         TypeSubst0 _ _ -> A1TyVar atyvar
@@ -118,22 +128,28 @@ instance HasTypeVar Ass1TypeExprF where
 instance HasTypeVar Ass1PrimTypeF where
   tySubst :: forall sv. TypeSubstF sv -> Ass1PrimTypeF sv -> Ass1PrimTypeF sv
   tySubst s = \case
-    A1TyPrimBase bty ->
-      A1TyPrimBase bty
-    A1TyTensor a0e ->
-      A1TyTensor (go a0e)
-    A1TyDataset dp ->
-      A1TyDataset
-        DatasetParam
-          { numTrain = go dp.numTrain,
-            numTest = go dp.numTest,
-            image = Identity (go (runIdentity dp.image)),
-            label = Identity (go (runIdentity dp.label))
-          }
-    A1TyLstm a0e1 a0e2 ->
-      A1TyLstm (go a0e1) (go a0e2)
-    A1TyTextHelper a0e ->
-      A1TyTextHelper (go a0e)
+    A1TyPrimBase bty -> A1TyPrimBase bty
+    A1TyTensor a0e -> A1TyTensor (go a0e)
+    where
+      go :: forall af. (HasTypeVar af) => af sv -> af sv
+      go = tySubst s
+
+instance HasTypeVar Ass1DatatypeArgF where
+  tySubst :: forall sv. TypeSubstF sv -> Ass1DatatypeArgF sv -> Ass1DatatypeArgF sv
+  tySubst s = \case
+    A1DatatypeArgType a1tye -> A1DatatypeArgType (go a1tye)
+    A1DatatypeArgVal0 a0e -> A1DatatypeArgVal0 (go a0e)
+    where
+      go :: forall af. (HasTypeVar af) => af sv -> af sv
+      go = tySubst s
+
+instance HasTypeVar StrictAss0ValF where
+  tySubst :: forall sv. TypeSubstF sv -> StrictAss0ValF sv -> StrictAss0ValF sv
+  tySubst s = \case
+    SA0ValLiteral alit -> SA0ValLiteral (go alit)
+    SA0ValTuple a0vs -> SA0ValTuple (fmap go a0vs)
+    SA0ValRecord a0rv -> SA0ValRecord (fmap go a0rv)
+    SA0ValConstructorApp ctor a0vs -> SA0ValConstructorApp ctor (map go a0vs)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
@@ -153,7 +169,7 @@ instance HasTypeVar Ass0ExprF where
     A0Tuple a0es -> A0Tuple (fmap go a0es)
     A0Record a0re -> A0Record (fmap go a0re)
     A0FieldProj a0e1 label -> A0FieldProj (go a0e1) label
-    A0Constructor ctor a0es -> A0Constructor ctor (map go a0es)
+    A0Constructor ctor -> A0Constructor ctor
     A0IfThenElse a0e0 a0e1 a0e2 -> A0IfThenElse (go a0e0) (go a0e1) (go a0e2)
     A0Case a0e0 a0branches -> A0Case (go a0e0) (fmap go a0branches)
     A0Bracket a1e -> A0Bracket (go a1e)
@@ -187,13 +203,12 @@ instance HasTypeVar Type1EquationF where
         case ty1eqPrim of
           TyEq1PrimBase tyPrimBase -> TyEq1PrimBase tyPrimBase
           TyEq1Tensor listEq -> TyEq1Tensor (go listEq)
-          TyEq1Dataset dpEq -> TyEq1Dataset (go dpEq)
-          TyEq1Lstm (i1, i2) (h1, h2) -> TyEq1Lstm (go i1, go i2) (go h1, go h2)
-          TyEq1TextHelper (labels1, labels2) -> TyEq1TextHelper (go labels1, go labels2)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
     TyEq1Maybe ty1eqElem ->
       TyEq1Maybe (go ty1eqElem)
+    TyEq1Data datatyId datatyArg1eqs ->
+      TyEq1Data datatyId (map go datatyArg1eqs)
     TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
       TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
     TyEq1OmsArrow label ty1eqDom ty1eqCod ->
@@ -216,6 +231,15 @@ instance HasTypeVar Type1EquationF where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
 
+instance HasTypeVar DatatypeArg1EquationF where
+  tySubst :: forall sv. TypeSubstF sv -> DatatypeArg1EquationF sv -> DatatypeArg1EquationF sv
+  tySubst s = \case
+    DatatypeArgEq1Type ty1eq -> DatatypeArgEq1Type (go ty1eq)
+    DatatypeArgEq1Val0 (a0e1, a0e2) -> DatatypeArgEq1Val0 (go a0e1, go a0e2)
+    where
+      go :: forall af. (HasTypeVar af) => af sv -> af sv
+      go = tySubst s
+
 instance HasTypeVar ListEquationF where
   tySubst :: forall sv. TypeSubstF sv -> ListEquationF sv -> ListEquationF sv
   tySubst s = \case
@@ -223,19 +247,6 @@ instance HasTypeVar ListEquationF where
       ListEqByElements (map (both go) zipped)
     ListEqByWhole a0eList1 a0eList2 ->
       ListEqByWhole (go a0eList1) (go a0eList2)
-    where
-      go :: forall af. (HasTypeVar af) => af sv -> af sv
-      go = tySubst s
-
-instance HasTypeVar DatasetParamEquationF where
-  tySubst :: forall sv. TypeSubstF sv -> DatasetParamEquationF sv -> DatasetParamEquationF sv
-  tySubst s DatasetParamEquation {numTrainEq, numTestEq, imageEq, labelEq} =
-    DatasetParamEquation
-      { numTrainEq = both go numTrainEq,
-        numTestEq = both go numTestEq,
-        imageEq = go imageEq,
-        labelEq = go labelEq
-      }
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
@@ -255,7 +266,7 @@ instance HasTypeVar Ass1ExprF where
     A1Tuple a1es -> A1Tuple (fmap go a1es)
     A1Record a1re -> A1Record (fmap go a1re)
     A1FieldProj a1e1 label -> A1FieldProj (go a1e1) label
-    A1Constructor ctor a1es -> A1Constructor ctor (map go a1es)
+    A1Constructor ctor -> A1Constructor ctor
     A1IfThenElse a1e0 a1e1 a1e2 -> A1IfThenElse (go a1e0) (go a1e1) (go a1e2)
     A1Case a1e0 a1branches -> A1Case (go a1e0) (fmap go a1branches)
     A1Escape a0e -> A1Escape (go a0e)

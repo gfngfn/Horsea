@@ -9,7 +9,6 @@ module Staged.Subst
   )
 where
 
-import Data.Functor.Identity
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.TwoOrMore qualified as TwoOrMore
 import Data.Map qualified as Map
@@ -18,7 +17,6 @@ import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Safe.Exact (zipExactMay)
-import Staged.Core
 import Staged.Syntax
 import Prelude
 
@@ -123,8 +121,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       unionPairs (map (frees . snd) (Map.toList a0re))
     A0FieldProj a0e _label ->
       frees a0e
-    A0Constructor _ctor a0es ->
-      unionPairs (map frees a0es)
+    A0Constructor _ctor ->
+      (Set.empty, Set.empty)
     A0IfThenElse a0e0 a0e1 a0e2 ->
       unionPairs [frees a0e0, frees a0e1, frees a0e2]
     A0Case a0e0 a0branches ->
@@ -179,8 +177,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       A0Record (fmap go a0re)
     A0FieldProj a0e label ->
       A0FieldProj (go a0e) label
-    A0Constructor ctor a0es ->
-      A0Constructor ctor (map go a0es)
+    A0Constructor ctor ->
+      A0Constructor ctor
     A0IfThenElse a0e0 a0e1 a0e2 ->
       A0IfThenElse (go a0e0) (go a0e1) (go a0e2)
     A0Case a0e0 a0branches ->
@@ -233,11 +231,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       (A0Record a0re1, A0Record a0re2) ->
         Map.keysSet a0re1 == Map.keysSet a0re2
           && all (uncurry go . snd) (Map.toList (Map.intersectionWith (,) a0re1 a0re2))
-      (A0Constructor ctor1 a0es1, A0Constructor ctor2 a0es2) ->
+      (A0Constructor ctor1, A0Constructor ctor2) ->
         ctor1 == ctor2
-          && case zipExactMay a0es1 a0es2 of
-            Just zipped -> all (uncurry go) zipped
-            Nothing -> False
       (A0IfThenElse a0e10 a0e11 a0e12, A0IfThenElse a0e20 a0e21 a0e22) ->
         go a0e10 a0e20 && go a0e11 a0e21 && go a0e12 a0e22
       (A0Case a0e10 a0branches1, A0Case a0e20 a0branches2) ->
@@ -281,7 +276,7 @@ instance (Ord sv) => HasVar sv Ass0BranchF where
 
 freesInPattern0 :: (Ord sv) => Ass0PatternF sv -> Set (AssVarF sv)
 freesInPattern0 = \case
-  A0PatConstructor _ctor a0pats -> Set.unions (map freesInPattern0 a0pats)
+  A0PatConstructorApp _ctor a0pats -> Set.unions (map freesInPattern0 a0pats)
   A0PatVar x -> Set.singleton x
   A0PatBool _ -> Set.empty
   A0PatListNil -> Set.empty
@@ -325,8 +320,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       unionPairs (map (frees . snd) (Map.toList a1rty))
     A1FieldProj a1e _label ->
       frees a1e
-    A1Constructor _ctor a1es ->
-      unionPairs (map frees a1es)
+    A1Constructor _ctor ->
+      (Set.empty, Set.empty)
     A1IfThenElse a1e0 a1e1 a1e2 ->
       unionPairs [frees a1e0, frees a1e1, frees a1e2]
     A1Case a1e0 a1branches ->
@@ -377,8 +372,8 @@ instance (Ord sv) => HasVar sv Ass1ExprF where
       A1Record (fmap go a1rty)
     A1FieldProj a1e label ->
       A1FieldProj (go a1e) label
-    A1Constructor ctor a1es ->
-      A1Constructor ctor (map go a1es)
+    A1Constructor ctor ->
+      A1Constructor ctor
     A1IfThenElse a1e0 a1e1 a1e2 ->
       A1IfThenElse (go a1e0) (go a1e1) (go a1e2)
     A1Case a1e0 a1branches ->
@@ -453,7 +448,7 @@ instance (Ord sv) => HasVar sv Ass1BranchF where
 
 freesInPattern1 :: (Ord sv) => Ass1PatternF sv -> Set (AssVarF sv)
 freesInPattern1 = \case
-  A1PatConstructor _ctor a1pats -> Set.unions (map freesInPattern1 a1pats)
+  A1PatConstructorApp _ctor a1pats -> Set.unions (map freesInPattern1 a1pats)
   A1PatVar x -> Set.singleton x
   A1PatBool _ -> Set.empty
   A1PatListNil -> Set.empty
@@ -597,25 +592,14 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
   frees = \case
     A1TyPrim a1tyPrim ->
       case a1tyPrim of
-        A1TyPrimBase _ ->
-          (Set.empty, Set.empty)
-        A1TyTensor a0eList ->
-          frees a0eList
-        A1TyDataset DatasetParam {numTrain, numTest, image, label} ->
-          unionPairs
-            [ frees numTrain,
-              frees numTest,
-              frees (runIdentity image),
-              frees (runIdentity label)
-            ]
-        A1TyLstm a0e1 a0e2 ->
-          unionPairs [frees a0e1, frees a0e2]
-        A1TyTextHelper a0e ->
-          frees a0e
+        A1TyPrimBase _ -> (Set.empty, Set.empty)
+        A1TyTensor a0eList -> frees a0eList
     A1TyList a1tye1 ->
       frees a1tye1
     A1TyMaybe a1tye1 ->
       frees a1tye1
+    A1TyData _datatyId a1datatyArgs ->
+      unionPairs (map frees a1datatyArgs)
     A1TyVar _atyvar ->
       (Set.empty, Set.empty)
     A1TyProduct a1tyes ->
@@ -634,13 +618,12 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       A1TyPrim $ case a1tyPrim of
         A1TyPrimBase tyPrimBase -> A1TyPrimBase tyPrimBase
         A1TyTensor a0eList -> A1TyTensor (go a0eList)
-        A1TyDataset datasetParam -> A1TyDataset (fmap go datasetParam)
-        A1TyLstm a0e1 a0e2 -> A1TyLstm (go a0e1) (go a0e2)
-        A1TyTextHelper a0e -> A1TyTextHelper (go a0e)
     A1TyList a1tye1 ->
       A1TyList (go a1tye1)
     A1TyMaybe a1tye1 ->
       A1TyMaybe (go a1tye1)
+    A1TyData datatyId a1datatyArgs ->
+      A1TyData datatyId (map go a1datatyArgs)
     A1TyVar atyvar ->
       A1TyVar atyvar
     A1TyProduct a1tyes ->
@@ -671,6 +654,11 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
         go a1tye1' a1tye2'
       (A1TyMaybe a1tye1', A1TyMaybe a1tye2') ->
         go a1tye1' a1tye2'
+      (A1TyData datatyId1 a1datatyArgs1, A1TyData datatyId2 a1datatyArgs2) ->
+        datatyId1 == datatyId2
+          && case zipExactMay a1datatyArgs1 a1datatyArgs2 of
+            Just zipped -> all (uncurry go) zipped
+            Nothing -> False
       (A1TyVar atyvar1, A1TyVar atyvar2) ->
         atyvar1 == atyvar2
       (A1TyProduct a1tyes1, A1TyProduct a1tyes2) ->
@@ -690,6 +678,65 @@ instance (Ord sv) => HasVar sv Ass1TypeExprF where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
 
+instance (Ord sv) => HasVar sv Ass1DatatypeArgF where
+  frees = \case
+    A1DatatypeArgType a1tye -> frees a1tye
+    A1DatatypeArgVal0 a0e -> frees a0e
+
+  subst s = \case
+    A1DatatypeArgType a1tye -> A1DatatypeArgType (go a1tye)
+    A1DatatypeArgVal0 a0e -> A1DatatypeArgVal0 (go a0e)
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent a1datatyArg1 a1datatyArg2 =
+    case (a1datatyArg1, a1datatyArg2) of
+      (A1DatatypeArgType a1tye1, A1DatatypeArgType a1tye2) -> go a1tye1 a1tye2
+      (A1DatatypeArgVal0 a0e1, A1DatatypeArgVal0 a0e2) -> go a0e1 a0e2
+      _ -> False
+    where
+      go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
+      go = alphaEquivalent
+
+instance (Ord sv) => HasVar sv StrictAss0ValF where
+  frees = \case
+    SA0ValLiteral alit -> frees alit
+    SA0ValTuple sa0vs -> unionPairs $ map frees $ TwoOrMore.toList sa0vs
+    SA0ValRecord sa0rv -> unionPairs $ map (frees . snd) $ Map.toList sa0rv
+    SA0ValConstructorApp _ctor sa0vs -> unionPairs $ map frees sa0vs
+
+  subst s = \case
+    SA0ValLiteral alit -> SA0ValLiteral (go alit)
+    SA0ValTuple sa0vs -> SA0ValTuple (fmap go sa0vs)
+    SA0ValRecord sa0rv -> SA0ValRecord (fmap go sa0rv)
+    SA0ValConstructorApp ctor sa0vs -> SA0ValConstructorApp ctor (map go sa0vs)
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent _sa0v1 _sa0v2 =
+    -- TODO (enhance): alpha-equivalence on `StrictAss0Val`
+    False
+
+instance (Ord sv) => HasVar sv StrictAss0DatatypeArgF where
+  frees = \case
+    SA0DatatypeArgType sa0tye -> frees sa0tye
+    SA0DatatypeArgVal0 sa0v -> frees sa0v
+
+  subst s = \case
+    SA0DatatypeArgType sa0tye -> SA0DatatypeArgType (go sa0tye)
+    SA0DatatypeArgVal0 sa0v -> SA0DatatypeArgVal0 (go sa0v)
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent sa0datatyArg1 sa0datatyArg2 =
+    case (sa0datatyArg1, sa0datatyArg2) of
+      (SA0DatatypeArgType sa0tye1, SA0DatatypeArgType sa0tye2) -> alphaEquivalent sa0tye1 sa0tye2
+      (SA0DatatypeArgVal0 sa0v1, SA0DatatypeArgVal0 sa0v2) -> alphaEquivalent sa0v1 sa0v2
+      (_, _) -> False
+
 instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
   frees = \case
     SA0TyPrim _ maybePred ->
@@ -700,6 +747,8 @@ instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
       unionPairs [frees a0tye, frees (Maybe1 maybePred)]
     SA0TyMaybe a0tye ->
       frees a0tye
+    SA0TyData _datatyId a0datatyArgs ->
+      unionPairs (map frees a0datatyArgs)
     SA0TyProduct a0tyes ->
       unionPairs (map frees (TwoOrMore.toList a0tyes))
     SA0TyRecord a0rty ->
@@ -728,6 +777,8 @@ instance (Ord sv) => HasVar sv StrictAss0TypeExprF where
       SA0TyList (go a0tye) (unMaybe1 . go . Maybe1 $ maybePred)
     SA0TyMaybe a0tye ->
       SA0TyMaybe (go a0tye)
+    SA0TyData datatyId a0datatyArgs ->
+      SA0TyData datatyId (map go a0datatyArgs)
     SA0TyProduct a0tyes ->
       SA0TyProduct (fmap go a0tyes)
     SA0TyRecord a0rty ->
@@ -781,13 +832,12 @@ instance (Ord sv) => HasVar sv Type1EquationF where
       case ty1eqPrim of
         TyEq1PrimBase _ -> (Set.empty, Set.empty)
         TyEq1Tensor listEq -> frees listEq
-        TyEq1Dataset datasetParamEq -> frees datasetParamEq
-        TyEq1Lstm (i1, i2) (h1, h2) -> unionPairs [frees i1, frees i2, frees h1, frees h2]
-        TyEq1TextHelper (labels1, labels2) -> unionPairs [frees labels1, frees labels2]
     TyEq1List ty1eqElem ->
       frees ty1eqElem
     TyEq1Maybe ty1eqElem ->
       frees ty1eqElem
+    TyEq1Data _datatyId datatyArg1eqs ->
+      unionPairs (map frees datatyArg1eqs)
     TyEq1Arrow _labelOpt ty1eqDom ty1eqCod ->
       unionPairs [frees ty1eqDom, frees ty1eqCod]
     TyEq1OmsArrow _label ty1eqDom ty1eqCod ->
@@ -807,13 +857,12 @@ instance (Ord sv) => HasVar sv Type1EquationF where
         case ty1eqPrim of
           TyEq1PrimBase tyPrimBase -> TyEq1PrimBase tyPrimBase
           TyEq1Tensor listEq -> TyEq1Tensor (go listEq)
-          TyEq1Dataset dpEq -> TyEq1Dataset (go dpEq)
-          TyEq1Lstm (i1, i2) (h1, h2) -> TyEq1Lstm (go i1, go i2) (go h1, go h2)
-          TyEq1TextHelper (labels1, labels2) -> TyEq1TextHelper (go labels1, go labels2)
     TyEq1List ty1eqElem ->
       TyEq1List (go ty1eqElem)
     TyEq1Maybe ty1eqElem ->
       TyEq1Maybe (go ty1eqElem)
+    TyEq1Data datatyId datatyArg1eqs ->
+      TyEq1Data datatyId (map go datatyArg1eqs)
     TyEq1Arrow labelOpt ty1eqDom ty1eqCod ->
       TyEq1Arrow labelOpt (go ty1eqDom) (go ty1eqCod)
     TyEq1OmsArrow label ty1eqDom ty1eqCod ->
@@ -836,14 +885,57 @@ instance (Ord sv) => HasVar sv Type1EquationF where
         case (ty1eqPrim1, ty1eqPrim2) of
           (TyEq1PrimBase tyPrimBase1, TyEq1PrimBase tyPrimBase2) -> tyPrimBase1 == tyPrimBase2
           (TyEq1Tensor listEq1, TyEq1Tensor listEq2) -> go listEq1 listEq2
-          (TyEq1Dataset dpEq1, TyEq1Dataset dpEq2) -> go dpEq1 dpEq2
           (_, _) -> False
       (TyEq1List ty1eqElem1, TyEq1List ty1eqElem2) ->
         go ty1eqElem1 ty1eqElem2
+      (TyEq1Maybe ty1eqElem1, TyEq1Maybe ty1eqElem2) ->
+        go ty1eqElem1 ty1eqElem2
+      (TyEq1Data datatyId1 datatyArg1eqs1, TyEq1Data datatyId2 datatyArg1eqs2) ->
+        datatyId1 == datatyId2
+          && case zipExactMay datatyArg1eqs1 datatyArg1eqs2 of
+            Just zipped -> all (uncurry go) zipped
+            Nothing -> False
       (TyEq1Arrow labelOpt1 ty1eqDom1 ty1eqCod1, TyEq1Arrow labelOpt2 ty1eqDom2 ty1eqCod2) ->
         labelOpt1 == labelOpt2 && go ty1eqDom1 ty1eqDom2 && go ty1eqCod1 ty1eqCod2
+      (TyEq1OmsArrow label1 ty1eqDom1 ty1eqCod1, TyEq1OmsArrow label2 ty1eqDom2 ty1eqCod2) ->
+        label1 == label2 && go ty1eqDom1 ty1eqDom2 && go ty1eqCod1 ty1eqCod2
+      (TyEq1Product ty1eqs1, TyEq1Product ty1eqs2) ->
+        case zipExactMay (TwoOrMore.toList ty1eqs1) (TwoOrMore.toList ty1eqs2) of
+          Just zipped -> all (uncurry go) zipped
+          Nothing -> False
+      (TyEq1Record rty1eq1, TyEq1Record rty1eq2) ->
+        Map.keysSet rty1eq1 == Map.keysSet rty1eq2
+          && all (uncurry go . snd) (Map.toList (Map.intersectionWith (,) rty1eq1 rty1eq2))
+      (TyEq1TypeVar atyvar1, TyEq1TypeVar atyvar2) ->
+        atyvar1 == atyvar2
+      (TyEq1ForAll atyvar1 ty1eq1', TyEq1ForAll atyvar2 ty1eq2') ->
+        -- TODO (enhance): true alpha-equivalence
+        atyvar1 == atyvar2 && go ty1eq1' ty1eq2'
       (_, _) ->
         False
+    where
+      go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
+      go = alphaEquivalent
+
+instance (Ord sv) => HasVar sv DatatypeArg1EquationF where
+  frees = \case
+    DatatypeArgEq1Type ty1eq -> frees ty1eq
+    DatatypeArgEq1Val0 (a0e1, a0e2) -> unionPairs [frees a0e1, frees a0e2]
+
+  subst s = \case
+    DatatypeArgEq1Type ty1eq ->
+      DatatypeArgEq1Type (go ty1eq)
+    DatatypeArgEq1Val0 (a0e1, a0e2) ->
+      DatatypeArgEq1Val0 (go a0e1, go a0e2)
+    where
+      go :: forall af. (HasVar sv af) => af sv -> af sv
+      go = subst s
+
+  alphaEquivalent datatyArg1eq1 datatyArg1eq2 =
+    case (datatyArg1eq1, datatyArg1eq2) of
+      (DatatypeArgEq1Type ty1eq1, DatatypeArgEq1Type ty1eq2) -> go ty1eq1 ty1eq2
+      (DatatypeArgEq1Val0 (a0e11, a0e12), DatatypeArgEq1Val0 (a0e21, a0e22)) -> go a0e11 a0e21 && go a0e12 a0e22
+      _ -> False
     where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
@@ -882,47 +974,6 @@ instance (Ord sv) => HasVar sv ListEquationF where
       (_, _) ->
         False
     where
-      go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
-      go = alphaEquivalent
-
-instance (Ord sv) => HasVar sv DatasetParamEquationF where
-  frees DatasetParamEquation {numTrainEq, numTestEq, imageEq, labelEq} =
-    unionPairs
-      [ frees numTrain1,
-        frees numTrain2,
-        frees numTest1,
-        frees numTest2,
-        frees imageEq,
-        frees labelEq
-      ]
-    where
-      (numTrain1, numTrain2) = numTrainEq
-      (numTest1, numTest2) = numTestEq
-
-  subst s DatasetParamEquation {numTrainEq, numTestEq, imageEq, labelEq} =
-    DatasetParamEquation
-      { numTrainEq = both go numTrainEq,
-        numTestEq = both go numTestEq,
-        imageEq = go imageEq,
-        labelEq = go labelEq
-      }
-    where
-      go :: forall af. (HasVar sv af) => af sv -> af sv
-      go = subst s
-
-  alphaEquivalent dpEq1 dpEq2 =
-    go numTrain11 numTrain21
-      && go numTrain12 numTrain22
-      && go numTest11 numTest21
-      && go numTest12 numTest22
-      && go dpEq1.imageEq dpEq2.imageEq
-      && go dpEq1.labelEq dpEq2.labelEq
-    where
-      (numTrain11, numTrain12) = dpEq1.numTrainEq
-      (numTrain21, numTrain22) = dpEq2.numTrainEq
-      (numTest11, numTest12) = dpEq1.numTestEq
-      (numTest21, numTest22) = dpEq2.numTestEq
-
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
 

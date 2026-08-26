@@ -26,12 +26,14 @@ module Staged.SrcSyntax
     TypeExprMain,
     BindF (..),
     BindMainF (..),
-    Bind,
     BindValF (..),
-    BindVal,
+    TypeDefinitionF (..),
     Stage (..),
     ExternalField,
     External,
+    Bind,
+    BindVal,
+    TypeDefinition,
   )
 where
 
@@ -164,18 +166,19 @@ data BindF ann = Bind ann (BindMainF ann)
 
 data BindMainF ann
   = BindVal Stage Var (BindValF ann)
-  | BindType Stage TypeName [TypeParamBinderF ann] (TypeExprF ann)
+  | BindType Stage TypeName [TypeParamBinderF ann] (TypeDefinitionF ann)
   | BindModule Var [BindF ann]
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
-
-type Bind = BindF Span
 
 data BindValF ann
   = BindValExternal (TypeExprF ann) External
   | BindValNormal [LamBinderF ann] (Maybe (TypeExprF ann)) (ExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
-type BindVal = BindValF Span
+data TypeDefinitionF ann
+  = TypeDefAlias (TypeExprF ann)
+  | TypeDefData (NonEmpty ((ConstructorName, ann), [TypeExprF ann]))
+  deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 data Stage = Stage0 | Stage1 | StagePers
   deriving stock (Eq, Show)
@@ -183,3 +186,9 @@ data Stage = Stage0 | Stage1 | StagePers
 type ExternalField = Text
 
 type External = [(ExternalField, Text)]
+
+type Bind = BindF Span
+
+type BindVal = BindValF Span
+
+type TypeDefinition = TypeDefinitionF Span

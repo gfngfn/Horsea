@@ -14,7 +14,7 @@ let create_generator
       #input_dim latent_dim
       #output_dim generator_hidden_nodes
       {shape}
-      ?activation Layer.Activation.leaky_relu
+      ?activation LeakyRelu
       vs
   in
   let linear2 =
@@ -22,7 +22,7 @@ let create_generator
       #input_dim generator_hidden_nodes
       #output_dim image_dim
       {List.append (List.init shape) [generator_hidden_nodes]}
-      ?activation Layer.Activation.tanh
+      ?activation Tanh
       vs
   in
   fun (rand_input : Tensor shape) ->
@@ -37,7 +37,7 @@ let create_discriminator
       #input_dim image_dim
       #output_dim discriminator_hidden_nodes
       {shape}
-      ?activation Layer.Activation.leaky_relu
+      ?activation LeakyRelu
       vs
   in
   let linear2 =
@@ -45,7 +45,7 @@ let create_discriminator
       #input_dim discriminator_hidden_nodes
       #output_dim 1
       {List.append (List.init shape) [discriminator_hidden_nodes]}
-      ?activation Layer.Activation.sigmoid
+      ?activation Sigmoid
       vs
   in
   fun (xs : Tensor shape) ->
