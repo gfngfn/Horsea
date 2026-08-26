@@ -733,7 +733,7 @@ instance (Disp sv) => Disp (StrictAss0ValF sv) where
 
 instance (Disp sv) => Disp (StrictAss0DatatypeArgF sv) where
   dispGen req = \case
-    SA0DatatypeArgType sa1tye -> dispGen req sa1tye
+    SA0DatatypeArgType sa0tye -> dispGen req sa0tye
     SA0DatatypeArgVal0 sa0v -> dispGen req sa0v
 
 instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
