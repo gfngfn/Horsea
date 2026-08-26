@@ -803,11 +803,6 @@ extractConstraintsFromTypeNameWithArgs trav btenv bt ann mods tyName args = do
               ("Tensor", [eList]) -> do
                 (exprArgs, cs) <- extractConstraintsFromExprArgsForType trav btenv bt ann [(eList, bityNatList)]
                 pure (map BExprArg exprArgs, [], cs)
-              ("Lstm", [eInputSize, eHiddenSize]) -> do
-                (exprArgs, cs) <-
-                  extractConstraintsFromExprArgsForType trav btenv bt ann $
-                    [(eInputSize, bityNat), (eHiddenSize, bityNat)]
-                pure (map BExprArg exprArgs, [], cs)
               (_, []) ->
                 case Staged.validatePrimBaseType tyName of
                   Just _tyPrimBase -> pure ([], [], [])
