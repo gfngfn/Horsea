@@ -77,7 +77,7 @@ displayBtaResult arg@Argument {statsOnly, showBtaResult} bce lwe = do
       then putRenderedLinesAtStage0 arg lwe
       else putSkipped "--show-binding-time"
 
-handle :: Argument -> IO (Maybe FailureReason)
+handle :: Argument -> IO (Either FailureReason ())
 handle arg = do
   putNormalLine "Staged Shape-Dependent Types (Horsea)"
   stub_ <- readFileEither stubFilePath
@@ -173,4 +173,4 @@ handle arg = do
           Staged.Entrypoint.statsOnly = statsOnly
         }
 
-    failure = return . Just
+    failure = return . Left

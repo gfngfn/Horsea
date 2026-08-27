@@ -72,5 +72,5 @@ main = do
       StagedArgument lwsdArg -> Staged.Entrypoint.handle lwsdArg
       SurfaceArgument surfaceArg -> Surface.Entrypoint.handle surfaceArg
   case failureReasonOpt of
-    Nothing -> exitSuccess
-    Just failureReason -> exitWith (ExitFailure (makeExitCode failureReason))
+    Right () -> exitSuccess
+    Left failureReason -> exitWith (ExitFailure (makeExitCode failureReason))
