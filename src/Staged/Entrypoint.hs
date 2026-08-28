@@ -1,7 +1,7 @@
 module Staged.Entrypoint
   ( Argument (..),
     showVar,
-    typecheckStub,
+    typecheckModuleFile,
     typecheckAndEvalInput,
     handle,
   )
@@ -13,7 +13,7 @@ import Common.Formatter qualified as Formatter
 import Common.LocationInFile (SourceSpec (SourceSpec))
 import Common.LocationInFile qualified as LocationInFile
 import Control.Lens ((^?))
-import Control.Monad (forM_, unless)
+import Control.Monad (foldM, forM_, unless)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Data.Either.Extra (mapLeft)
@@ -37,7 +37,7 @@ import Prelude
 
 data Argument = Argument
   { inputFilePath :: String,
-    stubFilePath :: String,
+    moduleFilePaths :: [String],
     insertTrivial :: Bool,
     suppressIfDistribution :: Bool,
     displayWidth :: Int,
@@ -89,23 +89,12 @@ putRenderedLinesAtStage1 v = do
   Argument {displayWidth} <- ask
   lift $ Formatter.putRenderedLinesAtStage1 displayWidth v
 
-typecheckStub :: SourceSpec -> [Bind] -> M (Either TypeError (TypeEnv, SigRecord, [AssBind]), TypecheckState)
-typecheckStub sourceSpecOfStub bindsInStub = do
-  tcConfig <- makeConfig sourceSpecOfStub
-  let tcState =
-        TypecheckState
-          { nextVarIndex = 0,
-            assVarDisplay = Map.empty,
-            nextTypeVarIndex = 0,
-            assTypeVarDisplay = Map.empty,
-            nextDatatypeIndex = 0,
-            inferableArgLogRev = [],
-            shapeAnnotLogRev = []
-          }
-      initialTypeEnv = TypeEnv.empty
+typecheckModuleFile :: TypecheckState -> TypeEnv -> SourceSpec -> [Bind] -> M (Either TypeError (TypeEnv, SigRecord, [AssBind]), TypecheckState)
+typecheckModuleFile tcState tyEnv sourceSpec binds = do
+  tcConfig <- makeConfig sourceSpec
   pure $
     first (mapLeft fst) $
-      Typechecker.run (Typechecker.typecheckBinds () initialTypeEnv bindsInStub) tcConfig tcState
+      Typechecker.run (Typechecker.typecheckBinds () tyEnv binds) tcConfig tcState
 
 typecheckInput :: SourceSpec -> TypecheckState -> TypeEnv -> Expr -> M (Either TypeError (ResultF Ass0TypeExprF StaticVar, Ass0Expr), TypecheckState)
 typecheckInput sourceSpecOfInput tcState tyEnvStub e = do
@@ -169,8 +158,8 @@ displayStats impArgLogs shapeAnnotLogs = do
     numTotal = length impArgLogs
     numInferred = length $ filter (isJust . (^? #_LogInferredArg)) impArgLogs
 
-typecheckAndEvalInput :: TypecheckState -> SourceSpec -> TypeEnv -> [AssBind] -> Expr -> M (Either FailureReason ())
-typecheckAndEvalInput tcStateAfterStub sourceSpecOfInput tyEnvStub abinds e = do
+typecheckAndEvalInput :: TypecheckState -> TypeEnv -> [AssBind] -> SourceSpec -> Expr -> M (Either FailureReason ())
+typecheckAndEvalInput tcStateAfterStub tyEnvStub abinds sourceSpecOfInput e = do
   Argument {compileTimeOnly} <- ask
   let tcState = tcStateAfterStub {inferableArgLogRev = [], shapeAnnotLogRev = []}
   (r, TypecheckState {assVarDisplay, inferableArgLogRev, shapeAnnotLogRev}) <-
@@ -221,16 +210,42 @@ typecheckAndEvalInput tcStateAfterStub sourceSpecOfInput tyEnvStub abinds e = do
     initialEnv :: EvalEnv
     initialEnv = EvalEnv {vals = Map.empty, typeVals = Map.empty}
 
-typecheckAndEval :: SourceSpec -> [Bind] -> SourceSpec -> Expr -> M (Either FailureReason ())
-typecheckAndEval sourceSpecOfStub bindsInStub sourceSpecOfInput e = do
-  (r, tcState@TypecheckState {assVarDisplay}) <- typecheckStub sourceSpecOfStub bindsInStub
-  case r of
-    Left tyErr -> do
-      putSectionLine "type error by stub"
-      putRenderedLines (fmap (showVar assVarDisplay) tyErr)
-      failure ExitByTypeError
-    Right (tyEnvStub, _sigr, abinds) -> do
-      typecheckAndEvalInput tcState sourceSpecOfInput tyEnvStub abinds e
+typecheckAndEval :: [(SourceSpec, [Bind])] -> SourceSpec -> Expr -> M (Either FailureReason ())
+typecheckAndEval modules sourceSpecOfInput e = do
+  let tcStateInit =
+        TypecheckState
+          { nextVarIndex = 0,
+            assVarDisplay = Map.empty,
+            nextTypeVarIndex = 0,
+            assTypeVarDisplay = Map.empty,
+            nextDatatypeIndex = 0,
+            inferableArgLogRev = [],
+            shapeAnnotLogRev = []
+          }
+      tyEnvInit = TypeEnv.empty
+  r_ <-
+    foldM
+      ( \acc_ (sourceSpec, binds) -> do
+          case acc_ of
+            Left err ->
+              failure err
+            Right (tcState0, tyEnv0, abinds0) -> do
+              (r, tcState1@TypecheckState {assVarDisplay}) <-
+                typecheckModuleFile tcState0 tyEnv0 sourceSpec binds
+              case r of
+                Left tyErr -> do
+                  putSectionLine "type error in a module file:"
+                  putRenderedLines (fmap (showVar assVarDisplay) tyErr)
+                  failure ExitByTypeError
+                Right (tyEnv1, _sigrMod, abindsMod) -> do
+                  let abinds1 = abinds0 ++ abindsMod
+                  success (tcState1, tyEnv1, abinds1)
+      )
+      (Right (tcStateInit, tyEnvInit, []))
+      modules
+  case r_ of
+    Left err -> failure err
+    Right (tcState, tyEnv, abinds) -> typecheckAndEvalInput tcState tyEnv abinds sourceSpecOfInput e
 
 readModuleFile :: FilePath -> M (Either FailureReason (SourceSpec, [Bind]))
 readModuleFile moduleFilePath = do
@@ -276,20 +291,34 @@ readExprFile exprFilePath = do
 
 handle' :: M (Either FailureReason ())
 handle' = do
-  Argument {inputFilePath, stubFilePath} <- ask
+  Argument {inputFilePath, moduleFilePaths} <- ask
   putNormalLine "Staged Shape-Dependent Types (Lambda-Bracket-Assertion)"
-  stub_ <- readModuleFile stubFilePath
-  case stub_ of
+  moduleAcc_ <-
+    foldM
+      ( \moduleAcc0_ moduleFilePath -> do
+          case moduleAcc0_ of
+            Left err ->
+              failure err
+            Right moduleAcc -> do
+              module_ <- readModuleFile moduleFilePath
+              case module_ of
+                Left err -> failure err
+                Right modul -> success $ modul : moduleAcc
+      )
+      (Right [])
+      moduleFilePaths
+  case moduleAcc_ of
     Left err -> do
       failure err
-    Right (sourceSpecOfStub, bindsInStub) -> do
+    Right moduleAcc -> do
+      let modules = reverse moduleAcc
       source_ <- readExprFile inputFilePath
       case source_ of
         Left err -> do
           failure err
         Right (sourceSpecOfInput, e) -> do
           displayParsed e
-          typecheckAndEval sourceSpecOfStub bindsInStub sourceSpecOfInput e
+          typecheckAndEval modules sourceSpecOfInput e
 
 -- Returns a boolean that represents success or failure
 handle :: Argument -> IO (Either FailureReason ())
