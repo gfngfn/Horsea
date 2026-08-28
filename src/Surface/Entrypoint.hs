@@ -14,7 +14,6 @@ import Control.Monad (forM_, unless)
 import Control.Monad.Trans.Reader
 import Data.Text.IO.Util (readFileEither)
 import Staged.Entrypoint qualified
-import Staged.Parser qualified as StagedParser
 import Staged.SrcSyntax qualified as StagedSyntax
 import Staged.Typechecker.Monad (TypecheckState (..))
 import Surface.BindingTime qualified as BindingTime
@@ -26,7 +25,7 @@ import Prelude
 
 data Argument = Argument
   { inputFilePath :: String,
-    stubFilePath :: String,
+    moduleFilePaths :: [String],
     insertTrivial :: Bool,
     suppressIfDistribution :: Bool,
     displayWidth :: Int,
@@ -38,6 +37,12 @@ data Argument = Argument
     showBtaResult :: Bool,
     statsOnly :: Bool
   }
+
+success :: a -> IO (Either err a)
+success = pure . Right
+
+failure :: err -> IO (Either err a)
+failure = pure . Left
 
 putNormalLine :: String -> IO ()
 putNormalLine = putStrLn
@@ -77,77 +82,71 @@ displayBtaResult arg@Argument {statsOnly, showBtaResult} bce lwe = do
       then putRenderedLinesAtStage0 arg lwe
       else putSkipped "--show-binding-time"
 
-handle :: Argument -> IO (Either FailureReason ())
-handle arg = do
-  putNormalLine "Staged Shape-Dependent Types (Horsea)"
-  stub_ <- readFileEither stubFilePath
-  case stub_ of
+readSurfaceFile :: Argument -> FilePath -> IO (Either FailureReason (SourceSpec, Expr))
+readSurfaceFile arg inputFilePath = do
+  source_ <- readFileEither inputFilePath
+  case source_ of
     Left err -> do
       putNormalLine $ "IO error: " ++ err
       failure ExitByIOError
-    Right stub -> do
-      let sourceSpecOfStub =
+    Right source -> do
+      let sourceSpecOfInput =
             SourceSpec
-              { LocationInFile.source = stub,
-                LocationInFile.inputFilePath = stubFilePath
+              { LocationInFile.source = source,
+                LocationInFile.inputFilePath = inputFilePath
               }
-      case StagedParser.parseBinds sourceSpecOfStub stub of
+      case Parser.parseExpr sourceSpecOfInput source of
         Left err -> do
-          putSectionLine "parse error of stub:"
+          putSectionLine "parse error:"
           putRenderedLines arg err
           failure ExitByParseError
-        Right declsInStub -> do
-          (r, stateAfterTraversingStub@TypecheckState {assVarDisplay}) <-
-            runReaderT (Staged.Entrypoint.typecheckStub sourceSpecOfStub declsInStub) lwArg
-          case r of
-            Left tyErr -> do
-              putSectionLine "type error of stub:"
-              putRenderedLines arg (fmap (Staged.Entrypoint.showVar assVarDisplay) tyErr)
-              failure ExitByTypeError
-            Right (tyEnvStub, sigr, abinds) -> do
-              let (initialBindingTimeEnv, warnings) = makeBindingTimeEnvFromStub [] sigr
-              unless (null warnings) $ do
-                putNormalLine "Warnings:"
-                forM_ warnings $ \warning ->
-                  putRenderedLines arg (fmap (Staged.Entrypoint.showVar assVarDisplay) warning)
-              source_ <- readFileEither inputFilePath
-              case source_ of
-                Left err -> do
-                  putNormalLine $ "IO error: " ++ err
-                  failure ExitByIOError
-                Right source -> do
-                  let sourceSpecOfInput =
-                        SourceSpec
-                          { LocationInFile.source = source,
-                            LocationInFile.inputFilePath = inputFilePath
-                          }
-                  case Parser.parseExpr sourceSpecOfInput source of
-                    Left err -> do
-                      putSectionLine "parse error:"
-                      putRenderedLines arg err
-                      failure ExitByParseError
-                    Right e -> do
-                      displayParsed arg e
-                      case BindingTime.analyze sourceSpecOfInput fallBackToBindingTime0 initialBindingTimeEnv e of
-                        Left analyErr -> do
-                          putSectionLine "binding-time analysis error:"
-                          putRenderedLines arg analyErr
-                          failure ExitByAnalysisError
-                        Right (bce, lwe) -> do
-                          displayBtaResult arg bce lwe
-                          runReaderT
-                            ( Staged.Entrypoint.typecheckAndEvalInput
-                                stateAfterTraversingStub
-                                sourceSpecOfInput
-                                tyEnvStub
-                                abinds
-                                lwe
-                            )
-                            lwArg
+        Right e -> do
+          success (sourceSpecOfInput, e)
+
+handle :: Argument -> IO (Either FailureReason ())
+handle arg = do
+  putNormalLine "Staged Shape-Dependent Types (Horsea)"
+  modules_ <- runReaderT (Staged.Entrypoint.readModuleFiles moduleFilePaths) lwArg
+  case modules_ of
+    Left err -> do
+      failure err
+    Right modules -> do
+      r_ <- runReaderT (Staged.Entrypoint.typecheckModuleFiles modules) lwArg
+      case r_ of
+        Left err -> do
+          failure err
+        Right (tcState@TypecheckState {assVarDisplay}, tyEnv, sigr, abinds) -> do
+          let (initialBindingTimeEnv, warnings) = makeBindingTimeEnvFromStub [] sigr
+          unless (null warnings) $ do
+            putNormalLine "Warnings:"
+            forM_ warnings $ \warning ->
+              putRenderedLines arg (fmap (Staged.Entrypoint.showVar assVarDisplay) warning)
+          r2_ <- readSurfaceFile arg inputFilePath
+          case r2_ of
+            Left err -> do
+              failure err
+            Right (sourceSpecOfInput, e) -> do
+              displayParsed arg e
+              case BindingTime.analyze sourceSpecOfInput fallBackToBindingTime0 initialBindingTimeEnv e of
+                Left analyErr -> do
+                  putSectionLine "binding-time analysis error:"
+                  putRenderedLines arg analyErr
+                  failure ExitByAnalysisError
+                Right (bce, lwe) -> do
+                  displayBtaResult arg bce lwe
+                  runReaderT
+                    ( Staged.Entrypoint.typecheckAndEvalInput
+                        tcState
+                        tyEnv
+                        abinds
+                        sourceSpecOfInput
+                        lwe
+                    )
+                    lwArg
   where
     Argument
       { inputFilePath,
-        stubFilePath,
+        moduleFilePaths,
         insertTrivial,
         suppressIfDistribution,
         displayWidth,
@@ -162,7 +161,7 @@ handle arg = do
     lwArg =
       Staged.Entrypoint.Argument
         { Staged.Entrypoint.inputFilePath = inputFilePath,
-          Staged.Entrypoint.stubFilePath = stubFilePath,
+          Staged.Entrypoint.moduleFilePaths = moduleFilePaths,
           Staged.Entrypoint.insertTrivial = insertTrivial,
           Staged.Entrypoint.suppressIfDistribution = suppressIfDistribution,
           Staged.Entrypoint.displayWidth = displayWidth,
@@ -172,5 +171,3 @@ handle arg = do
           Staged.Entrypoint.showInferred = showInferred,
           Staged.Entrypoint.statsOnly = statsOnly
         }
-
-    failure = return . Left

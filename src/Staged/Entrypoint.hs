@@ -1,7 +1,8 @@
 module Staged.Entrypoint
   ( Argument (..),
     showVar,
-    typecheckModuleFile,
+    readModuleFiles,
+    typecheckModuleFiles,
     typecheckAndEvalInput,
     handle,
   )
@@ -31,6 +32,7 @@ import Staged.TypeError (TypeError)
 import Staged.Typechecker qualified as Typechecker
 import Staged.Typechecker.Monad (InferableArgLogF (..), ShapeAnnotLog (..), TypecheckConfig (..), TypecheckState (..))
 import Staged.Typechecker.SigRecord (SigRecord)
+import Staged.Typechecker.SigRecord qualified as SigRecord
 import Staged.Typechecker.TypeEnv (TypeEnv)
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
 import Prelude
@@ -210,8 +212,8 @@ typecheckAndEvalInput tcStateAfterStub tyEnvStub abinds sourceSpecOfInput e = do
     initialEnv :: EvalEnv
     initialEnv = EvalEnv {vals = Map.empty, typeVals = Map.empty}
 
-typecheckAndEval :: [(SourceSpec, [Bind])] -> SourceSpec -> Expr -> M (Either FailureReason ())
-typecheckAndEval modules sourceSpecOfInput e = do
+typecheckModuleFiles :: [(SourceSpec, [Bind])] -> M (Either FailureReason (TypecheckState, TypeEnv, SigRecord, [AssBind]))
+typecheckModuleFiles modules = do
   let tcStateInit =
         TypecheckState
           { nextVarIndex = 0,
@@ -223,29 +225,35 @@ typecheckAndEval modules sourceSpecOfInput e = do
             shapeAnnotLogRev = []
           }
       tyEnvInit = TypeEnv.empty
-  r_ <-
-    foldM
-      ( \acc_ (sourceSpec, binds) -> do
-          case acc_ of
-            Left err ->
-              failure err
-            Right (tcState0, tyEnv0, abinds0) -> do
-              (r, tcState1@TypecheckState {assVarDisplay}) <-
-                typecheckModuleFile tcState0 tyEnv0 sourceSpec binds
-              case r of
-                Left tyErr -> do
-                  putSectionLine "type error in a module file:"
-                  putRenderedLines (fmap (showVar assVarDisplay) tyErr)
-                  failure ExitByTypeError
-                Right (tyEnv1, _sigrMod, abindsMod) -> do
-                  let abinds1 = abinds0 ++ abindsMod
-                  success (tcState1, tyEnv1, abinds1)
-      )
-      (Right (tcStateInit, tyEnvInit, []))
-      modules
+  foldM
+    ( \acc_ (sourceSpec, binds) -> do
+        case acc_ of
+          Left err ->
+            failure err
+          Right (tcState0, tyEnv0, sigr0, abinds0) -> do
+            (r, tcState1@TypecheckState {assVarDisplay}) <-
+              typecheckModuleFile tcState0 tyEnv0 sourceSpec binds
+            case r of
+              Left tyErr -> do
+                putSectionLine "type error in a module file:"
+                putRenderedLines (fmap (showVar assVarDisplay) tyErr)
+                failure ExitByTypeError
+              Right (tyEnv1, sigrMod, abindsMod) -> do
+                let sigr1 = SigRecord.union sigrMod sigr0
+                let abinds1 = abinds0 ++ abindsMod
+                success (tcState1, tyEnv1, sigr1, abinds1)
+    )
+    (Right (tcStateInit, tyEnvInit, SigRecord.empty, []))
+    modules
+
+typecheckAndEval :: [(SourceSpec, [Bind])] -> SourceSpec -> Expr -> M (Either FailureReason ())
+typecheckAndEval modules sourceSpecOfInput e = do
+  r_ <- typecheckModuleFiles modules
   case r_ of
-    Left err -> failure err
-    Right (tcState, tyEnv, abinds) -> typecheckAndEvalInput tcState tyEnv abinds sourceSpecOfInput e
+    Left err ->
+      failure err
+    Right (tcState, tyEnv, _sigr, abinds) ->
+      typecheckAndEvalInput tcState tyEnv abinds sourceSpecOfInput e
 
 readModuleFile :: FilePath -> M (Either FailureReason (SourceSpec, [Bind]))
 readModuleFile moduleFilePath = do
@@ -289,10 +297,8 @@ readExprFile exprFilePath = do
         Right e -> do
           success (sourceSpec, e)
 
-handle' :: M (Either FailureReason ())
-handle' = do
-  Argument {inputFilePath, moduleFilePaths} <- ask
-  putNormalLine "Staged Shape-Dependent Types (Lambda-Bracket-Assertion)"
+readModuleFiles :: [FilePath] -> M (Either FailureReason [(SourceSpec, [Bind])])
+readModuleFiles moduleFilePaths = do
   moduleAcc_ <-
     foldM
       ( \moduleAcc0_ moduleFilePath -> do
@@ -307,11 +313,17 @@ handle' = do
       )
       (Right [])
       moduleFilePaths
-  case moduleAcc_ of
+  pure $ fmap reverse moduleAcc_
+
+handle' :: M (Either FailureReason ())
+handle' = do
+  Argument {inputFilePath, moduleFilePaths} <- ask
+  putNormalLine "Staged Shape-Dependent Types (Lambda-Bracket-Assertion)"
+  modules_ <- readModuleFiles moduleFilePaths
+  case modules_ of
     Left err -> do
       failure err
-    Right moduleAcc -> do
-      let modules = reverse moduleAcc
+    Right modules -> do
       source_ <- readExprFile inputFilePath
       case source_ of
         Left err -> do
