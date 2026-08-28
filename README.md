@@ -14,26 +14,26 @@ $ cabal build
 #### The staged language λ⟨⟩⦇⦈ (`staged`)
 
 ```console
-$ cabal run horsea -- staged examples/mat.lba
+$ cabal run horsea -- staged -m stub.lbam examples/mat.lba
 ```
 
 Options:
 
 * `-c`, `--compile-time-only`: Stops after the compile-time evaluation.
 * `-w`, `--display-width`: Sets the length of the terminal width for displaying texts. Default: `120`
-* `-s`, `--stub`: Specify the location of the stub file. Default: `stub.lbam`
+* `-m`, `--module`: Specify the location of a module file (can be repeated). Typical use: `-m stub.lbam`
 * `--show-parsed`: Displays the parsed program.
 * `--show-elaborated`: Displays the elaborated program.
 * `--show-inferred`: Displays the inferred argument for each implicit parameter.
 * `--stats-only`: Prints only statistics.
 * `--insert-trivial`: Inserts trivial cast assertions as well as non-trivial ones.
-* `--suppress-if-distribution`: Does not perform fine-grained merging of types when checking `if`-expressions.
+* `--suppress-if-distribution`: Does not perform fine-grained merging of types when checking `if`- or `case`-expressions.
 
 
 #### The non-staged surface language Horsea (`surface`)
 
 ```console
-$ cabal run horsea -- surface examples/mat.hrs
+$ cabal run horsea -- surface -m stub.lbam examples/mat.hrs
 ```
 
 Options:
@@ -47,9 +47,13 @@ Options:
 
 ### How to run tests
 
+Unit tests:
+
 ```console
 $ cabal test
 ```
+
+Integration tests:
 
 ```console
 $ ./scripts/run-integration-tests.sh
@@ -59,7 +63,7 @@ $ ./scripts/run-integration-tests.sh
 ## How to run code formatting
 
 ```console
-$ cabal run -O1 ormolu -- --mode inplace $(git ls-files '*.hs')
+$ ormolu --mode inplace $(git ls-files '*.hs')
 ```
 
 
@@ -84,7 +88,7 @@ $ cabal run -O1 ormolu -- --mode inplace $(git ls-files '*.hs')
 - [x] Handle code positions
 - [x] Add `Mat m n` and operations on it
 - [x] Add realistic examples (specifically, ones using PyTorch or ocaml-torch)
-- [x] Full-fledged refinement types `( x : τ | φ )`
+- [x] Full-fledged refinement types `{ x : τ | φ }`
   * This is beneficial for handling *broadcasting* of tensors in PyTorch, for example
 - [x] Represent broadcasting of tensor shapes by refinement types
 - [x] `let`- and `let rec`-expressions as syntax sugar
@@ -92,9 +96,9 @@ $ cabal run -O1 ormolu -- --mode inplace $(git ls-files '*.hs')
 - [x] Generalize the `external` syntax for various backends
 - [x] Handle variable names correctly
 - [x] Polymorphic types
+- [x] Binding of type names like `type Nat = { n : Int | n >= 0 }`
+- [x] ADTs and pattern matching
 - [ ] Transpilation to Python or OCaml
-- [ ] ADTs and pattern matching
 - [ ] The `run`-primitive
-- [ ] Binding of type names like `type Nat = { n : Int | n >= 0 }`
-- [ ] `let`-expressions for persistent values
+- [ ] `val`-bindings for persistent values
 - [ ] Some evaluation during type-checking
