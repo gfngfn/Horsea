@@ -1,0 +1,1 @@
+type RectMat %(n : Nat) = Mat %n %n

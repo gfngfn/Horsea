@@ -1,8 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Must be run at the root of the repository
 
+# Bash version must be >= 4 to use associative arrays:
+echo "BASH_VERSION=$BASH_VERSION"
+echo "BASH=$BASH"
+
 TESTS_STAGED_RUN=(
+    examples/small/maybe.lba
     examples/small/gen_vrepeat.lba
     examples/small/gen_vrepeat_explicit.lba
     examples/small/mat.lba
@@ -21,7 +26,6 @@ TESTS_STAGED_RUN=(
     examples/small/vec_explicit.lba
     examples/small/vec_higher_order.lba
     examples/small/vec_higher_order_explicit.lba
-    examples/small/maybe.lba
 )
 TESTS_STAGED_COMPILE=(
     examples/ocaml-torch/char_rnn/char_rnn.lba
@@ -85,27 +89,44 @@ TESTS_SURFACE_COMPILE=(
 TESTS_SURFACE_FAILURE=(
     examples/failure/error-stage.hrs
 )
+declare -A DEPENDENCIES=(
+  ["examples/small/maybe.lba"]="examples/small/option.lbam"
+  ["examples/small/mat.lba"]="examples/small/rect-mat.lbam"
+  ["examples/small/mat.hrs"]="examples/small/rect-mat.lbam"
+)
 STUB=stub.lbam
 
 ERRORS=()
 
 for FILE in "${TESTS_STAGED_RUN[@]}"; do
     echo "======== $FILE (should pass) ========"
-    cabal run horsea -- staged -m "$STUB" "$FILE"
+    MODULE_ARGS=(-m stub.lbam)
+    for MODULE_FILE in ${DEPENDENCIES["$FILE"]}; do
+        MODULE_ARGS+=(-m "$MODULE_FILE")
+    done
+    cabal run horsea -- staged "$FILE" "${MODULE_ARGS[@]}"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass)")
     fi
 done
 for FILE in "${TESTS_STAGED_COMPILE[@]}"; do
     echo "======== $FILE (should pass, compile-time only) ========"
-    cabal run horsea -- staged -m "$STUB" "$FILE" --compile-time-only
+    MODULE_ARGS=(-m stub.lbam)
+    for MODULE_FILE in ${DEPENDENCIES["$FILE"]}; do
+        MODULE_ARGS+=(-m "$MODULE_FILE")
+    done
+    cabal run horsea -- staged "$FILE" "${MODULE_ARGS[@]}" --compile-time-only
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass, compile-time only)")
     fi
 done
 for FILE in "${TESTS_STAGED_FAILURE[@]}"; do
     echo "======== $FILE (should be rejected) ========"
-    cabal run horsea -- staged -m "$STUB" "$FILE"
+    MODULE_ARGS=(-m stub.lbam)
+    for MODULE_FILE in ${DEPENDENCIES["$FILE"]}; do
+        MODULE_ARGS+=(-m "$MODULE_FILE")
+    done
+    cabal run horsea -- staged "$FILE" "${MODULE_ARGS[@]}"
     if [ $? -le 1 ]; then
         ERRORS+=("$FILE (should be rejected)")
     fi
@@ -113,21 +134,33 @@ done
 
 for FILE in "${TESTS_SURFACE_RUN[@]}"; do
     echo "======== $FILE (should pass) ========"
-    cabal run horsea -- surface -m "$STUB" "$FILE"
+    MODULE_ARGS=(-m stub.lbam)
+    for MODULE_FILE in ${DEPENDENCIES["$FILE"]}; do
+        MODULE_ARGS+=(-m "$MODULE_FILE")
+    done
+    cabal run horsea -- surface "$FILE" "${MODULE_ARGS[@]}"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass)")
     fi
 done
 for FILE in "${TESTS_SURFACE_COMPILE[@]}"; do
     echo "======== $FILE (should pass, compile-time only) ========"
-    cabal run horsea -- surface -m "$STUB" "$FILE" --compile-time-only
+    MODULE_ARGS=(-m stub.lbam)
+    for MODULE_FILE in ${DEPENDENCIES["$FILE"]}; do
+        MODULE_ARGS+=(-m "$MODULE_FILE")
+    done
+    cabal run horsea -- surface "$FILE" "${MODULE_ARGS[@]}" --compile-time-only
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass, compile-time only)")
     fi
 done
 for FILE in "${TESTS_SURFACE_FAILURE[@]}"; do
     echo "======== $FILE (should be rejected) ========"
-    cabal run horsea -- surface -m "$STUB" "$FILE"
+    MODULE_ARGS=(-m stub.lbam)
+    for MODULE_FILE in ${DEPENDENCIES["$FILE"]}; do
+        MODULE_ARGS+=(-m "$MODULE_FILE")
+    done
+    cabal run horsea -- surface "$FILE" "${MODULE_ARGS[@]}"
     if [ $? -le 1 ]; then
         ERRORS+=("$FILE (should be rejected)")
     fi
