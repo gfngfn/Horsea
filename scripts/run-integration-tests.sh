@@ -1,8 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Must be run at the root of the repository
 
+# Bash version must be >= 4 to use associative arrays:
+echo "BASH_VERSION=$BASH_VERSION"
+echo "BASH=$BASH"
+
 TESTS_STAGED_RUN=(
+    examples/small/maybe.lba
     examples/small/gen_vrepeat.lba
     examples/small/gen_vrepeat_explicit.lba
     examples/small/mat.lba
@@ -21,7 +26,6 @@ TESTS_STAGED_RUN=(
     examples/small/vec_explicit.lba
     examples/small/vec_higher_order.lba
     examples/small/vec_higher_order_explicit.lba
-    examples/small/maybe.lba
 )
 TESTS_STAGED_COMPILE=(
     examples/ocaml-torch/char_rnn/char_rnn.lba
@@ -85,13 +89,21 @@ TESTS_SURFACE_COMPILE=(
 TESTS_SURFACE_FAILURE=(
     examples/failure/error-stage.hrs
 )
+declare -A DEPENDENCIES=(
+  ["examples/small/maybe.lba"]="examples/small/option.lbam"
+)
 STUB=stub.lbam
 
 ERRORS=()
 
 for FILE in "${TESTS_STAGED_RUN[@]}"; do
     echo "======== $FILE (should pass) ========"
-    cabal run horsea -- staged -m "$STUB" "$FILE"
+    MODULE_ARGS=(-m stub.lbam)
+    for MODULE_FILE in ${DEPENDENCIES["$FILE"]}; do
+        MODULE_ARGS+=(-m "$MODULE_FILE")
+    done
+    echo "$FILE, module args: ${MODULE_ARGS[@]}"
+    cabal run horsea -- staged "$FILE" "${MODULE_ARGS[@]}"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass)")
     fi
