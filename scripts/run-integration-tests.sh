@@ -91,6 +91,8 @@ TESTS_SURFACE_FAILURE=(
 )
 declare -A DEPENDENCIES=(
   ["examples/small/maybe.lba"]="examples/small/option.lbam"
+  ["examples/small/mat.lba"]="examples/small/rect-mat.lbam"
+  ["examples/small/mat.hrs"]="examples/small/rect-mat.lbam"
 )
 STUB=stub.lbam
 
@@ -102,7 +104,6 @@ for FILE in "${TESTS_STAGED_RUN[@]}"; do
     for MODULE_FILE in ${DEPENDENCIES["$FILE"]}; do
         MODULE_ARGS+=(-m "$MODULE_FILE")
     done
-    echo "$FILE, module args: ${MODULE_ARGS[@]}"
     cabal run horsea -- staged "$FILE" "${MODULE_ARGS[@]}"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass)")
@@ -125,7 +126,11 @@ done
 
 for FILE in "${TESTS_SURFACE_RUN[@]}"; do
     echo "======== $FILE (should pass) ========"
-    cabal run horsea -- surface -m "$STUB" "$FILE"
+    MODULE_ARGS=(-m stub.lbam)
+    for MODULE_FILE in ${DEPENDENCIES["$FILE"]}; do
+        MODULE_ARGS+=(-m "$MODULE_FILE")
+    done
+    cabal run horsea -- surface "$FILE" "${MODULE_ARGS[@]}"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass)")
     fi
