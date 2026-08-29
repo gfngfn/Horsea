@@ -1,0 +1,9 @@
+type BBox = (|
+  xmin : Float,
+  ymin : Float,
+  xmax : Float,
+  ymax : Float,
+  confidence : Float,
+  class_index : Int,
+  class_confidence : Float
+|)
