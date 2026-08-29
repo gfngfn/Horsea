@@ -21,103 +21,111 @@ let iou (b1 : BBox) (b2 : BBox) =
 in
 
 let colors =
-  [| [| 0.5; 0.0; 0.5 |]
-   ; [| 0.0; 0.5; 0.5 |]
-   ; [| 0.5; 0.5; 0.0 |]
-   ; [| 0.7; 0.3; 0.0 |]
-   ; [| 0.7; 0.0; 0.3 |]
-   ; [| 0.0; 0.7; 0.3 |]
-   ; [| 0.3; 0.7; 0.0 |]
-   ; [| 0.3; 0.0; 0.7 |]
-   ; [| 0.0; 0.3; 0.7 |]
-  |]
+  Array.of_list
+    ( List.map
+        Array.of_list
+        [ [0.5, 0.0, 0.5],
+          [0.0, 0.5, 0.5],
+          [0.5, 0.5, 0.0],
+          [0.7, 0.3, 0.0],
+          [0.7, 0.0, 0.3],
+          [0.0, 0.7, 0.3],
+          [0.3, 0.7, 0.0],
+          [0.3, 0.0, 0.7],
+          [0.0, 0.3, 0.7]
+        ]
+    )
 in
 
 (* [image] is the original image. [width] and [height] are the model [width] on
    [height] relative to which bounding boxes have been computed.
 *)
-let report predictions ~image ~width ~height =
-  Tensor.print_shape ~name:"predictions" predictions;
-  let bboxes =
-    (Tensor.shape2_exn predictions |> fst)
-      |> List.init (fun index ->
-        let predictions = Tensor.get predictions index |> Tensor.to_float1_exn in
-        let confidence = Array.get 4 predictions in
-        if (let open Float in ( > )) confidence confidence_threshold then
-          let xmin = Array.get 0 predictions -. (Array.get 2 predictions /. 2.0) in
-          let ymin = Array.get 1 predictions -. (Array.get 3 predictions /. 2.0) in
-          let xmax = Array.get 0 predictions +. (Array.get 2 predictions /. 2.0) in
-          let ymax = Array.get 1 predictions +. (Array.get 3 predictions /. 2.0) in
-          let best_class_index =
-            predictions |> Array.foldi (fun index max_index v ->
-              if index > 5 && (let open Float in ( < )) (Array.get max_index predictions) v then
-                index
-              else
-                max_index
-            ) 5
-          in
-          let class_confidence = Array.get best_class_index predictions in
-          let class_index = best_class_index - 5 in
-          if (let open Float in ( > )) class_confidence 0.0 then
-            Some (| xmin, ymin, xmax, ymax, confidence, class_index, class_confidence |)
+let report {m : Nat} {n : Nat} =
+  &(fun(predictions : Tensor %[m, n]) ->
+    fun(image : I) ->
+    fun #width (width : Nat) ->
+    fun #height (height : Nat) ->
+      let bboxes =
+        m |> List.init (fun (index : Nat) ->
+          let predictions = Tensor.get predictions index |> Tensor.to_float1_exn in
+          let confidence = Array.get 4 predictions in
+          if (let open Float in ( > )) confidence confidence_threshold then
+            let xmin = Array.get 0 predictions -. (Array.get 2 predictions /. 2.0) in
+            let ymin = Array.get 1 predictions -. (Array.get 3 predictions /. 2.0) in
+            let xmax = Array.get 0 predictions +. (Array.get 2 predictions /. 2.0) in
+            let ymax = Array.get 1 predictions +. (Array.get 3 predictions /. 2.0) in
+            let best_class_index =
+              predictions |> Array.foldi (fun(index : Nat) -> fun(max_index : Nat) -> fun(v : Float) ->
+                if index > 5 && (let open Float in ( < )) (Array.get max_index predictions) v then
+                  index
+                else
+                  max_index
+              ) 5
+            in
+            let class_confidence = Array.get best_class_index predictions in
+            let class_index = best_class_index - 5 in
+            if (let open Float in ( > )) class_confidence 0.0 then
+              Some (| xmin, ymin, xmax, ymax, confidence, class_index, class_confidence |)
+            else
+              None
           else
             None
-        else
-          None
-      )
-      |> List.filter_opt
-  in
-  let bboxes =
-    (* Group bboxes by class-index. *)
-    bboxes
-      |> List.map (fun (bbox : BBox) -> (bbox.class_index, (bbox.confidence, bbox)))
-      |> Map.of_alist_multi (* (module Int) *)
-      |> Map.to_alist
-      |> List.concat_map (fun (_, bboxes) ->
-        (* NMS suppression. *)
-        let bboxes = List.sort Caml.compare bboxes |> List.rev_map snd in
-        bboxes |> List.fold (fun acc_bboxes bbox ->
-          let drop =
-            List.exists acc_bboxes (fun (b : BBox) -> (let open Float in ( > )) (iou b bbox) nms_threshold)
-          in
-          if drop then acc_bboxes else bbox :: acc_bboxes
-        ) []
-      )
-  in
-  let image = let open Tensor in to_type image #type_ (T Float) / f 255.0 in
-  let (_, _, initial_height, initial_width) = Tensor.shape4_exn image in
-  let resize_and_clamp (v : Float) #initial_max (initial_max : Int) #max (m : Int) =
-    Int.of_float (v *. Float.of_int initial_max /. Float.of_int m)
-      |> Int.max 0
-      |> Int.min (initial_max - 1)
-  in
-  bboxes |> List.iter (fun (b : BBox) ->
-    let xmin = resize_and_clamp b.xmin #initial_max initial_width #max width in
-    let xmax = resize_and_clamp b.xmax #initial_max initial_width #max width in
-    let ymin = resize_and_clamp b.ymin #initial_max initial_height #max height in
-    let ymax = resize_and_clamp b.ymax #initial_max initial_height #max height in
-    let color = Array.get (b.class_index % Array.length colors) colors in
-    let color = let open Tensor in of_float1 color |> reshape [1, 3, 1, 1] in
-    let draw_rect xmin xmax ymin ymax =
-      Tensor.narrow image #dim 3 #start xmin #length (xmax - xmin)
-        |> Tensor.narrow #dim 2 #start ymin #length (ymax - ymin)
-        |> Tensor.copy_ #src color
-    in
-    draw_rect xmin xmax ymin (Int.min (ymin + 2) ymax);
-    draw_rect xmin xmax (Int.max ymin (ymax - 2)) ymax;
-    draw_rect (Int.max xmin (xmax - 2)) xmax ymin ymax;
-    draw_rect xmin (Int.min (xmin + 2) xmax) ymin ymax;
-    Stdio.printf
-      "%s %.2f %.2f (%d %d %d %d)\n%!"
-      (Array.get (b.class_index) classes)
-      b.confidence
-      b.class_confidence
-      xmin
-      xmax
-      ymin
-      ymax
-  );
-  Image.write_image (let open Tensor in image * f 255.0) #filename "output.jpg"
+        ) |> List.filter_opt
+      in
+      let bboxes =
+        (* Group bboxes by class-index. *)
+        bboxes
+          |> List.map (fun (bbox : BBox) -> (bbox.class_index, (bbox.confidence, bbox)))
+          |> Map.of_alist_multi (* (module Int) *)
+          |> Map.to_alist
+          |> List.concat_map (fun (_, bboxes) ->
+            (* NMS suppression. *)
+            let bboxes = List.sort Caml.compare bboxes |> List.rev_map snd in
+            bboxes |> List.fold (fun acc_bboxes bbox ->
+              let drop =
+                List.exists
+                  (fun (b : BBox) -> (let open Float in ( > )) (iou b bbox) nms_threshold)
+                  acc_bboxes
+              in
+              if drop then acc_bboxes else bbox :: acc_bboxes
+            ) []
+          )
+      in
+      let image = let open Tensor in to_type image #type_ (T Float) / f 255.0 in
+      let (_, _, initial_height, initial_width) = Tensor.shape4_exn image in
+      let resize_and_clamp (v : Float) #initial_max (initial_max : Int) #max (m : Int) =
+        Int.of_float (v *. Float.of_int initial_max /. Float.of_int m)
+          |> Int.max 0
+          |> Int.min (initial_max - 1)
+      in
+      bboxes |> List.iter (fun (b : BBox) ->
+        let xmin = resize_and_clamp b.xmin #initial_max initial_width #max width in
+        let xmax = resize_and_clamp b.xmax #initial_max initial_width #max width in
+        let ymin = resize_and_clamp b.ymin #initial_max initial_height #max height in
+        let ymax = resize_and_clamp b.ymax #initial_max initial_height #max height in
+        let color = Array.get (b.class_index % Array.length colors) colors in
+        let color = let open Tensor in of_float1 color |> reshape [1, 3, 1, 1] in
+        let draw_rect xmin xmax ymin ymax =
+          Tensor.narrow image #dim 3 #start xmin #length (xmax - xmin)
+            |> Tensor.narrow #dim 2 #start ymin #length (ymax - ymin)
+            |> Tensor.copy_ #src color
+        in
+        draw_rect xmin xmax ymin (Int.min (ymin + 2) ymax);
+        draw_rect xmin xmax (Int.max ymin (ymax - 2)) ymax;
+        draw_rect (Int.max xmin (xmax - 2)) xmax ymin ymax;
+        draw_rect xmin (Int.min (xmin + 2) xmax) ymin ymax;
+        Stdio.printf
+          "%s %.2f %.2f (%d %d %d %d)\n%!"
+          (Array.get (b.class_index) classes)
+          b.confidence
+          b.class_confidence
+          xmin
+          xmax
+          ymin
+          ymax
+      );
+      Image.write_image (let open Tensor in image * f 255.0) #filename "output.jpg"
+  )
 in
 
 let weight_file = "yolo-v3.ot" in
