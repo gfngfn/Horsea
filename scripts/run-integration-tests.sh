@@ -85,26 +85,27 @@ TESTS_SURFACE_COMPILE=(
 TESTS_SURFACE_FAILURE=(
     examples/failure/error-stage.hrs
 )
+STUB=stub.lbam
 
 ERRORS=()
 
 for FILE in "${TESTS_STAGED_RUN[@]}"; do
     echo "======== $FILE (should pass) ========"
-    cabal run horsea -- staged "$FILE"
+    cabal run horsea -- staged -m "$STUB" "$FILE"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass)")
     fi
 done
 for FILE in "${TESTS_STAGED_COMPILE[@]}"; do
     echo "======== $FILE (should pass, compile-time only) ========"
-    cabal run horsea -- staged --compile-time-only "$FILE"
+    cabal run horsea -- staged -m "$STUB" "$FILE" --compile-time-only
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass, compile-time only)")
     fi
 done
 for FILE in "${TESTS_STAGED_FAILURE[@]}"; do
     echo "======== $FILE (should be rejected) ========"
-    cabal run horsea -- staged "$FILE"
+    cabal run horsea -- staged -m "$STUB" "$FILE"
     if [ $? -le 1 ]; then
         ERRORS+=("$FILE (should be rejected)")
     fi
@@ -112,21 +113,21 @@ done
 
 for FILE in "${TESTS_SURFACE_RUN[@]}"; do
     echo "======== $FILE (should pass) ========"
-    cabal run horsea -- surface "$FILE"
+    cabal run horsea -- surface -m "$STUB" "$FILE"
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass)")
     fi
 done
 for FILE in "${TESTS_SURFACE_COMPILE[@]}"; do
     echo "======== $FILE (should pass, compile-time only) ========"
-    cabal run horsea -- surface --compile-time-only "$FILE"
+    cabal run horsea -- surface -m "$STUB" "$FILE" --compile-time-only
     if [ $? -ne 0 ]; then
         ERRORS+=("$FILE (should pass, compile-time only)")
     fi
 done
 for FILE in "${TESTS_SURFACE_FAILURE[@]}"; do
     echo "======== $FILE (should be rejected) ========"
-    cabal run horsea -- surface "$FILE"
+    cabal run horsea -- surface -m "$STUB" "$FILE"
     if [ $? -le 1 ]; then
         ERRORS+=("$FILE (should be rejected)")
     fi

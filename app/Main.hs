@@ -10,8 +10,8 @@ import Prelude
 defaultDisplayWidth :: Int
 defaultDisplayWidth = 120
 
-helpStub, helpDisplayWidth, helpInsertTrivial, helpSuppressIfDistribution, helpCompileTimeOnly, helpDefaultToStage0, helpShowParsed, helpShowBindingTime, helpShowElaborated, helpShowInferred, helpStatsOnly :: String
-helpStub = "Specify the stub file"
+helpModule, helpDisplayWidth, helpInsertTrivial, helpSuppressIfDistribution, helpCompileTimeOnly, helpDefaultToStage0, helpShowParsed, helpShowBindingTime, helpShowElaborated, helpShowInferred, helpStatsOnly :: String
+helpModule = "Specify a module file (can be repeated)"
 helpDisplayWidth = "Set the display width (default: " ++ show defaultDisplayWidth ++ ")"
 helpInsertTrivial = "Inserts trivial cast assertions as well as non-trivial ones"
 helpSuppressIfDistribution = "Suppress the distribution of if-expressions under list literals for tensor shapes"
@@ -38,7 +38,7 @@ stagedArgumentParser :: Parser Staged.Entrypoint.Argument
 stagedArgumentParser =
   Staged.Entrypoint.Argument
     <$> strArgument (metavar "INPUT-FILE-PATH")
-    <*> option auto (short 's' <> long "stub" <> value "stub.lbam" <> help helpStub)
+    <*> many (strOption (short 'm' <> long "module" <> help helpModule))
     <*> switch (long "insert-trivial" <> help helpInsertTrivial)
     <*> switch (long "suppress-if-distribution" <> help helpSuppressIfDistribution)
     <*> option auto (short 'w' <> long "display-width" <> value defaultDisplayWidth <> help helpDisplayWidth)
@@ -52,7 +52,7 @@ surfaceArgumentParser :: Parser Surface.Entrypoint.Argument
 surfaceArgumentParser =
   Surface.Entrypoint.Argument
     <$> strArgument (metavar "INPUT-FILE-PATH")
-    <*> option auto (short 's' <> long "stub" <> value "stub.lbam" <> help helpStub)
+    <*> many (strOption (short 'm' <> long "module" <> help helpModule))
     <*> switch (long "insert-trivial" <> help helpInsertTrivial)
     <*> switch (long "suppress-if-distribution" <> help helpSuppressIfDistribution)
     <*> option auto (short 'w' <> long "display-width" <> value defaultDisplayWidth <> help helpDisplayWidth)
@@ -72,5 +72,5 @@ main = do
       StagedArgument lwsdArg -> Staged.Entrypoint.handle lwsdArg
       SurfaceArgument surfaceArg -> Surface.Entrypoint.handle surfaceArg
   case failureReasonOpt of
-    Nothing -> exitSuccess
-    Just failureReason -> exitWith (ExitFailure (makeExitCode failureReason))
+    Right () -> exitSuccess
+    Left failureReason -> exitWith (ExitFailure (makeExitCode failureReason))
