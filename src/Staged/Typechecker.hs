@@ -39,7 +39,7 @@ import Staged.Typechecker.CastInsertion
 import Staged.Typechecker.Instantiation
 import Staged.Typechecker.Merging
 import Staged.Typechecker.Monad
-import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ConstructorEntry (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
+import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass0TypeParam (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ConstructorEntry (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
 import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
@@ -1453,35 +1453,54 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
   case tyeMain of
     (Constructor _; App {}) -> do
       ((mods, tyName), args) <- collectTypeArgs trav loc tyeMain
-      case (mods, tyName, args) of
-        ([], "List", [arg1]) -> do
-          a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
-          pure $ A0TyList a0tye1 Nothing
-        ([], "Maybe", [arg1]) -> do
-          a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
-          pure $ A0TyMaybe a0tye1
-        ([], "Vec", [arg1@(Expr loc1 _)]) -> do
-          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
-          n1 <- validateIntLiteral trav loc1 a0e1
-          pure $ A0TyPrim (a0TyVec n1) Nothing
-        ([], "Mat", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
-          a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
-          a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
-          n1 <- validateIntLiteral trav loc1 a0e1
-          n2 <- validateIntLiteral trav loc2 a0e2
-          pure $ A0TyPrim (a0TyMat n1 n2) Nothing
-        ([], "Tensor", [arg@(Expr loc' _)]) -> do
-          a0e <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
-          ns <- validateIntListLiteral trav loc' a0e
-          pure $ A0TyPrim (A0TyTensor ns) Nothing
-        ([], "Nat", []) ->
-          pure BuiltIn.tyNat
-        ([], _, []) ->
-          case validatePrimBaseType tyName of
-            Just tyPrimBase -> pure $ A0TyPrim (A0TyPrimBase tyPrimBase) Nothing
-            Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
-        _ ->
-          typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName (length args)
+      tyEntry_ <- findType trav loc mods tyName tyEnv
+      case tyEntry_ of
+        Just tyEntry -> do
+          case tyEntry of
+            (Ass1TypeAlias {}; Ass1TypeData {}) ->
+              typeError trav $ NotAStage0Type spanInFile mods tyName
+            Ass0TypeAlias a0tyParams a0tyeBody ->
+              case zipExactMay a0tyParams args of
+                Just zipped -> do
+                  foldM
+                    ( \a0tye' (A0TypeParamType atyvar, arg) -> do
+                        a0tyeArg <- typecheckTypeExpr0 trav tyEnv arg
+                        pure $ tySubst0 a0tyeArg atyvar a0tye'
+                    )
+                    a0tyeBody
+                    zipped
+                Nothing ->
+                  typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a0tyParams)
+        Nothing ->
+          case (mods, tyName, args) of
+            ([], "List", [arg1]) -> do
+              a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
+              pure $ A0TyList a0tye1 Nothing
+            ([], "Maybe", [arg1]) -> do
+              a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
+              pure $ A0TyMaybe a0tye1
+            ([], "Vec", [arg1@(Expr loc1 _)]) -> do
+              a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
+              n1 <- validateIntLiteral trav loc1 a0e1
+              pure $ A0TyPrim (a0TyVec n1) Nothing
+            ([], "Mat", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
+              a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
+              a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
+              n1 <- validateIntLiteral trav loc1 a0e1
+              n2 <- validateIntLiteral trav loc2 a0e2
+              pure $ A0TyPrim (a0TyMat n1 n2) Nothing
+            ([], "Tensor", [arg@(Expr loc' _)]) -> do
+              a0e <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
+              ns <- validateIntListLiteral trav loc' a0e
+              pure $ A0TyPrim (A0TyTensor ns) Nothing
+            ([], "Nat", []) ->
+              pure BuiltIn.tyNat
+            ([], _, []) ->
+              case validatePrimBaseType tyName of
+                Just tyPrimBase -> pure $ A0TyPrim (A0TyPrimBase tyPrimBase) Nothing
+                Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
+            _ ->
+              typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName (length args)
     TyVar tyvar -> do
       tyvarEntry <- findTypeVar trav loc tyvar tyEnv
       case tyvarEntry of
@@ -1640,6 +1659,8 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
         Just tyEntry -> do
           (a1tye, hasValArg) <-
             case tyEntry of
+              Ass0TypeAlias {} ->
+                typeError trav $ NotAStage1Type spanInFile mods tyName
               Ass1TypeAlias a1tyParams a1tyeBody ->
                 case zipExactMay a1tyParams args of
                   Just zipped -> do
@@ -1656,7 +1677,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
                       (a1tyeBody, False)
                       zipped
                   Nothing ->
-                    typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
+                    typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile [] tyName (length a1tyParams)
               Ass1TypeData a1tyParams datatyId -> do
                 case zipExactMay a1tyParams args of
                   Just zipped -> do
@@ -1676,7 +1697,7 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
                         ([], False)
                         zipped
                   Nothing ->
-                    typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a1tyParams)
+                    typeError trav $ UnknownTypeOrInvalidArityAtStage1 spanInFile [] tyName (length a1tyParams)
           when hasValArg $ logShapeAnnot (ShapeAnnotLog loc)
           pure a1tye
         Nothing ->
@@ -1897,7 +1918,7 @@ typecheckBind trav tyEnv (Bind loc bindMain) = do
           case tydef of
             TypeDefAlias tyeBody -> do
               a1tyeBody <- typecheckTypeExpr1 trav tyEnv' tyeBody
-              pure (SigRecord.singletonTypeAlias tyName a1tyParams a1tyeBody, [])
+              pure (SigRecord.singletonTypeAlias1 tyName a1tyParams a1tyeBody, [])
             TypeDefData ctorDefs -> do
               datatyId <- generateFreshDatatypeId tyName
               ctormap <-
@@ -1908,7 +1929,29 @@ typecheckBind trav tyEnv (Bind loc bindMain) = do
                   )
                   Map.empty
                   ctorDefs
-              pure (SigRecord.singletonTypeData tyName a1tyParams datatyId ctormap, [])
+              pure (SigRecord.singletonTypeData1 tyName a1tyParams datatyId ctormap, [])
+        Stage0 -> do
+          (a0tyParamAcc, tyEnv') <-
+            foldM
+              ( \(a0tyParamAcc0, tyEnv0) tyParam ->
+                  case tyParam of
+                    TypeParamTypeBinder tyvar -> do
+                      atyvar <- generateFreshTypeVar tyvar
+                      let tyEnv1 = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv0
+                      pure (A0TypeParamType atyvar : a0tyParamAcc0, tyEnv1)
+                    TypeParamVal0Binder (x, _tyeParam) -> do
+                      typeError trav $ Stage0TypeCannotTakeVal0 spanInFile x
+              )
+              ([], tyEnv)
+              tyParams
+          let a0tyParams = reverse a0tyParamAcc
+          case tydef of
+            TypeDefAlias tyeBody -> do
+              a0tyeBody <- typecheckTypeExpr0 trav tyEnv' tyeBody
+              pure (SigRecord.singletonTypeAlias0 tyName a0tyParams a0tyeBody, [])
+            TypeDefData _ctorDefs -> do
+              -- TODO (enhance): BindType, non-Stage1"
+              typeError trav $ Unsupported spanInFile $ NonStage1TypeDefinition
         _ -> do
           -- TODO (enhance): BindType, non-Stage1"
           typeError trav $ Unsupported spanInFile $ NonStage1TypeDefinition

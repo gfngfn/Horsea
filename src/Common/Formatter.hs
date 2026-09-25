@@ -1060,6 +1060,10 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         labelExpected = maybe "no label" quote labelOptExpected
         labelGot = maybe "no label" quote labelOptGot
         quote t = "'#" <> disp t <> "'"
+    NotAStage0Type spanInFile mods tyName ->
+      "Not a stage-0 type:" <+> dispLongName mods tyName <+> disp spanInFile
+    NotAStage1Type spanInFile mods tyName ->
+      "Not a stage-1 type:" <+> dispLongName mods tyName <+> disp spanInFile
     NotAStage0TypeVar spanInFile tyvar ->
       "Not a stage-0 type variable:" <+> disp tyvar <+> disp spanInFile
     NotAStage1TypeVar spanInFile tyvar ->
@@ -1100,6 +1104,8 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> nest 2 (hardline <> disps appCtx)
     VarBoundMoreThanOnceInPattern spanInFile x ->
       "Variable" <+> disp x <+> "bound more than once in a pattern" <+> disp spanInFile
+    Stage0TypeCannotTakeVal0 spanInFile x ->
+      "Stage-0 types cannot take value parameters:" <+> disp x <+> disp spanInFile
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case

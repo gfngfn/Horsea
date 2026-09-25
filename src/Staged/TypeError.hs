@@ -89,6 +89,8 @@ data TypeErrorF sv
   | CannotForceTypeOnPattern0 SpanInFile (Ass0TypeExprF sv)
   | CannotForceTypeOnPattern1 SpanInFile (Ass1TypeExprF sv)
   | ApplicationLabelMismatch SpanInFile (AppContextF sv) (Maybe Label) (Maybe Label)
+  | NotAStage0Type SpanInFile [ModuleName] TypeName
+  | NotAStage1Type SpanInFile [ModuleName] TypeName
   | NotAStage0TypeVar SpanInFile TypeVar
   | NotAStage1TypeVar SpanInFile TypeVar
   | LetTupleLengthMismatch0 SpanInFile (TwoOrMore Var) (TwoOrMore (Ass0TypeExprF sv))
@@ -97,6 +99,7 @@ data TypeErrorF sv
   | NonMaybeAnnotForLamOms1 SpanInFile (Ass1TypeExprF sv)
   | InvalidConstructorApplication SpanInFile (AppContextF sv) [ModuleName] ConstructorName
   | VarBoundMoreThanOnceInPattern SpanInFile Var
+  | Stage0TypeCannotTakeVal0 SpanInFile Var
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv
