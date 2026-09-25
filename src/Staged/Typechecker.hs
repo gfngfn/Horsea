@@ -1472,34 +1472,38 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
                 Nothing ->
                   typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile [] tyName (length a0tyParams)
         Nothing ->
-          case (mods, tyName, args) of
-            ([], "List", [arg1]) -> do
-              a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
-              pure $ A0TyList a0tye1 Nothing
-            ([], "Maybe", [arg1]) -> do
-              a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
-              pure $ A0TyMaybe a0tye1
-            ([], "Vec", [arg1@(Expr loc1 _)]) -> do
-              a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
-              n1 <- validateIntLiteral trav loc1 a0e1
-              pure $ A0TyPrim (a0TyVec n1) Nothing
-            ([], "Mat", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
-              a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
-              a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
-              n1 <- validateIntLiteral trav loc1 a0e1
-              n2 <- validateIntLiteral trav loc2 a0e2
-              pure $ A0TyPrim (a0TyMat n1 n2) Nothing
-            ([], "Tensor", [arg@(Expr loc' _)]) -> do
-              a0e <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
-              ns <- validateIntListLiteral trav loc' a0e
-              pure $ A0TyPrim (A0TyTensor ns) Nothing
-            ([], "Nat", []) ->
-              pure BuiltIn.tyNat
-            ([], _, []) ->
-              case validatePrimBaseType tyName of
-                Just tyPrimBase -> pure $ A0TyPrim (A0TyPrimBase tyPrimBase) Nothing
-                Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
-            _ ->
+          case mods of
+            [] ->
+              case (tyName, args) of
+                ("List", [arg1]) -> do
+                  a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
+                  pure $ A0TyList a0tye1 Nothing
+                ("Maybe", [arg1]) -> do
+                  a0tye1 <- typecheckTypeExpr0 trav tyEnv arg1
+                  pure $ A0TyMaybe a0tye1
+                ("Vec", [arg1@(Expr loc1 _)]) -> do
+                  a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
+                  n1 <- validateIntLiteral trav loc1 a0e1
+                  pure $ A0TyPrim (a0TyVec n1) Nothing
+                ("Mat", [arg1@(Expr loc1 _), arg2@(Expr loc2 _)]) -> do
+                  a0e1 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg1
+                  a0e2 <- forceExpr0 trav tyEnv BuiltIn.tyNat arg2
+                  n1 <- validateIntLiteral trav loc1 a0e1
+                  n2 <- validateIntLiteral trav loc2 a0e2
+                  pure $ A0TyPrim (a0TyMat n1 n2) Nothing
+                ("Tensor", [arg@(Expr loc' _)]) -> do
+                  a0e <- forceExpr0 trav tyEnv (A0TyList BuiltIn.tyNat Nothing) arg
+                  ns <- validateIntListLiteral trav loc' a0e
+                  pure $ A0TyPrim (A0TyTensor ns) Nothing
+                ("Nat", []) ->
+                  pure BuiltIn.tyNat
+                (_, []) ->
+                  case validatePrimBaseType tyName of
+                    Just tyPrimBase -> pure $ A0TyPrim (A0TyPrimBase tyPrimBase) Nothing
+                    Nothing -> typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName 0
+                (_, _) ->
+                  typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName (length args)
+            _ : _ ->
               typeError trav $ UnknownTypeOrInvalidArityAtStage0 spanInFile mods tyName (length args)
     TyVar tyvar -> do
       tyvarEntry <- findTypeVar trav loc tyvar tyEnv
