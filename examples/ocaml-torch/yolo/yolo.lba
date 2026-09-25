@@ -42,7 +42,7 @@ in
 *)
 let report {m : Nat} {n : Nat} =
   &(fun(predictions : Tensor %[m, n]) ->
-    fun(image : I) ->
+    fun(image : Tensor %[foo, bar, initial_height, initial_width]) ->
     fun #width (width : Nat) ->
     fun #height (height : Nat) ->
       let bboxes =
@@ -65,7 +65,15 @@ let report {m : Nat} {n : Nat} =
             let class_confidence = Array.get best_class_index predictions in
             let class_index = best_class_index - 5 in
             if (let open Float in ( > )) class_confidence 0.0 then
-              Some (| xmin, ymin, xmax, ymax, confidence, class_index, class_confidence |)
+              Some (|
+                xmin = xmin,
+                ymin = ymin,
+                xmax = xmax,
+                ymax = ymax,
+                confidence = confidence,
+                class_index = class_index,
+                class_confidence = class_confidence
+              |)
             else
               None
           else
@@ -78,10 +86,11 @@ let report {m : Nat} {n : Nat} =
           |> List.map (fun (bbox : BBox) -> (bbox.class_index, (bbox.confidence, bbox)))
           |> Map.of_alist_multi (* (module Int) *)
           |> Map.to_alist
-          |> List.concat_map (fun (_, bboxes) ->
+          |> List.concat_map (fun (pair : Int * BBox) ->
+            let (unused, bboxes) = pair in
             (* NMS suppression. *)
             let bboxes = List.sort Caml.compare bboxes |> List.rev_map snd in
-            bboxes |> List.fold (fun acc_bboxes bbox ->
+            bboxes |> List.fold (fun(acc_bboxes : List BBox) -> fun(bbox : BBox) ->
               let drop =
                 List.exists
                   (fun (b : BBox) -> (let open Float in ( > )) (iou b bbox) nms_threshold)
@@ -92,7 +101,6 @@ let report {m : Nat} {n : Nat} =
           )
       in
       let image = let open Tensor in to_type image #type_ (T Float) / f 255.0 in
-      let (_, _, initial_height, initial_width) = Tensor.shape4_exn image in
       let resize_and_clamp (v : Float) #initial_max (initial_max : Int) #max (m : Int) =
         Int.of_float (v *. Float.of_int initial_max /. Float.of_int m)
           |> Int.max 0
@@ -105,7 +113,7 @@ let report {m : Nat} {n : Nat} =
         let ymax = resize_and_clamp b.ymax #initial_max initial_height #max height in
         let color = Array.get (b.class_index % Array.length colors) colors in
         let color = let open Tensor in of_float1 color |> reshape [1, 3, 1, 1] in
-        let draw_rect xmin xmax ymin ymax =
+        let draw_rect (xmin : Int) (xmax : Int) (ymin : Int) (ymax : Int) =
           Tensor.narrow image #dim 3 #start xmin #length (xmax - xmin)
             |> Tensor.narrow #dim 2 #start ymin #length (ymax - ymin)
             |> Tensor.copy_ #src color
@@ -140,8 +148,8 @@ Serialize.load_multi_ #named_tensors (VarStore.all_vars vs) #filename weight_fil
 (* Load the image. *)
 let (width, height) = (Darknet.width darknet, Darknet.height darknet) in
 let image : Tensor %[1, 3, 224, 224] = Image.load_image image_file |> Or_error.ok_exn in
-let resized_image = Image.resize image ~width ~height in
-let resized_image = let open Tensor in to_type resized_image ~type_:(T Float) / f 255.0 in
+let resized_image = Image.resize image #width width #height height in
+let resized_image = let open Tensor in to_type resized_image #type (T Float) / f 255.0 in
 (* Apply the model. *)
 let predictions = Layer.forward_ model resized_image #is_training false in
-Tensor.squeeze predictions |> report ~image ~width ~height
+Tensor.squeeze predictions |> report #image image #width width #height height
