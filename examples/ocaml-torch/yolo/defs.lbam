@@ -1,4 +1,4 @@
-type BBox = (|
+type ~BBox = (|
   xmin : Float,
   ymin : Float,
   xmax : Float,
@@ -7,3 +7,7 @@ type BBox = (|
   class_index : Int,
   class_confidence : Float
 |)
+
+module CocoNames = struct
+  val ~names = [] as List String (* TODO *)
+end
