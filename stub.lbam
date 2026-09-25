@@ -89,6 +89,22 @@ val ~gen_mmult : {a : Nat} -> {b : Nat} -> {c : Nat} -> &(Mat %a %b -> Mat %b %c
 val ~gen_mconcat_vert : {a : Nat} -> {b : Nat} -> {c : Nat} -> &(Mat %a %c -> Mat %b %c -> Mat %(a + b) %c)
   external (builtin = "gen_mconcat_vert", surface = "mconcat_vert")
 
+module Int = struct
+  val %max : Int -> Int -> Int
+    external (builtin = "int__max", surface = "max")
+  val %min : Int -> Int -> Int
+    external (builtin = "int__min", surface = "min")
+  val %of_float : Float -> Int
+    external (builtin = "int__of_float", surface = "of_float")
+end
+
+module Float = struct
+  val %max : Float -> Float -> Float
+    external (builtin = "float__max", surface = "max")
+  val %of_int : Int -> Float
+    external (builtin = "float__of_int", surface = "of_int")
+end
+
 module String = struct
   val %concat : #sep String -> List String -> String
     external (builtin = "string__concat", surface = "concat")
@@ -496,8 +512,11 @@ module Layer = struct
     #padding (padding : Int) ->
     #input_dim (input_dim : Nat) ->
     #output_dim (output_dim : Nat) ->
+    ?groups Nat ->
     {shape : {s : List Nat | List.length s == 4 && List.nth 1 s == input_dim}} ->
-    &(?activation Activation ->
+    &(?use_bias Bool -> (* default: true *)
+      ?w_init VarStoreInit ->
+      ?activation Activation ->
       VarStore ->
       Tensor %shape ->
       Tensor %[

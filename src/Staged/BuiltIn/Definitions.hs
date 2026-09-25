@@ -562,7 +562,7 @@ definitions =
     gen ["layer"] "forward" [ParamIntList, ParamIntList],
     gen ["layer"] "forward_" [ParamIntList, ParamIntList],
     gen ["layer"] "of_fn_" [ParamIntList, ParamIntList],
-    gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamIntList],
+    gen ["layer"] "conv2d_" [ParamInt, ParamInt, ParamInt, ParamInt, ParamInt, ParamIntMaybe, ParamIntList],
     gen ["layer"] "conv_transpose2d_" [ParamInt, ParamInt, ParamInt, ParamIntMaybe, ParamIntMaybe, ParamInt, ParamInt, ParamIntList],
     gen ["layer"] "linear" [ParamInt, ParamInt, ParamIntList],
     gen ["layer"] "layer_norm" [ParamInt, ParamIntList],
