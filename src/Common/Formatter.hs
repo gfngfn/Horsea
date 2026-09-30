@@ -642,8 +642,13 @@ instance (Disp sv) => Disp (Ass0ExprF sv) where
         "ASSERT" <+> disp a0ePred <+> "FOR" <+> disp a0eTarget
     A0LamType atyvar1 a0e2 ->
       dispLamType req atyvar1 a0e2
-    A0AppType a0e1 sa0tye2 ->
-      dispAppType req a0e1 sa0tye2
+    A0AppType a0e1 atyapp2 ->
+      dispAppType req a0e1 atyapp2
+
+instance (Disp sv) => Disp (TypeAppF sv) where
+  dispGen _ = \case
+    TypeApp0 sa0tye -> stage0Style (disp sa0tye)
+    TypeApp1 a1tye -> stagingOperatorStyle "&" <> stage1Style (disp a1tye)
 
 instance (Disp sv) => Disp (Ass0BranchF sv) where
   dispGen _ (A0Branch a0pat a0e) = dispBranch a0pat a0e

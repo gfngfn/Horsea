@@ -183,12 +183,22 @@ instance HasTypeVar Ass0ExprF where
     A0Bracket a1e -> A0Bracket (go a1e)
     A0TyEqAssert loc ty1eq -> A0TyEqAssert loc (go ty1eq)
     A0RefinementAssert loc a0e1 a0e2 -> A0RefinementAssert loc (go a0e1) (go a0e2)
-    A0LamType atyvar1 a0e2 ->
-      A0LamType atyvar1 $
-        case s of
-          TypeSubst0 atyvar' _ -> if atyvar1 == atyvar' then a0e2 else go a0e2
-          TypeSubst1 _ _ -> go a0e2
-    A0AppType a0e1 sa0tye2 -> A0AppType (go a0e1) (go sa0tye2)
+    A0LamType fab1 a0e2 ->
+      A0LamType fab1 $
+        case (s, fab1) of
+          (TypeSubst0 atyvar' _, ForAll0 atyvar1) -> if atyvar1 == atyvar' then a0e2 else go a0e2
+          (TypeSubst1 atyvar' _, ForAll1 atyvar1) -> if atyvar1 == atyvar' then a0e2 else go a0e2
+          (_, _) -> go a0e2
+    A0AppType a0e1 atyapp2 -> A0AppType (go a0e1) (go atyapp2)
+    where
+      go :: forall af. (HasTypeVar af) => af sv -> af sv
+      go = tySubst s
+
+instance HasTypeVar TypeAppF where
+  tySubst :: forall sv. TypeSubstF sv -> TypeAppF sv -> TypeAppF sv
+  tySubst s = \case
+    TypeApp0 sa0tye -> TypeApp0 (go sa0tye)
+    TypeApp1 a1tye -> TypeApp1 (go a1tye)
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s

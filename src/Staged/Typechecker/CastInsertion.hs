@@ -83,14 +83,25 @@ makeAssertiveCast trav loc datatyEnv =
                     pure $
                       Just $
                         A0Lam Nothing (ax, strictify a0tye1) $
-                          applyCast0 cast' (A0AppType (A0Var ax) (strictify a0tye11))
+                          applyCast0 cast' (A0AppType (A0Var ax) (TypeApp0 (strictify a0tye11)))
                   pure (cast, Solution0 varSolution' (Map.delete tyvar1 tyvar0Solution') tyvar1Solution')
                 Nothing ->
                   typeError trav $ CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile fab1 a0tye12 a0tye2
             ForAll1 tyvar1 -> do
               (cast', Solution0 varSolution' tyvar0Solution' tyvar1Solution') <-
                 go varsToInfer tyvars0ToInfer (Set.insert tyvar1 tyvars1ToInfer) a0tye12 a0tye2
-              error "TODO: makeAssertiveCast, ForAll1"
+              case Map.lookup tyvar1 tyvar1Solution' of
+                Just a1tye11 -> do
+                  cast <- do
+                    sv <- generateFreshVar Nothing
+                    let ax = AssVarStatic sv
+                    pure $
+                      Just $
+                        A0Lam Nothing (ax, strictify a0tye1) $
+                          applyCast0 cast' (A0AppType (A0Var ax) (TypeApp1 a1tye11))
+                  pure (cast, Solution0 varSolution' tyvar0Solution' (Map.delete tyvar1 tyvar1Solution'))
+                Nothing ->
+                  typeError trav $ CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile fab1 a0tye12 a0tye2
         (_, A0TyForAll fab2 a0tye2') ->
           typeError trav $ Unsupported spanInFile $ HigherRankPolymorphism a0tye1 fab2 a0tye2'
         (A0TyPrim a0tyPrim1 maybePred1, A0TyPrim a0tyPrim2 maybePred2') -> do

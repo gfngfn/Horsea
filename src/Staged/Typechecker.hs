@@ -544,7 +544,8 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             (a0tye2, a0e2) <- do
               let tyEnv' = TypeEnv.addTypeVar tyvar1 (TypeVarEntry0 atyvar1) tyEnv
               typecheckExpr0Single trav tyEnv' e2
-            pure (Pure (A0TyForAll (ForAll0 atyvar1) a0tye2), A0LamType atyvar1 a0e2)
+            -- TODO: support `ForAll1` as well:
+            pure (Pure (A0TyForAll (ForAll0 atyvar1) a0tye2), A0LamType (ForAll0 atyvar1) a0e2)
           _ : _ ->
             -- TODO (enhance): consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamInfTypeWithArguments appCtx
@@ -553,7 +554,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         (result1, a0e1) <- typecheckExpr0 trav tyEnv (AppArgInfTypeGiven0 a0tye2 : appCtx) e1
         case result1 of
           Instantiated0 result -> do
-            pure (result, A0AppType a0e1 (strictify a0tye2))
+            pure (result, A0AppType a0e1 (TypeApp0 (strictify a0tye2)))
           _ -> do
             bug "stage-0, AppInfType"
       Persistent _ ->
@@ -571,7 +572,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
               logInferableArg $ LogInferredArg spanInFile a0eInferred
               go (result', A0App a0e a0eInferred)
             InsertInferredType0 a0tyeInferred result' ->
-              go (result', A0AppType a0e (strictify a0tyeInferred))
+              go (result', A0AppType a0e (TypeApp0 (strictify a0tyeInferred)))
             _ ->
               pure pair
 
@@ -894,7 +895,7 @@ typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
     TypeBinder tyvar : params' -> do
       atyvar <- generateFreshTypeVar tyvar
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv) params' tyeBodyOpt e1
-      pure (A0TyForAll (ForAll0 atyvar) a0tye', A0LamType atyvar a0e')
+      pure (A0TyForAll (ForAll0 atyvar) a0tye', A0LamType (ForAll0 atyvar) a0e') -- TODO: support `ForAll1` as well
 
 forceExpr1 :: trav -> TypeEnv -> Ass1TypeExpr -> Expr -> M trav Ass1Expr
 forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do

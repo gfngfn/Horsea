@@ -6,6 +6,7 @@ module Staged.Syntax
     AssTypeVar (..),
     AssLiteralF (..),
     Ass0ExprF (..),
+    TypeAppF (..),
     Ass0BranchF (..),
     Ass0PatternF (..),
     Ass1ExprF (..),
@@ -157,8 +158,13 @@ data Ass0ExprF sv
   | -- | Assertions for refinement predicates, where the first expression is a predicate,
     -- and the second is a target expression of the assertion.
     A0RefinementAssert Span (Ass0ExprF sv) (Ass0ExprF sv)
-  | A0LamType AssTypeVar (Ass0ExprF sv)
-  | A0AppType (Ass0ExprF sv) (StrictAss0TypeExprF sv)
+  | A0LamType ForAllBinder (Ass0ExprF sv)
+  | A0AppType (Ass0ExprF sv) (TypeAppF sv)
+  deriving stock (Eq, Show, Functor)
+
+data TypeAppF sv
+  = TypeApp0 (StrictAss0TypeExprF sv)
+  | TypeApp1 (Ass1TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data Ass0BranchF sv = A0Branch (Ass0PatternF sv) (Ass0ExprF sv)
@@ -394,7 +400,7 @@ data Ass0ValF sv
   | -- | Possibly partially applied built-in functions.
     A0ValPartialBuiltInApp (Ass0PartialBuiltInApp (Ass0ValF sv))
   | -- | Type abstraction closures.
-    A0ValLamType AssTypeVar (Ass0ExprF sv) EvalEnv
+    A0ValLamType ForAllBinder (Ass0ExprF sv) EvalEnv
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-1 term values.

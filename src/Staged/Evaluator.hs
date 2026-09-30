@@ -324,8 +324,19 @@ reduceBeta a0vFun a0vArg =
 reduceTypeBeta0 :: Ass0Val -> Ass0TypeVal -> M Ass0Val
 reduceTypeBeta0 a0vTypeFun a0tyvArg =
   case a0vTypeFun of
-    A0ValLamType atyvar a0e env ->
+    A0ValLamType (ForAll0 atyvar) a0e env ->
       evalExpr0 (env & updateTypeVals (Map.insert atyvar a0tyvArg)) a0e
+    A0ValPartialBuiltInApp _ ->
+      -- Built-in functions simply ignore type applications. TODO (enhance): make this less ad-hoc
+      pure a0vTypeFun
+    _ ->
+      bug $ NotATypeClosure a0vTypeFun
+
+reduceTypeBeta1 :: Ass0Val -> Ass1TypeVal -> M Ass0Val
+reduceTypeBeta1 a0vTypeFun _a1tyvArg =
+  case a0vTypeFun of
+    A0ValLamType (ForAll1 _atyvar) _a0e _env ->
+      error "TODO: reduceTypeBeta1"
     A0ValPartialBuiltInApp _ ->
       -- Built-in functions simply ignore type applications. TODO (enhance): make this less ad-hoc
       pure a0vTypeFun
@@ -471,12 +482,17 @@ evalExpr0 env = \case
         EvalState {sourceSpec} <- get
         let spanInFile = getSpanInFile sourceSpec loc
         evalError $ RefinementAssertionFailure spanInFile a0vPred a0vTarget
-  A0LamType atyvar1 a0e2 -> do
-    pure $ A0ValLamType atyvar1 a0e2 env
-  A0AppType a0e1 sa0tye2 -> do
+  A0LamType fab1 a0e2 -> do
+    pure $ A0ValLamType fab1 a0e2 env
+  A0AppType a0e1 atyapp2 -> do
     a0v1 <- evalExpr0 env a0e1
-    a0tyv2 <- evalTypeExpr0 env sa0tye2
-    reduceTypeBeta0 a0v1 a0tyv2
+    case atyapp2 of
+      TypeApp0 sa0tye2 -> do
+        a0tyv2 <- evalTypeExpr0 env sa0tye2
+        reduceTypeBeta0 a0v1 a0tyv2
+      TypeApp1 a1tye2 -> do
+        a1tyv2 <- evalTypeExpr1 env a1tye2
+        reduceTypeBeta1 a0v1 a1tyv2
 
 evalExpr1 :: EvalEnv -> Ass1Expr -> M Ass1Val
 evalExpr1 env = \case
@@ -674,9 +690,9 @@ unliftVal = \case
   A1ValCase a1v0 a1branchVs ->
     A0Case (unliftVal a1v0) (fmap unliftBranchVal a1branchVs)
   A1ValLamType atyvar1 a1v2 ->
-    A0LamType atyvar1 (unliftVal a1v2)
+    A0LamType (ForAll0 atyvar1) (unliftVal a1v2)
   A1ValAppType a1v1 a1tyv2 ->
-    A0AppType (unliftVal a1v1) (unliftTypeVal a1tyv2)
+    A0AppType (unliftVal a1v1) (TypeApp0 (unliftTypeVal a1tyv2))
 
 unliftBranchVal :: Ass1BranchVal -> Ass0Branch
 unliftBranchVal (A1ValBranch a1pat a1e) =
