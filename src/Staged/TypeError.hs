@@ -64,7 +64,7 @@ data TypeErrorF sv
   | CannotInferImplicit SpanInFile (AssVarF sv) (Ass0TypeExprF sv) (AppContextF sv)
   | CannotInferTypeVariableInstance0 SpanInFile AssTypeVar (AppContextF sv) (Ass0TypeExprF sv)
   | CannotInferTypeVariableInstance1 SpanInFile AssTypeVar (AppContextF sv) (Ass1TypeExprF sv)
-  | CannotInstantiateTypeVariableGuidedByAssertion0 SpanInFile AssTypeVar (Ass0TypeExprF sv) (Ass0TypeExprF sv)
+  | CannotInstantiateTypeVariableGuidedByAssertion0 SpanInFile ForAllBinder (Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | Stage1IfThenElseRestrictedToEmptyContext SpanInFile (AppContextF sv)
   | Stage1CaseRestrictedToEmptyContext SpanInFile (AppContextF sv)
   | BindingOverwritten SpanInFile Var
@@ -109,7 +109,7 @@ data ConditionalMergeErrorF sv
 
 data UnsupportedF sv
   = CannotBindPersistentValue Var
-  | HigherRankPolymorphism (Ass0TypeExprF sv) AssTypeVar (Ass0TypeExprF sv)
+  | HigherRankPolymorphism (Ass0TypeExprF sv) ForAllBinder (Ass0TypeExprF sv)
   | AsWithArguments (AppContextF sv)
   | LamWithArguments (AppContextF sv)
   | LamOmsWithArguments (AppContextF sv)

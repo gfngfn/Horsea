@@ -21,6 +21,7 @@ module Staged.Syntax
     StrictAss0ValF (..),
     StrictAss0DatatypeArgF (..),
     StrictAss0TypeExprF (..),
+    ForAllBinder (..),
     AssPrimBaseType (..),
     validatePrimBaseType,
     Ass0PrimType (..),
@@ -242,7 +243,7 @@ data Ass0TypeExprF sv
     A0TyOmsArrow Label (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | A0TyCode (Ass1TypeExprF sv)
   | -- | Polymorphic types.
-    A0TyForAll AssTypeVar (Ass0TypeExprF sv)
+    A0TyForAll ForAllBinder (Ass0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-0, order-0 term values.
@@ -274,8 +275,13 @@ data StrictAss0TypeExprF sv
     SA0TyArrow (Maybe (AssVarF sv), StrictAss0TypeExprF sv) (StrictAss0TypeExprF sv)
   | SA0TyCode (Ass1TypeExprF sv)
   | -- | Polymorphic types.
-    SA0TyForAll AssTypeVar (StrictAss0TypeExprF sv)
+    SA0TyForAll ForAllBinder (StrictAss0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
+
+data ForAllBinder
+  = ForAll0 AssTypeVar
+  | ForAll1 AssTypeVar
+  deriving stock (Eq, Show)
 
 data AssPrimBaseType
   = ATyPrimInt
@@ -354,7 +360,7 @@ persistentTypeTo0 = \case
   APersTyProduct aPtyes -> A0TyProduct (fmap persistentTypeTo0 aPtyes)
   APersTyRecord aPrty -> A0TyRecord (fmap persistentTypeTo0 aPrty)
   APersTyArrow labelOpt aPtye1 aPtye2 -> A0TyArrow labelOpt (Nothing, persistentTypeTo0 aPtye1) (persistentTypeTo0 aPtye2)
-  APersTyForAll atyvar aPtye -> A0TyForAll atyvar (persistentTypeTo0 aPtye)
+  APersTyForAll atyvar aPtye -> A0TyForAll (ForAll0 atyvar) (persistentTypeTo0 aPtye)
 
 persistentTypeTo1 :: AssPersTypeExpr -> Ass1TypeExprF sv
 persistentTypeTo1 = \case
@@ -425,7 +431,7 @@ data Ass0TypeValF sv
   | A0TyValRecord (Map Label (Ass0TypeValF sv))
   | A0TyValArrow (Maybe (AssVarF sv), Ass0TypeValF sv) (StrictAss0TypeExprF sv)
   | A0TyValCode (Ass1TypeValF sv)
-  | A0TyValForAll AssTypeVar (StrictAss0TypeExprF sv)
+  | A0TyValForAll ForAllBinder (StrictAss0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-1 type values.
@@ -535,7 +541,7 @@ strictify = \case
   A0TyCode a1tye1 -> SA0TyCode a1tye1
   A0TyInfArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictify a0tye1) (strictify a0tye2)
   A0TyOmsArrow _label (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, SA0TyMaybe (strictify a0tye1)) (strictify a0tye2)
-  A0TyForAll atyvar a0tye -> SA0TyForAll atyvar (strictify a0tye)
+  A0TyForAll fab a0tye -> SA0TyForAll fab (strictify a0tye)
 
 a0TyVec :: Int -> Ass0PrimType
 a0TyVec n = A0TyTensor [n]

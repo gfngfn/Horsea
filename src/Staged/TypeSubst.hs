@@ -51,11 +51,15 @@ instance HasTypeVar Ass0TypeExprF where
       A0TyOmsArrow label (svOpt, go a0tye1) (go a0tye2)
     A0TyCode a1tye1 ->
       A0TyCode (go a1tye1)
-    A0TyForAll atyvar a0tye1 ->
-      A0TyForAll atyvar $
-        case s of
-          TypeSubst0 atyvar' _ -> if atyvar == atyvar' then a0tye1 else go a0tye1
-          TypeSubst1 _ _ -> go a0tye1
+    A0TyForAll fab a0tye1 ->
+      A0TyForAll fab $
+        case (s, fab) of
+          (TypeSubst0 atyvar' _, ForAll0 atyvar) ->
+            if atyvar == atyvar' then a0tye1 else go a0tye1
+          (TypeSubst1 atyvar' _, ForAll1 atyvar) ->
+            if atyvar == atyvar' then a0tye1 else go a0tye1
+          (_, _) ->
+            go a0tye1
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s
@@ -92,11 +96,15 @@ instance HasTypeVar StrictAss0TypeExprF where
       SA0TyArrow (svOpt, go sa0tye1) (go sa0tye2)
     SA0TyCode a1tye1 ->
       SA0TyCode (go a1tye1)
-    SA0TyForAll atyvar sa0tye1 ->
-      SA0TyForAll atyvar $
-        case s of
-          TypeSubst0 atyvar' _ -> if atyvar == atyvar' then sa0tye1 else go sa0tye1
-          TypeSubst1 _ _ -> go sa0tye1
+    SA0TyForAll fab sa0tye1 ->
+      SA0TyForAll fab $
+        case (s, fab) of
+          (TypeSubst0 atyvar' _, ForAll0 atyvar) ->
+            if atyvar == atyvar' then sa0tye1 else go sa0tye1
+          (TypeSubst1 atyvar' _, ForAll1 atyvar) ->
+            if atyvar == atyvar' then sa0tye1 else go sa0tye1
+          (_, _) ->
+            go sa0tye1
     where
       go :: forall af. (HasTypeVar af) => af sv -> af sv
       go = tySubst s

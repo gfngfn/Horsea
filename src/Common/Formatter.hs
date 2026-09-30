@@ -318,7 +318,7 @@ dispEscape :: (Disp expr) => expr -> Doc Ann
 dispEscape e =
   stagingOperatorStyle "~" <> stage0Style (dispGen Atomic e)
 
-dispForAllType :: (Disp ty) => Associativity -> AssTypeVar -> ty -> Doc Ann
+dispForAllType :: (Disp tv, Disp ty) => Associativity -> tv -> ty -> Doc Ann
 dispForAllType req atyvar tye =
   deepenParenWhen (req <= Atomic) $
     group ("forall" <+> disp atyvar <> "." <+> disp tye)
@@ -722,7 +722,7 @@ instance (Disp sv) => Disp (Ass0TypeExprF sv) where
     A0TyCode a1tye1 -> dispBracket a1tye1
     A0TyInfArrow (x, a0tye1) a0tye2 -> dispInfArrowType req x a0tye1 a0tye2
     A0TyOmsArrow label (xOpt, a0tye1) a0tye2 -> dispOmsArrowType req label xOpt a0tye1 a0tye2
-    A0TyForAll atyvar a0tye -> dispForAllType req atyvar a0tye
+    A0TyForAll fab a0tye -> dispForAllType req fab a0tye
 
 instance (Disp sv) => Disp (StrictAss0ValF sv) where
   dispGen req = \case
@@ -749,7 +749,12 @@ instance (Disp sv) => Disp (StrictAss0TypeExprF sv) where
     SA0TyRecord sa0rty -> dispRecord ":" sa0rty
     SA0TyArrow (xOpt, sa0tye1) sa0tye2 -> dispArrowType req Nothing xOpt sa0tye1 sa0tye2
     SA0TyCode a1tye1 -> dispBracket a1tye1
-    SA0TyForAll atyvar sa0tye -> dispForAllType req atyvar sa0tye
+    SA0TyForAll fab sa0tye -> dispForAllType req fab sa0tye
+
+instance Disp ForAllBinder where
+  dispGen _req = \case
+    ForAll0 atyvar -> stage0Style (disp atyvar)
+    ForAll1 atyvar -> stagingOperatorStyle "&" <> stage1Style (disp atyvar)
 
 instance (Disp sv) => Disp (Ass1PrimTypeF sv) where
   dispGen req = \case
@@ -772,7 +777,7 @@ instance (Disp sv) => Disp (Ass1TypeExprF sv) where
     A1TyRecord a1rty -> dispRecord ":" a1rty
     A1TyArrow labelOpt a1tye1 a1tye2 -> dispNondepArrowType req labelOpt a1tye1 a1tye2
     A1TyOmsArrow label a1tye1 a1tye2 -> dispOmsArrowType req label (Nothing :: Maybe Text) a1tye1 a1tye2
-    A1TyForAll atyvar a1tye2 -> dispForAllType req atyvar a1tye2
+    A1TyForAll fab a1tye2 -> dispForAllType req fab a1tye2
 
 instance (Disp sv) => Disp (Ass1DatatypeArgF sv) where
   dispGen req = \case
@@ -961,9 +966,9 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
         <> hardline
         <> "type:"
         <> nest 2 (hardline <> stage1Style (disp a1tye))
-    CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile atyvar a0tye1 a0tye2 ->
+    CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile fab a0tye1 a0tye2 ->
       "Cannot instantiate type variable"
-        <+> stage0Style (disp atyvar)
+        <+> disp fab
         <+> disp spanInFile
         <> hardline
         <> "left:"
@@ -1120,11 +1125,11 @@ instance (Disp sv) => Disp (UnsupportedF sv) where
   dispGen _ = \case
     CannotBindPersistentValue x ->
       "Cannot bind persistent values other than built-in functions:" <+> disp x
-    HigherRankPolymorphism a0tye1 atyvar a0tye2 ->
+    HigherRankPolymorphism a0tye1 fab a0tye2 ->
       "Higher-rank polymorphism; we must judge that"
         <+> stage0Style (disp a0tye1)
         <+> "be more general than"
-        <+> stage0Style (disp (A0TyForAll atyvar a0tye2))
+        <+> stage0Style (disp (A0TyForAll fab a0tye2))
         <> ", but this has not been supported so far"
     AsWithArguments appCtx ->
       "Function with an as-coercion applied to argument(s); consider let-binding it to a variable"
@@ -1312,7 +1317,7 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
     A0TyValRecord a0rtyv -> dispRecord ":" a0rtyv
     A0TyValArrow (xOpt, a0tyv1) a0tye2 -> dispArrowType req Nothing xOpt a0tyv1 a0tye2
     A0TyValCode a1tyv1 -> dispBracket a1tyv1
-    A0TyValForAll atyvar sa0tye1 -> dispForAllType req atyvar sa0tye1
+    A0TyValForAll fab sa0tye1 -> dispForAllType req fab sa0tye1
 
 instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case

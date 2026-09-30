@@ -87,6 +87,13 @@ definitions =
           r2 <- validateFloatLiteral a0v2
           pure $ A0ValLiteral (ALitFloat (r1 - r2))
         |],
+    versatile [] "float_mult" ForBothStages 2 $
+      [|
+        do
+          r1 <- validateFloatLiteral a0v1
+          r2 <- validateFloatLiteral a0v2
+          pure $ A0ValLiteral (ALitFloat (r1 * r2))
+        |],
     versatile [] "float_div" ForBothStages 2 $
       [|
         do
@@ -307,6 +314,16 @@ definitions =
             Just mat -> pure $ A0ValLiteral (ALitMat mat)
             Nothing -> bug $ InconsistentAppBuiltInArity2 bi2 a0v1 a0v2
         |],
+    versatile ["int"] "max" ForBothStages 2 $
+      [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (max n1 n2))) a0v1 a0v2|],
+    versatile ["int"] "min" ForBothStages 2 $
+      [|arithmetic (\n1 n2 -> A0ValLiteral (ALitInt (min n1 n2))) a0v1 a0v2|],
+    versatile ["int"] "of_float" ForBothStages 1 $
+      [|
+        do
+          r <- validateFloatLiteral a0v1
+          pure $ A0ValLiteral (ALitInt (round r))
+        |],
     versatile ["string"] "concat" ForBothStages 2 $
       [|
         do
@@ -512,7 +529,7 @@ definitions =
     gen ["tensor"] "tril" [ParamIntList],
     gen ["tensor"] "contiguous" [ParamIntList],
     gen ["tensor"] "eq_scalar" [ParamIntList],
-    gen ["tensor"] "get" [ParamIntList],
+    gen ["tensor"] "get" [ParamIntList, ParamInt],
     gen ["tensor"] "iter_dim0" [ParamIntList],
     gen ["tensor"] "to_list1" [ParamIntList],
     gen ["tensor"] "fill_float" [ParamIntList],

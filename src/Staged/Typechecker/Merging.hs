@@ -455,17 +455,30 @@ mergeTypesByConditional0 trav distributeIfUnderTensorShape a0e0 = go0
             )
             rest
           pure $ A0TyVar atyvar1
-        A0TyForAll atyvar1 a0tyeSub1 -> do
-          triplesRest <-
-            mapM
-              ( \(a0pat, a0tye) ->
-                  case a0tye of
-                    A0TyForAll atyvar a0tyeSub -> pure (a0pat, (atyvar, a0tyeSub))
-                    _ -> failure
-              )
-              rest
-          let pairs = (a0pat1, a0tyeSub1) :| map (second (uncurry (tySubst0 (A0TyVar atyvar1)))) triplesRest
-          A0TyForAll atyvar1 <$> go0 pairs
+        A0TyForAll fab1 a0tyeSub1 -> do
+          pairs <-
+            case fab1 of
+              ForAll0 atyvar1 -> do
+                triplesRest <-
+                  mapM
+                    ( \(a0pat, a0tye) ->
+                        case a0tye of
+                          A0TyForAll (ForAll0 atyvar) a0tyeSub -> pure (a0pat, (atyvar, a0tyeSub))
+                          _ -> failure
+                    )
+                    rest
+                pure $ (a0pat1, a0tyeSub1) :| map (second (uncurry (tySubst0 (A0TyVar atyvar1)))) triplesRest
+              ForAll1 atyvar1 -> do
+                triplesRest <-
+                  mapM
+                    ( \(a0pat, a0tye) ->
+                        case a0tye of
+                          A0TyForAll (ForAll1 atyvar) a0tyeSub -> pure (a0pat, (atyvar, a0tyeSub))
+                          _ -> failure
+                    )
+                    rest
+                pure $ (a0pat1, a0tyeSub1) :| map (second (uncurry (tySubst0 (A0TyVar atyvar1)))) triplesRest
+          A0TyForAll fab1 <$> go0 pairs
 
     mergeRefinementPredicates :: (Maybe Ass0Expr -> StrictAss0TypeExpr) -> NonEmpty (Ass0Pattern, Maybe Ass0Expr) -> M' ConditionalMergeError trav (Maybe Ass0Expr)
     mergeRefinementPredicates sa0tyef patAndMaybePredPairs =

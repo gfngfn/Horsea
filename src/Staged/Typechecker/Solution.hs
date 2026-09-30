@@ -2,6 +2,8 @@ module Staged.Typechecker.Solution
   ( VarSolution,
     TypeVar0Solution,
     TypeVar1Solution,
+    Solution0 (..),
+    Solution1 (..),
     applyVarSolution,
     applyTypeVar0Solution,
     applyTypeVar1Solution,
@@ -10,6 +12,8 @@ module Staged.Typechecker.Solution
     composeTypeVar1Solution,
     applySolution0,
     applySolution1,
+    composeSolution0,
+    composeSolution1,
   )
 where
 
@@ -25,6 +29,10 @@ type VarSolution = Map AssVar (Ass0Expr, Ass0TypeExpr)
 type TypeVar0Solution = Map AssTypeVar Ass0TypeExpr
 
 type TypeVar1Solution = Map AssTypeVar Ass1TypeExpr
+
+data Solution0 = Solution0 VarSolution TypeVar0Solution TypeVar1Solution
+
+data Solution1 = Solution1 VarSolution TypeVar1Solution
 
 applyVarSolution :: forall af. (HasVar StaticVar af) => VarSolution -> af StaticVar -> af StaticVar
 applyVarSolution varSolution entity =
@@ -52,10 +60,29 @@ composeTypeVar1Solution :: TypeVar1Solution -> TypeVar1Solution -> TypeVar1Solut
 composeTypeVar1Solution solNew solOld =
   Map.union solNew (Map.map (applyTypeVar1Solution solNew) solOld)
 
-applySolution0 :: forall af. (HasVar StaticVar af, HasTypeVar af) => VarSolution -> TypeVar0Solution -> af StaticVar -> af StaticVar
-applySolution0 varSolution tyvar0Solution entity =
-  applyTypeVar0Solution tyvar0Solution (applyVarSolution varSolution entity)
+applySolution0 :: forall af. (HasVar StaticVar af, HasTypeVar af) => Solution0 -> af StaticVar -> af StaticVar
+applySolution0 (Solution0 varSolution tyvar0Solution tyvar1Solution) =
+  applyTypeVar1Solution tyvar1Solution . applyTypeVar0Solution tyvar0Solution . applyVarSolution varSolution
 
-applySolution1 :: forall af. (HasVar StaticVar af, HasTypeVar af) => VarSolution -> TypeVar1Solution -> af StaticVar -> af StaticVar
-applySolution1 varSolution tyvar1Solution entity =
+applySolution1 :: forall af. (HasVar StaticVar af, HasTypeVar af) => Solution1 -> af StaticVar -> af StaticVar
+applySolution1 (Solution1 varSolution tyvar1Solution) entity =
   applyTypeVar1Solution tyvar1Solution (applyVarSolution varSolution entity)
+
+composeSolution0 :: Solution0 -> Solution0 -> Solution0
+composeSolution0 sol1 sol2 =
+  Solution0
+    (composeVarSolution varSolution1 varSolution2)
+    (composeTypeVar0Solution tyvar0Solution1 tyvar0Solution2)
+    (composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2)
+  where
+    Solution0 varSolution1 tyvar0Solution1 tyvar1Solution1 = sol1
+    Solution0 varSolution2 tyvar0Solution2 tyvar1Solution2 = sol2
+
+composeSolution1 :: Solution1 -> Solution1 -> Solution1
+composeSolution1 sol1 sol2 =
+  Solution1
+    (composeVarSolution varSolution1 varSolution2)
+    (composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2)
+  where
+    Solution1 varSolution1 tyvar1Solution1 = sol1
+    Solution1 varSolution2 tyvar1Solution2 = sol2

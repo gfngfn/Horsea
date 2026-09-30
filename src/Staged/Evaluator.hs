@@ -589,8 +589,8 @@ evalTypeExpr0 env = \case
   SA0TyCode a1tye1 -> do
     a1tyv1 <- evalTypeExpr1 env a1tye1
     pure $ A0TyValCode a1tyv1
-  SA0TyForAll atyvar sa0tye1 -> do
-    pure $ A0TyValForAll atyvar sa0tye1
+  SA0TyForAll fab sa0tye1 -> do
+    pure $ A0TyValForAll fab sa0tye1
 
 evalTypeExpr1 :: EvalEnv -> Ass1TypeExpr -> M Ass1TypeVal
 evalTypeExpr1 env = \case
@@ -728,4 +728,4 @@ unliftTypeVal = \case
   A1TyValOmsArrow _label a1tyv1 a1tyv2 ->
     SA0TyArrow (Nothing, SA0TyMaybe (unliftTypeVal a1tyv1)) (unliftTypeVal a1tyv2)
   A1TyValForAll atyvar a1tyv2 ->
-    SA0TyForAll atyvar (unliftTypeVal a1tyv2)
+    SA0TyForAll (ForAll0 atyvar) (unliftTypeVal a1tyv2)
