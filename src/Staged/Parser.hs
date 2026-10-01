@@ -62,6 +62,11 @@ longOrShortUpper = expectToken (^? #_TokLongUpper) <|> (fmap ([],) <$> upper)
 typeVar :: P (Located TypeVar)
 typeVar = fmap TypeVar <$> expectToken (^? #_TokTypeVar)
 
+forAllBinder :: P (Located SrcForAllBinder)
+forAllBinder =
+  (fmap SrcForAll1 <$> (token TokBracket *> typeVar))
+    <|> (fmap SrcForAll0 <$> typeVar)
+
 standaloneOp :: P (Located Text)
 standaloneOp = paren (noLoc operator)
 
@@ -270,7 +275,7 @@ expr, exprAtom :: P Expr
     arrow :: P TypeExpr
     arrow =
       try (makeTyArrow <$> arrowDom <*> (token TokArrow *> arrow))
-        <|> (makeForAll <$> (token TokForall *> typeVar) <*> (token TokArrow *> arrow))
+        <|> (makeForAll <$> (token TokForall *> forAllBinder) <*> (token TokArrow *> arrow))
         <|> flipApp
       where
         makeTyArrow domSpec tye2@(Expr loc2 _) =
@@ -291,8 +296,8 @@ expr, exprAtom :: P Expr
               Expr (mergeSpan loc1 loc2) (TyOmsArrow label (fmap snd varOpt, tye1) tye2)
             DomInferable ((loc1, x), tye1) ->
               Expr (mergeSpan loc1 loc2) (TyInfArrow (x, tye1) tye2)
-        makeForAll (Located loc1 tyvar) tye@(Expr loc2 _) =
-          Expr (mergeSpan loc1 loc2) (TyForAll tyvar tye)
+        makeForAll (Located loc1 fab) tye@(Expr loc2 _) =
+          Expr (mergeSpan loc1 loc2) (TyForAll fab tye)
 
     arrowDom :: P DomainSpec
     arrowDom =
@@ -327,7 +332,7 @@ expr, exprAtom :: P Expr
               MandatoryBinder labelOpt xBinder -> Lam Nothing labelOpt xBinder e
               OmissibleBinder label xBinder -> LamOms label xBinder e
               InferableBinder xBinder -> LamInf xBinder e
-              TypeBinder tyvar -> LamInfType tyvar e
+              TypeBinder fab -> LamInfType fab e
 
         makeRecLam locFirst fBinder xBinder e@(Expr locLast _) =
           Expr (mergeSpan locFirst locLast) (Lam (Just fBinder) Nothing xBinder e)
@@ -386,7 +391,7 @@ lamBinder =
     <|> (makeInferableBinder <$> noLoc (brace (implicitBinderContent <|> typeBinderContent)))
   where
     implicitBinderContent = Left <$> ((,) <$> noLoc lower <*> (token TokColon *> typeExpr))
-    typeBinderContent = Right <$> (token TokType *> noLoc typeVar)
+    typeBinderContent = Right <$> (token TokType *> noLoc forAllBinder)
 
     makeInferableBinder = \case
       Left (x, tye) -> InferableBinder (x, tye)

@@ -537,15 +537,22 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
         pure (result, A0Bracket a1e1)
       Escape _ ->
         typeError trav $ CannotUseEscapeAtStage0 spanInFile
-      LamInfType tyvar1 e2 ->
+      LamInfType fab1 e2 ->
         case appCtx of
           [] -> do
-            atyvar1 <- generateFreshTypeVar tyvar1
-            (a0tye2, a0e2) <- do
-              let tyEnv' = TypeEnv.addTypeVar tyvar1 (TypeVarEntry0 atyvar1) tyEnv
-              typecheckExpr0Single trav tyEnv' e2
-            -- TODO: support `ForAll1` as well:
-            pure (Pure (A0TyForAll (ForAll0 atyvar1) a0tye2), A0LamType (ForAll0 atyvar1) a0e2)
+            case fab1 of
+              SrcForAll0 tyvar1 -> do
+                atyvar1 <- generateFreshTypeVar tyvar1
+                (a0tye2, a0e2) <- do
+                  let tyEnv' = TypeEnv.addTypeVar tyvar1 (TypeVarEntry0 atyvar1) tyEnv
+                  typecheckExpr0Single trav tyEnv' e2
+                pure (Pure (A0TyForAll (ForAll0 atyvar1) a0tye2), A0LamType (ForAll0 atyvar1) a0e2)
+              SrcForAll1 tyvar1 -> do
+                atyvar1 <- generateFreshTypeVar tyvar1
+                (a0tye2, a0e2) <- do
+                  let tyEnv' = TypeEnv.addTypeVar tyvar1 (TypeVarEntry1 atyvar1) tyEnv
+                  typecheckExpr0Single trav tyEnv' e2
+                pure (Pure (A0TyForAll (ForAll1 atyvar1) a0tye2), A0LamType (ForAll1 atyvar1) a0e2)
           _ : _ ->
             -- TODO (enhance): consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamInfTypeWithArguments appCtx
@@ -780,11 +787,16 @@ constructFunTypeExpr0 trav tyEnv params tyeBody = do
               let tyEnv1 = TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv0
               let f1 = f0 . A0TyInfArrow (ax, a0tye)
               pure (tyEnv1, f1)
-            TypeBinder tyvar -> do
-              atyvar <- generateFreshTypeVar tyvar
-              let tyEnv1 = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv0
-              let f1 = f0 . A0TyForAll (ForAll0 atyvar)
-              pure (tyEnv1, f1)
+            TypeBinder fab -> do
+              case fab of
+                SrcForAll0 tyvar -> do
+                  atyvar <- generateFreshTypeVar tyvar
+                  let tyEnv1 = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv0
+                  let f1 = f0 . A0TyForAll (ForAll0 atyvar)
+                  pure (tyEnv1, f1)
+                SrcForAll1 tyvar -> do
+                  let spanInFile = error "TODO (error): constructFunTypeExpr0"
+                  typeError trav $ CannotTakeStagedTypeVarAtStage1 spanInFile tyvar
       )
       (tyEnv, id)
       params
@@ -811,9 +823,13 @@ constructFunTypeExpr1 trav loc tyEnv params tyeBody = do
                 typeError trav $ NonMaybeAnnotForLamOms1 spanInFile' a1tye
           InferableBinder (_x, _tye) ->
             typeError trav $ CannotUseLamInfAtStage1 spanInFile
-          TypeBinder tyvar -> do
-            atyvar <- generateFreshTypeVar tyvar
-            pure $ A1TyForAll atyvar a1tyeAcc
+          TypeBinder fab ->
+            case fab of
+              SrcForAll0 tyvar -> do
+                atyvar <- generateFreshTypeVar tyvar
+                pure $ A1TyForAll atyvar a1tyeAcc
+              SrcForAll1 tyvar -> do
+                typeError trav $ CannotTakeStagedTypeVarAtStage1 spanInFile tyvar
     )
     a1tyeBody
     params
@@ -892,10 +908,16 @@ typecheckLetInBody0 trav tyEnv params tyeBodyOpt e1 =
       (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addVal x (Ass0Entry a0tye (Right svX)) tyEnv) params' tyeBodyOpt e1
       let ax = AssVarStatic svX
       pure (A0TyInfArrow (ax, a0tye) a0tye', A0Lam Nothing (ax, strictify a0tye) a0e')
-    TypeBinder tyvar : params' -> do
-      atyvar <- generateFreshTypeVar tyvar
-      (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv) params' tyeBodyOpt e1
-      pure (A0TyForAll (ForAll0 atyvar) a0tye', A0LamType (ForAll0 atyvar) a0e') -- TODO: support `ForAll1` as well
+    TypeBinder fab : params' ->
+      case fab of
+        SrcForAll0 tyvar -> do
+          atyvar <- generateFreshTypeVar tyvar
+          (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv) params' tyeBodyOpt e1
+          pure (A0TyForAll (ForAll0 atyvar) a0tye', A0LamType (ForAll0 atyvar) a0e')
+        SrcForAll1 tyvar -> do
+          atyvar <- generateFreshTypeVar tyvar
+          (a0tye', a0e') <- typecheckLetInBody0 trav (TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv) params' tyeBodyOpt e1
+          pure (A0TyForAll (ForAll1 atyvar) a0tye', A0LamType (ForAll1 atyvar) a0e')
 
 forceExpr1 :: trav -> TypeEnv -> Ass1TypeExpr -> Expr -> M trav Ass1Expr
 forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
@@ -1366,14 +1388,18 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             )
             result1
         pure (result, A1Escape a0e1)
-      LamInfType tyvar1 e2 ->
+      LamInfType fab1 e2 ->
         case appCtx of
           [] -> do
-            atyvar1 <- generateFreshTypeVar tyvar1
-            (a1tye2, a1e2) <- do
-              let tyEnv' = TypeEnv.addTypeVar tyvar1 (TypeVarEntry1 atyvar1) tyEnv
-              typecheckExpr1Single trav tyEnv' e2
-            pure (Pure (A1TyForAll atyvar1 a1tye2), A1LamType atyvar1 a1e2)
+            case fab1 of
+              SrcForAll0 tyvar1 -> do
+                atyvar1 <- generateFreshTypeVar tyvar1
+                (a1tye2, a1e2) <- do
+                  let tyEnv' = TypeEnv.addTypeVar tyvar1 (TypeVarEntry1 atyvar1) tyEnv
+                  typecheckExpr1Single trav tyEnv' e2
+                pure (Pure (A1TyForAll atyvar1 a1tye2), A1LamType atyvar1 a1e2)
+              SrcForAll1 tyvar1 ->
+                typeError trav $ CannotTakeStagedTypeVarAtStage1 spanInFile tyvar1
           _ : _ ->
             -- TODO (enhance): consider supporting lambda abstractions with direct arguments
             typeError trav $ Unsupported spanInFile $ LamInfTypeWithArguments appCtx
@@ -1431,10 +1457,15 @@ typecheckLetInBody1 trav tyEnv params tyeBodyOpt e1 =
       let Expr loc _ = tye -- TODO (enhance): give a better code position
       spanInFile <- askSpanInFile loc
       typeError trav $ CannotUseLamInfAtStage1 spanInFile
-    TypeBinder tyvar : params' -> do
-      atyvar <- generateFreshTypeVar tyvar
-      (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv) params' tyeBodyOpt e1
-      pure (A1TyForAll atyvar a1tye', A1LamType atyvar a1e')
+    TypeBinder fab : params' ->
+      case fab of
+        SrcForAll0 tyvar -> do
+          atyvar <- generateFreshTypeVar tyvar
+          (a1tye', a1e') <- typecheckLetInBody1 trav (TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv) params' tyeBodyOpt e1
+          pure (A1TyForAll atyvar a1tye', A1LamType atyvar a1e')
+        SrcForAll1 tyvar -> do
+          let spanInFile = error "TODO (error): typecheckLetInBody1"
+          typeError trav $ CannotTakeStagedTypeVarAtStage1 spanInFile tyvar
 
 validateIntLiteral :: trav -> Span -> Ass0Expr -> M trav Int
 validateIntLiteral trav loc a0e =
@@ -1635,12 +1666,20 @@ typecheckTypeExpr0 trav tyEnv (Expr loc tyeMain) = do
           Map.empty
           fields
       pure $ A0TyRecord a0rty
-    TyForAll tyvar tye1 -> do
-      atyvar <- generateFreshTypeVar tyvar
-      a0tye1 <- do
-        let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry0 atyvar) tyEnv
-        typecheckTypeExpr0 trav tyEnv' tye1
-      pure $ A0TyForAll (ForAll0 atyvar) a0tye1 -- TODO: support `ForAll1` as well
+    TyForAll fab1 tye2 ->
+      case fab1 of
+        SrcForAll0 tyvar1 -> do
+          atyvar1 <- generateFreshTypeVar tyvar1
+          a0tye1 <- do
+            let tyEnv' = TypeEnv.addTypeVar tyvar1 (TypeVarEntry0 atyvar1) tyEnv
+            typecheckTypeExpr0 trav tyEnv' tye2
+          pure $ A0TyForAll (ForAll0 atyvar1) a0tye1
+        SrcForAll1 tyvar1 -> do
+          atyvar1 <- generateFreshTypeVar tyvar1
+          a0tye1 <- do
+            let tyEnv' = TypeEnv.addTypeVar tyvar1 (TypeVarEntry1 atyvar1) tyEnv
+            typecheckTypeExpr0 trav tyEnv' tye2
+          pure $ A0TyForAll (ForAll1 atyvar1) a0tye1
     (Literal {}; Var {}; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; FieldProj {}; LamInfType {}; AppInfType {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 
@@ -1814,12 +1853,16 @@ typecheckTypeExpr1 trav tyEnv (Expr loc tyeMain) = do
           Map.empty
           fields
       pure $ A1TyRecord a1rty
-    TyForAll tyvar tye1 -> do
-      atyvar <- generateFreshTypeVar tyvar
-      a1tye1 <- do
-        let tyEnv' = TypeEnv.addTypeVar tyvar (TypeVarEntry1 atyvar) tyEnv
-        typecheckTypeExpr1 trav tyEnv' tye1
-      pure $ A1TyForAll atyvar a1tye1
+    TyForAll fab1 tye2 ->
+      case fab1 of
+        SrcForAll0 tyvar1 -> do
+          atyvar1 <- generateFreshTypeVar tyvar1
+          a1tye2 <- do
+            let tyEnv' = TypeEnv.addTypeVar tyvar1 (TypeVarEntry1 atyvar1) tyEnv
+            typecheckTypeExpr1 trav tyEnv' tye2
+          pure $ A1TyForAll atyvar1 a1tye2
+        SrcForAll1 tyvar1 ->
+          typeError trav $ CannotTakeStagedTypeVarAtStage1 spanInFile tyvar1
     (Literal _; Var _; Lam {}; LetIn {}; LetRecIn {}; LetTupleIn {}; IfThenElse {}; Case {}; As {}; Escape _; LamOms {}; AppOms {}; LamInf {}; AppInfGiven {}; AppInfOmitted {}; LetOpenIn {}; Sequential {}; Tuple {}; FieldProj {}; LamInfType {}; AppInfType {}; Persistent {}) ->
       typeError trav $ InvalidSyntaxAsTypeExpr spanInFile
 

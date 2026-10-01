@@ -503,7 +503,12 @@ instance Disp (ExprMainF ann) where
     TyInfArrow (x, tye1) tye2 -> dispInfArrowType req x tye1 tye2
     TyRefinement x tye1 e2 -> "(" <> disp x <+> ":" <+> disp tye1 <+> "|" <+> disp e2 <+> ")"
     Product tye1 rest -> dispProduct req tye1 (fmap (first snd) rest)
-    TyForAll tyvar tye -> "forall" <+> disp tyvar <+> "->" <+> disp tye
+    TyForAll fab tye -> "forall" <+> disp fab <+> "->" <+> disp tye
+
+instance Disp SrcForAllBinder where
+  dispGen _ = \case
+    SrcForAll0 tyvar -> disp tyvar
+    SrcForAll1 tyvar -> "&" <> disp tyvar
 
 instance Disp (RecordFieldF ann) where
   dispGen _ = \case
@@ -516,7 +521,7 @@ instance Disp (LamBinderF ann) where
     MandatoryBinder (Just label) (x, tye) -> "#" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
     OmissibleBinder label (x, tye) -> "?" <> disp label <+> "(" <> disp x <+> ":" <+> disp tye <> ")"
     InferableBinder (x, tye) -> "{" <> disp x <+> ":" <+> disp tye <> "}"
-    TypeBinder tyvar -> "{type" <+> disp tyvar <+> "}"
+    TypeBinder fab -> "{type" <+> disp fab <+> "}"
 
 instance Disp (BranchF ann) where
   dispGen _ (Branch pat e) = dispBranch pat e
@@ -1116,6 +1121,8 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Variable" <+> disp x <+> "bound more than once in a pattern" <+> disp spanInFile
     Stage0TypeCannotTakeVal0 spanInFile x ->
       "Stage-0 types cannot take value parameters:" <+> disp x <+> disp spanInFile
+    CannotTakeStagedTypeVarAtStage1 spanInFile tyvar ->
+      "Cannot take staged type variables at stage 1: &" <> disp tyvar <+> disp spanInFile
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case

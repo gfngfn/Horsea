@@ -100,6 +100,7 @@ data TypeErrorF sv
   | InvalidConstructorApplication SpanInFile (AppContextF sv) [ModuleName] ConstructorName
   | VarBoundMoreThanOnceInPattern SpanInFile Var
   | Stage0TypeCannotTakeVal0 SpanInFile Var
+  | CannotTakeStagedTypeVarAtStage1 SpanInFile TypeVar
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv

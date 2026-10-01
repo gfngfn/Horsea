@@ -476,7 +476,7 @@ spec = do
           [ Bind () $
               BindVal Stage0 "app" $
                 BindValExternal
-                  (tyForAll (TypeVar "a") $ tyForAll (TypeVar "b") $ tyNondepFun (tyNondepFun (tyVar "a") (tyVar "b")) (tyNondepFun (tyVar "a") (tyVar "b")))
+                  (tyForAll0 (TypeVar "a") $ tyForAll0 (TypeVar "b") $ tyNondepFun (tyNondepFun (tyVar "a") (tyVar "b")) (tyNondepFun (tyVar "a") (tyVar "b")))
                   [("builtin", "app"), ("surface", "app")]
           ]
     it "parses single, stage-1 type binding" $

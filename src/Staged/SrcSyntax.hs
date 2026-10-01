@@ -4,6 +4,7 @@ module Staged.SrcSyntax
     Literal (..),
     ExprF (..),
     ExprMainF (..),
+    SrcForAllBinder (..),
     RecordFieldF (..),
     LamBinderF (..),
     TypeParamBinderF (..),
@@ -90,7 +91,7 @@ data ExprMainF ann
   | Product (ExprF ann) (NonEmpty ((ann, Var), ExprF ann))
   | Record [(Label, RecordFieldF ann)]
   | FieldProj (ExprF ann) Label
-  | LamInfType TypeVar (ExprF ann)
+  | LamInfType SrcForAllBinder (ExprF ann)
   | AppInfType (ExprF ann) (TypeExprF ann)
   | Persistent (ExprF ann)
   | TyVar TypeVar
@@ -98,8 +99,13 @@ data ExprMainF ann
   | TyOmsArrow Text (Maybe Var, TypeExprF ann) (TypeExprF ann)
   | TyInfArrow (Var, TypeExprF ann) (TypeExprF ann)
   | TyRefinement Var (TypeExprF ann) (ExprF ann)
-  | TyForAll TypeVar (TypeExprF ann)
+  | TyForAll SrcForAllBinder (TypeExprF ann)
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
+
+data SrcForAllBinder
+  = SrcForAll0 TypeVar
+  | SrcForAll1 TypeVar
+  deriving stock (Eq, Show, Generic)
 
 data RecordFieldF ann
   = RecordFieldEqual (ExprF ann)
@@ -110,7 +116,7 @@ data LamBinderF ann
   = MandatoryBinder (Maybe Label) (Var, TypeExprF ann)
   | OmissibleBinder Label (Var, TypeExprF ann)
   | InferableBinder (Var, TypeExprF ann)
-  | TypeBinder TypeVar
+  | TypeBinder SrcForAllBinder
   deriving stock (Eq, Show, Functor, Foldable, Traversable, Generic)
 
 data TypeParamBinderF ann
