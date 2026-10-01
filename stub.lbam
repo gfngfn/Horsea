@@ -10,6 +10,8 @@ val %( +. ) : Float -> Float -> Float
   external (builtin = "float_add", surface = "+.")
 val %( -. ) : Float -> Float -> Float
   external (builtin = "float_sub", surface = "-.")
+val %( *. ) : Float -> Float -> Float
+  external (builtin = "float_mult", surface = "*.")
 val %( / ) : Float -> Float -> Float
   external (builtin = "float_div", surface = "/")
 val %mod : Int -> Int -> Int
@@ -56,6 +58,8 @@ val %show_float : Float -> String
 
 val ~lift_int : Int -> &Int
   external (builtin = "lift_int", surface = "lift_int")
+val ~lift_float : Float -> &Float
+  external (builtin = "lift_float", surface = "lift_float")
 val ~lift_string : String -> &String
   external (builtin = "lift_string", surface = "lift_string")
 
@@ -101,6 +105,8 @@ end
 module Float = struct
   val %max : Float -> Float -> Float
     external (builtin = "float__max", surface = "max")
+  val %min : Float -> Float -> Float
+    external (builtin = "float__min", surface = "min")
   val %of_int : Int -> Float
     external (builtin = "float__of_int", surface = "of_int")
 end
@@ -147,6 +153,8 @@ module List = struct
     external (builtin = "list__initialize", surface = "initialize")
   val %equal : forall 'a -> ('a -> 'a -> Bool) -> List 'a -> List 'a -> Bool
     external (builtin = "list__equal", surface = "equal")
+  val ~head : forall 'a -> {xs : List 'a | length xs >= 1} -> 'a
+    external (builtin = "list__head", surface = "head")
   val ~tail : forall 'a -> {xs : List 'a | length xs >= 1} -> List 'a
     external (builtin = "list__tail", surface = "tail")
   val ~init : forall 'a -> {xs : List 'a | length xs >= 1} -> List 'a
@@ -176,6 +184,18 @@ end
 module Unix = struct
   val gettimeofday : Unit -> Int
     external (builtin = "unix__gettimeofday", surface = "gettimeofday")
+end
+
+type Array 'a %(n : Nat) =
+  | Array
+
+module Array = struct
+  val ~gen_get :
+    {len : Nat} -> (n : {k : Nat | k < len}) -> &(forall 'a -> Array 'a %len -> 'a)
+    external (builtin = "array__gen_get", surface = "get")
+  val ~gen_of_list :
+    forall &'a -> (xs : List &'a) -> &(Array 'a %(List.length xs))
+    external (builtin = "array__gen_of_list", surface = "of_list")
 end
 
 module Device = struct
@@ -265,7 +285,7 @@ module Tensor = struct
     external (builtin = "tensor__gen_argmax", surface = "argmax")
   val ~gen_cross_entropy_for_logits :
     {shape : {s : List Nat | List.length s == 2}} ->
-    &(Tensor %shape -> #targets Tensor %[List.nth 0 shape] -> Tensor %[])
+    &(Tensor %shape -> #targets Tensor %[List.head shape] -> Tensor %[])
     external (builtin = "tensor__gen_cross_entropy_for_logits", surface = "cross_entropy_for_logits")
   val ~gen_multinomial :
     {shape : {s : List Nat | List.length s >= 1}} ->
@@ -306,15 +326,17 @@ module Tensor = struct
     external (builtin = "tensor__gen_contiguous", surface = "contiguous")
   val ~gen_eq_scalar :
     {shape : List Nat} ->
-    &(Tensor %shape ->
-      Tensor %[] ->
-      Tensor %shape
-    )
+    &(Tensor %shape -> Tensor %[] -> Tensor %shape)
     external (builtin = "tensor__gen_eq_scalar", surface = "eq_scalar")
   val ~gen_get :
-    {shape : List Nat} ->
-    &(Tensor %shape -> Int -> Tensor %(List.tail shape))
+    {shape : {s : List Nat | List.length s >= 1}} ->
+    {n : Nat | n < List.head shape} ->
+    &(Tensor %shape -> Tensor %(List.tail shape))
     external (builtin = "tensor__gen_get", surface = "get")
+  val ~gen_decompose_dim0 :
+    {shape : {s : List Nat | List.length s >= 1}} ->
+    &(Tensor %shape -> List (Tensor %(List.tail shape)))
+    external (builtin = "tensor__gen_decompose_dim0", surface = "decompose_dim0")
   val ~gen_iter_dim0 :
     {shape : {s : List Nat | List.length s >= 1}} ->
     &((Tensor %(List.tail shape) -> Unit) -> Tensor %shape -> Unit)
@@ -323,6 +345,10 @@ module Tensor = struct
     {shape : {s : List Nat | List.length s == 1}} ->
     &(Tensor %shape -> List Float)
     external (builtin = "tensor__gen_to_list1", surface = "to_list1")
+  val ~gen_to_array1 :
+    {shape : {s : List Nat | List.length s == 1}} ->
+    &(Tensor %shape -> Array Float %(List.head shape))
+    external (builtin = "tensor__gen_to_array1", surface = "to_array1")
   val ~gen_fill_float : {shape : List Nat} -> &(Tensor %shape -> Float -> Unit)
     external (builtin = "tensor__gen_fill_float", surface = "fill_float")
   val ~gen_dropout :
@@ -803,7 +829,7 @@ module TorchVision = struct
       &(VarStore ->
         #is_training Bool ->
         Tensor %image_shape ->
-        Tensor %[List.nth 0 image_shape, num_classes]
+        Tensor %[List.head image_shape, num_classes]
       )
       external (builtin = "torch_vision__resnet__gen_resnet18", surface = "resnet18")
   end
@@ -842,7 +868,7 @@ module TorchVision = struct
       &(VarStore ->
         #is_training Bool ->
         Tensor %image_shape ->
-        Tensor %[List.nth 0 image_shape, num_classes]
+        Tensor %[List.head image_shape, num_classes]
       )
       external (builtin = "torch_vision__vgg__gen_vgg11", surface = "vgg11")
   end

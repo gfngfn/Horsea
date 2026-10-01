@@ -401,6 +401,14 @@ definitions =
                     zipped
           pure $ A0ValLiteral (ALitBool b)
         |],
+    versatile ["list"] "head" ForStage0 1 $
+      [|
+        do
+          a0vs <- validateListValue a0v1
+          case a0vs of
+            [] -> evalError $ Bug $ GeneralBuiltInError "List.head; empty list"
+            a0v : _ -> pure a0v
+        |],
     versatile ["list"] "tail" ForStage0 1 $
       [|
         do
