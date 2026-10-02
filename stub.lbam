@@ -26,6 +26,10 @@ val %( > ) : Int -> Int -> Bool
   external (builtin = "int_gt", surface = ">")
 val %( == ) : Int -> Int -> Bool
   external (builtin = "int_equal", surface = "==")
+val %( <. ) : Float -> Float -> Bool
+  external (builtin = "float_lt", surface = "<.")
+val %( >. ) : Float -> Float -> Bool
+  external (builtin = "float_gt", surface = ">.")
 val %( && ) : Bool -> Bool -> Bool
   external (builtin = "and", surface = "&&")
 val %( || ) : Bool -> Bool -> Bool
@@ -55,6 +59,9 @@ val %show_int : Int -> String
   external (builtin = "show_int", surface = "show_int")
 val %show_float : Float -> String
   external (builtin = "show_float", surface = "show_float")
+
+val %general_compare : forall 'a -> 'a -> 'a -> Int
+  external (builtin = "general_compare", surface = "general_compare")
 
 val ~lift_int : Int -> &Int
   external (builtin = "lift_int", surface = "lift_int")
@@ -153,6 +160,10 @@ module List = struct
     external (builtin = "list__initialize", surface = "initialize")
   val %equal : forall 'a -> ('a -> 'a -> Bool) -> List 'a -> List 'a -> Bool
     external (builtin = "list__equal", surface = "equal")
+  val %filter_maybe : forall 'a -> List (Maybe 'a) -> List 'a
+    external (builtin = "list__filter_maybe", surface = "filter_maybe")
+  val %sort_by : forall 'a -> ('a -> 'a -> Int) -> List 'a -> List 'a
+    external (builtin = "list__sort_by", surface = "sort_by")
   val ~head : forall 'a -> {xs : List 'a | length xs >= 1} -> 'a
     external (builtin = "list__head", surface = "head")
   val ~tail : forall 'a -> {xs : List 'a | length xs >= 1} -> List 'a
@@ -189,13 +200,30 @@ end
 type Array 'a %(n : Nat) =
   | Array
 
+type Index %(n : Nat) =
+  | Index
+
 module Array = struct
   val ~gen_get :
-    forall &'a -> {len : Nat} -> (n : {k : Nat | k < len}) -> &(Array 'a %len -> 'a)
+    forall &'e -> {len : Nat} -> (n : {k : Nat | k < len}) -> &(Array 'e %len -> 'e)
     external (builtin = "array__gen_get", surface = "get")
+  val ~gen_get_at_runtime :
+    forall &'e -> {len : Nat} -> &(Index %len -> Array 'e %len -> 'e)
+    external (builtin = "array__gen_get_at_runtime", surface = "get_at_runtime")
   val ~gen_of_list :
-    forall &'a -> (xs : List &'a) -> &(Array 'a %(List.length xs))
+    forall &'e -> (xs : List &'e) -> &(Array 'e %(List.length xs))
     external (builtin = "array__gen_of_list", surface = "of_list")
+  val ~gen_foldi :
+    forall &'e -> forall &'a ->
+    {len : Nat} -> &((Index %len -> 'a -> 'e -> 'a) -> 'a -> Array 'e %len -> 'a)
+    external (builtin = "array__gen_foldi", surface = "foldi")
+end
+
+module Index = struct
+  val ~gen_to_int : {len : Nat} -> &(Index %len -> Int)
+    external (builtin = "index__to_int", surface = "to_int")
+  val ~gen_from_int : {len : Nat} -> (n : {k : Nat | k < len}) -> &(Index %len)
+    external (builtin = "index__from_int", surface = "from_int")
 end
 
 module Device = struct

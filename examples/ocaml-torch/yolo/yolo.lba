@@ -3,52 +3,38 @@
 *)
 
 let config_filename = "examples/yolo/yolo-v3.cfg" in
-let confidence_threshold = 0.5 in
 let nms_threshold = 0.4 in
 let classes = CocoNames.names in
-
-let iou (b1 : BBox) (b2 : BBox) =
-  let b1_area = (b1.xmax -. b1.xmin +. 1.0) *. (b1.ymax -. b1.ymin +. 1.0) in
-  let b2_area = (b2.xmax -. b2.xmin +. 1.0) *. (b2.ymax -. b2.ymin +. 1.0) in
-  let i_xmin = Float.max b1.xmin b2.xmin in
-  let i_xmax = Float.min b1.xmax b2.xmax in
-  let i_ymin = Float.max b1.ymin b2.ymin in
-  let i_ymax = Float.min b1.ymax b2.ymax in
-  let i_area =
-    Float.max 0.0 (i_xmax -. i_xmin +. 1.0) *. Float.max 0.0 (i_ymax -. i_ymin +. 1.0)
-  in
-  i_area / (b1_area +. b2_area -. i_area)
-in
 
 (* [image] is the original image. [width] and [height] are the model [width] on
    [height] relative to which bounding boxes have been computed.
 *)
-let report {m : Nat} {n : Nat} =
+let report {m : Nat} {n : {k : Nat | k >= 5}} {initial_height : Nat} {initial_width : Nat} =
   &(fun(predictions : Tensor %[m, n]) ->
-    fun(image : Tensor %[foo, bar, initial_height, initial_width]) ->
-    fun #width (width : Nat) ->
-    fun #height (height : Nat) ->
+    fun(image : Tensor %[4423, 890890, initial_height, initial_width]) ->
+    fun #width (width : Int) ->
+    fun #height (height : Int) ->
       let bboxes =
-        ~Tensor.gen_decompose_dim0 predictions |> List.map (fun (row : Tensor %n) ->
+        ~Tensor.gen_decompose_dim0 predictions |> List.map (fun (row : Tensor %[n]) ->
           let predictions = row |> ~Tensor.gen_to_array1 in
           let confidence = ~(Array.gen_get 4) predictions in
-          if (let open Float in ( > )) confidence confidence_threshold then
-            let xmin = Array.get 0 predictions -. (Array.get 2 predictions / 2.0) in
-            let ymin = Array.get 1 predictions -. (Array.get 3 predictions / 2.0) in
-            let xmax = Array.get 0 predictions +. (Array.get 2 predictions / 2.0) in
-            let ymax = Array.get 1 predictions +. (Array.get 3 predictions / 2.0) in
+          if confidence >. confidence_threshold then
+            let xmin = ~(Array.gen_get 0) predictions -. (~(Array.gen_get 2) predictions / 2.0) in
+            let ymin = ~(Array.gen_get 1) predictions -. (~(Array.gen_get 3) predictions / 2.0) in
+            let xmax = ~(Array.gen_get 0) predictions +. (~(Array.gen_get 2) predictions / 2.0) in
+            let ymax = ~(Array.gen_get 1) predictions +. (~(Array.gen_get 3) predictions / 2.0) in
             let best_class_index =
-              predictions |> Array.foldi (fun(index : Nat) -> fun(max_index : Nat) -> fun(v : Float) ->
-                if index > 5 && (let open Float in ( < )) (Array.get max_index predictions) v then
+              predictions |> ~Array.gen_foldi (fun(index : Index %n) -> fun(max_index : Index %n) -> fun(v : Float) ->
+                if ~Index.gen_to_int index > 5 && ~Array.gen_get_at_runtime max_index predictions <. v then
                   index
                 else
                   max_index
-              ) 5
+              ) ~(Index.gen_from_int {n} 5)
             in
-            let class_confidence = Array.get best_class_index predictions in
-            let class_index = best_class_index - 5 in
-            if (let open Float in ( > )) class_confidence 0.0 then
-              Some (|
+            let class_confidence = ~Array.gen_get_at_runtime best_class_index predictions in
+            let class_index = ~Index.gen_to_int best_class_index - 5 in
+            if class_confidence >. 0.0 then
+              Just (|
                 xmin = xmin,
                 ymin = ymin,
                 xmax = xmax,
@@ -58,21 +44,21 @@ let report {m : Nat} {n : Nat} =
                 class_confidence = class_confidence
               |)
             else
-              None
+              Nothing as Maybe BBox
           else
-            None
-        ) |> List.filter_opt
+            Nothing as Maybe BBox
+        ) |> List.filter_maybe
       in
       let bboxes =
         (* Group bboxes by class-index. *)
         bboxes
           |> List.map (fun (bbox : BBox) -> (bbox.class_index, (bbox.confidence, bbox)))
-          |> Map.of_alist_multi (* (module Int) *)
-          |> Map.to_alist
-          |> List.concat_map (fun (pair : Int * BBox) ->
+          |> IntMap.of_alist_multi
+          |> IntMap.to_alist
+          |> List.concat_map (fun (pair : Int * (Float * List BBox)) ->
             let (unused, bboxes) = pair in
             (* NMS suppression. *)
-            let bboxes = List.sort Caml.compare bboxes |> List.rev_map snd in
+            let bboxes = bboxes |> List.sort_by general_compare |> List.rev_map snd in
             bboxes |> List.fold (fun(acc_bboxes : List BBox) -> fun(bbox : BBox) ->
               let drop =
                 List.exists

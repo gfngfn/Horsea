@@ -1,4 +1,4 @@
-type ~BBox = (|
+type BBox = (|
   xmin : Float,
   ymin : Float,
   xmax : Float,
@@ -10,6 +10,16 @@ type ~BBox = (|
 
 module CocoNames = struct
   val ~names = [] as List String (* TODO *)
+end
+
+type Map 'a 'b =
+  | Map
+
+module IntMap = struct
+  val of_alist_multi : forall 'a -> List (Int * 'a) -> Map Int (List 'a)
+    external (builtin = "map__of_alist_multi", surface = "of_alist_multi")
+  val to_alist : forall 'a -> Map Int 'a -> List (Int * 'a)
+    external (builtin = "map__to_alist", surface = "to_alist")
 end
 
 val colors =
@@ -28,3 +38,17 @@ val colors =
           ]
       )
   )
+
+val confidence_threshold = 0.5
+
+val iou (b1 : BBox) (b2 : BBox) =
+  let b1_area = (b1.xmax -. b1.xmin +. 1.0) *. (b1.ymax -. b1.ymin +. 1.0) in
+  let b2_area = (b2.xmax -. b2.xmin +. 1.0) *. (b2.ymax -. b2.ymin +. 1.0) in
+  let i_xmin = Float.max b1.xmin b2.xmin in
+  let i_xmax = Float.min b1.xmax b2.xmax in
+  let i_ymin = Float.max b1.ymin b2.ymin in
+  let i_ymax = Float.min b1.ymax b2.ymax in
+  let i_area =
+    Float.max 0.0 (i_xmax -. i_xmin +. 1.0) *. Float.max 0.0 (i_ymax -. i_ymin +. 1.0)
+  in
+  i_area / (b1_area +. b2_area -. i_area)
