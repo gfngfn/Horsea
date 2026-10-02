@@ -1320,6 +1320,7 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
   dispGen req = \case
     A0TyValPrim a0tyvPrim Nothing -> dispGen req a0tyvPrim
     A0TyValPrim a0tyvPrim (Just a0vPred) -> dispInternalRefinementType req a0tyvPrim a0vPred
+    A0TyValData datatyId a0datatyArgVals -> dispDatatype req datatyId a0datatyArgVals
     A0TyValList a0tyv1 Nothing -> dispListType req a0tyv1
     A0TyValList a0tyv1 (Just a0vPred) -> dispInternalRefinementListType req a0tyv1 a0vPred
     A0TyValMaybe a0tyv1 -> dispMaybeType req a0tyv1
@@ -1330,6 +1331,11 @@ instance (Disp sv) => Disp (Ass0TypeValF sv) where
     A0TyValArrow (xOpt, a0tyv1) a0tye2 -> dispArrowType req Nothing xOpt a0tyv1 a0tye2
     A0TyValCode a1tyv1 -> dispBracket a1tyv1
     A0TyValForAll fab sa0tye1 -> dispForAllType req fab sa0tye1
+
+instance (Disp sv) => Disp (Ass0DatatypeArgValF sv) where
+  dispGen req = \case
+    A0DatatypeArgValType a0tyv -> dispGen req a0tyv
+    A0DatatypeArgValVal0 sa0v -> dispGen req sa0v
 
 instance (Disp sv) => Disp (Ass1TypeValF sv) where
   dispGen req = \case

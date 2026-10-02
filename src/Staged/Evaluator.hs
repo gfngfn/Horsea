@@ -588,8 +588,9 @@ evalTypeExpr0 env = \case
     a0tyv1 <- evalTypeExpr0 env sa0tye1
     maybeVPred <- mapM (evalExpr0 env) maybePred
     pure $ A0TyValList a0tyv1 maybeVPred
-  SA0TyData _datatyId _sa0datatyArgs -> do
-    error "TODO: evalTypeExpr0, SA0TyData"
+  SA0TyData datatyId sa0datatyArgs -> do
+    a0datatyArgVals <- mapM (evalDatatypeArg0 env) sa0datatyArgs
+    pure $ A0TyValData datatyId a0datatyArgVals
   SA0TyMaybe sa0tye1 -> do
     a0tyv1 <- evalTypeExpr0 env sa0tye1
     pure $ A0TyValMaybe a0tyv1
@@ -607,6 +608,11 @@ evalTypeExpr0 env = \case
     pure $ A0TyValCode a1tyv1
   SA0TyForAll fab sa0tye1 -> do
     pure $ A0TyValForAll fab sa0tye1
+
+evalDatatypeArg0 :: EvalEnv -> StrictAss0DatatypeArg -> M Ass0DatatypeArgVal
+evalDatatypeArg0 env = \case
+  SA0DatatypeArgType sa0tye -> A0DatatypeArgValType <$> evalTypeExpr0 env sa0tye
+  SA0DatatypeArgVal0 a0v -> pure $ A0DatatypeArgValVal0 a0v
 
 evalTypeExpr1 :: EvalEnv -> Ass1TypeExpr -> M Ass1TypeVal
 evalTypeExpr1 env = \case

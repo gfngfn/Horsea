@@ -37,6 +37,7 @@ module Staged.Syntax
     Ass1ValF (..),
     Ass1BranchValF (..),
     Ass0TypeValF (..),
+    Ass0DatatypeArgValF (..),
     Ass1TypeValF (..),
     Ass1DatatypeArgValF (..),
     Ass1PrimTypeVal (..),
@@ -79,6 +80,7 @@ module Staged.Syntax
     Ass1Val,
     Ass1BranchVal,
     Ass0TypeVal,
+    Ass0DatatypeArgVal,
     Ass1TypeVal,
     Ass1DatatypeArgVal,
     Ass1PrimType,
@@ -430,6 +432,8 @@ data Ass1BranchValF sv = A1ValBranch (Ass1PatternF sv) (Ass1ValF sv)
 data Ass0TypeValF sv
   = -- | Primitive types possibly equipped with a refinement predicate.
     A0TyValPrim Ass0PrimType (Maybe (Ass0ValF sv))
+  | -- | Datatypes.
+    A0TyValData DatatypeId [Ass0DatatypeArgValF sv]
   | -- | List types possibly equipped with a refinement predicate.
     A0TyValList (Ass0TypeValF sv) (Maybe (Ass0ValF sv))
   | A0TyValMaybe (Ass0TypeValF sv)
@@ -438,6 +442,11 @@ data Ass0TypeValF sv
   | A0TyValArrow (Maybe (AssVarF sv), Ass0TypeValF sv) (StrictAss0TypeExprF sv)
   | A0TyValCode (Ass1TypeValF sv)
   | A0TyValForAll ForAllBinder (StrictAss0TypeExprF sv)
+  deriving stock (Eq, Show, Functor)
+
+data Ass0DatatypeArgValF sv
+  = A0DatatypeArgValType (Ass0TypeValF sv)
+  | A0DatatypeArgValVal0 (StrictAss0ValF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-1 type values.
@@ -738,6 +747,8 @@ type Ass1Val = Ass1ValF StaticVar
 type Ass1BranchVal = Ass1BranchValF StaticVar
 
 type Ass0TypeVal = Ass0TypeValF StaticVar
+
+type Ass0DatatypeArgVal = Ass0DatatypeArgValF StaticVar
 
 type Ass1TypeVal = Ass1TypeValF StaticVar
 
