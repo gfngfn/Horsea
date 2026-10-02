@@ -1012,7 +1012,15 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             case ctorEntry of
               Ass1Constructor a1tyParams a1tyes datatyId -> do
                 let a1tye = makeConstructorType1 a1tyParams a1tyes datatyId
-                (result, _) <- instantiateGuidedByAppContext1 trav loc (TypeEnv.datatypeOnly tyEnv) Set.empty appCtx a1tye
+                (result, _solution) <-
+                  instantiateGuidedByAppContext1
+                    trav
+                    loc
+                    (TypeEnv.datatypeOnly tyEnv)
+                    Set.empty
+                    Set.empty
+                    appCtx
+                    a1tye
                 pure (result, A1Constructor ctor)
           Nothing ->
             case mods of
@@ -1085,7 +1093,15 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             typeError trav $ CannotApplyLiteral spanInFile
       Var (ms, x) -> do
         (a1tye, a1e) <- typecheckValVar1 trav loc tyEnv ms x
-        (result, _) <- instantiateGuidedByAppContext1 trav loc (TypeEnv.datatypeOnly tyEnv) Set.empty appCtx a1tye
+        (result, _solution) <-
+          instantiateGuidedByAppContext1
+            trav
+            loc
+            (TypeEnv.datatypeOnly tyEnv)
+            Set.empty
+            Set.empty
+            appCtx
+            a1tye
         pure (result, a1e)
       Lam recOpt labelOpt (x1, tye1) e2 ->
         case appCtx of
@@ -1302,11 +1318,12 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
           A1TyRecord a1rty1 ->
             case Map.lookup label a1rty1 of
               Just a1tyeSub -> do
-                (result, _) <-
+                (result, _solution) <-
                   instantiateGuidedByAppContext1
                     trav
                     loc
                     (TypeEnv.datatypeOnly tyEnv)
+                    Set.empty
                     Set.empty
                     appCtx
                     a1tyeSub

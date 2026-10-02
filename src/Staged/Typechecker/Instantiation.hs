@@ -134,9 +134,8 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
                   (applySolution0 solution' a0tye1)
               pure (InsertInferred0 (applyCast0 cast' a0eInferred) result', Solution0 (Map.delete x varSolution') tyvar0Solution' tyvar1Solution')
         (_ : _, A0TyCode a1tye) -> do
-          (result', varSolution) <- instantiateGuidedByAppContext1 trav loc datatyEnv varsToInfer appCtx a1tye
+          (result', Solution1 varSolution tyvar1Solution) <- instantiateGuidedByAppContext1 trav loc datatyEnv varsToInfer tyvars1ToInfer appCtx a1tye
           let tyvar0Solution = Map.empty
-          let tyvar1Solution = Map.empty
           result <- mapMPure (pure . A0TyCode) result'
           pure (result, Solution0 varSolution tyvar0Solution tyvar1Solution)
         (appCtxEntry : appCtx', A0TyForAll fab a0tye2) -> do
@@ -157,16 +156,35 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
                     Nothing -> do
                       spanInFile <- askSpanInFile loc
                       typeError trav $ CannotInferTypeVariableInstance0 spanInFile atyvar appCtx a0tye
-            ForAll1 _ ->
-              error "TODO: instantiateGuidedByAppContext0, ForAll1"
+            ForAll1 atyvar ->
+              case appCtxEntry of
+                AppArgInfTypeGiven0 a0tye1' ->
+                  case a0tye1' of
+                    A0TyCode a1tye1' -> do
+                      (result', solution') <-
+                        go varsToInfer tyvars0ToInfer tyvars1ToInfer appCtx' (tySubst1 a1tye1' atyvar a0tye2)
+                      pure (Instantiated0 result', solution')
+                    _ -> do
+                      spanInFile <- askSpanInFile loc
+                      typeError trav $ NotAStage1TypeVarInstantiation spanInFile a0tye1'
+                _ -> do
+                  -- Recurses by using `appCtx`, not `appCtx'`:
+                  (result', Solution0 varSolution' tyvar0Solution' tyvar1Solution') <-
+                    go varsToInfer tyvars0ToInfer (Set.insert atyvar tyvars1ToInfer) appCtx a0tye2
+                  case Map.lookup atyvar tyvar1Solution' of
+                    Just a1tyeInferred ->
+                      pure (InsertInferredType0 (A0TyCode a1tyeInferred) result', Solution0 varSolution' tyvar0Solution' (Map.delete atyvar tyvar1Solution'))
+                    Nothing -> do
+                      spanInFile <- askSpanInFile loc
+                      typeError trav $ CannotInferTypeVariableInstance0 spanInFile atyvar appCtx a0tye
         _ -> do
           spanInFile <- askSpanInFile loc
           typeError trav $ CannotInstantiateGuidedByAppContext0 spanInFile appCtx a0tye
 
-instantiateGuidedByAppContext1 :: forall trav. trav -> Span -> DatatypeEnv -> Set AssVar -> AppContext -> Ass1TypeExpr -> M trav (Result1, VarSolution)
-instantiateGuidedByAppContext1 trav loc datatyEnv varsToInfer0 appCtx0 a1tye0 = do
-  (result, Solution1 varSolution _tyvar1Solution) <- go varsToInfer0 Set.empty appCtx0 a1tye0
-  pure (result, varSolution)
+instantiateGuidedByAppContext1 :: forall trav. trav -> Span -> DatatypeEnv -> Set AssVar -> Set AssTypeVar -> AppContext -> Ass1TypeExpr -> M trav (Result1, Solution1)
+instantiateGuidedByAppContext1 trav loc datatyEnv varsToInfer' tyvars1ToInfer' appCtx0 a1tye0 = do
+  (result, solution) <- go varsToInfer' tyvars1ToInfer' appCtx0 a1tye0
+  pure (result, solution)
   where
     go :: Set AssVar -> Set AssTypeVar -> AppContext -> Ass1TypeExpr -> M trav (Result1, Solution1)
     go varsToInfer tyvars1ToInfer appCtx a1tye =

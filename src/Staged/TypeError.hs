@@ -101,6 +101,7 @@ data TypeErrorF sv
   | VarBoundMoreThanOnceInPattern SpanInFile Var
   | Stage0TypeCannotTakeVal0 SpanInFile Var
   | CannotTakeStagedTypeVarAtStage1 SpanInFile TypeVar
+  | NotAStage1TypeVarInstantiation SpanInFile (Ass0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv

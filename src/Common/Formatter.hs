@@ -1123,6 +1123,11 @@ instance (Disp sv) => Disp (TypeErrorF sv) where
       "Stage-0 types cannot take value parameters:" <+> disp x <+> disp spanInFile
     CannotTakeStagedTypeVarAtStage1 spanInFile tyvar ->
       "Cannot take staged type variables at stage 1: &" <> disp tyvar <+> disp spanInFile
+    NotAStage1TypeVarInstantiation spanInFile a0tye ->
+      "Not a stage-1 type variable instantiation"
+        <+> disp spanInFile
+        <> hardline
+        <> nest 2 (hardline <> stage0Style (disp a0tye))
 
 instance (Disp sv) => Disp (ConditionalMergeErrorF sv) where
   dispGen _ = \case

@@ -285,7 +285,7 @@ makeAssertiveCast trav loc datatyEnv =
           pure (cast, solution)
         (A0TyCode a1tye1, A0TyCode a1tye2) -> do
           (eq, Solution1 varSolution tyvar1Solution) <-
-            makeEquation1 trav loc datatyEnv varsToInfer Set.empty a1tye1 a1tye2
+            makeEquation1 trav loc datatyEnv varsToInfer tyvars1ToInfer a1tye1 a1tye2
           let tyvar0Solution = Map.empty
           pure (A0TyEqAssert loc <$> eq, Solution0 varSolution tyvar0Solution tyvar1Solution)
         (_, _) ->

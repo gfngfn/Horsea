@@ -191,7 +191,7 @@ type Array 'a %(n : Nat) =
 
 module Array = struct
   val ~gen_get :
-    {len : Nat} -> (n : {k : Nat | k < len}) -> &(forall 'a -> Array 'a %len -> 'a)
+    forall &'a -> {len : Nat} -> (n : {k : Nat | k < len}) -> &(Array 'a %len -> 'a)
     external (builtin = "array__gen_get", surface = "get")
   val ~gen_of_list :
     forall &'a -> (xs : List &'a) -> &(Array 'a %(List.length xs))
