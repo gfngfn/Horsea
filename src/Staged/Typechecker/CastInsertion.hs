@@ -3,7 +3,9 @@ module Staged.Typechecker.CastInsertion
     applyCast1,
     applyEquationCast,
     makeAssertiveCast,
+    makeAssertiveCast',
     makeEquation1,
+    makeEquation1',
   )
 where
 
@@ -325,6 +327,18 @@ makeAssertiveCast trav loc datatyEnv =
           x <- AssVarStatic <$> generateFreshVar Nothing
           pure $ Just (A0Lam Nothing (x, strictify a0tye1) (A0RefinementAssert loc a0ePred2 (A0Var x)))
 
+makeAssertiveCast' :: forall trav. trav -> Span -> DatatypeEnv -> Ass0TypeExpr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr)
+makeAssertiveCast' trav loc datatyEnv a0tyeSynth a0tyeReq = do
+  (cast, _solution) <-
+    makeAssertiveCast
+      trav
+      loc
+      datatyEnv
+      (SetToInfer0 Set.empty Set.empty Set.empty)
+      a0tyeSynth
+      a0tyeReq
+  pure cast
+
 -- | The core part of the cast insertion for stage 1.
 makeEquation1 :: forall trav. trav -> Span -> DatatypeEnv -> SetToInfer1 -> Ass1TypeExpr -> Ass1TypeExpr -> M trav (Maybe Type1Equation, Solution1)
 makeEquation1 trav loc datatyEnv setToInferInit a1tye1Whole a1tye2Whole = do
@@ -544,3 +558,15 @@ makeEquation1 trav loc datatyEnv setToInferInit a1tye1Whole a1tye2Whole = do
           let trivial = alphaEquivalent a0eList1 a0eList2
           let listEq = ListEqByWhole a0eList1 a0eList2
           pure (trivial, listEq, Map.empty)
+
+makeEquation1' :: forall trav. trav -> Span -> DatatypeEnv -> Ass1TypeExpr -> Ass1TypeExpr -> M trav (Maybe Type1Equation)
+makeEquation1' trav loc datatyEnv a1tyeSynth a1tyeReq = do
+  (eq, _solution) <-
+    makeEquation1
+      trav
+      loc
+      datatyEnv
+      (SetToInfer1 Set.empty Set.empty)
+      a1tyeSynth
+      a1tyeReq
+  pure eq

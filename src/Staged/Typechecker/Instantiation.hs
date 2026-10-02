@@ -123,7 +123,14 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
                   (applySolution0 solution' a0tye1)
               pure (InsertInferred0 (applyCast0 cast' a0eInferred) result', Solution0 (Map.delete x varSolution') tyvar0Solution' tyvar1Solution')
         (_ : _, A0TyCode a1tye) -> do
-          (result', Solution1 varSolution tyvar1Solution) <- instantiateGuidedByAppContext1 trav loc datatyEnv (SetToInfer1 varsToInfer tyvars1ToInfer) appCtx a1tye
+          (result', Solution1 varSolution tyvar1Solution) <-
+            instantiateGuidedByAppContext1'
+              trav
+              loc
+              datatyEnv
+              (SetToInfer1 varsToInfer tyvars1ToInfer)
+              appCtx
+              a1tye
           let tyvar0Solution = Map.empty
           result <- mapMPure (pure . A0TyCode) result'
           pure (result, Solution0 varSolution tyvar0Solution tyvar1Solution)
@@ -168,10 +175,9 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
           spanInFile <- askSpanInFile loc
           typeError trav $ CannotInstantiateGuidedByAppContext0 spanInFile appCtx a0tye
 
-instantiateGuidedByAppContext1 :: forall trav. trav -> Span -> DatatypeEnv -> SetToInfer1 -> AppContext -> Ass1TypeExpr -> M trav (Result1, Solution1)
-instantiateGuidedByAppContext1 trav loc datatyEnv setToInfer' appCtx0 a1tye0 = do
-  (result, solution) <- go setToInfer' appCtx0 a1tye0
-  pure (result, solution)
+instantiateGuidedByAppContext1' :: forall trav. trav -> Span -> DatatypeEnv -> SetToInfer1 -> AppContext -> Ass1TypeExpr -> M trav (Result1, Solution1)
+instantiateGuidedByAppContext1' trav loc datatyEnv =
+  go
   where
     go :: SetToInfer1 -> AppContext -> Ass1TypeExpr -> M trav (Result1, Solution1)
     go setToInfer@(SetToInfer1 varsToInfer tyvars1ToInfer) appCtx a1tye =
@@ -221,3 +227,15 @@ instantiateGuidedByAppContext1 trav loc datatyEnv setToInfer' appCtx0 a1tye0 = d
         _ -> do
           spanInFile <- askSpanInFile loc
           typeError trav $ CannotInstantiateGuidedByAppContext1 spanInFile appCtx a1tye
+
+instantiateGuidedByAppContext1 :: forall trav. trav -> Span -> DatatypeEnv -> AppContext -> Ass1TypeExpr -> M trav Result1
+instantiateGuidedByAppContext1 trav loc datatyEnv appCtx a1tye = do
+  (result, _solution) <-
+    instantiateGuidedByAppContext1'
+      trav
+      loc
+      datatyEnv
+      (SetToInfer1 Set.empty Set.empty)
+      appCtx
+      a1tye
+  pure result
