@@ -41,6 +41,7 @@ import Staged.Typechecker.Merging
 import Staged.Typechecker.Monad
 import Staged.Typechecker.SigRecord (Ass0Metadata (..), Ass0TypeParam (..), Ass1Metadata (..), Ass1TypeParam (..), AssPersMetadata (..), ConstructorEntry (..), ModuleEntry (..), SigRecord, TypeEntry (..), ValEntry (..))
 import Staged.Typechecker.SigRecord qualified as SigRecord
+import Staged.Typechecker.Solution
 import Staged.Typechecker.TypeEnv (TypeEnv, TypeVarEntry (..))
 import Staged.Typechecker.TypeEnv qualified as TypeEnv
 import Prelude hiding (length)
@@ -137,9 +138,7 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
               trav
               loc
               (TypeEnv.datatypeOnly tyEnv)
-              Set.empty
-              Set.empty
-              Set.empty
+              (SetToInfer0 Set.empty Set.empty Set.empty)
               a0tye
               a0tyeReq
           pure $ applyCast0 cast a0e
@@ -161,9 +160,7 @@ forceExpr0 trav tyEnv a0tyeReq e@(Expr loc eMain) = do
           trav
           loc
           (TypeEnv.datatypeOnly tyEnv)
-          Set.empty
-          Set.empty
-          Set.empty
+          (SetToInfer0 Set.empty Set.empty Set.empty)
           a0tye
           a0tyeReq
       pure $ applyCast0 cast a0e
@@ -280,9 +277,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
                     trav
                     loc
                     (TypeEnv.datatypeOnly tyEnv)
-                    Set.empty
-                    Set.empty
-                    Set.empty
+                    (SetToInfer0 Set.empty Set.empty Set.empty)
                     a0tyeSynth
                     a0tyeRec
                 let sa0tyeRec = strictify a0tyeRec
@@ -399,9 +394,7 @@ typecheckExpr0 trav tyEnv appCtx (Expr loc eMain) = do
             trav
             loc
             (TypeEnv.datatypeOnly tyEnv)
-            Set.empty
-            Set.empty
-            Set.empty
+            (SetToInfer0 Set.empty Set.empty Set.empty)
             a0tye1Synth
             a0tye1Rec
         let a0e1 = applyCast0 cast (A0Lam (Just (afInner, strictify a0tye1Rec)) (ax0, strictify a0tyeParam0) a0eRest)
@@ -950,7 +943,13 @@ forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
         _ -> do
           (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
           (eq, _solution) <-
-            makeEquation1 trav loc (TypeEnv.datatypeOnly tyEnv) Set.empty Set.empty a1tye a1tyeReq
+            makeEquation1
+              trav
+              loc
+              (TypeEnv.datatypeOnly tyEnv)
+              (SetToInfer1 Set.empty Set.empty)
+              a1tye
+              a1tyeReq
           pure $ applyEquationCast loc eq a1e
     IfThenElse e0 e1 e2 -> do
       (a1tye0, a1e0) <- typecheckExpr1Single trav tyEnv e0
@@ -966,7 +965,13 @@ forceExpr1 trav tyEnv a1tyeReq e@(Expr loc eMain) = do
     _ -> do
       (a1tye, a1e) <- typecheckExpr1Single trav tyEnv e
       (eq, _solution) <-
-        makeEquation1 trav loc (TypeEnv.datatypeOnly tyEnv) Set.empty Set.empty a1tye a1tyeReq
+        makeEquation1
+          trav
+          loc
+          (TypeEnv.datatypeOnly tyEnv)
+          (SetToInfer1 Set.empty Set.empty)
+          a1tye
+          a1tyeReq
       pure $ applyEquationCast loc eq a1e
 
 typecheckExpr1Single :: trav -> TypeEnv -> Expr -> M trav (Ass1TypeExpr, Ass1Expr)
@@ -1017,8 +1022,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                     trav
                     loc
                     (TypeEnv.datatypeOnly tyEnv)
-                    Set.empty
-                    Set.empty
+                    (SetToInfer1 Set.empty Set.empty)
                     appCtx
                     a1tye
                 pure (result, A1Constructor ctor)
@@ -1072,8 +1076,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                                   trav
                                   locElem
                                   (TypeEnv.datatypeOnly tyEnv)
-                                  Set.empty
-                                  Set.empty
+                                  (SetToInfer1 Set.empty Set.empty)
                                   a1tye
                                   a1tyeFirst
                               pure (applyEquationCast locElem eq a1e)
@@ -1098,8 +1101,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             trav
             loc
             (TypeEnv.datatypeOnly tyEnv)
-            Set.empty
-            Set.empty
+            (SetToInfer1 Set.empty Set.empty)
             appCtx
             a1tye
         pure (result, a1e)
@@ -1133,8 +1135,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                     trav
                     loc
                     (TypeEnv.datatypeOnly tyEnv)
-                    Set.empty
-                    Set.empty
+                    (SetToInfer1 Set.empty Set.empty)
                     a1tyeSynth
                     a1tyeRec
                 pure (Pure a1tyeRec, applyEquationCast loc eq (A1Lam (Just (af, a1tyeRec)) (ax1, a1tye1) a1e2))
@@ -1223,8 +1224,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
             trav
             loc
             (TypeEnv.datatypeOnly tyEnv)
-            Set.empty
-            Set.empty
+            (SetToInfer1 Set.empty Set.empty)
             a1tye1Synth
             a1tye1Rec
         let a1e1 = applyEquationCast loc eq (A1Lam (Just (afInner, a1tye1Rec)) (ax0, a1tyeParam0) a1eRest)
@@ -1323,8 +1323,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                     trav
                     loc
                     (TypeEnv.datatypeOnly tyEnv)
-                    Set.empty
-                    Set.empty
+                    (SetToInfer1 Set.empty Set.empty)
                     appCtx
                     a1tyeSub
                 pure (result, A1FieldProj a1e1 label)
@@ -1345,8 +1344,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                     trav
                     loc
                     (TypeEnv.datatypeOnly tyEnv)
-                    Set.empty
-                    Set.empty
+                    (SetToInfer1 Set.empty Set.empty)
                     a1tye2
                     a1tye1
                 pure (Pure a1tye1, A1IfThenElse a1e0 a1e1 (applyEquationCast loc eq a1e2))
@@ -1370,8 +1368,7 @@ typecheckExpr1 trav tyEnv appCtx (Expr loc eMain) = do
                         trav
                         loc
                         (TypeEnv.datatypeOnly tyEnv)
-                        Set.empty
-                        Set.empty
+                        (SetToInfer1 Set.empty Set.empty)
                         a1tyeBranch0
                         a1tyeBranch
                     pure $ A1Branch a1pat (applyEquationCast loc eq a1eBranch)

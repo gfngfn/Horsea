@@ -6,7 +6,6 @@ where
 
 import Common.TokenUtil (Span)
 import Data.Map qualified as Map
-import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import Staged.Subst
 import Staged.Syntax
@@ -20,11 +19,11 @@ import Prelude
 
 instantiateGuidedByAppContext0 :: forall trav. trav -> Span -> DatatypeEnv -> AppContext -> Ass0TypeExpr -> M trav Result0
 instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
-  (result, _solution) <- go Set.empty Set.empty Set.empty appCtx0 a0tye0
+  (result, _solution) <- go (SetToInfer0 Set.empty Set.empty Set.empty) appCtx0 a0tye0
   pure result
   where
-    go :: Set AssVar -> Set AssTypeVar -> Set AssTypeVar -> AppContext -> Ass0TypeExpr -> M trav (Result0, Solution0)
-    go varsToInfer tyvars0ToInfer tyvars1ToInfer appCtx a0tye =
+    go :: SetToInfer0 -> AppContext -> Ass0TypeExpr -> M trav (Result0, Solution0)
+    go setToInfer@(SetToInfer0 varsToInfer _ tyvars1ToInfer) appCtx a0tye =
       case (appCtx, a0tye) of
         ([], _) ->
           pure (Pure a0tye, Solution0 Map.empty Map.empty Map.empty)
@@ -34,16 +33,14 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
               spanInFile <- askSpanInFile loc
               typeError trav $ ApplicationLabelMismatch spanInFile appCtx labelOpt' labelOpt
             else do
-              (cast, solution1@(Solution0 varSolution1 tyvar0Solution1 tyvar1Solution1)) <-
-                makeAssertiveCast trav loc datatyEnv varsToInfer tyvars0ToInfer tyvars1ToInfer a0tye1' a0tye1
-              let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
-              let tyvars0ToInfer' = tyvars0ToInfer \\ Map.keysSet tyvar0Solution1
-              let tyvars1ToInfer' = tyvars1ToInfer \\ Map.keysSet tyvar1Solution1
+              (cast, solution1) <-
+                makeAssertiveCast trav loc datatyEnv setToInfer a0tye1' a0tye1
+              let setToInfer' = deleteSolutionFromSet0 setToInfer solution1
               let a0tye2s = applySolution0 solution1 a0tye2
               (result', solution') <-
                 case xOpt of
-                  Nothing -> go varsToInfer' tyvars0ToInfer' tyvars1ToInfer' appCtx' a0tye2s
-                  Just x -> go varsToInfer' tyvars0ToInfer' tyvars1ToInfer' appCtx' (subst0 a0e1' x a0tye2s)
+                  Nothing -> go setToInfer' appCtx' a0tye2s
+                  Just x -> go setToInfer' appCtx' (subst0 a0e1' x a0tye2s)
               let solution = composeSolution0 solution' solution1
               let a0tye1s = applySolution0 solution a0tye1
               let result = Cast0 (fmap (applySolution0 solution') cast) a0tye1s result'
@@ -51,14 +48,12 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
         (appCtxEntry : appCtx', A0TyOmsArrow label (xOpt, a0tyeElem1) a0tye2) -> do
           case appCtxEntry of
             AppArgOmsGiven0 label' a0e1' a0tyeElem1' | label' == label -> do
-              (cast, solution1@(Solution0 varSolution1 tyvar0Solution1 tyvar1Solution1)) <-
-                makeAssertiveCast trav loc datatyEnv varsToInfer tyvars0ToInfer tyvars1ToInfer a0tyeElem1' a0tyeElem1
-              let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
-              let tyvars0ToInfer' = tyvars0ToInfer \\ Map.keysSet tyvar0Solution1
-              let tyvars1ToInfer' = tyvars1ToInfer \\ Map.keysSet tyvar1Solution1
+              (cast, solution1) <-
+                makeAssertiveCast trav loc datatyEnv setToInfer a0tyeElem1' a0tyeElem1
+              let setToInfer' = deleteSolutionFromSet0 setToInfer solution1
               let a0tye2s = applySolution0 solution1 a0tye2
               (result', solution') <-
-                go varsToInfer' tyvars0ToInfer' tyvars1ToInfer' appCtx' $
+                go setToInfer' appCtx' $
                   case xOpt of
                     Nothing -> a0tye2s
                     Just x -> subst0 a0e1' x a0tye2s
@@ -69,7 +64,7 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
             _ -> do
               -- Recurses by using `appCtx`, not `appCtx'`:
               (result', solution') <-
-                go varsToInfer tyvars0ToInfer tyvars1ToInfer appCtx $
+                go setToInfer appCtx $
                   case xOpt of
                     Nothing -> a0tye2
                     Just x -> subst0 (A0Constructor "Nothing") x a0tye2
@@ -77,21 +72,19 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
         (appCtxEntry : appCtx', A0TyInfArrow (x, a0tye1) a0tye2) ->
           case appCtxEntry of
             AppArgInfGiven0 a0e1' a0tye1' -> do
-              (cast, solution1@(Solution0 varSolution1 tyvar0Solution1 tyvar1Solution1)) <-
-                makeAssertiveCast trav loc datatyEnv varsToInfer tyvars0ToInfer tyvars1ToInfer a0tye1' a0tye1
-              let varsToInfer' = varsToInfer \\ Map.keysSet varSolution1
-              let tyvars0ToInfer' = tyvars0ToInfer \\ Map.keysSet tyvar0Solution1
-              let tyvars1ToInfer' = tyvars1ToInfer \\ Map.keysSet tyvar1Solution1
+              (cast, solution1) <-
+                makeAssertiveCast trav loc datatyEnv setToInfer a0tye1' a0tye1
+              let setToInfer' = deleteSolutionFromSet0 setToInfer solution1
               let a0tye2s = applySolution0 solution1 a0tye2
               (result', solution') <-
-                go varsToInfer' tyvars0ToInfer' tyvars1ToInfer' appCtx' (subst0 a0e1' x a0tye2s)
+                go setToInfer' appCtx' (subst0 a0e1' x a0tye2s)
               let solution = composeSolution0 solution' solution1
               let a0tye1s = applySolution0 solution a0tye1
               let result = CastInfGiven0 (fmap (applySolution0 solution') cast) a0tye1s result'
               pure (result, solution)
             AppArgInfOmitted0 -> do
               (result', solution'@(Solution0 varSolution' tyvar0Solution' tyvar1Solution')) <-
-                go (Set.insert x varsToInfer) tyvars0ToInfer tyvars1ToInfer appCtx' a0tye2
+                go (addVarToSet0 x setToInfer) appCtx' a0tye2
               (a0eInferred, a0tyeInferred) <-
                 case Map.lookup x varSolution' of
                   Just entry ->
@@ -104,9 +97,7 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
                   trav
                   loc
                   datatyEnv
-                  Set.empty
-                  Set.empty
-                  Set.empty
+                  (SetToInfer0 Set.empty Set.empty Set.empty)
                   a0tyeInferred
                   (applySolution0 solution' a0tye1)
               let result = FillInferred0 (applyCast0 cast' a0eInferred) result'
@@ -114,7 +105,7 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
             _ -> do
               -- Recurses by using `appCtx`, not `appCtx'`:
               (result', solution'@(Solution0 varSolution' tyvar0Solution' tyvar1Solution')) <-
-                go (Set.insert x varsToInfer) tyvars0ToInfer tyvars1ToInfer appCtx a0tye2
+                go (addVarToSet0 x setToInfer) appCtx a0tye2
               (a0eInferred, a0tyeInferred) <-
                 case Map.lookup x varSolution' of
                   Just entry ->
@@ -127,14 +118,12 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
                   trav
                   loc
                   datatyEnv
-                  Set.empty
-                  Set.empty
-                  Set.empty
+                  (SetToInfer0 Set.empty Set.empty Set.empty)
                   a0tyeInferred
                   (applySolution0 solution' a0tye1)
               pure (InsertInferred0 (applyCast0 cast' a0eInferred) result', Solution0 (Map.delete x varSolution') tyvar0Solution' tyvar1Solution')
         (_ : _, A0TyCode a1tye) -> do
-          (result', Solution1 varSolution tyvar1Solution) <- instantiateGuidedByAppContext1 trav loc datatyEnv varsToInfer tyvars1ToInfer appCtx a1tye
+          (result', Solution1 varSolution tyvar1Solution) <- instantiateGuidedByAppContext1 trav loc datatyEnv (SetToInfer1 varsToInfer tyvars1ToInfer) appCtx a1tye
           let tyvar0Solution = Map.empty
           result <- mapMPure (pure . A0TyCode) result'
           pure (result, Solution0 varSolution tyvar0Solution tyvar1Solution)
@@ -143,13 +132,12 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
             ForAll0 atyvar ->
               case appCtxEntry of
                 AppArgInfTypeGiven0 a0tye1' -> do
-                  (result', solution') <-
-                    go varsToInfer tyvars0ToInfer tyvars1ToInfer appCtx' (tySubst0 a0tye1' atyvar a0tye2)
+                  (result', solution') <- go setToInfer appCtx' (tySubst0 a0tye1' atyvar a0tye2)
                   pure (Instantiated0 result', solution')
                 _ -> do
                   -- Recurses by using `appCtx`, not `appCtx'`:
                   (result', Solution0 varSolution' tyvar0Solution' tyvar1Solution') <-
-                    go varsToInfer (Set.insert atyvar tyvars0ToInfer) tyvars1ToInfer appCtx a0tye2
+                    go (addTypeVar0ToSet0 atyvar setToInfer) appCtx a0tye2
                   case Map.lookup atyvar tyvar0Solution' of
                     Just a0tyeInferred ->
                       pure (InsertInferredType0 a0tyeInferred result', Solution0 varSolution' (Map.delete atyvar tyvar0Solution') tyvar1Solution')
@@ -161,8 +149,7 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
                 AppArgInfTypeGiven0 a0tye1' ->
                   case a0tye1' of
                     A0TyCode a1tye1' -> do
-                      (result', solution') <-
-                        go varsToInfer tyvars0ToInfer tyvars1ToInfer appCtx' (tySubst1 a1tye1' atyvar a0tye2)
+                      (result', solution') <- go setToInfer appCtx' (tySubst1 a1tye1' atyvar a0tye2)
                       pure (Instantiated0 result', solution')
                     _ -> do
                       spanInFile <- askSpanInFile loc
@@ -170,7 +157,7 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
                 _ -> do
                   -- Recurses by using `appCtx`, not `appCtx'`:
                   (result', Solution0 varSolution' tyvar0Solution' tyvar1Solution') <-
-                    go varsToInfer tyvars0ToInfer (Set.insert atyvar tyvars1ToInfer) appCtx a0tye2
+                    go (addTypeVar1ToSet0 atyvar setToInfer) appCtx a0tye2
                   case Map.lookup atyvar tyvar1Solution' of
                     Just a1tyeInferred ->
                       pure (InsertInferredType0 (A0TyCode a1tyeInferred) result', Solution0 varSolution' tyvar0Solution' (Map.delete atyvar tyvar1Solution'))
@@ -181,19 +168,19 @@ instantiateGuidedByAppContext0 trav loc datatyEnv appCtx0 a0tye0 = do
           spanInFile <- askSpanInFile loc
           typeError trav $ CannotInstantiateGuidedByAppContext0 spanInFile appCtx a0tye
 
-instantiateGuidedByAppContext1 :: forall trav. trav -> Span -> DatatypeEnv -> Set AssVar -> Set AssTypeVar -> AppContext -> Ass1TypeExpr -> M trav (Result1, Solution1)
-instantiateGuidedByAppContext1 trav loc datatyEnv varsToInfer' tyvars1ToInfer' appCtx0 a1tye0 = do
-  (result, solution) <- go varsToInfer' tyvars1ToInfer' appCtx0 a1tye0
+instantiateGuidedByAppContext1 :: forall trav. trav -> Span -> DatatypeEnv -> SetToInfer1 -> AppContext -> Ass1TypeExpr -> M trav (Result1, Solution1)
+instantiateGuidedByAppContext1 trav loc datatyEnv setToInfer' appCtx0 a1tye0 = do
+  (result, solution) <- go setToInfer' appCtx0 a1tye0
   pure (result, solution)
   where
-    go :: Set AssVar -> Set AssTypeVar -> AppContext -> Ass1TypeExpr -> M trav (Result1, Solution1)
-    go varsToInfer tyvars1ToInfer appCtx a1tye =
+    go :: SetToInfer1 -> AppContext -> Ass1TypeExpr -> M trav (Result1, Solution1)
+    go setToInfer@(SetToInfer1 varsToInfer tyvars1ToInfer) appCtx a1tye =
       case (appCtx, a1tye) of
         ([], _) ->
           pure (Pure a1tye, Solution1 Map.empty Map.empty)
         (_ : _, A1TyForAll atyvar a1tye2) -> do
           (result', Solution1 varSolution' tyvar1Solution') <-
-            go varsToInfer (Set.insert atyvar tyvars1ToInfer) appCtx a1tye2
+            go (SetToInfer1 varsToInfer (Set.insert atyvar tyvars1ToInfer)) appCtx a1tye2
           case Map.lookup atyvar tyvar1Solution' of
             Just a1tyeInferred ->
               pure (InsertInferredType1 a1tyeInferred result', Solution1 varSolution' (Map.delete atyvar tyvar1Solution'))
@@ -206,12 +193,10 @@ instantiateGuidedByAppContext1 trav loc datatyEnv varsToInfer' tyvars1ToInfer' a
               spanInFile <- askSpanInFile loc
               typeError trav $ ApplicationLabelMismatch spanInFile appCtx labelOpt' labelOpt
             else do
-              (eq, solution1@(Solution1 varSolution1 tyvar1Solution1)) <-
-                makeEquation1 trav loc datatyEnv varsToInfer tyvars1ToInfer a1tye1' a1tye1
+              (eq, solution1) <- makeEquation1 trav loc datatyEnv setToInfer a1tye1' a1tye1
               (result', solution') <-
                 go
-                  (varsToInfer \\ Map.keysSet varSolution1)
-                  (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
+                  (deleteSolutionFromSet1 setToInfer solution1)
                   appCtx'
                   (applySolution1 solution1 a1tye2)
               let solution = composeSolution1 solution' solution1
@@ -220,12 +205,10 @@ instantiateGuidedByAppContext1 trav loc datatyEnv varsToInfer' tyvars1ToInfer' a
         (appCtxEntry : appCtx', A1TyOmsArrow label a1tye1 a1tye2) ->
           case appCtxEntry of
             AppArgOmsGiven1 label' a1tye1' | label' == label -> do
-              (eq, solution1@(Solution1 varSolution1 tyvar1Solution1)) <-
-                makeEquation1 trav loc datatyEnv varsToInfer tyvars1ToInfer a1tye1' a1tye1
+              (eq, solution1) <- makeEquation1 trav loc datatyEnv setToInfer a1tye1' a1tye1
               (result', solution') <-
                 go
-                  (varsToInfer \\ Map.keysSet varSolution1)
-                  (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
+                  (deleteSolutionFromSet1 setToInfer solution1)
                   appCtx'
                   (applySolution1 solution1 a1tye2)
               let solution = composeSolution1 solution' solution1
@@ -233,7 +216,7 @@ instantiateGuidedByAppContext1 trav loc datatyEnv varsToInfer' tyvars1ToInfer' a
               pure (result, solution)
             _ -> do
               -- Recurses by using `appCtx`, not `appCtx'`:
-              (result', solution') <- go varsToInfer tyvars1ToInfer appCtx a1tye2
+              (result', solution') <- go setToInfer appCtx a1tye2
               pure (InsertOmitted1 result', solution')
         _ -> do
           spanInFile <- askSpanInFile loc

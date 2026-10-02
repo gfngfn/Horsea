@@ -4,6 +4,8 @@ module Staged.Typechecker.Solution
     TypeVar1Solution,
     Solution0 (..),
     Solution1 (..),
+    SetToInfer0 (..),
+    SetToInfer1 (..),
     applyVarSolution,
     applyTypeVar0Solution,
     applyTypeVar1Solution,
@@ -14,11 +16,18 @@ module Staged.Typechecker.Solution
     applySolution1,
     composeSolution0,
     composeSolution1,
+    addVarToSet0,
+    addTypeVar0ToSet0,
+    addTypeVar1ToSet0,
+    deleteSolutionFromSet0,
+    deleteSolutionFromSet1,
   )
 where
 
 import Data.Map (Map)
 import Data.Map qualified as Map
+import Data.Set (Set, (\\))
+import Data.Set qualified as Set
 import Staged.Subst
 import Staged.Syntax
 import Staged.TypeSubst
@@ -33,6 +42,10 @@ type TypeVar1Solution = Map AssTypeVar Ass1TypeExpr
 data Solution0 = Solution0 VarSolution TypeVar0Solution TypeVar1Solution
 
 data Solution1 = Solution1 VarSolution TypeVar1Solution
+
+data SetToInfer0 = SetToInfer0 (Set AssVar) (Set AssTypeVar) (Set AssTypeVar)
+
+data SetToInfer1 = SetToInfer1 (Set AssVar) (Set AssTypeVar)
 
 applyVarSolution :: forall af. (HasVar StaticVar af) => VarSolution -> af StaticVar -> af StaticVar
 applyVarSolution varSolution entity =
@@ -86,3 +99,34 @@ composeSolution1 sol1 sol2 =
   where
     Solution1 varSolution1 tyvar1Solution1 = sol1
     Solution1 varSolution2 tyvar1Solution2 = sol2
+
+addVarToSet0 :: AssVar -> SetToInfer0 -> SetToInfer0
+addVarToSet0 x (SetToInfer0 varsToInfer tyvars0ToInfer tyvars1ToInfer) =
+  SetToInfer0 (Set.insert x varsToInfer) tyvars0ToInfer tyvars1ToInfer
+
+addTypeVar0ToSet0 :: AssTypeVar -> SetToInfer0 -> SetToInfer0
+addTypeVar0ToSet0 tyvar (SetToInfer0 varsToInfer tyvars0ToInfer tyvars1ToInfer) =
+  SetToInfer0 varsToInfer (Set.insert tyvar tyvars0ToInfer) tyvars1ToInfer
+
+addTypeVar1ToSet0 :: AssTypeVar -> SetToInfer0 -> SetToInfer0
+addTypeVar1ToSet0 tyvar (SetToInfer0 varsToInfer tyvars0ToInfer tyvars1ToInfer) =
+  SetToInfer0 varsToInfer tyvars0ToInfer (Set.insert tyvar tyvars1ToInfer)
+
+deleteSolutionFromSet0 :: SetToInfer0 -> Solution0 -> SetToInfer0
+deleteSolutionFromSet0 setToInfer solution =
+  SetToInfer0
+    (varsToInfer \\ Map.keysSet varSolution)
+    (tyvars0ToInfer \\ Map.keysSet tyvar0Solution)
+    (tyvars1ToInfer \\ Map.keysSet tyvar1Solution)
+  where
+    Solution0 varSolution tyvar0Solution tyvar1Solution = solution
+    SetToInfer0 varsToInfer tyvars0ToInfer tyvars1ToInfer = setToInfer
+
+deleteSolutionFromSet1 :: SetToInfer1 -> Solution1 -> SetToInfer1
+deleteSolutionFromSet1 setToInfer solution =
+  SetToInfer1
+    (varsToInfer \\ Map.keysSet varSolution)
+    (tyvars1ToInfer \\ Map.keysSet tyvar1Solution)
+  where
+    Solution1 varSolution tyvar1Solution = solution
+    SetToInfer1 varsToInfer tyvars1ToInfer = setToInfer
