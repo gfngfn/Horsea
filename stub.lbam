@@ -137,7 +137,10 @@ module Maybe = struct
 end
 
 module List = struct
+  val %fold : forall 'a -> forall 'b -> ('a -> 'b -> 'a) -> 'a -> List 'b -> 'a
+    external (builtin = "list__fold", surface = "fold")
   (* TODO: make `List.fold` persistent *)
+(*
   val ~fold {type 'a} {type 'b} (f : 'a -> 'b -> 'a) =
     let rec go (acc : 'a) (xs : List 'b) : 'a =
       case xs of
@@ -146,10 +149,13 @@ module List = struct
       end
     in
     go
+*)
   val %map : forall 'a -> forall 'b -> ('a -> 'b) -> List 'a -> List 'b
     external (builtin = "list__map", surface = "map")
   val %rev_map : forall 'a -> forall 'b -> ('a -> 'b) -> List 'a -> List 'b
     external (builtin = "list__rev_map", surface = "rev_map")
+  val %concat_map : forall 'a -> forall 'b -> ('a -> List 'b) -> List 'a -> List 'b
+    external (builtin = "list__concat_map", surface = "concat_map")
   val %append : forall 'a -> List 'a -> List 'a -> List 'a
     external (builtin = "list__append", surface = "append")
   val %iter : forall 'a -> ('a -> Unit) -> List 'a -> Unit
@@ -160,6 +166,8 @@ module List = struct
     external (builtin = "list__initialize", surface = "initialize")
   val %equal : forall 'a -> ('a -> 'a -> Bool) -> List 'a -> List 'a -> Bool
     external (builtin = "list__equal", surface = "equal")
+  val %exists : forall 'a -> ('a -> Bool) -> List 'a -> Bool
+    external (builtin = "list__exists", surface = "exists")
   val %filter_maybe : forall 'a -> List (Maybe 'a) -> List 'a
     external (builtin = "list__filter_maybe", surface = "filter_maybe")
   val %sort_by : forall 'a -> ('a -> 'a -> Int) -> List 'a -> List 'a

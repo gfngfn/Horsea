@@ -3,7 +3,6 @@
 *)
 
 let config_filename = "examples/yolo/yolo-v3.cfg" in
-let nms_threshold = 0.4 in
 let classes = CocoNames.names in
 
 (* [image] is the original image. [width] and [height] are the model [width] on
@@ -55,23 +54,28 @@ let report {m : Nat} {n : {k : Nat | k >= 5}} {initial_height : Nat} {initial_wi
           |> List.map (fun (bbox : BBox) -> (bbox.class_index, (bbox.confidence, bbox)))
           |> IntMap.of_alist_multi
           |> IntMap.to_alist
-          |> List.concat_map (fun (pair : Int * (Float * List BBox)) ->
+          |> List.concat_map (fun (pair : Int * List (Float * BBox)) ->
             let (unused, bboxes) = pair in
             (* NMS suppression. *)
-            let bboxes = bboxes |> List.sort_by general_compare |> List.rev_map snd in
+            let bboxes =
+              bboxes
+                |> List.sort_by (general_compare {type Float * BBox})
+                |> List.rev_map (snd {type Float} {type BBox})
+            in
             bboxes |> List.fold (fun(acc_bboxes : List BBox) -> fun(bbox : BBox) ->
               let drop =
                 List.exists
-                  (fun (b : BBox) -> (let open Float in ( > )) (iou b bbox) nms_threshold)
+                  (fun (b : BBox) -> iou b bbox >. nms_threshold)
                   acc_bboxes
               in
               if drop then acc_bboxes else bbox :: acc_bboxes
-            ) []
+            ) ([] as List BBox)
           )
       in
-      let image = let open Tensor in to_type image #type_ (T Float) / f 255.0 in
+      (* let image = let open Tensor in to_type image #type_ (T Float) / f 255.0 in *)
+      let image = ~Tensor.gen_div image (Tensor.f 255.0) in
       let resize_and_clamp (v : Float) #initial_max (initial_max : Int) #max (m : Int) =
-        Int.of_float (v *. Float.of_int initial_max /. Float.of_int m)
+        Int.of_float (v *. Float.of_int initial_max / Float.of_int m)
           |> Int.max 0
           |> Int.min (initial_max - 1)
       in

@@ -40,6 +40,7 @@ val colors =
   )
 
 val confidence_threshold = 0.5
+val nms_threshold = 0.4
 
 val iou (b1 : BBox) (b2 : BBox) =
   let b1_area = (b1.xmax -. b1.xmin +. 1.0) *. (b1.ymax -. b1.ymin +. 1.0) in
