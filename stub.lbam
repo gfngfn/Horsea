@@ -232,6 +232,8 @@ module Index = struct
     external (builtin = "index__to_int", surface = "to_int")
   val ~gen_from_int : {len : Nat} -> (n : {k : Nat | k < len}) -> &(Index %len)
     external (builtin = "index__from_int", surface = "from_int")
+  val ~gen_by_mod : (len : Nat) -> &(Int -> Index %len)
+    external (builtin = "index__gen_by_mod", surface = "by_mod")
 end
 
 module Device = struct
@@ -385,6 +387,10 @@ module Tensor = struct
     {shape : {s : List Nat | List.length s == 1}} ->
     &(Tensor %shape -> Array Float %(List.head shape))
     external (builtin = "tensor__gen_to_array1", surface = "to_array1")
+  val ~gen_from_array1 :
+    {len : Nat} ->
+    &(Array Float %len -> Tensor %[len])
+    external (builtin = "tensor__gen_from_array1", surface = "from_array1")
   val ~gen_fill_float : {shape : List Nat} -> &(Tensor %shape -> Float -> Unit)
     external (builtin = "tensor__gen_fill_float", surface = "fill_float")
   val ~gen_dropout :

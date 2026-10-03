@@ -22,20 +22,23 @@ module IntMap = struct
     external (builtin = "map__to_alist", surface = "to_alist")
 end
 
+val ~colors_list =
+  [ [0.5, 0.0, 0.5],
+    [0.0, 0.5, 0.5],
+    [0.5, 0.5, 0.0],
+    [0.7, 0.3, 0.0],
+    [0.7, 0.0, 0.3],
+    [0.0, 0.7, 0.3],
+    [0.3, 0.7, 0.0],
+    [0.3, 0.0, 0.7],
+    [0.0, 0.3, 0.7]
+  ]
+
 val colors =
   ~(Array.gen_of_list
       ( List.map
           (fun(ns : List Float) -> Array.gen_of_list (List.map lift_float ns))
-          [ [0.5, 0.0, 0.5],
-            [0.0, 0.5, 0.5],
-            [0.5, 0.5, 0.0],
-            [0.7, 0.3, 0.0],
-            [0.7, 0.0, 0.3],
-            [0.0, 0.7, 0.3],
-            [0.3, 0.7, 0.0],
-            [0.3, 0.0, 0.7],
-            [0.0, 0.3, 0.7]
-          ]
+          colors_list
       )
   )
 
