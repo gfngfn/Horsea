@@ -64,7 +64,7 @@ data TypeErrorF sv
   | CannotInferImplicit SpanInFile (AssVarF sv) (Ass0TypeExprF sv) (AppContextF sv)
   | CannotInferTypeVariableInstance0 SpanInFile AssTypeVar (AppContextF sv) (Ass0TypeExprF sv)
   | CannotInferTypeVariableInstance1 SpanInFile AssTypeVar (AppContextF sv) (Ass1TypeExprF sv)
-  | CannotInstantiateTypeVariableGuidedByAssertion0 SpanInFile AssTypeVar (Ass0TypeExprF sv) (Ass0TypeExprF sv)
+  | CannotInstantiateTypeVariableGuidedByAssertion0 SpanInFile ForAllBinder (Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | Stage1IfThenElseRestrictedToEmptyContext SpanInFile (AppContextF sv)
   | Stage1CaseRestrictedToEmptyContext SpanInFile (AppContextF sv)
   | BindingOverwritten SpanInFile Var
@@ -89,6 +89,8 @@ data TypeErrorF sv
   | CannotForceTypeOnPattern0 SpanInFile (Ass0TypeExprF sv)
   | CannotForceTypeOnPattern1 SpanInFile (Ass1TypeExprF sv)
   | ApplicationLabelMismatch SpanInFile (AppContextF sv) (Maybe Label) (Maybe Label)
+  | NotAStage0Type SpanInFile [ModuleName] TypeName
+  | NotAStage1Type SpanInFile [ModuleName] TypeName
   | NotAStage0TypeVar SpanInFile TypeVar
   | NotAStage1TypeVar SpanInFile TypeVar
   | LetTupleLengthMismatch0 SpanInFile (TwoOrMore Var) (TwoOrMore (Ass0TypeExprF sv))
@@ -97,6 +99,9 @@ data TypeErrorF sv
   | NonMaybeAnnotForLamOms1 SpanInFile (Ass1TypeExprF sv)
   | InvalidConstructorApplication SpanInFile (AppContextF sv) [ModuleName] ConstructorName
   | VarBoundMoreThanOnceInPattern SpanInFile Var
+  | Stage0TypeCannotTakeVal0 SpanInFile Var
+  | CannotTakeStagedTypeVarAtStage1 SpanInFile TypeVar
+  | NotAStage1TypeVarInstantiation SpanInFile (Ass0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data ConditionalMergeErrorF sv
@@ -106,7 +111,7 @@ data ConditionalMergeErrorF sv
 
 data UnsupportedF sv
   = CannotBindPersistentValue Var
-  | HigherRankPolymorphism (Ass0TypeExprF sv) AssTypeVar (Ass0TypeExprF sv)
+  | HigherRankPolymorphism (Ass0TypeExprF sv) ForAllBinder (Ass0TypeExprF sv)
   | AsWithArguments (AppContextF sv)
   | LamWithArguments (AppContextF sv)
   | LamOmsWithArguments (AppContextF sv)

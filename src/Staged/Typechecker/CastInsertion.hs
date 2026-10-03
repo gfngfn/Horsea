@@ -3,7 +3,9 @@ module Staged.Typechecker.CastInsertion
     applyCast1,
     applyEquationCast,
     makeAssertiveCast,
+    makeAssertiveCast',
     makeEquation1,
+    makeEquation1',
   )
 where
 
@@ -47,46 +49,63 @@ applyEquationCast loc eq =
 -- Returning `(Nothing, ...)` means there's no need to insert a cast.
 -- Through cast generation, appropriate expressions for the variables in `varsToInfer`
 -- are inferred in a best-effort manner.
-makeAssertiveCast :: forall trav. trav -> Span -> DatatypeEnv -> Set AssVar -> Set AssTypeVar -> Ass0TypeExpr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr, VarSolution, TypeVar0Solution)
+makeAssertiveCast :: forall trav. trav -> Span -> DatatypeEnv -> SetToInfer0 -> Ass0TypeExpr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr, Solution0)
 makeAssertiveCast trav loc datatyEnv =
   go
   where
-    go :: Set AssVar -> Set AssTypeVar -> Ass0TypeExpr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr, VarSolution, TypeVar0Solution)
-    go _varsToInfer _tyvars0ToInfer a0tye1 a0tye2
+    go :: SetToInfer0 -> Ass0TypeExpr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr, Solution0)
+    go _setToInfer a0tye1 a0tye2
       | alphaEquivalent a0tye1 a0tye2 =
-          pure (Nothing, Map.empty, Map.empty)
-    go varsToInfer tyvars0ToInfer a0tye1 a0tye2 = do
+          pure (Nothing, Solution0 Map.empty Map.empty Map.empty)
+    go setToInfer@(SetToInfer0 varsToInfer tyvars0ToInfer tyvars1ToInfer) a0tye1 a0tye2 = do
       spanInFile <- askSpanInFile loc
       case (a0tye1, a0tye2) of
         (A0TyVar atyvar1, _)
           | atyvar1 `elem` tyvars0ToInfer ->
-              pure (Nothing, Map.empty, Map.singleton atyvar1 a0tye2)
+              pure (Nothing, Solution0 Map.empty (Map.singleton atyvar1 a0tye2) Map.empty)
         (_, A0TyVar atyvar2)
           | atyvar2 `elem` tyvars0ToInfer ->
-              pure (Nothing, Map.empty, Map.singleton atyvar2 a0tye1)
+              pure (Nothing, Solution0 Map.empty (Map.singleton atyvar2 a0tye1) Map.empty)
         (A0TyVar atyvar1, A0TyVar atyvar2)
           | atyvar1 == atyvar2 ->
               -- If either `a0tye1` or `a0tye2` is of the form `A0TyVar atyvar`
               -- such that `atyvar` is tracked by the type environment and thereby is not for inference,
               -- then only exact equality is allowed:
-              pure (Nothing, Map.empty, Map.empty)
-        (A0TyForAll tyvar1 a0tye12, _) -> do
-          (cast', varSolution', tyvar0Solution') <-
-            go varsToInfer (Set.insert tyvar1 tyvars0ToInfer) a0tye12 a0tye2
-          case Map.lookup tyvar1 tyvar0Solution' of
-            Just a0tye11 -> do
-              cast <- do
-                sv <- generateFreshVar Nothing
-                let ax = AssVarStatic sv
-                pure $
-                  Just $
-                    A0Lam Nothing (ax, strictify a0tye1) $
-                      applyCast0 cast' (A0AppType (A0Var ax) (strictify a0tye11))
-              pure (cast, varSolution', tyvar0Solution')
-            Nothing ->
-              typeError trav $ CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile tyvar1 a0tye12 a0tye2
-        (_, A0TyForAll atyvar2 a0tye2') ->
-          typeError trav $ Unsupported spanInFile $ HigherRankPolymorphism a0tye1 atyvar2 a0tye2'
+              pure (Nothing, Solution0 Map.empty Map.empty Map.empty)
+        (A0TyForAll fab1 a0tye12, _) -> do
+          case fab1 of
+            ForAll0 tyvar1 -> do
+              (cast', Solution0 varSolution' tyvar0Solution' tyvar1Solution') <-
+                go (addTypeVar0ToSet0 tyvar1 setToInfer) a0tye12 a0tye2
+              case Map.lookup tyvar1 tyvar0Solution' of
+                Just a0tye11 -> do
+                  cast <- do
+                    sv <- generateFreshVar Nothing
+                    let ax = AssVarStatic sv
+                    pure $
+                      Just $
+                        A0Lam Nothing (ax, strictify a0tye1) $
+                          applyCast0 cast' (A0AppType (A0Var ax) (TypeApp0 (strictify a0tye11)))
+                  pure (cast, Solution0 varSolution' (Map.delete tyvar1 tyvar0Solution') tyvar1Solution')
+                Nothing ->
+                  typeError trav $ CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile fab1 a0tye12 a0tye2
+            ForAll1 tyvar1 -> do
+              (cast', Solution0 varSolution' tyvar0Solution' tyvar1Solution') <-
+                go (addTypeVar1ToSet0 tyvar1 setToInfer) a0tye12 a0tye2
+              case Map.lookup tyvar1 tyvar1Solution' of
+                Just a1tye11 -> do
+                  cast <- do
+                    sv <- generateFreshVar Nothing
+                    let ax = AssVarStatic sv
+                    pure $
+                      Just $
+                        A0Lam Nothing (ax, strictify a0tye1) $
+                          applyCast0 cast' (A0AppType (A0Var ax) (TypeApp1 a1tye11))
+                  pure (cast, Solution0 varSolution' tyvar0Solution' (Map.delete tyvar1 tyvar1Solution'))
+                Nothing ->
+                  typeError trav $ CannotInstantiateTypeVariableGuidedByAssertion0 spanInFile fab1 a0tye12 a0tye2
+        (_, A0TyForAll fab2 a0tye2') ->
+          typeError trav $ Unsupported spanInFile $ HigherRankPolymorphism a0tye1 fab2 a0tye2'
         (A0TyPrim a0tyPrim1 maybePred1, A0TyPrim a0tyPrim2 maybePred2') -> do
           -- Ad-hoc optimization of refinement cast insertion.
           -- Maybe we can try using an SMT solver for some subset of predicates here
@@ -99,22 +118,19 @@ makeAssertiveCast trav loc datatyEnv =
             if a0tyPrim1 == a0tyPrim2
               then castOrIdentityLam maybePred2 (A0TyPrim a0tyPrim1 maybePred1)
               else typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-          pure (cast, Map.empty, Map.empty)
+          pure (cast, Solution0 Map.empty Map.empty Map.empty)
         (A0TyList a0tye1' maybePred1, A0TyList a0tye2' maybePred2') -> do
-          (castForElem, varSolution, tyvar0Solution) <- go varsToInfer tyvars0ToInfer a0tye1' a0tye2'
+          (castForElem, solution) <- go setToInfer a0tye1' a0tye2'
           -- Ad hoc optimization of refinement cast insertion:
           let maybePred2 =
                 if alphaEquivalent (Maybe1 maybePred2') (Maybe1 maybePred1)
                   then Nothing
-                  else applySolution0 varSolution tyvar0Solution <$> maybePred2'
+                  else applySolution0 solution <$> maybePred2'
           let castForListByElemPred =
                 case castForElem of
                   Nothing -> Nothing
                   Just a0eCastForElem -> Just (A0App BuiltIn.ass0exprListMap a0eCastForElem)
-          castForListByWholePred <-
-            castOrIdentityLam
-              maybePred2
-              (applySolution0 varSolution tyvar0Solution a0tye1)
+          castForListByWholePred <- castOrIdentityLam maybePred2 (applySolution0 solution a0tye1)
           castForList <-
             case (castForListByElemPred, castForListByWholePred) of
               (Nothing, Nothing) ->
@@ -130,54 +146,48 @@ makeAssertiveCast trav loc datatyEnv =
                   Just $
                     A0Lam Nothing (ax, strictify a0tye1) $
                       A0App a0eCast2 (A0App a0eCast1 (A0Var ax))
-          pure (castForList, varSolution, tyvar0Solution)
+          pure (castForList, solution)
         (A0TyMaybe a0tye1', A0TyMaybe a0tye2') -> do
-          (castForElem, varSolution, tyvar0Solution) <- go varsToInfer tyvars0ToInfer a0tye1' a0tye2'
+          (castForElem, solution) <- go setToInfer a0tye1' a0tye2'
           let castForMaybe =
                 case castForElem of
                   Nothing -> Nothing
                   Just a0eCastForElem -> Just (A0App BuiltIn.ass0exprMaybeMap a0eCastForElem)
-          pure (castForMaybe, varSolution, tyvar0Solution)
+          pure (castForMaybe, solution)
         (A0TyProduct a0tyes1, A0TyProduct a0tyes2) -> do
           zipped <-
             case TwoOrMore.zipExact a0tyes1 a0tyes2 of
               Just zipped' -> pure zipped'
               Nothing -> typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
-          ((_, _, varSolutionRet, tyvar0SolutionRet), castAndDomTypePairs') <-
+          ((_, solutionRet), castAndDomTypePairs') <-
             mapAccumM
-              ( \(varsToInfer', tyvars0ToInfer', varSolution', tyvar0Solution') (a0tye1', a0tye2') -> do
-                  (cast, varSolution, tyvar0Solution) <-
+              ( \(setToInfer', solution') (a0tye1', a0tye2') -> do
+                  (cast, solution) <-
                     go
-                      varsToInfer'
-                      tyvars0ToInfer'
-                      (applySolution0 varSolution' tyvar0Solution' a0tye1')
-                      (applySolution0 varSolution' tyvar0Solution' a0tye2')
+                      setToInfer'
+                      (applySolution0 solution' a0tye1')
+                      (applySolution0 solution' a0tye2')
                   pure
-                    ( ( varsToInfer' \\ Map.keysSet varSolution,
-                        tyvars0ToInfer' \\ Map.keysSet tyvar0Solution,
-                        composeVarSolution varSolution varSolution',
-                        composeTypeVar0Solution tyvar0Solution tyvar0Solution'
+                    ( ( deleteSolutionFromSet0 setToInfer' solution,
+                        composeSolution0 solution solution'
                       ),
                       (cast, a0tye1')
                     )
               )
-              (varsToInfer, tyvars0ToInfer, Map.empty, Map.empty)
+              (setToInfer, Solution0 Map.empty Map.empty Map.empty)
               zipped
           let castAndDomTypePairs =
                 fmap
-                  ( bimap
-                      (fmap (applySolution0 varSolutionRet tyvar0SolutionRet))
-                      (applySolution0 varSolutionRet tyvar0SolutionRet)
-                  )
+                  (bimap (fmap (applySolution0 solutionRet)) (applySolution0 solutionRet))
                   castAndDomTypePairs'
           cast <- makeProductTypeCast trav castAndDomTypePairs
-          pure (cast, varSolutionRet, tyvar0SolutionRet)
+          pure (cast, solutionRet)
         (A0TyArrow labelOpt1 (x1opt, a0tye11) a0tye12, A0TyArrow labelOpt2 (x2opt, a0tye21) a0tye22withX2opt) -> do
           if labelOpt1 /= labelOpt2
             then
               typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
             else do
-              (castDom, varSolutionDom, tyvar0SolutionDom) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
+              (castDom, solutionDom) <- go setToInfer a0tye11 a0tye21
               (x, a0tye22) <-
                 case (x1opt, x2opt) of
                   (Nothing, Nothing) -> do
@@ -190,30 +200,28 @@ makeAssertiveCast trav loc datatyEnv =
                     pure (x2, a0tye22withX2opt)
                   (Just x1, Just x2) ->
                     pure (x1, subst0 (A0Var x1) x2 a0tye22withX2opt)
-              (castCod, varSolutionCod, tyvar0SolutionCod) <-
+              (castCod, solutionCod) <-
                 go
-                  (varsToInfer \\ Map.keysSet varSolutionDom)
-                  (tyvars0ToInfer \\ Map.keysSet tyvar0SolutionDom)
-                  (applySolution0 varSolutionDom tyvar0SolutionDom a0tye12)
-                  (applySolution0 varSolutionDom tyvar0SolutionDom a0tye22)
-              let varSolution = composeVarSolution varSolutionCod varSolutionDom
-              let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionDom tyvar0SolutionCod
+                  (deleteSolutionFromSet0 setToInfer solutionDom)
+                  (applySolution0 solutionDom a0tye12)
+                  (applySolution0 solutionDom a0tye22)
+              let solution = composeSolution0 solutionCod solutionDom
               cast <-
                 makeArrowTypeCast
                   trav
                   x
-                  (applySolution0 varSolution tyvar0Solution a0tye11)
-                  (applySolution0 varSolution tyvar0Solution a0tye12)
-                  (applySolution0 varSolution tyvar0Solution a0tye21)
-                  (applySolution0 varSolutionCod tyvar0Solution <$> castDom)
+                  (applySolution0 solution a0tye11)
+                  (applySolution0 solution a0tye12)
+                  (applySolution0 solution a0tye21)
+                  (applySolution0 solution <$> castDom)
                   castCod
-              pure (cast, varSolution, tyvar0Solution)
+              pure (cast, solution)
         (A0TyOmsArrow label1 (x1opt, a0tye11) a0tye12, A0TyOmsArrow label2 (x2opt, a0tye21) a0tye22withX2opt) -> do
           if label1 /= label2
             then
               typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
             else do
-              (castDom, varSolutionDom, tyvar0SolutionDom) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
+              (castDom, solutionDom) <- go setToInfer a0tye11 a0tye21
               (x, a0tye22) <-
                 case (x1opt, x2opt) of
                   (Nothing, Nothing) -> do
@@ -226,50 +234,47 @@ makeAssertiveCast trav loc datatyEnv =
                     pure (x2, a0tye22withX2opt)
                   (Just x1, Just x2) ->
                     pure (x1, subst0 (A0Var x1) x2 a0tye22withX2opt)
-              (castCod, varSolutionCod, tyvar0SolutionCod) <-
+              (castCod, solutionCod) <-
                 go
-                  (varsToInfer \\ Map.keysSet varSolutionDom)
-                  (tyvars0ToInfer \\ Map.keysSet tyvar0SolutionDom)
-                  (applySolution0 varSolutionDom tyvar0SolutionDom a0tye12)
-                  (applySolution0 varSolutionDom tyvar0SolutionDom a0tye22)
-              let varSolution = composeVarSolution varSolutionCod varSolutionDom
-              let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionCod tyvar0SolutionDom
+                  (deleteSolutionFromSet0 setToInfer solutionDom)
+                  (applySolution0 solutionDom a0tye12)
+                  (applySolution0 solutionDom a0tye22)
+              let solution = composeSolution0 solutionCod solutionDom
               cast <-
                 makeArrowTypeCast
                   trav
                   x
-                  (A0TyMaybe (applySolution0 varSolution tyvar0Solution a0tye11))
-                  (applySolution0 varSolution tyvar0Solution a0tye12)
-                  (A0TyMaybe (applySolution0 varSolution tyvar0Solution a0tye21))
-                  (applySolution0 varSolutionCod tyvar0Solution <$> castDom)
+                  (A0TyMaybe (applySolution0 solution a0tye11))
+                  (applySolution0 solution a0tye12)
+                  (A0TyMaybe (applySolution0 solution a0tye21))
+                  (applySolution0 solution <$> castDom)
                   castCod
-              pure (cast, varSolution, tyvar0Solution)
+              pure (cast, solution)
         (A0TyInfArrow (x1, a0tye11) a0tye12, A0TyInfArrow (x2, a0tye21) a0tye22withX2) -> do
-          (castDom, varSolutionDom, tyvar0SolutionDom) <- go varsToInfer tyvars0ToInfer a0tye11 a0tye21
+          (castDom, solutionDom) <- go setToInfer a0tye11 a0tye21
           let (x, a0tye22) = (x1, subst0 (A0Var x1) x2 a0tye22withX2)
-          (castCod, varSolutionCod, tyvar0SolutionCod) <-
+          (castCod, solutionCod) <-
             go
-              (varsToInfer \\ Map.keysSet varSolutionDom)
-              (tyvars0ToInfer \\ Map.keysSet tyvar0SolutionDom)
-              (applySolution0 varSolutionDom tyvar0SolutionDom a0tye12)
-              (applySolution0 varSolutionDom tyvar0SolutionDom a0tye22)
-          let varSolution = composeVarSolution varSolutionCod varSolutionDom
-          let tyvar0Solution = composeTypeVar0Solution tyvar0SolutionCod tyvar0SolutionDom
+              (deleteSolutionFromSet0 setToInfer solutionDom)
+              (applySolution0 solutionDom a0tye12)
+              (applySolution0 solutionDom a0tye22)
+          let solution = composeSolution0 solutionCod solutionDom
           -- We can use the same cast function as `A0TyArrow`:
           cast <-
             makeArrowTypeCast
               trav
               x
-              (applySolution0 varSolution tyvar0Solution a0tye11)
-              (applySolution0 varSolution tyvar0Solution a0tye12)
-              (applySolution0 varSolution tyvar0Solution a0tye21)
-              (applySolution0 varSolutionCod tyvar0SolutionCod <$> castDom)
+              (applySolution0 solution a0tye11)
+              (applySolution0 solution a0tye12)
+              (applySolution0 solution a0tye21)
+              (applySolution0 solutionCod <$> castDom)
               castCod
-          pure (cast, varSolution, tyvar0Solution)
+          pure (cast, solution)
         (A0TyCode a1tye1, A0TyCode a1tye2) -> do
-          (eq, varSolution, _tyvar1Solution) <- makeEquation1 trav loc datatyEnv varsToInfer Set.empty a1tye1 a1tye2
+          (eq, Solution1 varSolution tyvar1Solution) <-
+            makeEquation1 trav loc datatyEnv (SetToInfer1 varsToInfer tyvars1ToInfer) a1tye1 a1tye2
           let tyvar0Solution = Map.empty
-          pure (A0TyEqAssert loc <$> eq, varSolution, tyvar0Solution)
+          pure (A0TyEqAssert loc <$> eq, Solution0 varSolution tyvar0Solution tyvar1Solution)
         (_, _) ->
           typeError trav $ TypeContradictionAtStage0 spanInFile a0tye1 a0tye2
 
@@ -322,16 +327,28 @@ makeAssertiveCast trav loc datatyEnv =
           x <- AssVarStatic <$> generateFreshVar Nothing
           pure $ Just (A0Lam Nothing (x, strictify a0tye1) (A0RefinementAssert loc a0ePred2 (A0Var x)))
 
+makeAssertiveCast' :: forall trav. trav -> Span -> DatatypeEnv -> Ass0TypeExpr -> Ass0TypeExpr -> M trav (Maybe Ass0Expr)
+makeAssertiveCast' trav loc datatyEnv a0tyeSynth a0tyeReq = do
+  (cast, _solution) <-
+    makeAssertiveCast
+      trav
+      loc
+      datatyEnv
+      (SetToInfer0 Set.empty Set.empty Set.empty)
+      a0tyeSynth
+      a0tyeReq
+  pure cast
+
 -- | The core part of the cast insertion for stage 1.
-makeEquation1 :: forall trav. trav -> Span -> DatatypeEnv -> Set AssVar -> Set AssTypeVar -> Ass1TypeExpr -> Ass1TypeExpr -> M trav (Maybe Type1Equation, VarSolution, TypeVar1Solution)
-makeEquation1 trav loc datatyEnv varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whole = do
+makeEquation1 :: forall trav. trav -> Span -> DatatypeEnv -> SetToInfer1 -> Ass1TypeExpr -> Ass1TypeExpr -> M trav (Maybe Type1Equation, Solution1)
+makeEquation1 trav loc datatyEnv setToInferInit a1tye1Whole a1tye2Whole = do
   TypecheckConfig {optimizeTrivialAssertion} <- askConfig
   spanInFile <- askSpanInFile loc
-  case go varsToInferInit tyvars1ToInferInit a1tye1Whole a1tye2Whole of
-    Right (trivial, ty1eq, varSolution, tyvar1Solution) ->
+  case go setToInferInit a1tye1Whole a1tye2Whole of
+    Right (trivial, ty1eq, solution) ->
       if trivial && optimizeTrivialAssertion
-        then pure (Nothing, varSolution, tyvar1Solution)
-        else pure (Just ty1eq, varSolution, tyvar1Solution)
+        then pure (Nothing, solution)
+        else pure (Just ty1eq, solution)
     Left () ->
       typeError trav $ TypeContradictionAtStage1 spanInFile a1tye1Whole a1tye2Whole
   where
@@ -341,38 +358,38 @@ makeEquation1 trav loc datatyEnv varsToInferInit tyvars1ToInferInit a1tye1Whole 
         A0Var x | x `elem` varsToInfer -> (True, a0e1, Map.singleton x (a0e1, a0tye1))
         _ -> (alphaEquivalent a0e1 a0e2, a0e2, Map.empty)
 
-    go :: Set AssVar -> Set AssTypeVar -> Ass1TypeExpr -> Ass1TypeExpr -> Either () (Bool, Type1Equation, VarSolution, TypeVar1Solution)
-    go varsToInfer tyvars1ToInfer a1tye1 a1tye2 =
+    go :: SetToInfer1 -> Ass1TypeExpr -> Ass1TypeExpr -> Either () (Bool, Type1Equation, Solution1)
+    go setToInfer@(SetToInfer1 varsToInfer tyvars1ToInfer) a1tye1 a1tye2 =
       case (a1tye1, a1tye2) of
         (A1TyVar atyvar1, _)
           | atyvar1 `elem` tyvars1ToInfer ->
-              pure (True, makeTrivialEquationFromType1 a1tye2, Map.empty, Map.singleton atyvar1 a1tye2)
+              pure (True, makeTrivialEquationFromType1 a1tye2, Solution1 Map.empty (Map.singleton atyvar1 a1tye2))
         (_, A1TyVar atyvar2)
           | atyvar2 `elem` tyvars1ToInfer ->
-              pure (True, makeTrivialEquationFromType1 a1tye1, Map.empty, Map.singleton atyvar2 a1tye1)
+              pure (True, makeTrivialEquationFromType1 a1tye1, Solution1 Map.empty (Map.singleton atyvar2 a1tye1))
         (A1TyVar atyvar1, A1TyVar atyvar2)
           | atyvar1 == atyvar2 ->
               -- If either `a0tye1` or `a0tye2` is of the form `A0TyVar atyvar`
               -- such that `atyvar` is tracked by the type environment and thereby is not for inference,
               -- then only exact equality is allowed:
-              pure (True, makeTrivialEquationFromType1 a1tye1, Map.empty, Map.empty)
+              pure (True, makeTrivialEquationFromType1 a1tye1, Solution1 Map.empty Map.empty)
         (A1TyPrim a1tyPrim1, A1TyPrim a1tyPrim2) ->
           case (a1tyPrim1, a1tyPrim2) of
             (A1TyPrimBase tyPrimBase1, A1TyPrimBase tyPrimBase2) ->
               if tyPrimBase1 == tyPrimBase2
-                then pure (True, TyEq1Prim (TyEq1PrimBase tyPrimBase1), Map.empty, Map.empty)
+                then pure (True, TyEq1Prim (TyEq1PrimBase tyPrimBase1), Solution1 Map.empty Map.empty)
                 else Left ()
             (A1TyTensor a0eList1, A1TyTensor a0eList2) -> do
               (trivial, listEq, varSolution) <- goList varsToInfer a0eList1 a0eList2
-              pure (trivial, TyEq1Prim (TyEq1Tensor listEq), varSolution, Map.empty)
+              pure (trivial, TyEq1Prim (TyEq1Tensor listEq), Solution1 varSolution Map.empty)
             (_, _) ->
               Left ()
         (A1TyList a1tye1elem, A1TyList a1tye2elem) -> do
-          (trivial, ty1eqElem, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1elem a1tye2elem
-          pure (trivial, TyEq1List ty1eqElem, varSolution, tyvar1Solution)
+          (trivial, ty1eqElem, solution) <- go setToInfer a1tye1elem a1tye2elem
+          pure (trivial, TyEq1List ty1eqElem, solution)
         (A1TyMaybe a1tye1elem, A1TyMaybe a1tye2elem) -> do
-          (trivial, ty1eqElem, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1elem a1tye2elem
-          pure (trivial, TyEq1Maybe ty1eqElem, varSolution, tyvar1Solution)
+          (trivial, ty1eqElem, solution) <- go setToInfer a1tye1elem a1tye2elem
+          pure (trivial, TyEq1Maybe ty1eqElem, solution)
         (A1TyData datatyId1 a1datatyArgs1, A1TyData datatyId2 a1datatyArgs2) ->
           if datatyId1 == datatyId2
             then case Map.lookup datatyId1 datatyEnv of
@@ -381,30 +398,27 @@ makeEquation1 trav loc datatyEnv varsToInferInit tyvars1ToInferInit a1tye1Whole 
                   Just zipped1 ->
                     case zipExactMay zipped1 a1datatyArgs2 of
                       Just zipped -> do
-                        ((_, _, trivialRet, varSolutionRet, tyvar1SolutionRet), datatyArg1eqs) <-
+                        ((_, trivialRet, solutionRet), datatyArg1eqs) <-
                           mapAccumM
-                            ( \(varsToInfer', tyvars1ToInfer', trivial', varSolution', tyvar1Solution') ((a1datatyArg1, a1tyParam), a1datatyArg2) -> do
-                                (trivial, datatyArg1eq, varSolution, tyvar1Solution) <-
+                            ( \(setToInfer', trivial', solution') ((a1datatyArg1, a1tyParam), a1datatyArg2) -> do
+                                (trivial, datatyArg1eq, solution) <-
                                   goDatatyArg
                                     a1tyParam
-                                    varsToInfer'
-                                    tyvars1ToInfer'
-                                    (applySolution1 varSolution' tyvar1Solution' a1datatyArg1)
-                                    (applySolution1 varSolution' tyvar1Solution' a1datatyArg2)
+                                    setToInfer'
+                                    (applySolution1 solution' a1datatyArg1)
+                                    (applySolution1 solution' a1datatyArg2)
                                 pure
-                                  ( ( varsToInfer' \\ Map.keysSet varSolution,
-                                      tyvars1ToInfer' \\ Map.keysSet tyvar1Solution,
+                                  ( ( deleteSolutionFromSet1 setToInfer' solution,
                                       trivial' && trivial,
-                                      composeVarSolution varSolution' varSolution,
-                                      composeTypeVar1Solution tyvar1Solution' tyvar1Solution
+                                      composeSolution1 solution' solution
                                     ),
                                     datatyArg1eq
                                   )
                             )
-                            (varsToInfer, tyvars1ToInfer, True, Map.empty, Map.empty)
+                            (setToInfer, True, Solution1 Map.empty Map.empty)
                             zipped
-                        let datatyArg1eqsRet = applySolution1 varSolutionRet tyvar1SolutionRet <$> datatyArg1eqs
-                        pure (trivialRet, TyEq1Data datatyId1 datatyArg1eqsRet, varSolutionRet, tyvar1SolutionRet)
+                        let datatyArg1eqsRet = applySolution1 solutionRet <$> datatyArg1eqs
+                        pure (trivialRet, TyEq1Data datatyId1 datatyArg1eqsRet, solutionRet)
                       Nothing ->
                         Left ()
                   Nothing ->
@@ -418,102 +432,92 @@ makeEquation1 trav loc datatyEnv varsToInferInit tyvars1ToInferInit a1tye1Whole 
             case TwoOrMore.zipExact a1tyes1 a1tyes2 of
               Just zipped' -> pure zipped'
               Nothing -> Left ()
-          ((_, _, trivialRet, varSolutionRet, tyvar1SolutionRet), ty1eqs) <-
+          ((_, trivialRet, solutionRet), ty1eqs) <-
             mapAccumM
-              ( \(varsToInfer', tyvars1ToInfer', trivial', varSolution', tyvar1Solution') (a1tye1', a1tye2') -> do
-                  (trivial, ty1eq, varSolution, tyvar1Solution) <-
+              ( \(setToInfer', trivial', solution') (a1tye1', a1tye2') -> do
+                  (trivial, ty1eq, solution) <-
                     go
-                      varsToInfer'
-                      tyvars1ToInfer'
-                      (applySolution1 varSolution' tyvar1Solution' a1tye1')
-                      (applySolution1 varSolution' tyvar1Solution' a1tye2')
+                      setToInfer'
+                      (applySolution1 solution' a1tye1')
+                      (applySolution1 solution' a1tye2')
                   pure
-                    ( ( varsToInfer' \\ Map.keysSet varSolution,
-                        tyvars1ToInfer' \\ Map.keysSet tyvar1Solution,
+                    ( ( deleteSolutionFromSet1 setToInfer' solution,
                         trivial' && trivial,
-                        composeVarSolution varSolution' varSolution,
-                        composeTypeVar1Solution tyvar1Solution' tyvar1Solution
+                        composeSolution1 solution' solution
                       ),
                       ty1eq
                     )
               )
-              (varsToInfer, tyvars1ToInfer, True, Map.empty, Map.empty)
+              (setToInfer, True, Solution1 Map.empty Map.empty)
               zipped
-          let ty1eqsRet = applySolution1 varSolutionRet tyvar1SolutionRet <$> ty1eqs
-          pure (trivialRet, TyEq1Product ty1eqsRet, varSolutionRet, tyvar1SolutionRet)
+          let ty1eqsRet = applySolution1 solutionRet <$> ty1eqs
+          pure (trivialRet, TyEq1Product ty1eqsRet, solutionRet)
         (A1TyRecord ra1ty1, A1TyRecord ra1ty2) -> do
           rpair <-
             if Map.keysSet ra1ty1 == Map.keysSet ra1ty2
               then pure $ Map.intersectionWith (,) ra1ty1 ra1ty2
               else Left ()
-          ((_, _, trivialRet, varSolutionRet, tyvar1SolutionRet), rty1eq) <-
+          ((_, trivialRet, solutionRet), rty1eq) <-
             mapAccumM
-              ( \(varsToInfer', tyvars1ToInfer', trivial', varSolution', tyvar1Solution') (a1tye1', a1tye2') -> do
-                  (trivial, ty1eq, varSolution, tyvar1Solution) <-
+              ( \(setToInfer', trivial', solution') (a1tye1', a1tye2') -> do
+                  (trivial, ty1eq, solution) <-
                     go
-                      varsToInfer'
-                      tyvars1ToInfer'
-                      (applySolution1 varSolution' tyvar1Solution' a1tye1')
-                      (applySolution1 varSolution' tyvar1Solution' a1tye2')
+                      setToInfer'
+                      (applySolution1 solution' a1tye1')
+                      (applySolution1 solution' a1tye2')
                   pure
-                    ( ( varsToInfer' \\ Map.keysSet varSolution,
-                        tyvars1ToInfer' \\ Map.keysSet tyvar1Solution,
+                    ( ( deleteSolutionFromSet1 setToInfer' solution,
                         trivial' && trivial,
-                        composeVarSolution varSolution' varSolution,
-                        composeTypeVar1Solution tyvar1Solution' tyvar1Solution
+                        composeSolution1 solution' solution
                       ),
                       ty1eq
                     )
               )
-              (varsToInfer, tyvars1ToInfer, True, Map.empty, Map.empty)
+              (setToInfer, True, Solution1 Map.empty Map.empty)
               rpair
-          let rty1eqRet = applySolution1 varSolutionRet tyvar1SolutionRet <$> rty1eq
-          pure (trivialRet, TyEq1Record rty1eqRet, varSolutionRet, tyvar1SolutionRet)
+          let rty1eqRet = applySolution1 solutionRet <$> rty1eq
+          pure (trivialRet, TyEq1Record rty1eqRet, solutionRet)
         (A1TyArrow labelOpt1 a1tye11 a1tye12, A1TyArrow labelOpt2 a1tye21 a1tye22) -> do
           if labelOpt1 /= labelOpt2
             then
               Left ()
             else do
-              (trivial1, ty1eqDom, varSolution1, tyvar1Solution1) <- go varsToInfer tyvars1ToInfer a1tye11 a1tye21
-              (trivial2, ty1eqCod, varSolution2, tyvar1Solution2) <-
+              (trivialDom, ty1eqDom, solutionDom) <- go setToInfer a1tye11 a1tye21
+              (trivialCod, ty1eqCod, solutionCod) <-
                 go
-                  (varsToInfer \\ Map.keysSet varSolution1)
-                  (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
-                  a1tye12
-                  (applyVarSolution varSolution1 a1tye22)
-              let varSolution = composeVarSolution varSolution1 varSolution2
-              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2
-              pure (trivial1 && trivial2, TyEq1Arrow labelOpt1 ty1eqDom ty1eqCod, varSolution, tyvar1Solution)
+                  (deleteSolutionFromSet1 setToInfer solutionDom)
+                  (applySolution1 solutionDom a1tye12)
+                  (applySolution1 solutionDom a1tye22)
+              let solution = composeSolution1 solutionCod solutionDom
+              pure (trivialDom && trivialCod, TyEq1Arrow labelOpt1 ty1eqDom ty1eqCod, solution)
         (A1TyOmsArrow label1 a1tye11 a1tye12, A1TyOmsArrow label2 a1tye21 a1tye22) -> do
           if label1 /= label2
             then
               Left ()
             else do
-              (trivial1, ty1eqDom, varSolution1, tyvar1Solution1) <- go varsToInfer tyvars1ToInfer a1tye11 a1tye21
-              (trivial2, ty1eqCod, varSolution2, tyvar1Solution2) <-
+              (trivialDom, ty1eqDom, solutionDom) <- go setToInfer a1tye11 a1tye21
+              (trivialCod, ty1eqCod, solutionCod) <-
                 go
-                  (varsToInfer \\ Map.keysSet varSolution1)
-                  (tyvars1ToInfer \\ Map.keysSet tyvar1Solution1)
-                  a1tye12
-                  (applyVarSolution varSolution1 a1tye22)
-              let varSolution = composeVarSolution varSolution1 varSolution2
-              let tyvar1Solution = composeTypeVar1Solution tyvar1Solution1 tyvar1Solution2
-              pure (trivial1 && trivial2, TyEq1OmsArrow label1 ty1eqDom ty1eqCod, varSolution, tyvar1Solution)
+                  (deleteSolutionFromSet1 setToInfer solutionDom)
+                  (applySolution1 solutionDom a1tye12)
+                  (applySolution1 solutionDom a1tye22)
+              let solution = composeSolution1 solutionCod solutionDom
+              pure (trivialDom && trivialCod, TyEq1OmsArrow label1 ty1eqDom ty1eqCod, solution)
         (_, A1TyForAll atyvar2 a1tye22) ->
           -- Not confident. TODO (theory): ensure that this works correctly
-          go varsToInfer (Set.insert atyvar2 tyvars1ToInfer) a1tye1 a1tye22
+          go (SetToInfer1 varsToInfer (Set.insert atyvar2 tyvars1ToInfer)) a1tye1 a1tye22
         (_, _) ->
           Left ()
 
-    goDatatyArg :: Ass1TypeParam -> Set AssVar -> Set AssTypeVar -> Ass1DatatypeArg -> Ass1DatatypeArg -> Either () (Bool, DatatypeArg1Equation, VarSolution, TypeVar1Solution)
-    goDatatyArg a1tyParam varsToInfer tyvars1ToInfer a1datatyArg1 a1datatyArg2 =
+    goDatatyArg :: Ass1TypeParam -> SetToInfer1 -> Ass1DatatypeArg -> Ass1DatatypeArg -> Either () (Bool, DatatypeArg1Equation, Solution1)
+    goDatatyArg a1tyParam setToInfer@(SetToInfer1 varsToInfer _) a1datatyArg1 a1datatyArg2 =
       case (a1tyParam, a1datatyArg1, a1datatyArg2) of
         (A1TypeParamType _, A1DatatypeArgType a1tye1, A1DatatypeArgType a1tye2) -> do
-          (trivial, ty1eq, varSolution, tyvar1Solution) <- go varsToInfer tyvars1ToInfer a1tye1 a1tye2
-          pure (trivial, DatatypeArgEq1Type ty1eq, varSolution, tyvar1Solution)
+          (trivial, ty1eq, solution) <- go setToInfer a1tye1 a1tye2
+          pure (trivial, DatatypeArgEq1Type ty1eq, solution)
         (A1TypeParamVal0 _atyvar a0tye, A1DatatypeArgVal0 a0e1, A1DatatypeArgVal0 a0e2) -> do
           let (trivial, a0e2', varSolution) = checkExprArgs varsToInfer (a0e1, a0tye) a0e2
-          pure (trivial, DatatypeArgEq1Val0 (a0e1, a0e2'), varSolution, Map.empty)
+          pure (trivial, DatatypeArgEq1Val0 (a0e1, a0e2'), Solution1 varSolution Map.empty)
         (_, _, _) ->
           Left ()
 
@@ -554,3 +558,15 @@ makeEquation1 trav loc datatyEnv varsToInferInit tyvars1ToInferInit a1tye1Whole 
           let trivial = alphaEquivalent a0eList1 a0eList2
           let listEq = ListEqByWhole a0eList1 a0eList2
           pure (trivial, listEq, Map.empty)
+
+makeEquation1' :: forall trav. trav -> Span -> DatatypeEnv -> Ass1TypeExpr -> Ass1TypeExpr -> M trav (Maybe Type1Equation)
+makeEquation1' trav loc datatyEnv a1tyeSynth a1tyeReq = do
+  (eq, _solution) <-
+    makeEquation1
+      trav
+      loc
+      datatyEnv
+      (SetToInfer1 Set.empty Set.empty)
+      a1tyeSynth
+      a1tyeReq
+  pure eq

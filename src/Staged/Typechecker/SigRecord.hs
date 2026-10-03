@@ -3,6 +3,7 @@ module Staged.Typechecker.SigRecord
     Ass1Metadata (..),
     AssPersMetadata (..),
     ValEntry (..),
+    Ass0TypeParam (..),
     Ass1TypeParam (..),
     TypeEntry (..),
     DatatypeEntry (..),
@@ -15,8 +16,9 @@ module Staged.Typechecker.SigRecord
     findConstructor,
     findModule,
     singletonVal,
-    singletonTypeAlias,
-    singletonTypeData,
+    singletonTypeAlias0,
+    singletonTypeAlias1,
+    singletonTypeData1,
     singletonModule,
     intersection,
     union,
@@ -54,12 +56,15 @@ data ValEntry
   | Ass1Entry Ass1TypeExpr (Either Ass1Metadata StaticVar)
   | AssPersEntry AssPersTypeExpr AssPersMetadata
 
+newtype Ass0TypeParam = A0TypeParamType AssTypeVar
+
 data Ass1TypeParam
   = A1TypeParamType AssTypeVar
   | A1TypeParamVal0 AssVar Ass0TypeExpr
 
 data TypeEntry
-  = Ass1TypeAlias [Ass1TypeParam] Ass1TypeExpr
+  = Ass0TypeAlias [Ass0TypeParam] Ass0TypeExpr
+  | Ass1TypeAlias [Ass1TypeParam] Ass1TypeExpr
   | Ass1TypeData [Ass1TypeParam] DatatypeId
 
 data DatatypeEntry = DatatypeEntry
@@ -106,12 +111,16 @@ findModule m sigr = Map.lookup m sigr.sigModules
 singletonVal :: Var -> ValEntry -> SigRecord
 singletonVal var entry = empty {sigVals = Map.singleton var entry}
 
-singletonTypeAlias :: TypeName -> [Ass1TypeParam] -> Ass1TypeExpr -> SigRecord
-singletonTypeAlias tyName a1tyParams a1tye =
+singletonTypeAlias0 :: TypeName -> [Ass0TypeParam] -> Ass0TypeExpr -> SigRecord
+singletonTypeAlias0 tyName a0tyParams a0tye =
+  empty {sigTypes = Map.singleton tyName (Ass0TypeAlias a0tyParams a0tye)}
+
+singletonTypeAlias1 :: TypeName -> [Ass1TypeParam] -> Ass1TypeExpr -> SigRecord
+singletonTypeAlias1 tyName a1tyParams a1tye =
   empty {sigTypes = Map.singleton tyName (Ass1TypeAlias a1tyParams a1tye)}
 
-singletonTypeData :: TypeName -> [Ass1TypeParam] -> DatatypeId -> Map ConstructorName [Ass1TypeExpr] -> SigRecord
-singletonTypeData tyName a1tyParams datatyId ctormap =
+singletonTypeData1 :: TypeName -> [Ass1TypeParam] -> DatatypeId -> Map ConstructorName [Ass1TypeExpr] -> SigRecord
+singletonTypeData1 tyName a1tyParams datatyId ctormap =
   empty
     { sigTypes = Map.singleton tyName (Ass1TypeData a1tyParams datatyId),
       sigDatatypes = Map.singleton datatyId (DatatypeEntry a1tyParams ctormap),

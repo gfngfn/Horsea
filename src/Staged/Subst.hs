@@ -135,8 +135,8 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
       unionPairs [frees a0ePred, frees a0eTarget]
     A0LamType _atyvar1 a0e2 ->
       frees a0e2
-    A0AppType a0e1 a0tye2 ->
-      unionPairs [frees a0e1, frees a0tye2]
+    A0AppType a0e1 atyapp2 ->
+      unionPairs [frees a0e1, frees atyapp2]
 
   subst s = \case
     A0Literal alit ->
@@ -248,13 +248,28 @@ instance (Ord sv) => HasVar sv Ass0ExprF where
         go a0ePred1 a0ePred2 && go a0eTarget1 a0eTarget2
       (A0LamType {}, A0LamType {}) ->
         False -- TODO (enhance): `alphaEquivalent` for `A0LamType`
-      (A0AppType a0e11 a0tye12, A0AppType a0e21 a0tye22) ->
-        go a0e11 a0e21 && go a0tye12 a0tye22
+      (A0AppType a0e11 atyapp12, A0AppType a0e21 atyapp22) ->
+        go a0e11 a0e21 && go atyapp12 atyapp22
       (_, _) ->
         False
     where
       go :: forall bf. (HasVar sv bf) => bf sv -> bf sv -> Bool
       go = alphaEquivalent
+
+instance (Ord sv) => HasVar sv TypeAppF where
+  frees = \case
+    TypeApp0 sa0tye -> frees sa0tye
+    TypeApp1 a1tye -> frees a1tye
+
+  subst s = \case
+    TypeApp0 sa0tye -> TypeApp0 (subst s sa0tye)
+    TypeApp1 a1tye -> TypeApp1 (subst s a1tye)
+
+  alphaEquivalent atyapp1 atyapp2 =
+    case (atyapp1, atyapp2) of
+      (TypeApp0 sa0tye1, TypeApp0 sa0tye2) -> alphaEquivalent sa0tye1 sa0tye2
+      (TypeApp1 a1tye1, TypeApp1 a1tye2) -> alphaEquivalent a1tye1 a1tye2
+      (_, _) -> False
 
 instance (Ord sv) => HasVar sv Ass0BranchF where
   frees (A0Branch a0pat a0e) =
