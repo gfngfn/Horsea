@@ -184,15 +184,22 @@ instantiateGuidedByAppContext1' trav loc datatyEnv =
       case (appCtx, a1tye) of
         ([], _) ->
           pure (Pure a1tye, Solution1 Map.empty Map.empty)
-        (_ : _, A1TyForAll atyvar a1tye2) -> do
-          (result', Solution1 varSolution' tyvar1Solution') <-
-            go (SetToInfer1 varsToInfer (Set.insert atyvar tyvars1ToInfer)) appCtx a1tye2
-          case Map.lookup atyvar tyvar1Solution' of
-            Just a1tyeInferred ->
-              pure (InsertInferredType1 a1tyeInferred result', Solution1 varSolution' (Map.delete atyvar tyvar1Solution'))
-            Nothing -> do
-              spanInFile <- askSpanInFile loc
-              typeError trav $ CannotInferTypeVariableInstance1 spanInFile atyvar appCtx a1tye
+        (appCtxEntry : appCtx', A1TyForAll atyvar a1tye2) -> do
+          case appCtxEntry of
+            AppArgInfTypeGiven1 a1tye1' -> do
+              (result', solution') <-
+                go setToInfer appCtx' (tySubst1 a1tye1' atyvar a1tye2)
+              pure (Instantiated1 result', solution')
+            _ -> do
+              -- Recurses by using `appCtx`, not `appCtx'`:
+              (result', Solution1 varSolution' tyvar1Solution') <-
+                go (SetToInfer1 varsToInfer (Set.insert atyvar tyvars1ToInfer)) appCtx a1tye2
+              case Map.lookup atyvar tyvar1Solution' of
+                Just a1tyeInferred ->
+                  pure (InsertInferredType1 a1tyeInferred result', Solution1 varSolution' (Map.delete atyvar tyvar1Solution'))
+                Nothing -> do
+                  spanInFile <- askSpanInFile loc
+                  typeError trav $ CannotInferTypeVariableInstance1 spanInFile atyvar appCtx a1tye
         (AppArg1 labelOpt' a1tye1' : appCtx', A1TyArrow labelOpt a1tye1 a1tye2) -> do
           if labelOpt' /= labelOpt
             then do
