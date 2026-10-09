@@ -8,6 +8,22 @@ type BBox = (|
   class_confidence : Float
 |)
 
+type ~Darknet = String (* TODO *)
+
+module Darknet = struct
+  val ~parse_config : String -> Darknet
+    external (builtin = "darknet__parse_config", surface = "parse_config")
+  val ~build_model :
+    {shape : List Nat} ->
+    Darknet ->
+    &(VarStore -> Tensor %shape -> #is_training Bool -> Tensor %shape)
+    external (builtin = "darknet__build_model", surface = "build_model")
+  val ~width : Darknet -> Nat
+    external (builtin = "darknet__width", surface = "width")
+  val ~height : Darknet -> Nat
+    external (builtin = "darknet__height", surface = "height")
+end
+
 module CocoNames = struct
   val ~names = [] as List String (* TODO *)
 end

@@ -864,6 +864,26 @@ module TextHelper = struct
 end
 
 module TorchVision = struct
+  module Image = struct
+    val ~gen_resize :
+      {image_shape : {s : List Nat | List.length s == 4 && List.nth 1 s == 3}} ->
+      #width (width : Nat) ->
+      #height (height : Nat) ->
+      &(Tensor %image_shape ->
+        Tensor %[List.nth 0 image_shape, List.nth 1 image_shape, height, width]
+      )
+      external (builtin = "torch_vision__image__gen_resize", surface = "resize")
+    val ~gen_load_image :
+      {image_shape : {s : List Nat | List.nth 0 s == 1 && List.nth 1 s == 3}} ->
+      String ->
+      &(Tensor %image_shape)
+      external (builtin = "torch_vision__image__gen_load_image", surface = "load_image")
+    val ~gen_write_image :
+      {image_shape : {s : List Nat | List.nth 0 s == 1 && List.nth 1 s == 3}} ->
+      #filename String ->
+      &(Tensor %image_shape -> Unit)
+      external (builtin = "torch_vision__image__gen_write_image", surface = "write_image")
+  end
   module Resnet = struct
     val ~gen_resnet18 :
       {image_shape : {s : List Nat | List.length s == 4 && List.nth 1 s == 3}} ->

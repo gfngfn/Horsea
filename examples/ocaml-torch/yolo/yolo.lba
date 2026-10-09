@@ -2,7 +2,6 @@
      https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/yolo-v3.ot
 *)
 
-let config_filename = "examples/yolo/yolo-v3.cfg" in
 let classes = CocoNames.names in
 
 (* [image] is the original image. [width] and [height] are the model [width] on
@@ -111,12 +110,14 @@ let report {m : Nat} {n : {k : Nat | k >= 5}} {initial_height : Nat} {initial_wi
           ymin
           ymax
       );
-      Image.write_image (~Tensor.gen_mult image (Tensor.f 255.0)) #filename "output.jpg"
+      ~(Image.gen_write_image #filename "output.jpg") (~Tensor.gen_mult image (Tensor.f 255.0))
   )
 in
 
-&(let weight_file = "yolo-v3.ot" in
-  let image_file = "input.png" in
+let image_file = "input.png" in
+
+&(let config_filename = "examples/yolo/yolo-v3.cfg" in
+  let weight_file = "yolo-v3.ot" in
 
   (* Build the model. *)
   let vs = VarStore.create #name "rn" #device Device.cpu () in
@@ -127,11 +128,11 @@ in
 
   (* Load the image. *)
   let (width, height) = (Darknet.width darknet, Darknet.height darknet) in
-  let image : Tensor %[1, 3, 224, 224] = Image.load_image image_file |> Or_error.ok_exn in
-  let resized_image = Image.resize image #width width #height height in
-  let resized_image = let open Tensor in to_type resized_image #type (T Float) / f 255.0 in
+  let image = ~(Image.gen_load_image {[1, 3, 224, 224]} image_file) in
+  let resized_image = ~(TorchVision.Image.gen_resize #width width #height height) image in
+  let resized_image = ~Tensor.gen_div resized_image (Tensor.f 255.0) in
 
   (* Apply the model. *)
-  let predictions = Layer.forward_ model resized_image #is_training false in
+  let predictions = ~Layer.gen_forward_ model resized_image #is_training false in
   Tensor.squeeze predictions |> ~(gen_report #height height #width width) #image image
 )
