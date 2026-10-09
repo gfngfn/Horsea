@@ -39,6 +39,7 @@ TESTS_STAGED_COMPILE=(
     examples/ocaml-torch/mnist/linear_as.lba
     examples/ocaml-torch/pretrained/finetuning.lba
     examples/ocaml-torch/pretrained/predict.lba
+    examples/ocaml-torch/yolo/yolo.lba
 )
 TESTS_STAGED_FAILURE=(
     examples/failure/error-bracket.lba
@@ -93,6 +94,7 @@ declare -A DEPENDENCIES=(
   ["examples/small/maybe.lba"]="examples/small/option.lbam"
   ["examples/small/mat.lba"]="examples/small/rect-mat.lbam"
   ["examples/small/mat.hrs"]="examples/small/rect-mat.lbam"
+  ["examples/ocaml-torch/yolo/yolo.lba"]="examples/ocaml-torch/yolo/defs.lbam"
 )
 STUB=stub.lbam
 

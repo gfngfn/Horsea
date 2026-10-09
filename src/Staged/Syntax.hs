@@ -6,6 +6,7 @@ module Staged.Syntax
     AssTypeVar (..),
     AssLiteralF (..),
     Ass0ExprF (..),
+    TypeAppF (..),
     Ass0BranchF (..),
     Ass0PatternF (..),
     Ass1ExprF (..),
@@ -21,6 +22,7 @@ module Staged.Syntax
     StrictAss0ValF (..),
     StrictAss0DatatypeArgF (..),
     StrictAss0TypeExprF (..),
+    ForAllBinder (..),
     AssPrimBaseType (..),
     validatePrimBaseType,
     Ass0PrimType (..),
@@ -35,6 +37,7 @@ module Staged.Syntax
     Ass1ValF (..),
     Ass1BranchValF (..),
     Ass0TypeValF (..),
+    Ass0DatatypeArgValF (..),
     Ass1TypeValF (..),
     Ass1DatatypeArgValF (..),
     Ass1PrimTypeVal (..),
@@ -77,6 +80,7 @@ module Staged.Syntax
     Ass1Val,
     Ass1BranchVal,
     Ass0TypeVal,
+    Ass0DatatypeArgVal,
     Ass1TypeVal,
     Ass1DatatypeArgVal,
     Ass1PrimType,
@@ -156,8 +160,13 @@ data Ass0ExprF sv
   | -- | Assertions for refinement predicates, where the first expression is a predicate,
     -- and the second is a target expression of the assertion.
     A0RefinementAssert Span (Ass0ExprF sv) (Ass0ExprF sv)
-  | A0LamType AssTypeVar (Ass0ExprF sv)
-  | A0AppType (Ass0ExprF sv) (StrictAss0TypeExprF sv)
+  | A0LamType ForAllBinder (Ass0ExprF sv)
+  | A0AppType (Ass0ExprF sv) (TypeAppF sv)
+  deriving stock (Eq, Show, Functor)
+
+data TypeAppF sv
+  = TypeApp0 (StrictAss0TypeExprF sv)
+  | TypeApp1 (Ass1TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 data Ass0BranchF sv = A0Branch (Ass0PatternF sv) (Ass0ExprF sv)
@@ -242,7 +251,7 @@ data Ass0TypeExprF sv
     A0TyOmsArrow Label (Maybe (AssVarF sv), Ass0TypeExprF sv) (Ass0TypeExprF sv)
   | A0TyCode (Ass1TypeExprF sv)
   | -- | Polymorphic types.
-    A0TyForAll AssTypeVar (Ass0TypeExprF sv)
+    A0TyForAll ForAllBinder (Ass0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-0, order-0 term values.
@@ -274,8 +283,13 @@ data StrictAss0TypeExprF sv
     SA0TyArrow (Maybe (AssVarF sv), StrictAss0TypeExprF sv) (StrictAss0TypeExprF sv)
   | SA0TyCode (Ass1TypeExprF sv)
   | -- | Polymorphic types.
-    SA0TyForAll AssTypeVar (StrictAss0TypeExprF sv)
+    SA0TyForAll ForAllBinder (StrictAss0TypeExprF sv)
   deriving stock (Eq, Show, Functor)
+
+data ForAllBinder
+  = ForAll0 AssTypeVar
+  | ForAll1 AssTypeVar
+  deriving stock (Eq, Show)
 
 data AssPrimBaseType
   = ATyPrimInt
@@ -354,7 +368,7 @@ persistentTypeTo0 = \case
   APersTyProduct aPtyes -> A0TyProduct (fmap persistentTypeTo0 aPtyes)
   APersTyRecord aPrty -> A0TyRecord (fmap persistentTypeTo0 aPrty)
   APersTyArrow labelOpt aPtye1 aPtye2 -> A0TyArrow labelOpt (Nothing, persistentTypeTo0 aPtye1) (persistentTypeTo0 aPtye2)
-  APersTyForAll atyvar aPtye -> A0TyForAll atyvar (persistentTypeTo0 aPtye)
+  APersTyForAll atyvar aPtye -> A0TyForAll (ForAll0 atyvar) (persistentTypeTo0 aPtye)
 
 persistentTypeTo1 :: AssPersTypeExpr -> Ass1TypeExprF sv
 persistentTypeTo1 = \case
@@ -388,7 +402,7 @@ data Ass0ValF sv
   | -- | Possibly partially applied built-in functions.
     A0ValPartialBuiltInApp (Ass0PartialBuiltInApp (Ass0ValF sv))
   | -- | Type abstraction closures.
-    A0ValLamType AssTypeVar (Ass0ExprF sv) EvalEnv
+    A0ValLamType ForAllBinder (Ass0ExprF sv) EvalEnv
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-1 term values.
@@ -418,6 +432,8 @@ data Ass1BranchValF sv = A1ValBranch (Ass1PatternF sv) (Ass1ValF sv)
 data Ass0TypeValF sv
   = -- | Primitive types possibly equipped with a refinement predicate.
     A0TyValPrim Ass0PrimType (Maybe (Ass0ValF sv))
+  | -- | Datatypes.
+    A0TyValData DatatypeId [Ass0DatatypeArgValF sv]
   | -- | List types possibly equipped with a refinement predicate.
     A0TyValList (Ass0TypeValF sv) (Maybe (Ass0ValF sv))
   | A0TyValMaybe (Ass0TypeValF sv)
@@ -425,7 +441,12 @@ data Ass0TypeValF sv
   | A0TyValRecord (Map Label (Ass0TypeValF sv))
   | A0TyValArrow (Maybe (AssVarF sv), Ass0TypeValF sv) (StrictAss0TypeExprF sv)
   | A0TyValCode (Ass1TypeValF sv)
-  | A0TyValForAll AssTypeVar (StrictAss0TypeExprF sv)
+  | A0TyValForAll ForAllBinder (StrictAss0TypeExprF sv)
+  deriving stock (Eq, Show, Functor)
+
+data Ass0DatatypeArgValF sv
+  = A0DatatypeArgValType (Ass0TypeValF sv)
+  | A0DatatypeArgValVal0 (StrictAss0ValF sv)
   deriving stock (Eq, Show, Functor)
 
 -- | The type of stage-1 type values.
@@ -535,7 +556,7 @@ strictify = \case
   A0TyCode a1tye1 -> SA0TyCode a1tye1
   A0TyInfArrow (x1, a0tye1) a0tye2 -> SA0TyArrow (Just x1, strictify a0tye1) (strictify a0tye2)
   A0TyOmsArrow _label (x1opt, a0tye1) a0tye2 -> SA0TyArrow (x1opt, SA0TyMaybe (strictify a0tye1)) (strictify a0tye2)
-  A0TyForAll atyvar a0tye -> SA0TyForAll atyvar (strictify a0tye)
+  A0TyForAll fab a0tye -> SA0TyForAll fab (strictify a0tye)
 
 a0TyVec :: Int -> Ass0PrimType
 a0TyVec n = A0TyTensor [n]
@@ -726,6 +747,8 @@ type Ass1Val = Ass1ValF StaticVar
 type Ass1BranchVal = Ass1BranchValF StaticVar
 
 type Ass0TypeVal = Ass0TypeValF StaticVar
+
+type Ass0DatatypeArgVal = Ass0DatatypeArgValF StaticVar
 
 type Ass1TypeVal = Ass1TypeValF StaticVar
 

@@ -1,0 +1,138 @@
+(* The pre-trained weights can be downloaded here:
+     https://github.com/LaurentMazare/ocaml-torch/releases/download/v0.1-unstable/yolo-v3.ot
+*)
+
+let classes = CocoNames.names in
+
+(* [image] is the original image. [width] and [height] are the model [width] on
+   [height] relative to which bounding boxes have been computed.
+*)
+let gen_report {m : Nat} {n : {k : Nat | k >= 5}} {initial_height : Nat} {initial_width : Nat} #height (height : Nat) #width (width : Nat) =
+  &(fun(predictions : Tensor %[m, n]) ->
+    fun(image : Tensor %[1, 3, initial_height, initial_width]) ->
+      let bboxes =
+        ~Tensor.gen_decompose_dim0 predictions |> List.map (fun (row : Tensor %[n]) ->
+          let predictions = row |> ~Tensor.gen_to_array1 in
+          let confidence = ~(Array.gen_get 4) predictions in
+          if confidence >. confidence_threshold then
+            let xmin = ~(Array.gen_get 0) predictions -. (~(Array.gen_get 2) predictions / 2.0) in
+            let ymin = ~(Array.gen_get 1) predictions -. (~(Array.gen_get 3) predictions / 2.0) in
+            let xmax = ~(Array.gen_get 0) predictions +. (~(Array.gen_get 2) predictions / 2.0) in
+            let ymax = ~(Array.gen_get 1) predictions +. (~(Array.gen_get 3) predictions / 2.0) in
+            let best_class_index =
+              predictions |> ~Array.gen_foldi (fun(index : Index %n) -> fun(max_index : Index %n) -> fun(v : Float) ->
+                if ~Index.gen_to_int index > 5 && ~Array.gen_get_at_runtime max_index predictions <. v then
+                  index
+                else
+                  max_index
+              ) ~(Index.gen_from_int {n} 5)
+            in
+            let class_confidence = ~Array.gen_get_at_runtime best_class_index predictions in
+            let class_index = ~Index.gen_to_int best_class_index - 5 in
+            if class_confidence >. 0.0 then
+              Just (|
+                xmin = xmin,
+                ymin = ymin,
+                xmax = xmax,
+                ymax = ymax,
+                confidence = confidence,
+                class_index = class_index,
+                class_confidence = class_confidence
+              |)
+            else
+              Nothing as Maybe BBox
+          else
+            Nothing as Maybe BBox
+        ) |> List.filter_maybe
+      in
+      let bboxes =
+        (* Group bboxes by class-index. *)
+        bboxes
+          |> List.map (fun (bbox : BBox) -> (bbox.class_index, (bbox.confidence, bbox)))
+          |> IntMap.of_alist_multi
+          |> IntMap.to_alist
+          |> List.concat_map (fun (pair : Int * List (Float * BBox)) ->
+            let (unused, bboxes) = pair in
+            (* NMS suppression. *)
+            let bboxes =
+              bboxes
+                |> List.sort_by (general_compare {type Float * BBox})
+                |> List.rev_map (snd {type Float} {type BBox})
+            in
+            bboxes |> List.fold (fun(acc_bboxes : List BBox) -> fun(bbox : BBox) ->
+              let drop =
+                List.exists
+                  (fun (b : BBox) -> iou b bbox >. nms_threshold)
+                  acc_bboxes
+              in
+              if drop then acc_bboxes else bbox :: acc_bboxes
+            ) ([] as List BBox)
+          )
+      in
+      (* let image = let open Tensor in to_type image #type_ (T Float) / f 255.0 in *)
+      let image = ~Tensor.gen_div image (Tensor.f 255.0) in
+      let resize_and_clamp (v : Float) #initial_max (initial_max : Int) #max (m : Int) =
+        Int.of_float (v *. Float.of_int initial_max / Float.of_int m)
+          |> Int.max 0
+          |> Int.min (initial_max - 1)
+      in
+      bboxes |> List.iter (fun (b : BBox) ->
+        let xmin = resize_and_clamp b.xmin #initial_max ~(lift_int initial_width) #max ~(lift_int width) in
+        let xmax = resize_and_clamp b.xmax #initial_max ~(lift_int initial_width) #max ~(lift_int width) in
+        let ymin = resize_and_clamp b.ymin #initial_max ~(lift_int initial_height) #max ~(lift_int height) in
+        let ymax = resize_and_clamp b.ymax #initial_max ~(lift_int initial_height) #max ~(lift_int height) in
+        let color =
+          ~Array.gen_get_at_runtime
+            (~(Index.gen_by_mod (List.length colors_list)) b.class_index)
+            colors
+        in
+        let color =
+          let open Tensor in
+          ~gen_from_array1 color |> ~(gen_reshape #shape [1, 3, 1, 1])
+        in
+        let draw_rect (xmin : Int) (xmax : Int) (ymin : Int) (ymax : Int) =
+          image
+            |> ~(Tensor.gen_narrow #dim 3) #start xmin #length (xmax - xmin)
+            |> ~(Tensor.gen_narrow #dim 2) #start ymin #length (ymax - ymin)
+            |> ~Tensor.gen_copy_ #src color
+        in
+        draw_rect xmin xmax ymin (Int.min (ymin + 2) ymax);
+        draw_rect xmin xmax (Int.max ymin (ymax - 2)) ymax;
+        draw_rect (Int.max xmin (xmax - 2)) xmax ymin ymax;
+        draw_rect xmin (Int.min (xmin + 2) xmax) ymin ymax;
+        Stdio.printf
+          "%s %.2f %.2f (%d %d %d %d)\n%!"
+          (Array.get (b.class_index) classes)
+          b.confidence
+          b.class_confidence
+          xmin
+          xmax
+          ymin
+          ymax
+      );
+      ~(Image.gen_write_image #filename "output.jpg") (~Tensor.gen_mult image (Tensor.f 255.0))
+  )
+in
+
+let image_file = "input.png" in
+let config_filename = "examples/yolo/yolo-v3.cfg" in
+let weight_file = "yolo-v3.ot" in
+
+let darknet = Darknet.parse_config config_filename in
+let (width, height) = (Darknet.width darknet, Darknet.height darknet) in
+
+&((* Build the model. *)
+  let vs = VarStore.create #name "rn" #device Device.cpu () in
+  let model = ~(Darknet.build_model darknet) vs in
+  Stdio.printf "Loading weights from %s\n%!" weight_file;
+  ~(Serialize.gen_load_multi_ #filename weight_file) #named_tensors (VarStore.all_vars vs);
+
+  (* Load the image. *)
+  let image = ~(Image.gen_load_image {[1, 3, 224, 224]} image_file) in
+  let resized_image = ~(TorchVision.Image.gen_resize #width width #height height) image in
+  let resized_image = ~Tensor.gen_div resized_image (Tensor.f 255.0) in
+
+  (* Apply the model. *)
+  let predictions = ~Layer.gen_forward_ model #is_training false resized_image in
+  Tensor.squeeze predictions |> ~(gen_report #height height #width width) #image image
+)

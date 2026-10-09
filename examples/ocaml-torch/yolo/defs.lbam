@@ -1,0 +1,75 @@
+type BBox = (|
+  xmin : Float,
+  ymin : Float,
+  xmax : Float,
+  ymax : Float,
+  confidence : Float,
+  class_index : Int,
+  class_confidence : Float
+|)
+
+type ~Darknet = String (* TODO *)
+
+module Darknet = struct
+  val ~parse_config : String -> Darknet
+    external (builtin = "darknet__parse_config", surface = "parse_config")
+  val ~build_model :
+    {shape : List Nat} ->
+    {prediction_shape : List Nat} ->
+    Darknet ->
+    &(VarStore -> #is_training Bool -> Tensor %shape -> Tensor %prediction_shape)
+    external (builtin = "darknet__build_model", surface = "build_model")
+  val ~width : Darknet -> Nat
+    external (builtin = "darknet__width", surface = "width")
+  val ~height : Darknet -> Nat
+    external (builtin = "darknet__height", surface = "height")
+end
+
+module CocoNames = struct
+  val ~names = [] as List String (* TODO *)
+end
+
+type Map 'a 'b =
+  | Map
+
+module IntMap = struct
+  val of_alist_multi : forall 'a -> List (Int * 'a) -> Map Int (List 'a)
+    external (builtin = "map__of_alist_multi", surface = "of_alist_multi")
+  val to_alist : forall 'a -> Map Int 'a -> List (Int * 'a)
+    external (builtin = "map__to_alist", surface = "to_alist")
+end
+
+val ~colors_list =
+  [ [0.5, 0.0, 0.5],
+    [0.0, 0.5, 0.5],
+    [0.5, 0.5, 0.0],
+    [0.7, 0.3, 0.0],
+    [0.7, 0.0, 0.3],
+    [0.0, 0.7, 0.3],
+    [0.3, 0.7, 0.0],
+    [0.3, 0.0, 0.7],
+    [0.0, 0.3, 0.7]
+  ]
+
+val colors =
+  ~(Array.gen_of_list
+      ( List.map
+          (fun(ns : List Float) -> Array.gen_of_list (List.map lift_float ns))
+          colors_list
+      )
+  )
+
+val confidence_threshold = 0.5
+val nms_threshold = 0.4
+
+val iou (b1 : BBox) (b2 : BBox) =
+  let b1_area = (b1.xmax -. b1.xmin +. 1.0) *. (b1.ymax -. b1.ymin +. 1.0) in
+  let b2_area = (b2.xmax -. b2.xmin +. 1.0) *. (b2.ymax -. b2.ymin +. 1.0) in
+  let i_xmin = Float.max b1.xmin b2.xmin in
+  let i_xmax = Float.min b1.xmax b2.xmax in
+  let i_ymin = Float.max b1.ymin b2.ymin in
+  let i_ymax = Float.min b1.ymax b2.ymax in
+  let i_area =
+    Float.max 0.0 (i_xmax -. i_xmin +. 1.0) *. Float.max 0.0 (i_ymax -. i_ymin +. 1.0)
+  in
+  i_area / (b1_area +. b2_area -. i_area)

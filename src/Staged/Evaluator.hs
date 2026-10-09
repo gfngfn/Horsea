@@ -324,8 +324,19 @@ reduceBeta a0vFun a0vArg =
 reduceTypeBeta0 :: Ass0Val -> Ass0TypeVal -> M Ass0Val
 reduceTypeBeta0 a0vTypeFun a0tyvArg =
   case a0vTypeFun of
-    A0ValLamType atyvar a0e env ->
+    A0ValLamType (ForAll0 atyvar) a0e env ->
       evalExpr0 (env & updateTypeVals (Map.insert atyvar a0tyvArg)) a0e
+    A0ValPartialBuiltInApp _ ->
+      -- Built-in functions simply ignore type applications. TODO (enhance): make this less ad-hoc
+      pure a0vTypeFun
+    _ ->
+      bug $ NotATypeClosure a0vTypeFun
+
+reduceTypeBeta1 :: Ass0Val -> Ass1TypeVal -> M Ass0Val
+reduceTypeBeta1 a0vTypeFun _a1tyvArg =
+  case a0vTypeFun of
+    A0ValLamType (ForAll1 _atyvar) _a0e _env ->
+      error "TODO: reduceTypeBeta1"
     A0ValPartialBuiltInApp _ ->
       -- Built-in functions simply ignore type applications. TODO (enhance): make this less ad-hoc
       pure a0vTypeFun
@@ -471,12 +482,17 @@ evalExpr0 env = \case
         EvalState {sourceSpec} <- get
         let spanInFile = getSpanInFile sourceSpec loc
         evalError $ RefinementAssertionFailure spanInFile a0vPred a0vTarget
-  A0LamType atyvar1 a0e2 -> do
-    pure $ A0ValLamType atyvar1 a0e2 env
-  A0AppType a0e1 sa0tye2 -> do
+  A0LamType fab1 a0e2 -> do
+    pure $ A0ValLamType fab1 a0e2 env
+  A0AppType a0e1 atyapp2 -> do
     a0v1 <- evalExpr0 env a0e1
-    a0tyv2 <- evalTypeExpr0 env sa0tye2
-    reduceTypeBeta0 a0v1 a0tyv2
+    case atyapp2 of
+      TypeApp0 sa0tye2 -> do
+        a0tyv2 <- evalTypeExpr0 env sa0tye2
+        reduceTypeBeta0 a0v1 a0tyv2
+      TypeApp1 a1tye2 -> do
+        a1tyv2 <- evalTypeExpr1 env a1tye2
+        reduceTypeBeta1 a0v1 a1tyv2
 
 evalExpr1 :: EvalEnv -> Ass1Expr -> M Ass1Val
 evalExpr1 env = \case
@@ -572,8 +588,9 @@ evalTypeExpr0 env = \case
     a0tyv1 <- evalTypeExpr0 env sa0tye1
     maybeVPred <- mapM (evalExpr0 env) maybePred
     pure $ A0TyValList a0tyv1 maybeVPred
-  SA0TyData _datatyId _sa0datatyArgs -> do
-    error "TODO: evalTypeExpr0, SA0TyData"
+  SA0TyData datatyId sa0datatyArgs -> do
+    a0datatyArgVals <- mapM (evalDatatypeArg0 env) sa0datatyArgs
+    pure $ A0TyValData datatyId a0datatyArgVals
   SA0TyMaybe sa0tye1 -> do
     a0tyv1 <- evalTypeExpr0 env sa0tye1
     pure $ A0TyValMaybe a0tyv1
@@ -589,8 +606,13 @@ evalTypeExpr0 env = \case
   SA0TyCode a1tye1 -> do
     a1tyv1 <- evalTypeExpr1 env a1tye1
     pure $ A0TyValCode a1tyv1
-  SA0TyForAll atyvar sa0tye1 -> do
-    pure $ A0TyValForAll atyvar sa0tye1
+  SA0TyForAll fab sa0tye1 -> do
+    pure $ A0TyValForAll fab sa0tye1
+
+evalDatatypeArg0 :: EvalEnv -> StrictAss0DatatypeArg -> M Ass0DatatypeArgVal
+evalDatatypeArg0 env = \case
+  SA0DatatypeArgType sa0tye -> A0DatatypeArgValType <$> evalTypeExpr0 env sa0tye
+  SA0DatatypeArgVal0 a0v -> pure $ A0DatatypeArgValVal0 a0v
 
 evalTypeExpr1 :: EvalEnv -> Ass1TypeExpr -> M Ass1TypeVal
 evalTypeExpr1 env = \case
@@ -674,9 +696,9 @@ unliftVal = \case
   A1ValCase a1v0 a1branchVs ->
     A0Case (unliftVal a1v0) (fmap unliftBranchVal a1branchVs)
   A1ValLamType atyvar1 a1v2 ->
-    A0LamType atyvar1 (unliftVal a1v2)
+    A0LamType (ForAll0 atyvar1) (unliftVal a1v2)
   A1ValAppType a1v1 a1tyv2 ->
-    A0AppType (unliftVal a1v1) (unliftTypeVal a1tyv2)
+    A0AppType (unliftVal a1v1) (TypeApp0 (unliftTypeVal a1tyv2))
 
 unliftBranchVal :: Ass1BranchVal -> Ass0Branch
 unliftBranchVal (A1ValBranch a1pat a1e) =
@@ -728,4 +750,4 @@ unliftTypeVal = \case
   A1TyValOmsArrow _label a1tyv1 a1tyv2 ->
     SA0TyArrow (Nothing, SA0TyMaybe (unliftTypeVal a1tyv1)) (unliftTypeVal a1tyv2)
   A1TyValForAll atyvar a1tyv2 ->
-    SA0TyForAll atyvar (unliftTypeVal a1tyv2)
+    SA0TyForAll (ForAll0 atyvar) (unliftTypeVal a1tyv2)
