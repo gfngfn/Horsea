@@ -940,8 +940,6 @@ module Serialize = struct
   val ~gen_load_multi_ :
     {ns : List Nat} ->
     #filename String ->
-    &(#named_tensors List (String * Tensor %ns) ->
-      Unit
-    )
+    &(#named_tensors List (String * Tensor %ns) -> Unit)
     external (builtin = "serialize__gen_load_multi_", surface = "load_multi_")
 end

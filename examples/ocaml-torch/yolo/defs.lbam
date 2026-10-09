@@ -15,8 +15,9 @@ module Darknet = struct
     external (builtin = "darknet__parse_config", surface = "parse_config")
   val ~build_model :
     {shape : List Nat} ->
+    {prediction_shape : List Nat} ->
     Darknet ->
-    &(VarStore -> Tensor %shape -> #is_training Bool -> Tensor %shape)
+    &(VarStore -> #is_training Bool -> Tensor %shape -> Tensor %prediction_shape)
     external (builtin = "darknet__build_model", surface = "build_model")
   val ~width : Darknet -> Nat
     external (builtin = "darknet__width", surface = "width")
